@@ -1,0 +1,183 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+using MobilePaywall.Web.Filters;
+using MobilePaywall.Web.Models;
+using Cashflow.Client;
+using Cashflow.Message;
+using MobilePaywall.Data;
+using MobilePaywall.Web.Localization;
+using System.IO;
+using System.Reflection;
+using Senti.Diagnostics.Log;
+using MobilePaywall.Web.Log;
+using log4net;
+using Senti.Security;
+
+namespace MobilePaywall.Web.Controllers
+{
+  public partial class TemplateController : PaywallTemplateController
+  {
+
+    #region # OL Configration #
+
+    // SUMMARY: This method is used for auto configuration of service on overlay system
+    [TemplateAttribute(LoginRequired = false)]
+    public string API_OLConfigure()
+    {
+      // getting default ContentID
+      ServiceContentGroupMap groupMap = ServiceContentGroupMap.CreateManager().Load(this.PaywallContext.Service.ServiceData).FirstOrDefault();
+      int contentID = Data.Content.CreateManager().Load(groupMap.ContentGroup).FirstOrDefault().ID;
+      string url = string.Format("{0}/content/{1}/?skip=|country={2}", this.PaywallContext.Service.ServiceData.Name, contentID, this.PaywallContext.Service.ServiceData.FallbackCountry.TwoLetterIsoCode);
+
+      TemplateServiceInfo tsi = TemplateServiceInfo.CreateManager().Load(PaywallContext.Service.ServiceData);
+      new TemplateServiceNote(-1, PaywallContext.Service.ServiceData, Client.CreateManager().Load(1), "Live and active.", DateTime.Now, DateTime.Now).Insert();
+      if (tsi != null)
+      {
+        tsi = new TemplateServiceInfo(-1, PaywallContext.Service.ServiceData, TemplateServiceType.Unknown, 5, 2, string.Empty, string.Empty, true, false, DateTime.Now, DateTime.Now);
+        tsi.Insert();
+      }
+      else
+      {
+        tsi.Color = 2;
+        tsi.Progress = 5;
+        tsi.TrckdEnabled = true;
+        tsi.Update();
+      }
+
+      return string.Format("url=http://{0}, country={1}", url, this.PaywallContext.Service.ServiceData.FallbackCountry.TwoLetterIsoCode);
+    }
+
+    public ActionResult API_OLConfigureJson()
+    {
+      // getting default ContentID
+      ServiceContentGroupMap groupMap = ServiceContentGroupMap.CreateManager().Load(this.PaywallContext.Service.ServiceData).FirstOrDefault();
+      int contentID = Data.Content.CreateManager().Load(groupMap.ContentGroup).FirstOrDefault().ID;
+
+      ServiceOffer so = (from s in ServiceOffer.CreateManager().Load(this.PaywallContext.Service.ServiceData) where s.IsActive && s.IsDefault select s).FirstOrDefault();
+      string url = string.Format("http://{0}/content/{1}/?skip=|country={2}", this.PaywallContext.Service.ServiceData.Name, contentID, this.PaywallContext.Service.ServiceData.FallbackCountry.TwoLetterIsoCode);
+
+      TemplateServiceInfo tsi = TemplateServiceInfo.CreateManager().Load(PaywallContext.Service.ServiceData);
+      new TemplateServiceNote(-1, PaywallContext.Service.ServiceData, Client.CreateManager().Load(1), "Live and active.", DateTime.Now, DateTime.Now).Insert();
+      if(tsi != null)
+      {
+        tsi = new TemplateServiceInfo(-1, PaywallContext.Service.ServiceData, TemplateServiceType.Unknown, 5, 2, string.Empty, string.Empty, true, false, DateTime.Now, DateTime.Now);
+        tsi.Insert();
+      }
+      else
+      {
+        tsi.Color = 2;
+        tsi.Progress = 5;
+        tsi.TrckdEnabled = true;
+        tsi.Update();
+      }
+      
+      return this.Json(new
+      { 
+        Url = url,
+        ServiceID = this.PaywallContext.Service.ServiceData.ID,
+        Country = this.PaywallContext.Service.ServiceData.FallbackCountry.TwoLetterIsoCode,
+        BehaviorModel = so.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+        Username = so.PaymentConfiguration.PaymentCredentials.Username,
+        Password = so.PaymentConfiguration.PaymentCredentials.Password,
+        PaymentProvider = so.PaymentConfiguration.PaymentProvider.ID,
+        Description = this.PaywallContext.Service.ServiceData.Description
+      }, JsonRequestBehavior.AllowGet);
+    }
+
+    #endregion
+
+    #region # Landing Page configuration #
+
+    public ActionResult GetContentJson()
+    {
+      List<ServiceContentGroupMap> scgm = ServiceContentGroupMap.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData);
+      List<Data.Content> contents = new List<Content>();
+      IContentManager cManager = Data.Content.CreateManager();
+
+      string data = "";
+      foreach (ServiceContentGroupMap scgme in scgm)
+      {
+        List<Data.Content> content = cManager.Load(scgme.ContentGroup);
+        foreach(Data.Content c in content)
+        {
+
+        }
+      }
+
+      return this.Json(new {});
+    }
+
+    #endregion
+
+    public ActionResult Test()
+    {
+      string serviceName = PaywallHttpContext.Current.Service.ServiceData.Name;
+      string fallbackLanguage = PaywallHttpContext.Current.Service.ServiceData.FallbackLanguage.GlobalName;
+      return this.Content(serviceName + " " + fallbackLanguage);
+    }
+
+    public ActionResult EgyptPin()
+    {
+      PinVerificationModel model = new PinVerificationModel("", "Error message");
+      return View("PinVerification", model);
+    }
+
+    // TEST: Add cookie ( name & value )
+    public ActionResult AddCookie(string n, string v)
+    {
+      HttpCookie cookie = new HttpCookie(n, v);
+      cookie.Expires = DateTime.Now.AddDays(7);
+      //cookie.Domain = Request.UserHostName;
+      cookie.Path = "/";
+      this.Response.Cookies.Add(cookie);
+
+      return Content(n + " = " + v);
+    }
+
+    public ActionResult SendMessage(string text, string msisdn = "3826826281")
+    {
+      Service service = Service.CreateManager().Load(1);
+      ServiceConfigurationEntry sce = ServiceConfigurationEntry.CreateManager().Load(1);
+
+      Customer tempCustomer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Active, service, service.FallbackCountry, null, null, msisdn, string.Empty, "TEMP TEST", new byte[]{0}, DateTime.Now, DateTime.Now);
+      tempCustomer.Insert();
+      tempCustomer.SetUsernameAndPassword();
+
+      ShortMessage message = new ShortMessage(-1,
+        Guid.NewGuid(),
+        sce.ShortMessageProvider,
+        tempCustomer,
+        text,
+        Guid.NewGuid().ToString(),
+        ShortMessageStatus.Unknown,
+        DateTime.Now, DateTime.Now);
+      message.Insert();
+
+      IShortMessageProvider shortMessageProvider = sce.ShortMessageProvider.Instantiate(message);
+      shortMessageProvider.Send();
+
+      return Content(message.ReferenceID);
+    }
+
+    public ActionResult CreateTestCustomer(string username, string password)
+    {
+      List<Customer> customers = Customer.CreateManager().Load(username, CustomerIdentifier.Username);
+      if (customers != null && customers.Count != 0)
+        return this.Content("Customer with this username allready exists");
+
+      Customer customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Active, this.PaywallContext.Service.ServiceData, this.PaywallContext.Service.ServiceData.FallbackCountry,
+        MobileOperator.CreateManager().Load(383), null, username, string.Empty, username,
+        PasswordEncryption.Create(password).EncryptedPasswordAndSalt,
+        DateTime.Now, DateTime.Now);
+      customer.Insert();
+
+      return this.Content("Customer created");
+    }
+
+
+  }
+}

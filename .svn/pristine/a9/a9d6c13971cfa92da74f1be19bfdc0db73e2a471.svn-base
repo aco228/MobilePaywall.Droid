@@ -1,0 +1,105 @@
+﻿using log4net;
+using MobilePaywall.Web.Log;
+using Senti.Diagnostics.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Web;
+using System.Web.Routing;
+
+namespace MobilePaywall.Web.Helpers
+{
+  public static class UrlHelper
+  {
+    private static ILog _log = null;
+
+    public static ILog Log
+    {
+      get
+      {
+        if (UrlHelper._log == null)
+          UrlHelper._log = LogManager.GetLogger(typeof(UrlHelper));
+        return UrlHelper._log;
+      }
+    }
+
+    public static string Internal(this System.Web.Mvc.UrlHelper helper, object url)
+    {
+      string urlString = url as string;
+      if (urlString == null) return string.Empty;
+      return UrlHelper.AppendSessionID(helper.RequestContext, urlString);
+    }
+
+    public static string AppendSessionID(RequestContext requestContext, string url)
+    {
+      try
+      {
+        PaywallHttpContext paywallContext = PaywallHttpContext.GetCurrent(requestContext.HttpContext.ApplicationInstance.Context);
+        string sessionID = paywallContext.Session.SessionData.Guid.ToString().Replace("-", "");
+        string sessionPath = MobilePaywall.Constants.SessionID + "/" + sessionID;
+
+        if (url.Contains(MobilePaywall.Constants.SessionID + "/"))
+        {
+          if (url.Contains(sessionPath))
+            return url;
+          else
+            return "/";
+        }
+        else
+          url = PrepareUrl(url, sessionPath);
+
+        if (!url.StartsWith("/"))
+          url = "/" + url;
+
+      }
+      catch(Exception e)
+      {
+        Log.Fatal(new LogMessageBuilder(new PaywallLogErrorCode("web.core", "urlhelper", "fatal"),
+          "Fatal Error", e.Message, e.InnerException, e.InnerException.Message));
+      }
+
+      return url;
+    }
+
+    private static string PrepareUrl(string url, string sessionPath)
+    {
+      if (url.Contains("?"))
+      {
+        string[] parts = url.Split('?');
+        if(parts[0].EndsWith("/"))
+          url = url.Replace("?", sessionPath + "?");
+        else
+          url = url.Replace("?", "/" + sessionPath + "?");
+      }
+      else
+        if (!url.EndsWith("/"))
+          url += "/" + sessionPath;
+        else
+          url += sessionPath;
+
+      return url;
+    }
+
+    private static bool IsSessionProvidedButDifferent(string url, string paywallSessionGuid)
+    {
+      // Check if the session id is already provided but different from the one which is in the paywall context session.
+      //string sessionGuid = url.Split('/').LastOrDefault().Split('?').First();
+
+      string[] urlData = url.Split('/');
+      for (int i = 0; i < urlData.Length; i++)
+        if (urlData[i].ToLower().Equals(MobilePaywall.Constants.SessionID))
+        {
+          //if (!urlData[i++].Equals(sessionGuid))
+          if (!urlData[i++].Equals(paywallSessionGuid))
+          {
+            return true;
+          }
+          break;
+        }
+      return false;
+    }
+  }
+}

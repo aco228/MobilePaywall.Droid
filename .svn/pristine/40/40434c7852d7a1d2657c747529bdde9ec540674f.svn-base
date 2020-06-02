@@ -1,0 +1,196 @@
+﻿using Cashflow.Message;
+using log4net;
+using MobilePaywall.Data;
+using Senti.Diagnostics.Log;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Implementation.Log
+{
+  public abstract class PaywallCustomLoggerBase
+  {
+    private bool _hasError = false;
+    string _errorMessage = string.Empty;
+    private ILog _log = null;
+    private Notification _notification = null;
+    private UserSession _userSession = null;
+    
+    protected ILog Log { get { return this._log; } }
+    public bool HasError { get { return this._hasError; } }
+    public string ErrorMessage { get { return this._errorMessage; } }
+    public UserSession UserSession { get { return this._userSession; } set { this._userSession = value; } }
+    public Notification Notification { get { return this._notification; } }
+    public int UserSessionID { get { return this._userSession == null ? -1 : this._userSession.ID; } }
+
+    protected class CallbackLogMethodInfo
+    {
+      public string MethodName { get; set; }
+      public string LineNumber { get; set; }
+    }
+
+    public PaywallCustomLoggerBase(Notification notification, ILog ilog)
+    {
+      this._log = ilog;
+      if(notification == null)
+      {
+        this._errorMessage = "Notification is null";
+        this._hasError = true;
+        return;
+      }
+
+      // get referenceID from notification
+
+      this._notification = notification;
+
+      // Load by Int value
+      int? referenceIntID = this._notification.ReferenceIntID;
+      if(referenceIntID.HasValue)
+      {
+        this._userSession = Data.UserSession.CreateManager().Load(referenceIntID.Value);
+        if(this._userSession != null)
+          return;
+      }
+      
+
+      // Load by GUID values
+      string referenceID = this.GetReferenceID();
+
+      if (string.IsNullOrEmpty(referenceID))
+        return;
+
+      Guid usguid = Guid.Empty;
+      if (!Guid.TryParse(referenceID, out usguid))
+      {
+        this._errorMessage = "Could not resolve referenceID: " + referenceID;
+        this._hasError = true;
+        return;
+      }
+
+      this._userSession = UserSession.CreateManager().Load(usguid);
+      if(this._userSession == null)
+      {
+        this._errorMessage = "Could not load userSession with guid: " + usguid.ToString();
+        this._hasError = true;
+        return;
+      }
+
+    }
+
+    // SUMMARY: Get ReferenceID (UserSessionGuid) FROM Notification
+    public string GetReferenceID()
+    {
+      if (!string.IsNullOrEmpty(this._notification.ReferenceID))
+        return this._notification.ReferenceID;
+
+      if(this._notification.Arguments == null)
+      {
+        this._hasError = true;
+        this._errorMessage = "There is no ReferenceID AND Arguments are NULL";
+        return string.Empty;
+      }
+
+      MessageArgument referenceArgument = (from n in this._notification.Arguments where n.Key.ToLower().Equals("referenceid") select n).FirstOrDefault();
+      if(referenceArgument == null)
+      {
+        this._hasError = true;
+        this._errorMessage = "There is no ReferenceID argument in notification";
+        return string.Empty;
+      }
+
+      return referenceArgument.Value;
+    }
+
+    // SUMMARY: Method to be implemented for inserting
+    protected abstract void InsertAsync(UserSession us, CallbackLogMethodInfo clmi, ILog log, string type, string message, Exception e = null);
+
+    // SUMMARY: Get caller informations
+    protected CallbackLogMethodInfo GetCallerInformations()
+    {
+      try
+      {
+        StackTrace trace = new StackTrace();
+        StackFrame frame = null;
+        int maxSize = (trace.GetFrames().Length >= 7) ? 7 : trace.GetFrames().Length;
+        string[] ignoreMethods = new string[] { "debug", "fatal", "warn", "info", "error" };
+
+        for (int i = 2; i < maxSize; i++)
+        {
+          frame = trace.GetFrame(i);
+          if (ignoreMethods.Contains(frame.GetMethod().Name.ToLower()))
+            continue;
+
+          return new CallbackLogMethodInfo()
+          {
+            MethodName = frame.GetMethod().Name,
+            LineNumber = frame.GetFileLineNumber().ToString()
+          };
+        }
+        return null;
+      }
+      catch (Exception e)
+      {
+        return null;
+      }
+    }
+
+    // SUMMARY: Proxy method for Debug
+    public virtual void Debug(string message, Exception e = null)
+    {
+      if (this._hasError) { if (e == null) { this._log.Debug(message); } else { this._log.Debug(message, e); } return; }
+      System.Threading.Tasks.Task.Run(() => this.InsertAsync(this._userSession, this.GetCallerInformations(), this._log, "Debug", message, e));
+    }
+    public virtual void Debug(LogMessageBuilder lmb, Exception e = null)
+    {
+      this.Debug(lmb.ToString(), (e == null ? lmb.Exception : e));
+    }
+
+    // SUMMARY: Proxy method for Error
+    public virtual void Error(string message, Exception e = null)
+    {
+      if (this._hasError) { if (e == null) { this._log.Error(message); } else { this._log.Error(message, e); } return; }
+      System.Threading.Tasks.Task.Run(() => this.InsertAsync(this._userSession, this.GetCallerInformations(), this._log, "Error", message, e));
+    }
+    public virtual void Error(LogMessageBuilder lmb, Exception e = null)
+    {
+      this.Error(lmb.ToString(), (e == null ? lmb.Exception : e));
+    }
+
+    // SUMMARY: Proxy method for Fatal
+    public virtual void Fatal(string message, Exception e = null)
+    {
+      if (this._hasError) { if (e == null) { this._log.Fatal(message); } else { this._log.Fatal(message, e); } return; }
+      System.Threading.Tasks.Task.Run(() => this.InsertAsync(this._userSession, this.GetCallerInformations(), this._log, "Fatal", message, e));
+    }
+    public virtual void Fatal(LogMessageBuilder lmb, Exception e = null)
+    {
+      this.Fatal(lmb.ToString(), (e == null ? lmb.Exception : e ));
+    }
+
+    // SUMMARY: Proxy method for Info
+    public virtual void Info(string message, Exception e = null)
+    {
+      if (this._hasError) { if (e == null) { this._log.Info(message); } else { this._log.Info(message, e); } return; }
+      System.Threading.Tasks.Task.Run(() => this.InsertAsync(this._userSession, this.GetCallerInformations(), this._log, "Info", message, e));
+    }
+    public virtual void Info(LogMessageBuilder lmb, Exception e = null)
+    {
+      this.Info(lmb.ToString(), (e == null ? lmb.Exception : e));
+    }
+
+    // SUMMARY: Proxy method for Warn
+    public virtual void Warn(string message, Exception e = null)
+    {
+      if (this._hasError) { if (e == null) { this._log.Warn(message); } else { this._log.Warn(message, e); } return; }
+      System.Threading.Tasks.Task.Run(() => this.InsertAsync(this._userSession, this.GetCallerInformations(), this._log, "Warn", message, e));
+    }
+    public virtual void Warn(LogMessageBuilder lmb, Exception e = null)
+    {
+      this.Warn(lmb.ToString(), (e == null ? lmb.Exception : e));
+    }
+
+  }
+}

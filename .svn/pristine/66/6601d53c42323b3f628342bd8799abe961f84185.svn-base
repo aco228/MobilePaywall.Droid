@@ -1,0 +1,91 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class VideoContentManager : IVideoContentManager
+  {
+
+    public List<VideoContent> Load()
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection);
+    }
+
+    public List<VideoContent> Load(IConnectionInfo connection)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection);
+    }
+
+    public List<VideoContent> Load(ISqlConnectionInfo connection)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      return this.LoadMany(connection, parameters);
+    }
+
+		public VideoContent Load(Content content)
+		{
+			using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+				return this.Load(connection, content);
+		}
+
+		public VideoContent Load(IConnectionInfo connection, Content content)
+		{
+			ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+			if (sqlConnection != null)
+				return this.Load(sqlConnection, content);
+			using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+				return this.Load(sqlConnection, content);
+		}
+
+		public VideoContent Load(ISqlConnectionInfo connection, Content content)
+		{
+			SqlQueryParameters parameters = new SqlQueryParameters();
+			parameters.Where = "[vc].ContentID = @ContentID";
+			parameters.Arguments.Add("ContentID", content.ID);
+			return this.Load(connection, parameters);
+		}
+
+
+
+		public List<VideoContent> Load(ContentGroup contentGroup)
+		{
+			using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+				return this.Load(connection, contentGroup);
+		}
+
+		public List<VideoContent> Load(IConnectionInfo connection, ContentGroup contentGroup)
+		{
+			ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+			if (sqlConnection != null)
+				return this.Load(sqlConnection, contentGroup);
+			using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+				return this.Load(sqlConnection, contentGroup);
+		}
+
+		public List<VideoContent> Load(ISqlConnectionInfo connection, ContentGroup contentGroup)
+		{
+			if (this.Depth < 2)
+				this.Depth = 2;
+			SqlQueryParameters parameters = new SqlQueryParameters();
+			parameters.Where = "[vc_c_cg].ContentGroupID = @ContentGroupID";
+			parameters.Arguments.Add("ContentGroupID", contentGroup.ID);
+			return this.LoadMany(connection, parameters);
+		}
+
+  }
+}
+

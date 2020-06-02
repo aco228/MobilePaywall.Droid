@@ -1,0 +1,55 @@
+﻿using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+
+namespace MobilePaywall.Web.Models
+{
+	public class CategoryViewModel : PaywallViewModelBase
+	{
+    private List<Category> _categories = null;
+    private List<CategoryViewModelEntry> _viewCategories = null;
+
+    public List<Category> Categories { get { return _categories; } set { _categories = value; } }
+    public List<CategoryViewModelEntry> CategoryViewModelEntry { get { return _viewCategories; } set { _viewCategories = value; } }
+
+    public CategoryViewModel(PaywallHttpContext context) : base(context)
+		{
+      this._categories = new List<Category>();
+      this._viewCategories = new List<Models.CategoryViewModelEntry>();
+
+      List<CategoryServiceMap> serviceCategoryMap = CategoryServiceMap.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData);
+      foreach (CategoryServiceMap m in serviceCategoryMap)
+        if (m.IsEnabled)
+        {
+          this._categories.Add(m.Category);
+          this._viewCategories.Add(new Models.CategoryViewModelEntry(m.Category));
+        }
+		}
+
+
+	}
+
+  public class CategoryViewModelEntry
+  {
+    private Category _category = null;
+    private string _title = string.Empty;
+    
+    public int ID { get { return this._category.ID; } }
+    public string Title { get { return this._title; } }
+    
+    public CategoryViewModelEntry(Category category)
+    {
+      this._category = category;
+      CategoryDetail ct = CategoryDetail.CreateManager().Load(this._category, PaywallHttpContext.Current.Service.ServiceData.FallbackLanguage);
+      if (ct != null)
+        this._title = ct.Title;
+      else
+        this._title = this._category.Name;
+
+    }
+
+  }
+  
+}

@@ -1,0 +1,76 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using MobilePaywall.Data;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IInitiateCallbackManager : IDataManager<InitiateCallback> 
+  {
+	
+
+  }
+
+  public partial class InitiateCallback : MobilePaywallObject<IInitiateCallbackManager> 
+  {
+		private Guid _guid;
+		private PaymentRequest _paymentRequest;
+		private bool _isCompleted = false;
+		private DateTime _validTo = DateTime.MinValue;
+		
+
+		public Guid Guid { get { return this._guid; } set { _guid = value; } }
+		public PaymentRequest PaymentRequest 
+		{
+			get
+			{
+				if (this._paymentRequest != null &&
+						this._paymentRequest.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._paymentRequest = PaymentRequest.CreateManager().LazyLoad(this.ConnectionContext, this._paymentRequest.ID) as PaymentRequest;
+					else
+						this._paymentRequest = PaymentRequest.CreateManager().LazyLoad(this._paymentRequest.ID) as PaymentRequest;
+				return this._paymentRequest;
+			}
+			set { _paymentRequest = value; }
+		}
+
+		public bool IsCompleted {get {return this._isCompleted; } set { this._isCompleted = value;} }
+		public DateTime ValidTo { get { return this._validTo; } set { this._validTo = value;} }
+		
+
+    public override bool IsInsertable { get { return true;} }
+
+    public override bool IsDeletable { get { return false;} }
+
+    public override bool IsUpdatable { get { return true;} }
+
+    public InitiateCallback()
+    { 
+    }
+
+    public InitiateCallback(int id): base(id, DateTime.Now, DateTime.Now, true)
+    {
+    }
+
+    public InitiateCallback(int id,  Guid guid, PaymentRequest paymentRequest, bool isCompleted, DateTime validTo, DateTime updated, DateTime created): base(id, updated, created, false)
+    {
+			this._guid = guid;
+			this._paymentRequest = paymentRequest;
+			this._isCompleted = isCompleted;
+			this._validTo = validTo;
+			
+    }
+
+    public override object Clone(bool deepClone)
+    {
+      return new InitiateCallback(-1, this.Guid, this.PaymentRequest,this.IsCompleted,this.ValidTo, DateTime.Now, DateTime.Now);
+    }
+  }
+}
+

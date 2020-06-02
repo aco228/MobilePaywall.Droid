@@ -1,0 +1,46 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IAndroidContentManager 
+  {
+    List<AndroidContent> Load();
+    List<AndroidContent> Load(IConnectionInfo connection);
+    AndroidContent Load(Content content);
+    AndroidContent Load(IConnectionInfo connection, Content content);
+    List<AndroidContent> Load(ContentGroup contentGroup);
+    List<AndroidContent> Load(IConnectionInfo connection, ContentGroup contentGroup);
+  }
+
+  public partial class AndroidContent
+  {
+    public void UpdateWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void UpdateWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void InsertWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void InsertWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void DeleteWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+    public void DeleteWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+
+
+    public static List<AndroidContent> LoadByContentGroup(ContentGroup contentGroup)
+    {
+      List<AndroidContent> content = null;
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        connection.Transaction.Begin();
+        IAndroidContentManager manager = AndroidContent.CreateManager();
+        content = manager.Load(connection, contentGroup);
+        connection.Transaction.Commit();
+      }
+      return content;
+    }
+
+  }
+}

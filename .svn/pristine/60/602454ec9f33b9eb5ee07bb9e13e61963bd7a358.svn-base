@@ -1,0 +1,78 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Direct;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
+using System.Text.RegularExpressions;
+using System.Web;
+
+namespace MobilePaywall.Service.Callback.Code.Undercover
+{
+	public static class UndercoverAgent
+	{
+
+		public static MobilePaywallDirect Database = MobilePaywallDirect.Instance;
+
+		// us is set in case that this is our service
+		public static UndercoverResult ContinueWithReport(string url, UserSession us = null)
+		{
+			UndercoverResult result = new UndercoverResult();
+			result.ShouldContinueWithReport = true;
+
+			result.Offer = new UndercoverOffer(url, us);
+
+			if (result.Offer.HasError)
+				return result;
+
+			if(!result.Offer.IsActive)
+			{
+				UndercoverAgent.Log(result.Offer, string.Format("UndercoverAgent:: Offer (name={0}, id={1}, transactions={2}, value={3}, url={4}) {5} (OFFEER IS NOT ACTIVE)", result.Offer.OfferID, result.Offer.ID, result.Offer.Transactions, url, result.Offer.Value));
+				return result;
+			}
+
+			result.ShouldContinueWithReport = result.Offer.ShouldContinueWithReport;
+			UndercoverAgent.Log(result.Offer, string.Format("UndercoverAgent:: Offer (name={0}, id={1}, transactions={2}, value={3}, url={4}) {5}", result.Offer.OfferID, result.Offer.ID, result.Offer.Transactions, result.Offer.Value, url, 
+				(!result.ShouldContinueWithReport ? "THIS CONVERSION WILL NOT BE REPORTED" : "continue")));
+
+			if (!result.ShouldContinueWithReport)
+			{
+				result.Offer.UndercoverTransactions++;
+				result.Offer.AddNewConversion();
+			}
+
+			result.Offer.UpdateValues();
+			return result;
+		}
+
+		public static void Log(UndercoverOffer offer, string text)
+		{
+			UndercoverAgent.Database.Execute(string.Format("INSERT INTO MobilePaywall.core.UndercoverLog (UndercoverOfferID, Text) VALUES ({0}, '{1}')",
+				(offer.Exists ? offer.ID.ToString() : "NULL"), text ));
+		}
+
+		public static void SendPostbackToBananaclicks(UndercoverOffer offer)
+		{
+			string postbackLink = "http://conversions.bananaclicks.com/?transaction_id=" + offer.ClickID;
+			UndercoverAgent.Log(offer, "Postback.Link:: " + postbackLink);
+			HttpWebRequest webRequest = (HttpWebRequest)WebRequest.Create(postbackLink);
+			webRequest.AllowAutoRedirect = false;
+			HttpWebResponse response;
+			HttpStatusCode statusCode;
+
+			try
+			{
+				response = (HttpWebResponse)webRequest.GetResponse();
+			}
+			catch (WebException we)
+			{
+				UndercoverAgent.Log(offer, "Postback.Fatal:: " + we);
+				return;
+			}
+
+			statusCode = response.StatusCode;
+			UndercoverAgent.Log(offer, "Postback.ResponseCode:: " + statusCode.ToString());
+		}
+		
+	}
+}

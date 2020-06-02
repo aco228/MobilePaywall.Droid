@@ -1,0 +1,722 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ServiceOffer))] 
+  public partial class ServiceOfferManager : MobilePaywall.Data.Sql.SqlManagerBase<ServiceOffer>, IServiceOfferManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ServiceOffer LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ServiceOfferTable.GetColumnNames("[so]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[so_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[so_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[so_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[so_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[so_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[so_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[so_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[so_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[so_s_bm]") : string.Empty) + 
+							(this.Depth > 0 ? "," + BusinessModelEntryTable.GetColumnNames("[so_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[so_bme_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[so_bme_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[so_bme_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTypeTable.GetColumnNames("[so_bme_bmt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentConfigurationTable.GetColumnNames("[so_pc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentCredentialsTable.GetColumnNames("[so_pc_pc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentInterfaceTable.GetColumnNames("[so_pc_pi]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentProviderTable.GetColumnNames("[so_pc_pp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BehaviorModelTable.GetColumnNames("[so_pc_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[so_pc_p]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentAccessPolicyTable.GetColumnNames("[so_cap]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[so_cap_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[so_cap_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[so_cap_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[so_cap_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[so_cap_c]") : string.Empty) + 
+					" FROM [core].[ServiceOffer] AS [so] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [so_s] ON [so].[ServiceID] = [so_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [so_s_a] ON [so_s].[ApplicationID] = [so_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [so_s_p] ON [so_s].[ProductID] = [so_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [so_s_m] ON [so_s].[MerchantID] = [so_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [so_s_st] ON [so_s].[ServiceTypeID] = [so_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [so_s_ust] ON [so_s].[UserSessionTypeID] = [so_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [so_s_c] ON [so_s].[FallbackCountryID] = [so_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [so_s_sc] ON [so_s].[ServiceConfigurationID] = [so_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [so_s_bm] ON [so_s].[BusinessModelID] = [so_s_bm].[BusinessModelID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [so_bme] ON [so].[BusinessModelEntryID] = [so_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [so_bme_bm] ON [so_bme].[BusinessModelID] = [so_bme_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [so_bme_c] ON [so_bme].[CountryID] = [so_bme_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [so_bme_mo] ON [so_bme].[MobileOperatorID] = [so_bme_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelType] AS [so_bme_bmt] ON [so_bme].[BusinessModelTypeID] = [so_bme_bmt].[BusinessModelTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentConfiguration] AS [so_pc] ON [so].[PaymentConfigurationID] = [so_pc].[PaymentConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentCredentials] AS [so_pc_pc] ON [so_pc].[PaymentCredentialsID] = [so_pc_pc].[PaymentCredentialsID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentInterface] AS [so_pc_pi] ON [so_pc].[PaymentInterfaceID] = [so_pc_pi].[PaymentInterfaceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentProvider] AS [so_pc_pp] ON [so_pc].[PaymentProviderID] = [so_pc_pp].[PaymentProviderID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BehaviorModel] AS [so_pc_bm] ON [so_pc].[BehaviorModelID] = [so_pc_bm].[BehaviorModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [so_pc_p] ON [so_pc].[ProductID] = [so_pc_p].[ProductID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentAccessPolicy] AS [so_cap] ON [so].[ContentAccessPolicyID] = [so_cap].[ContentAccessPolicyID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [so_cap_bm] ON [so_cap].[BusinessModelID] = [so_cap_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModelEntry] AS [so_cap_bme] ON [so_cap].[BusinessModelEntryID] = [so_cap_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [so_cap_s] ON [so_cap].[ServiceID] = [so_cap_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [so_cap_cg] ON [so_cap].[ContentGroupID] = [so_cap_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [so_cap_c] ON [so_cap].[ContentID] = [so_cap_c].[ContentID] ";
+				sqlCmdText += "WHERE [so].[ServiceOfferID] = @ServiceOfferID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ServiceOfferID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("so", "loadinternal", "notfound"), "ServiceOffer could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ServiceOfferTable soTable = new ServiceOfferTable(query);
+				ServiceTable so_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable so_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable so_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable so_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable so_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable so_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable so_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				ServiceConfigurationTable so_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable so_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				BusinessModelEntryTable so_bmeTable = (this.Depth > 0) ? new BusinessModelEntryTable(query) : null;
+				BusinessModelTable so_bme_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				CountryTable so_bme_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable so_bme_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				BusinessModelTypeTable so_bme_bmtTable = (this.Depth > 1) ? new BusinessModelTypeTable(query) : null;
+				PaymentConfigurationTable so_pcTable = (this.Depth > 0) ? new PaymentConfigurationTable(query) : null;
+				PaymentCredentialsTable so_pc_pcTable = (this.Depth > 1) ? new PaymentCredentialsTable(query) : null;
+				PaymentInterfaceTable so_pc_piTable = (this.Depth > 1) ? new PaymentInterfaceTable(query) : null;
+				PaymentProviderTable so_pc_ppTable = (this.Depth > 1) ? new PaymentProviderTable(query) : null;
+				BehaviorModelTable so_pc_bmTable = (this.Depth > 1) ? new BehaviorModelTable(query) : null;
+				ProductTable so_pc_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				ContentAccessPolicyTable so_capTable = (this.Depth > 0) ? new ContentAccessPolicyTable(query) : null;
+				BusinessModelTable so_cap_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				BusinessModelEntryTable so_cap_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				ServiceTable so_cap_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				ContentGroupTable so_cap_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTable so_cap_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+
+        
+				Application so_s_aObject = (this.Depth > 1) ? so_s_aTable.CreateInstance() : null;
+				Product so_s_pObject = (this.Depth > 1) ? so_s_pTable.CreateInstance() : null;
+				Merchant so_s_mObject = (this.Depth > 1) ? so_s_mTable.CreateInstance() : null;
+				ServiceType so_s_stObject = (this.Depth > 1) ? so_s_stTable.CreateInstance() : null;
+				UserSessionType so_s_ustObject = (this.Depth > 1) ? so_s_ustTable.CreateInstance() : null;
+				Country so_s_cObject = (this.Depth > 1) ? so_s_cTable.CreateInstance() : null;
+				ServiceConfiguration so_s_scObject = (this.Depth > 1) ? so_s_scTable.CreateInstance() : null;
+				BusinessModel so_s_bmObject = (this.Depth > 1) ? so_s_bmTable.CreateInstance() : null;
+				Service so_sObject = (this.Depth > 0) ? so_sTable.CreateInstance(so_s_aObject, so_s_pObject, so_s_mObject, so_s_stObject, so_s_ustObject, so_s_cObject, so_s_scObject, so_s_bmObject) : null;
+				BusinessModel so_bme_bmObject = (this.Depth > 1) ? so_bme_bmTable.CreateInstance() : null;
+				Country so_bme_cObject = (this.Depth > 1) ? so_bme_cTable.CreateInstance() : null;
+				MobileOperator so_bme_moObject = (this.Depth > 1) ? so_bme_moTable.CreateInstance() : null;
+				BusinessModelType so_bme_bmtObject = (this.Depth > 1) ? so_bme_bmtTable.CreateInstance() : null;
+				BusinessModelEntry so_bmeObject = (this.Depth > 0) ? so_bmeTable.CreateInstance(so_bme_bmObject, so_bme_cObject, so_bme_moObject, so_bme_bmtObject) : null;
+				PaymentCredentials so_pc_pcObject = (this.Depth > 1) ? so_pc_pcTable.CreateInstance() : null;
+				PaymentInterface so_pc_piObject = (this.Depth > 1) ? so_pc_piTable.CreateInstance() : null;
+				PaymentProvider so_pc_ppObject = (this.Depth > 1) ? so_pc_ppTable.CreateInstance() : null;
+				BehaviorModel so_pc_bmObject = (this.Depth > 1) ? so_pc_bmTable.CreateInstance() : null;
+				Product so_pc_pObject = (this.Depth > 1) ? so_pc_pTable.CreateInstance() : null;
+				PaymentConfiguration so_pcObject = (this.Depth > 0) ? so_pcTable.CreateInstance(so_pc_pcObject, so_pc_piObject, so_pc_ppObject, so_pc_bmObject, so_pc_pObject) : null;
+				BusinessModel so_cap_bmObject = (this.Depth > 1) ? so_cap_bmTable.CreateInstance() : null;
+				BusinessModelEntry so_cap_bmeObject = (this.Depth > 1) ? so_cap_bmeTable.CreateInstance() : null;
+				Service so_cap_sObject = (this.Depth > 1) ? so_cap_sTable.CreateInstance() : null;
+				ContentGroup so_cap_cgObject = (this.Depth > 1) ? so_cap_cgTable.CreateInstance() : null;
+				Content so_cap_cObject = (this.Depth > 1) ? so_cap_cTable.CreateInstance() : null;
+				ContentAccessPolicy so_capObject = (this.Depth > 0) ? so_capTable.CreateInstance(so_cap_bmObject, so_cap_bmeObject, so_cap_sObject, so_cap_cgObject, so_cap_cObject) : null;
+				ServiceOffer soObject = soTable.CreateInstance(so_sObject, so_bmeObject, so_pcObject, so_capObject);
+				sqlReader.Close();
+
+				return soObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("so", "loadinternal", "exception"), "ServiceOffer could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ServiceOffer", "Exception while loading ServiceOffer object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ServiceOffer Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ServiceOfferTable.GetColumnNames("[so]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[so_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[so_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[so_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[so_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[so_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[so_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[so_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[so_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[so_s_bm]") : string.Empty) + 
+							(this.Depth > 0 ? "," + BusinessModelEntryTable.GetColumnNames("[so_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[so_bme_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[so_bme_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[so_bme_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTypeTable.GetColumnNames("[so_bme_bmt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentConfigurationTable.GetColumnNames("[so_pc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentCredentialsTable.GetColumnNames("[so_pc_pc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentInterfaceTable.GetColumnNames("[so_pc_pi]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentProviderTable.GetColumnNames("[so_pc_pp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BehaviorModelTable.GetColumnNames("[so_pc_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[so_pc_p]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentAccessPolicyTable.GetColumnNames("[so_cap]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[so_cap_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[so_cap_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[so_cap_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[so_cap_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[so_cap_c]") : string.Empty) +  
+					" FROM [core].[ServiceOffer] AS [so] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [so_s] ON [so].[ServiceID] = [so_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [so_s_a] ON [so_s].[ApplicationID] = [so_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [so_s_p] ON [so_s].[ProductID] = [so_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [so_s_m] ON [so_s].[MerchantID] = [so_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [so_s_st] ON [so_s].[ServiceTypeID] = [so_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [so_s_ust] ON [so_s].[UserSessionTypeID] = [so_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [so_s_c] ON [so_s].[FallbackCountryID] = [so_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [so_s_sc] ON [so_s].[ServiceConfigurationID] = [so_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [so_s_bm] ON [so_s].[BusinessModelID] = [so_s_bm].[BusinessModelID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [so_bme] ON [so].[BusinessModelEntryID] = [so_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [so_bme_bm] ON [so_bme].[BusinessModelID] = [so_bme_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [so_bme_c] ON [so_bme].[CountryID] = [so_bme_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [so_bme_mo] ON [so_bme].[MobileOperatorID] = [so_bme_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelType] AS [so_bme_bmt] ON [so_bme].[BusinessModelTypeID] = [so_bme_bmt].[BusinessModelTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentConfiguration] AS [so_pc] ON [so].[PaymentConfigurationID] = [so_pc].[PaymentConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentCredentials] AS [so_pc_pc] ON [so_pc].[PaymentCredentialsID] = [so_pc_pc].[PaymentCredentialsID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentInterface] AS [so_pc_pi] ON [so_pc].[PaymentInterfaceID] = [so_pc_pi].[PaymentInterfaceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentProvider] AS [so_pc_pp] ON [so_pc].[PaymentProviderID] = [so_pc_pp].[PaymentProviderID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BehaviorModel] AS [so_pc_bm] ON [so_pc].[BehaviorModelID] = [so_pc_bm].[BehaviorModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [so_pc_p] ON [so_pc].[ProductID] = [so_pc_p].[ProductID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentAccessPolicy] AS [so_cap] ON [so].[ContentAccessPolicyID] = [so_cap].[ContentAccessPolicyID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [so_cap_bm] ON [so_cap].[BusinessModelID] = [so_cap_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModelEntry] AS [so_cap_bme] ON [so_cap].[BusinessModelEntryID] = [so_cap_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [so_cap_s] ON [so_cap].[ServiceID] = [so_cap_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [so_cap_cg] ON [so_cap].[ContentGroupID] = [so_cap_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [so_cap_c] ON [so_cap].[ContentID] = [so_cap_c].[ContentID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("so", "customload", "notfound"), "ServiceOffer could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ServiceOfferTable soTable = new ServiceOfferTable(query);
+				ServiceTable so_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable so_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable so_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable so_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable so_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable so_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable so_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				ServiceConfigurationTable so_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable so_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				BusinessModelEntryTable so_bmeTable = (this.Depth > 0) ? new BusinessModelEntryTable(query) : null;
+				BusinessModelTable so_bme_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				CountryTable so_bme_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable so_bme_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				BusinessModelTypeTable so_bme_bmtTable = (this.Depth > 1) ? new BusinessModelTypeTable(query) : null;
+				PaymentConfigurationTable so_pcTable = (this.Depth > 0) ? new PaymentConfigurationTable(query) : null;
+				PaymentCredentialsTable so_pc_pcTable = (this.Depth > 1) ? new PaymentCredentialsTable(query) : null;
+				PaymentInterfaceTable so_pc_piTable = (this.Depth > 1) ? new PaymentInterfaceTable(query) : null;
+				PaymentProviderTable so_pc_ppTable = (this.Depth > 1) ? new PaymentProviderTable(query) : null;
+				BehaviorModelTable so_pc_bmTable = (this.Depth > 1) ? new BehaviorModelTable(query) : null;
+				ProductTable so_pc_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				ContentAccessPolicyTable so_capTable = (this.Depth > 0) ? new ContentAccessPolicyTable(query) : null;
+				BusinessModelTable so_cap_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				BusinessModelEntryTable so_cap_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				ServiceTable so_cap_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				ContentGroupTable so_cap_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTable so_cap_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+
+        
+				Application so_s_aObject = (this.Depth > 1) ? so_s_aTable.CreateInstance() : null;
+				Product so_s_pObject = (this.Depth > 1) ? so_s_pTable.CreateInstance() : null;
+				Merchant so_s_mObject = (this.Depth > 1) ? so_s_mTable.CreateInstance() : null;
+				ServiceType so_s_stObject = (this.Depth > 1) ? so_s_stTable.CreateInstance() : null;
+				UserSessionType so_s_ustObject = (this.Depth > 1) ? so_s_ustTable.CreateInstance() : null;
+				Country so_s_cObject = (this.Depth > 1) ? so_s_cTable.CreateInstance() : null;
+				ServiceConfiguration so_s_scObject = (this.Depth > 1) ? so_s_scTable.CreateInstance() : null;
+				BusinessModel so_s_bmObject = (this.Depth > 1) ? so_s_bmTable.CreateInstance() : null;
+				Service so_sObject = (this.Depth > 0) ? so_sTable.CreateInstance(so_s_aObject, so_s_pObject, so_s_mObject, so_s_stObject, so_s_ustObject, so_s_cObject, so_s_scObject, so_s_bmObject) : null;
+				BusinessModel so_bme_bmObject = (this.Depth > 1) ? so_bme_bmTable.CreateInstance() : null;
+				Country so_bme_cObject = (this.Depth > 1) ? so_bme_cTable.CreateInstance() : null;
+				MobileOperator so_bme_moObject = (this.Depth > 1) ? so_bme_moTable.CreateInstance() : null;
+				BusinessModelType so_bme_bmtObject = (this.Depth > 1) ? so_bme_bmtTable.CreateInstance() : null;
+				BusinessModelEntry so_bmeObject = (this.Depth > 0) ? so_bmeTable.CreateInstance(so_bme_bmObject, so_bme_cObject, so_bme_moObject, so_bme_bmtObject) : null;
+				PaymentCredentials so_pc_pcObject = (this.Depth > 1) ? so_pc_pcTable.CreateInstance() : null;
+				PaymentInterface so_pc_piObject = (this.Depth > 1) ? so_pc_piTable.CreateInstance() : null;
+				PaymentProvider so_pc_ppObject = (this.Depth > 1) ? so_pc_ppTable.CreateInstance() : null;
+				BehaviorModel so_pc_bmObject = (this.Depth > 1) ? so_pc_bmTable.CreateInstance() : null;
+				Product so_pc_pObject = (this.Depth > 1) ? so_pc_pTable.CreateInstance() : null;
+				PaymentConfiguration so_pcObject = (this.Depth > 0) ? so_pcTable.CreateInstance(so_pc_pcObject, so_pc_piObject, so_pc_ppObject, so_pc_bmObject, so_pc_pObject) : null;
+				BusinessModel so_cap_bmObject = (this.Depth > 1) ? so_cap_bmTable.CreateInstance() : null;
+				BusinessModelEntry so_cap_bmeObject = (this.Depth > 1) ? so_cap_bmeTable.CreateInstance() : null;
+				Service so_cap_sObject = (this.Depth > 1) ? so_cap_sTable.CreateInstance() : null;
+				ContentGroup so_cap_cgObject = (this.Depth > 1) ? so_cap_cgTable.CreateInstance() : null;
+				Content so_cap_cObject = (this.Depth > 1) ? so_cap_cTable.CreateInstance() : null;
+				ContentAccessPolicy so_capObject = (this.Depth > 0) ? so_capTable.CreateInstance(so_cap_bmObject, so_cap_bmeObject, so_cap_sObject, so_cap_cgObject, so_cap_cObject) : null;
+				ServiceOffer soObject = soTable.CreateInstance(so_sObject, so_bmeObject, so_pcObject, so_capObject);
+				sqlReader.Close();
+
+				return soObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("so", "customload", "exception"), "ServiceOffer could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ServiceOffer", "Exception while loading (custom/single) ServiceOffer object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ServiceOffer> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ServiceOfferTable.GetColumnNames("[so]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[so_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[so_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[so_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[so_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[so_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[so_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[so_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[so_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[so_s_bm]") : string.Empty) + 
+							(this.Depth > 0 ? "," + BusinessModelEntryTable.GetColumnNames("[so_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[so_bme_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[so_bme_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[so_bme_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTypeTable.GetColumnNames("[so_bme_bmt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentConfigurationTable.GetColumnNames("[so_pc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentCredentialsTable.GetColumnNames("[so_pc_pc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentInterfaceTable.GetColumnNames("[so_pc_pi]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentProviderTable.GetColumnNames("[so_pc_pp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BehaviorModelTable.GetColumnNames("[so_pc_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[so_pc_p]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentAccessPolicyTable.GetColumnNames("[so_cap]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[so_cap_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[so_cap_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[so_cap_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[so_cap_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[so_cap_c]") : string.Empty) +  
+					" FROM [core].[ServiceOffer] AS [so] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [so_s] ON [so].[ServiceID] = [so_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [so_s_a] ON [so_s].[ApplicationID] = [so_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [so_s_p] ON [so_s].[ProductID] = [so_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [so_s_m] ON [so_s].[MerchantID] = [so_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [so_s_st] ON [so_s].[ServiceTypeID] = [so_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [so_s_ust] ON [so_s].[UserSessionTypeID] = [so_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [so_s_c] ON [so_s].[FallbackCountryID] = [so_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [so_s_sc] ON [so_s].[ServiceConfigurationID] = [so_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [so_s_bm] ON [so_s].[BusinessModelID] = [so_s_bm].[BusinessModelID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [so_bme] ON [so].[BusinessModelEntryID] = [so_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [so_bme_bm] ON [so_bme].[BusinessModelID] = [so_bme_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [so_bme_c] ON [so_bme].[CountryID] = [so_bme_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [so_bme_mo] ON [so_bme].[MobileOperatorID] = [so_bme_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelType] AS [so_bme_bmt] ON [so_bme].[BusinessModelTypeID] = [so_bme_bmt].[BusinessModelTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentConfiguration] AS [so_pc] ON [so].[PaymentConfigurationID] = [so_pc].[PaymentConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentCredentials] AS [so_pc_pc] ON [so_pc].[PaymentCredentialsID] = [so_pc_pc].[PaymentCredentialsID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentInterface] AS [so_pc_pi] ON [so_pc].[PaymentInterfaceID] = [so_pc_pi].[PaymentInterfaceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentProvider] AS [so_pc_pp] ON [so_pc].[PaymentProviderID] = [so_pc_pp].[PaymentProviderID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BehaviorModel] AS [so_pc_bm] ON [so_pc].[BehaviorModelID] = [so_pc_bm].[BehaviorModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [so_pc_p] ON [so_pc].[ProductID] = [so_pc_p].[ProductID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentAccessPolicy] AS [so_cap] ON [so].[ContentAccessPolicyID] = [so_cap].[ContentAccessPolicyID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [so_cap_bm] ON [so_cap].[BusinessModelID] = [so_cap_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModelEntry] AS [so_cap_bme] ON [so_cap].[BusinessModelEntryID] = [so_cap_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [so_cap_s] ON [so_cap].[ServiceID] = [so_cap_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [so_cap_cg] ON [so_cap].[ContentGroupID] = [so_cap_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [so_cap_c] ON [so_cap].[ContentID] = [so_cap_c].[ContentID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("so", "customloadmany", "notfound"), "ServiceOffer list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ServiceOffer>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ServiceOfferTable soTable = new ServiceOfferTable(query);
+				ServiceTable so_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable so_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable so_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable so_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable so_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable so_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable so_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				ServiceConfigurationTable so_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable so_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				BusinessModelEntryTable so_bmeTable = (this.Depth > 0) ? new BusinessModelEntryTable(query) : null;
+				BusinessModelTable so_bme_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				CountryTable so_bme_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable so_bme_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				BusinessModelTypeTable so_bme_bmtTable = (this.Depth > 1) ? new BusinessModelTypeTable(query) : null;
+				PaymentConfigurationTable so_pcTable = (this.Depth > 0) ? new PaymentConfigurationTable(query) : null;
+				PaymentCredentialsTable so_pc_pcTable = (this.Depth > 1) ? new PaymentCredentialsTable(query) : null;
+				PaymentInterfaceTable so_pc_piTable = (this.Depth > 1) ? new PaymentInterfaceTable(query) : null;
+				PaymentProviderTable so_pc_ppTable = (this.Depth > 1) ? new PaymentProviderTable(query) : null;
+				BehaviorModelTable so_pc_bmTable = (this.Depth > 1) ? new BehaviorModelTable(query) : null;
+				ProductTable so_pc_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				ContentAccessPolicyTable so_capTable = (this.Depth > 0) ? new ContentAccessPolicyTable(query) : null;
+				BusinessModelTable so_cap_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				BusinessModelEntryTable so_cap_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				ServiceTable so_cap_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				ContentGroupTable so_cap_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTable so_cap_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+
+        List<ServiceOffer> result = new List<ServiceOffer>();
+        do
+        {
+          
+					Application so_s_aObject = (this.Depth > 1) ? so_s_aTable.CreateInstance() : null;
+					Product so_s_pObject = (this.Depth > 1) ? so_s_pTable.CreateInstance() : null;
+					Merchant so_s_mObject = (this.Depth > 1) ? so_s_mTable.CreateInstance() : null;
+					ServiceType so_s_stObject = (this.Depth > 1) ? so_s_stTable.CreateInstance() : null;
+					UserSessionType so_s_ustObject = (this.Depth > 1) ? so_s_ustTable.CreateInstance() : null;
+					Country so_s_cObject = (this.Depth > 1) ? so_s_cTable.CreateInstance() : null;
+					ServiceConfiguration so_s_scObject = (this.Depth > 1) ? so_s_scTable.CreateInstance() : null;
+					BusinessModel so_s_bmObject = (this.Depth > 1) ? so_s_bmTable.CreateInstance() : null;
+					Service so_sObject = (this.Depth > 0) ? so_sTable.CreateInstance(so_s_aObject, so_s_pObject, so_s_mObject, so_s_stObject, so_s_ustObject, so_s_cObject, so_s_scObject, so_s_bmObject) : null;
+					BusinessModel so_bme_bmObject = (this.Depth > 1) ? so_bme_bmTable.CreateInstance() : null;
+					Country so_bme_cObject = (this.Depth > 1) ? so_bme_cTable.CreateInstance() : null;
+					MobileOperator so_bme_moObject = (this.Depth > 1) ? so_bme_moTable.CreateInstance() : null;
+					BusinessModelType so_bme_bmtObject = (this.Depth > 1) ? so_bme_bmtTable.CreateInstance() : null;
+					BusinessModelEntry so_bmeObject = (this.Depth > 0) ? so_bmeTable.CreateInstance(so_bme_bmObject, so_bme_cObject, so_bme_moObject, so_bme_bmtObject) : null;
+					PaymentCredentials so_pc_pcObject = (this.Depth > 1) ? so_pc_pcTable.CreateInstance() : null;
+					PaymentInterface so_pc_piObject = (this.Depth > 1) ? so_pc_piTable.CreateInstance() : null;
+					PaymentProvider so_pc_ppObject = (this.Depth > 1) ? so_pc_ppTable.CreateInstance() : null;
+					BehaviorModel so_pc_bmObject = (this.Depth > 1) ? so_pc_bmTable.CreateInstance() : null;
+					Product so_pc_pObject = (this.Depth > 1) ? so_pc_pTable.CreateInstance() : null;
+					PaymentConfiguration so_pcObject = (this.Depth > 0) ? so_pcTable.CreateInstance(so_pc_pcObject, so_pc_piObject, so_pc_ppObject, so_pc_bmObject, so_pc_pObject) : null;
+					BusinessModel so_cap_bmObject = (this.Depth > 1) ? so_cap_bmTable.CreateInstance() : null;
+					BusinessModelEntry so_cap_bmeObject = (this.Depth > 1) ? so_cap_bmeTable.CreateInstance() : null;
+					Service so_cap_sObject = (this.Depth > 1) ? so_cap_sTable.CreateInstance() : null;
+					ContentGroup so_cap_cgObject = (this.Depth > 1) ? so_cap_cgTable.CreateInstance() : null;
+					Content so_cap_cObject = (this.Depth > 1) ? so_cap_cTable.CreateInstance() : null;
+					ContentAccessPolicy so_capObject = (this.Depth > 0) ? so_capTable.CreateInstance(so_cap_bmObject, so_cap_bmeObject, so_cap_sObject, so_cap_cgObject, so_cap_cObject) : null;
+					ServiceOffer soObject = (this.Depth > -1) ? soTable.CreateInstance(so_sObject, so_bmeObject, so_pcObject, so_capObject) : null;
+					result.Add(soObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("so", "customloadmany", "exception"), "ServiceOffer list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ServiceOffer", "Exception while loading (custom/many) ServiceOffer object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ServiceOffer data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ServiceOffer] ([Name],[Description],[ServiceID],[BusinessModelEntryID],[PaymentConfigurationID],[ContentAccessPolicyID],[IsDefault],[IsActive],[ValidFrom],[ValidTo]) VALUES(@Name,@Description,@ServiceID,@BusinessModelEntryID,@PaymentConfigurationID,@ContentAccessPolicyID,@IsDefault,@IsActive,@ValidFrom,@ValidTo); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@Name", data.Name).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", data.Description).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@BusinessModelEntryID", data.BusinessModelEntry.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentConfigurationID", data.PaymentConfiguration.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentAccessPolicyID", data.ContentAccessPolicy.ID);
+				sqlCmd.Parameters.AddWithValue("@IsDefault", data.IsDefault).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsActive", data.IsActive).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@ValidFrom", data.ValidFrom.HasValue ? (object)data.ValidFrom.Value : DBNull.Value).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ValidTo", data.ValidTo.HasValue ? (object)data.ValidTo.Value : DBNull.Value).SqlDbType = SqlDbType.DateTime2;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("so", "insert", "noprimarykey"), "ServiceOffer could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ServiceOffer", "Exception while inserting ServiceOffer object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("so", "insert", "exception"), "ServiceOffer could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ServiceOffer", "Exception while inserting ServiceOffer object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ServiceOffer data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ServiceOffer] SET " +
+												"[Name] = @Name, " + 
+												"[Description] = @Description, " + 
+												"[ServiceID] = @ServiceID, " + 
+												"[BusinessModelEntryID] = @BusinessModelEntryID, " + 
+												"[PaymentConfigurationID] = @PaymentConfigurationID, " + 
+												"[ContentAccessPolicyID] = @ContentAccessPolicyID, " + 
+												"[IsDefault] = @IsDefault, " + 
+												"[IsActive] = @IsActive, " + 
+												"[ValidFrom] = @ValidFrom, " + 
+												"[ValidTo] = @ValidTo, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ServiceOfferID] = @ServiceOfferID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@Name", data.Name).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", data.Description).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@BusinessModelEntryID", data.BusinessModelEntry.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentConfigurationID", data.PaymentConfiguration.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentAccessPolicyID", data.ContentAccessPolicy.ID);
+				sqlCmd.Parameters.AddWithValue("@IsDefault", data.IsDefault).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsActive", data.IsActive).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@ValidFrom", data.ValidFrom.HasValue ? (object)data.ValidFrom.Value : DBNull.Value).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ValidTo", data.ValidTo.HasValue ? (object)data.ValidTo.Value : DBNull.Value).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ServiceOfferID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("so", "update", "norecord"), "ServiceOffer could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ServiceOffer", "Exception while updating ServiceOffer object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("so", "update", "morerecords"), "ServiceOffer was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ServiceOffer", "Exception while updating ServiceOffer object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("so", "update", "exception"), "ServiceOffer could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ServiceOffer", "Exception while updating ServiceOffer object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ServiceOffer data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ServiceOffer] WHERE ServiceOfferID = @ServiceOfferID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ServiceOfferID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("so", "delete", "norecord"), "ServiceOffer could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ServiceOffer", "Exception while deleting ServiceOffer object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("so", "delete", "exception"), "ServiceOffer could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ServiceOffer", "Exception while deleting ServiceOffer object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

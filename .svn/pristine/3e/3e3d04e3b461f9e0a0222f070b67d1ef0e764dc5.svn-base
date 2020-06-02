@@ -1,0 +1,389 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(Html5Content))] 
+  public partial class Html5ContentManager : MobilePaywall.Data.Sql.SqlManagerBase<Html5Content>, IHtml5ContentManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override Html5Content LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							Html5ContentTable.GetColumnNames("[hc]") + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[hc_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[hc_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[hc_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[hc_c_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[hc_c_ar]") : string.Empty) + 
+					" FROM [core].[Html5Content] AS [hc] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [hc_c] ON [hc].[ContentID] = [hc_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroup] AS [hc_c_cg] ON [hc_c].[ContentGroupID] = [hc_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentType] AS [hc_c_ct] ON [hc_c].[ContentTypeID] = [hc_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorage] AS [hc_c_cs] ON [hc_c].[ContentStorageID] = [hc_c_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [hc_c_ar] ON [hc_c].[AgeRatingID] = [hc_c_ar].[AgeRatingID] ";
+				sqlCmdText += "WHERE [hc].[Html5ContentID] = @Html5ContentID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@Html5ContentID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hc", "loadinternal", "notfound"), "Html5Content could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				Html5ContentTable hcTable = new Html5ContentTable(query);
+				ContentTable hc_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable hc_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable hc_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable hc_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+				AgeRatingTable hc_c_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+
+        
+				ContentGroup hc_c_cgObject = (this.Depth > 1) ? hc_c_cgTable.CreateInstance() : null;
+				ContentType hc_c_ctObject = (this.Depth > 1) ? hc_c_ctTable.CreateInstance() : null;
+				ContentStorage hc_c_csObject = (this.Depth > 1) ? hc_c_csTable.CreateInstance() : null;
+				AgeRating hc_c_arObject = (this.Depth > 1) ? hc_c_arTable.CreateInstance() : null;
+				Content hc_cObject = (this.Depth > 0) ? hc_cTable.CreateInstance(hc_c_cgObject, hc_c_ctObject, hc_c_csObject, hc_c_arObject) : null;
+				Html5Content hcObject = hcTable.CreateInstance(hc_cObject);
+				sqlReader.Close();
+
+				return hcObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hc", "loadinternal", "exception"), "Html5Content could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Html5Content", "Exception while loading Html5Content object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public Html5Content Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							Html5ContentTable.GetColumnNames("[hc]") + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[hc_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[hc_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[hc_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[hc_c_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[hc_c_ar]") : string.Empty) +  
+					" FROM [core].[Html5Content] AS [hc] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [hc_c] ON [hc].[ContentID] = [hc_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroup] AS [hc_c_cg] ON [hc_c].[ContentGroupID] = [hc_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentType] AS [hc_c_ct] ON [hc_c].[ContentTypeID] = [hc_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorage] AS [hc_c_cs] ON [hc_c].[ContentStorageID] = [hc_c_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [hc_c_ar] ON [hc_c].[AgeRatingID] = [hc_c_ar].[AgeRatingID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hc", "customload", "notfound"), "Html5Content could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				Html5ContentTable hcTable = new Html5ContentTable(query);
+				ContentTable hc_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable hc_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable hc_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable hc_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+				AgeRatingTable hc_c_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+
+        
+				ContentGroup hc_c_cgObject = (this.Depth > 1) ? hc_c_cgTable.CreateInstance() : null;
+				ContentType hc_c_ctObject = (this.Depth > 1) ? hc_c_ctTable.CreateInstance() : null;
+				ContentStorage hc_c_csObject = (this.Depth > 1) ? hc_c_csTable.CreateInstance() : null;
+				AgeRating hc_c_arObject = (this.Depth > 1) ? hc_c_arTable.CreateInstance() : null;
+				Content hc_cObject = (this.Depth > 0) ? hc_cTable.CreateInstance(hc_c_cgObject, hc_c_ctObject, hc_c_csObject, hc_c_arObject) : null;
+				Html5Content hcObject = hcTable.CreateInstance(hc_cObject);
+				sqlReader.Close();
+
+				return hcObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hc", "customload", "exception"), "Html5Content could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Html5Content", "Exception while loading (custom/single) Html5Content object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<Html5Content> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							Html5ContentTable.GetColumnNames("[hc]") + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[hc_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[hc_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[hc_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[hc_c_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[hc_c_ar]") : string.Empty) +  
+					" FROM [core].[Html5Content] AS [hc] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [hc_c] ON [hc].[ContentID] = [hc_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroup] AS [hc_c_cg] ON [hc_c].[ContentGroupID] = [hc_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentType] AS [hc_c_ct] ON [hc_c].[ContentTypeID] = [hc_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorage] AS [hc_c_cs] ON [hc_c].[ContentStorageID] = [hc_c_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [hc_c_ar] ON [hc_c].[AgeRatingID] = [hc_c_ar].[AgeRatingID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hc", "customloadmany", "notfound"), "Html5Content list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<Html5Content>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				Html5ContentTable hcTable = new Html5ContentTable(query);
+				ContentTable hc_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable hc_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable hc_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable hc_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+				AgeRatingTable hc_c_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+
+        List<Html5Content> result = new List<Html5Content>();
+        do
+        {
+          
+					ContentGroup hc_c_cgObject = (this.Depth > 1) ? hc_c_cgTable.CreateInstance() : null;
+					ContentType hc_c_ctObject = (this.Depth > 1) ? hc_c_ctTable.CreateInstance() : null;
+					ContentStorage hc_c_csObject = (this.Depth > 1) ? hc_c_csTable.CreateInstance() : null;
+					AgeRating hc_c_arObject = (this.Depth > 1) ? hc_c_arTable.CreateInstance() : null;
+					Content hc_cObject = (this.Depth > 0) ? hc_cTable.CreateInstance(hc_c_cgObject, hc_c_ctObject, hc_c_csObject, hc_c_arObject) : null;
+					Html5Content hcObject = (this.Depth > -1) ? hcTable.CreateInstance(hc_cObject) : null;
+					result.Add(hcObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hc", "customloadmany", "exception"), "Html5Content list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Html5Content", "Exception while loading (custom/many) Html5Content object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, Html5Content data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[Html5Content] ([ContentID],[Title],[Description],[Active]) VALUES(@ContentID,@Title,@Description,@Active); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ContentID", data.Content.ID);
+				sqlCmd.Parameters.AddWithValue("@Title", data.Title).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Active", data.Active).SqlDbType = SqlDbType.Bit;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hc", "insert", "noprimarykey"), "Html5Content could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "Html5Content", "Exception while inserting Html5Content object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hc", "insert", "exception"), "Html5Content could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "Html5Content", "Exception while inserting Html5Content object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, Html5Content data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[Html5Content] SET " +
+												"[ContentID] = @ContentID, " + 
+												"[Title] = @Title, " + 
+												"[Description] = @Description, " + 
+												"[Active] = @Active, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [Html5ContentID] = @Html5ContentID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ContentID", data.Content.ID);
+				sqlCmd.Parameters.AddWithValue("@Title", data.Title).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Active", data.Active).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@Html5ContentID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hc", "update", "norecord"), "Html5Content could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "Html5Content", "Exception while updating Html5Content object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hc", "update", "morerecords"), "Html5Content was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "Html5Content", "Exception while updating Html5Content object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hc", "update", "exception"), "Html5Content could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "Html5Content", "Exception while updating Html5Content object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, Html5Content data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[Html5Content] WHERE Html5ContentID = @Html5ContentID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@Html5ContentID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hc", "delete", "norecord"), "Html5Content could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "Html5Content", "Exception while deleting Html5Content object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hc", "delete", "exception"), "Html5Content could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "Html5Content", "Exception while deleting Html5Content object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

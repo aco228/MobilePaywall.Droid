@@ -1,0 +1,36 @@
+﻿using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web.Models
+{
+  public class TemplateCopyServiceConfigurationModel : PaywallViewModelBase
+  {
+    private List<Country> _country = null;
+    private List<Service> _services = null;
+
+    public List<Country> Countries {get { return this._country; } set { this._country = value; } }
+    public List<Service> Services { get { return this._services; } set { this._services = value; } }
+    
+    public TemplateCopyServiceConfigurationModel(PaywallHttpContext context) : base(context)
+    {
+      this.Countries = GetLiveCountries();
+      this.Services = Data.Service.CreateManager().Load(); 
+    }
+
+    private static List<Country> GetLiveCountries()
+    {
+      List<Service> services = Data.Service.CreateManager().Load();
+      List<Country> liveCountries = new List<Country>();
+      HashSet<string> hashset = new HashSet<string>();
+      
+      foreach(Service service in services)hashset.Add(service.FallbackCountry.ID.ToString());  //dodajemo svaki service ID 
+      foreach(string t in hashset)liveCountries.Add(Country.CreateManager().Load(int.Parse(t))); //punimo hashset 
+      
+      return liveCountries;
+    }
+  }
+}

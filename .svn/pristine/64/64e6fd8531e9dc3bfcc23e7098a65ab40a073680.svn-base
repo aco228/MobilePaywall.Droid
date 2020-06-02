@@ -1,0 +1,569 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(Automation))] 
+  public partial class AutomationManager : MobilePaywall.Data.Sql.SqlManagerBase<Automation>, IAutomationManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override Automation LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							AutomationTable.GetColumnNames("[a]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[a_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[a_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[a_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[a_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[a_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[a_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[a_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[a_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[a_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[a_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[a_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[a_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + AutomationGroupTable.GetColumnNames("[a_ag]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[a_ag_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[a_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[a_mo_c]") : string.Empty) + 
+					" FROM [core].[Automation] AS [a] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [a_s] ON [a].[ServiceID] = [a_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [a_s_a] ON [a_s].[ApplicationID] = [a_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [a_s_p] ON [a_s].[ProductID] = [a_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [a_s_m] ON [a_s].[MerchantID] = [a_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [a_s_st] ON [a_s].[ServiceTypeID] = [a_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [a_s_ust] ON [a_s].[UserSessionTypeID] = [a_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [a_s_c] ON [a_s].[FallbackCountryID] = [a_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [a_s_l] ON [a_s].[FallbackLanguageID] = [a_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [a_s_ar] ON [a_s].[FallbackAgeRatingID] = [a_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [a_s_sc] ON [a_s].[ServiceConfigurationID] = [a_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [a_s_bm] ON [a_s].[BusinessModelID] = [a_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [a_s_t] ON [a_s].[TemplateID] = [a_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AutomationGroup] AS [a_ag] ON [a].[AutomationGroupID] = [a_ag].[AutomationGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [a_ag_c] ON [a_ag].[CountryID] = [a_ag_c].[CountryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [a_mo] ON [a].[MobileOperatorID] = [a_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [a_mo_c] ON [a_mo].[CountryID] = [a_mo_c].[CountryID] ";
+				sqlCmdText += "WHERE [a].[AutomationID] = @AutomationID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AutomationID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "loadinternal", "notfound"), "Automation could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AutomationTable aTable = new AutomationTable(query);
+				ServiceTable a_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable a_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable a_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable a_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable a_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable a_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable a_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable a_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable a_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable a_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable a_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable a_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				AutomationGroupTable a_agTable = (this.Depth > 0) ? new AutomationGroupTable(query) : null;
+				CountryTable a_ag_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable a_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable a_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+
+        
+				Application a_s_aObject = (this.Depth > 1) ? a_s_aTable.CreateInstance() : null;
+				Product a_s_pObject = (this.Depth > 1) ? a_s_pTable.CreateInstance() : null;
+				Merchant a_s_mObject = (this.Depth > 1) ? a_s_mTable.CreateInstance() : null;
+				ServiceType a_s_stObject = (this.Depth > 1) ? a_s_stTable.CreateInstance() : null;
+				UserSessionType a_s_ustObject = (this.Depth > 1) ? a_s_ustTable.CreateInstance() : null;
+				Country a_s_cObject = (this.Depth > 1) ? a_s_cTable.CreateInstance() : null;
+				Language a_s_lObject = (this.Depth > 1) ? a_s_lTable.CreateInstance() : null;
+				AgeRating a_s_arObject = (this.Depth > 1) ? a_s_arTable.CreateInstance() : null;
+				ServiceConfiguration a_s_scObject = (this.Depth > 1) ? a_s_scTable.CreateInstance() : null;
+				BusinessModel a_s_bmObject = (this.Depth > 1) ? a_s_bmTable.CreateInstance() : null;
+				Template a_s_tObject = (this.Depth > 1) ? a_s_tTable.CreateInstance() : null;
+				Service a_sObject = (this.Depth > 0) ? a_sTable.CreateInstance(a_s_aObject, a_s_pObject, a_s_mObject, a_s_stObject, a_s_ustObject, a_s_cObject, a_s_lObject, a_s_arObject, a_s_scObject, a_s_bmObject, a_s_tObject) : null;
+				Country a_ag_cObject = (this.Depth > 1) ? a_ag_cTable.CreateInstance() : null;
+				AutomationGroup a_agObject = (this.Depth > 0) ? a_agTable.CreateInstance(a_ag_cObject) : null;
+				Country a_mo_cObject = (this.Depth > 1) ? a_mo_cTable.CreateInstance() : null;
+				MobileOperator a_moObject = (this.Depth > 0) ? a_moTable.CreateInstance(a_mo_cObject) : null;
+				Automation aObject = aTable.CreateInstance(a_sObject, a_agObject, a_moObject);
+				sqlReader.Close();
+
+				return aObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "loadinternal", "exception"), "Automation could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Automation", "Exception while loading Automation object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public Automation Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AutomationTable.GetColumnNames("[a]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[a_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[a_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[a_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[a_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[a_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[a_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[a_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[a_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[a_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[a_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[a_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[a_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + AutomationGroupTable.GetColumnNames("[a_ag]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[a_ag_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[a_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[a_mo_c]") : string.Empty) +  
+					" FROM [core].[Automation] AS [a] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [a_s] ON [a].[ServiceID] = [a_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [a_s_a] ON [a_s].[ApplicationID] = [a_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [a_s_p] ON [a_s].[ProductID] = [a_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [a_s_m] ON [a_s].[MerchantID] = [a_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [a_s_st] ON [a_s].[ServiceTypeID] = [a_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [a_s_ust] ON [a_s].[UserSessionTypeID] = [a_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [a_s_c] ON [a_s].[FallbackCountryID] = [a_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [a_s_l] ON [a_s].[FallbackLanguageID] = [a_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [a_s_ar] ON [a_s].[FallbackAgeRatingID] = [a_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [a_s_sc] ON [a_s].[ServiceConfigurationID] = [a_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [a_s_bm] ON [a_s].[BusinessModelID] = [a_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [a_s_t] ON [a_s].[TemplateID] = [a_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AutomationGroup] AS [a_ag] ON [a].[AutomationGroupID] = [a_ag].[AutomationGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [a_ag_c] ON [a_ag].[CountryID] = [a_ag_c].[CountryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [a_mo] ON [a].[MobileOperatorID] = [a_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [a_mo_c] ON [a_mo].[CountryID] = [a_mo_c].[CountryID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "customload", "notfound"), "Automation could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AutomationTable aTable = new AutomationTable(query);
+				ServiceTable a_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable a_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable a_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable a_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable a_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable a_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable a_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable a_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable a_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable a_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable a_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable a_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				AutomationGroupTable a_agTable = (this.Depth > 0) ? new AutomationGroupTable(query) : null;
+				CountryTable a_ag_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable a_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable a_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+
+        
+				Application a_s_aObject = (this.Depth > 1) ? a_s_aTable.CreateInstance() : null;
+				Product a_s_pObject = (this.Depth > 1) ? a_s_pTable.CreateInstance() : null;
+				Merchant a_s_mObject = (this.Depth > 1) ? a_s_mTable.CreateInstance() : null;
+				ServiceType a_s_stObject = (this.Depth > 1) ? a_s_stTable.CreateInstance() : null;
+				UserSessionType a_s_ustObject = (this.Depth > 1) ? a_s_ustTable.CreateInstance() : null;
+				Country a_s_cObject = (this.Depth > 1) ? a_s_cTable.CreateInstance() : null;
+				Language a_s_lObject = (this.Depth > 1) ? a_s_lTable.CreateInstance() : null;
+				AgeRating a_s_arObject = (this.Depth > 1) ? a_s_arTable.CreateInstance() : null;
+				ServiceConfiguration a_s_scObject = (this.Depth > 1) ? a_s_scTable.CreateInstance() : null;
+				BusinessModel a_s_bmObject = (this.Depth > 1) ? a_s_bmTable.CreateInstance() : null;
+				Template a_s_tObject = (this.Depth > 1) ? a_s_tTable.CreateInstance() : null;
+				Service a_sObject = (this.Depth > 0) ? a_sTable.CreateInstance(a_s_aObject, a_s_pObject, a_s_mObject, a_s_stObject, a_s_ustObject, a_s_cObject, a_s_lObject, a_s_arObject, a_s_scObject, a_s_bmObject, a_s_tObject) : null;
+				Country a_ag_cObject = (this.Depth > 1) ? a_ag_cTable.CreateInstance() : null;
+				AutomationGroup a_agObject = (this.Depth > 0) ? a_agTable.CreateInstance(a_ag_cObject) : null;
+				Country a_mo_cObject = (this.Depth > 1) ? a_mo_cTable.CreateInstance() : null;
+				MobileOperator a_moObject = (this.Depth > 0) ? a_moTable.CreateInstance(a_mo_cObject) : null;
+				Automation aObject = aTable.CreateInstance(a_sObject, a_agObject, a_moObject);
+				sqlReader.Close();
+
+				return aObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "customload", "exception"), "Automation could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Automation", "Exception while loading (custom/single) Automation object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<Automation> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AutomationTable.GetColumnNames("[a]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[a_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[a_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[a_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[a_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[a_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[a_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[a_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[a_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[a_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[a_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[a_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[a_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + AutomationGroupTable.GetColumnNames("[a_ag]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[a_ag_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[a_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[a_mo_c]") : string.Empty) +  
+					" FROM [core].[Automation] AS [a] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [a_s] ON [a].[ServiceID] = [a_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [a_s_a] ON [a_s].[ApplicationID] = [a_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [a_s_p] ON [a_s].[ProductID] = [a_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [a_s_m] ON [a_s].[MerchantID] = [a_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [a_s_st] ON [a_s].[ServiceTypeID] = [a_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [a_s_ust] ON [a_s].[UserSessionTypeID] = [a_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [a_s_c] ON [a_s].[FallbackCountryID] = [a_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [a_s_l] ON [a_s].[FallbackLanguageID] = [a_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [a_s_ar] ON [a_s].[FallbackAgeRatingID] = [a_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [a_s_sc] ON [a_s].[ServiceConfigurationID] = [a_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [a_s_bm] ON [a_s].[BusinessModelID] = [a_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [a_s_t] ON [a_s].[TemplateID] = [a_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AutomationGroup] AS [a_ag] ON [a].[AutomationGroupID] = [a_ag].[AutomationGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [a_ag_c] ON [a_ag].[CountryID] = [a_ag_c].[CountryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [a_mo] ON [a].[MobileOperatorID] = [a_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [a_mo_c] ON [a_mo].[CountryID] = [a_mo_c].[CountryID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "customloadmany", "notfound"), "Automation list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<Automation>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AutomationTable aTable = new AutomationTable(query);
+				ServiceTable a_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable a_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable a_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable a_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable a_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable a_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable a_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable a_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable a_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable a_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable a_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable a_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				AutomationGroupTable a_agTable = (this.Depth > 0) ? new AutomationGroupTable(query) : null;
+				CountryTable a_ag_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable a_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable a_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+
+        List<Automation> result = new List<Automation>();
+        do
+        {
+          
+					Application a_s_aObject = (this.Depth > 1) ? a_s_aTable.CreateInstance() : null;
+					Product a_s_pObject = (this.Depth > 1) ? a_s_pTable.CreateInstance() : null;
+					Merchant a_s_mObject = (this.Depth > 1) ? a_s_mTable.CreateInstance() : null;
+					ServiceType a_s_stObject = (this.Depth > 1) ? a_s_stTable.CreateInstance() : null;
+					UserSessionType a_s_ustObject = (this.Depth > 1) ? a_s_ustTable.CreateInstance() : null;
+					Country a_s_cObject = (this.Depth > 1) ? a_s_cTable.CreateInstance() : null;
+					Language a_s_lObject = (this.Depth > 1) ? a_s_lTable.CreateInstance() : null;
+					AgeRating a_s_arObject = (this.Depth > 1) ? a_s_arTable.CreateInstance() : null;
+					ServiceConfiguration a_s_scObject = (this.Depth > 1) ? a_s_scTable.CreateInstance() : null;
+					BusinessModel a_s_bmObject = (this.Depth > 1) ? a_s_bmTable.CreateInstance() : null;
+					Template a_s_tObject = (this.Depth > 1) ? a_s_tTable.CreateInstance() : null;
+					Service a_sObject = (this.Depth > 0) ? a_sTable.CreateInstance(a_s_aObject, a_s_pObject, a_s_mObject, a_s_stObject, a_s_ustObject, a_s_cObject, a_s_lObject, a_s_arObject, a_s_scObject, a_s_bmObject, a_s_tObject) : null;
+					Country a_ag_cObject = (this.Depth > 1) ? a_ag_cTable.CreateInstance() : null;
+					AutomationGroup a_agObject = (this.Depth > 0) ? a_agTable.CreateInstance(a_ag_cObject) : null;
+					Country a_mo_cObject = (this.Depth > 1) ? a_mo_cTable.CreateInstance() : null;
+					MobileOperator a_moObject = (this.Depth > 0) ? a_moTable.CreateInstance(a_mo_cObject) : null;
+					Automation aObject = (this.Depth > -1) ? aTable.CreateInstance(a_sObject, a_agObject, a_moObject) : null;
+					result.Add(aObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "customloadmany", "exception"), "Automation list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Automation", "Exception while loading (custom/many) Automation object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, Automation data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[Automation] ([Name],[ServiceID],[AutomationGroupID],[MobileOperatorID],[Limit],[ExternalOfferName],[IsActive],[Index],[Comment]) VALUES(@Name,@ServiceID,@AutomationGroupID,@MobileOperatorID,@Limit,@ExternalOfferName,@IsActive,@Index,@Comment); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@Name", data.Name).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@AutomationGroupID", data.AutomationGroup.ID);
+				sqlCmd.Parameters.AddWithValue("@MobileOperatorID", data.MobileOperator == null ? DBNull.Value : (object)data.MobileOperator.ID);
+				sqlCmd.Parameters.AddWithValue("@Limit", data.Limit).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@ExternalOfferName", data.ExternalOfferName).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@IsActive", data.IsActive).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Index", data.Index).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Comment", !string.IsNullOrEmpty(data.Comment) ? (object)data.Comment : DBNull.Value).SqlDbType = SqlDbType.NText;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "insert", "noprimarykey"), "Automation could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "Automation", "Exception while inserting Automation object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "insert", "exception"), "Automation could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "Automation", "Exception while inserting Automation object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, Automation data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[Automation] SET " +
+												"[Name] = @Name, " + 
+												"[ServiceID] = @ServiceID, " + 
+												"[AutomationGroupID] = @AutomationGroupID, " + 
+												"[MobileOperatorID] = @MobileOperatorID, " + 
+												"[Limit] = @Limit, " + 
+												"[ExternalOfferName] = @ExternalOfferName, " + 
+												"[IsActive] = @IsActive, " + 
+												"[Index] = @Index, " + 
+												"[Comment] = @Comment, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [AutomationID] = @AutomationID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@Name", data.Name).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@AutomationGroupID", data.AutomationGroup.ID);
+				sqlCmd.Parameters.AddWithValue("@MobileOperatorID", data.MobileOperator == null ? DBNull.Value : (object)data.MobileOperator.ID);
+				sqlCmd.Parameters.AddWithValue("@Limit", data.Limit).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@ExternalOfferName", data.ExternalOfferName).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@IsActive", data.IsActive).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Index", data.Index).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Comment", !string.IsNullOrEmpty(data.Comment) ? (object)data.Comment : DBNull.Value).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@AutomationID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "update", "norecord"), "Automation could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "Automation", "Exception while updating Automation object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "update", "morerecords"), "Automation was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "Automation", "Exception while updating Automation object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "update", "exception"), "Automation could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "Automation", "Exception while updating Automation object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, Automation data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[Automation] WHERE AutomationID = @AutomationID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AutomationID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "delete", "norecord"), "Automation could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "Automation", "Exception while deleting Automation object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "delete", "exception"), "Automation could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "Automation", "Exception while deleting Automation object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

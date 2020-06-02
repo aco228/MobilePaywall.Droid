@@ -1,0 +1,72 @@
+﻿using Cashflow.Message;
+using MobilePaywall.Service.Callback.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+
+namespace MobilePaywall.Service.Callback
+{
+  public class SpecificHandlerManager
+  {
+    private List<SpecificHandlerBase> _handlers = null;
+
+    public SpecificHandlerBase this[Data.Service service]
+    {
+      get
+      {
+        if (this._handlers == null || this._handlers.Count == 0 || service == null)
+          return null;
+
+        SpecificHandlerBase sp = null;
+        sp = (from s in this._handlers where s.CheckService(service) select s).FirstOrDefault();
+        return sp;
+      }
+    }
+
+    public SpecificHandlerManager()
+    {
+      this._handlers = new List<SpecificHandlerBase>();
+      this._handlers.Add(new MobilePaywall.Service.Callback.SpecificHandlers.GreekQuizHandler());
+      this._handlers.Add(new MobilePaywall.Service.Callback.SpecificHandlers.Iran.IranHandeler());
+    }
+
+    public void RegisterNewHandlerGroup(SpecificHandlerBase handler)
+    {
+      this._handlers.Add(handler);
+    }
+
+    public void Add(SpecificHandlerBase handler)
+    {
+      this._handlers.Add(handler);
+    }
+
+    public bool TryToRunSpecificImplementation(CallbackLog log)
+    {
+      if (this._handlers == null || this._handlers.Count == 0 || log == null || log.HasError)
+        return false;
+
+      return this.TryToRunSpecificImplementation(log.UserSession.Service, log, log.Notification);
+    }
+
+    public bool TryToRunSpecificImplementation(Data.Service service, CallbackLog log, Notification notification)
+    {
+      SpecificHandlerBase handler = this[service];
+      if (handler == null || handler.Methods == null || handler.Methods.Count == 0)
+        return false;
+
+      foreach (SpecificHandlerMethodBase method in handler.Methods)
+        if (method.TryExecute(log, notification))
+        {
+          if (method.StopOriginalExecution)
+            return true;
+
+          break;
+        }
+
+      return false;
+    }
+
+
+  }
+}

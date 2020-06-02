@@ -1,0 +1,82 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using MobilePaywall.Data;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IDeamonTaskResultManager : IDataManager<DeamonTaskResult> 
+  {
+	
+
+  }
+
+  public partial class DeamonTaskResult : MobilePaywallObject<IDeamonTaskResultManager> 
+  {
+		private DeamonTask _deamonTask;
+		private string _data = String.Empty;
+		private DateTime _started = DateTime.MinValue;
+		private DateTime? _ended = DateTime.MinValue;
+		private bool _hasFatal = false;
+		private bool _isSuccessful = false;
+		
+
+		public DeamonTask DeamonTask 
+		{
+			get
+			{
+				if (this._deamonTask != null &&
+						this._deamonTask.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._deamonTask = DeamonTask.CreateManager().LazyLoad(this.ConnectionContext, this._deamonTask.ID) as DeamonTask;
+					else
+						this._deamonTask = DeamonTask.CreateManager().LazyLoad(this._deamonTask.ID) as DeamonTask;
+				return this._deamonTask;
+			}
+			set { _deamonTask = value; }
+		}
+
+		public string Data{ get {return this._data; } set { this._data = value;} }
+		public DateTime Started { get { return this._started; } set { this._started = value;} }
+		public DateTime? Ended { get { return this._ended; } set { this._ended = value;} }
+		public bool HasFatal {get {return this._hasFatal; } set { this._hasFatal = value;} }
+		public bool IsSuccessful {get {return this._isSuccessful; } set { this._isSuccessful = value;} }
+		
+
+    public override bool IsInsertable { get { return true;} }
+
+    public override bool IsDeletable { get { return false;} }
+
+    public override bool IsUpdatable { get { return true;} }
+
+    public DeamonTaskResult()
+    { 
+    }
+
+    public DeamonTaskResult(int id): base(id, DateTime.Now, DateTime.Now, true)
+    {
+    }
+
+    public DeamonTaskResult(int id,  DeamonTask deamonTask, string data, DateTime started, DateTime? ended, bool hasFatal, bool isSuccessful, DateTime updated, DateTime created): base(id, updated, created, false)
+    {
+			this._deamonTask = deamonTask;
+			this._data = data;
+			this._started = started;
+			this._ended = ended;
+			this._hasFatal = hasFatal;
+			this._isSuccessful = isSuccessful;
+			
+    }
+
+    public override object Clone(bool deepClone)
+    {
+      return new DeamonTaskResult(-1,  this.DeamonTask,this.Data,this.Started,this.Ended,this.HasFatal,this.IsSuccessful, DateTime.Now, DateTime.Now);
+    }
+  }
+}
+

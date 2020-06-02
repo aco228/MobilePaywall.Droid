@@ -1,0 +1,87 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Web.Log;
+using MobilePaywall.Web.Models;
+using Senti.Diagnostics.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers
+{
+  public class ApplicationController : PaywallRestrictedAccessController 
+  {
+    
+		#region #logging#
+		private static ILog _log = null;
+
+		protected static ILog Log
+		{
+			get
+			{
+        if (ApplicationController._log == null)
+          ApplicationController._log = LogManager.GetLogger(typeof(ApplicationController));
+        return ApplicationController._log;
+			}
+		}
+		#endregion
+		
+		public ActionResult Download(int id)
+    {
+      LogMessageBuilder builder = null;
+      ApplicationContentData data = ApplicationContentData.LoadByID(id);
+      IContent content = this.Cache.GetContent(data.ApplicationContent.Content.ID);
+      Application application = content as Application;
+      if (application == null)
+      {
+        builder = new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "applicationcontroller", "download"), "Content not found or is not of Application type", content);
+        Log.Error(builder);
+
+        //- ContentError: Requested content is not provided or not valid!
+        ErrorViewModel model = new ErrorViewModel(this.PaywallContext, 0, "Content error", "Content not found");
+        return View("Error", model);
+      }
+
+      if (!application.IsDownloadable)
+      {
+        // Return error page!
+        //- ContentError: Requested content is not available for downloading!
+        ErrorViewModel model = new ErrorViewModel(this.PaywallContext, 0, "Content error", "Content is not downloadable");
+        return View("Error", model);
+      }
+
+      string fileName = string.Format("{0}{1}", data.ApplicationContent.Title, data.MimeType.Extension);
+      HttpContext.Response.ContentType = data.MimeType.Name;
+
+      return File(data.Data, data.MimeType.Name, fileName);
+    }
+
+    public override IContent GetRequestedContent()
+    {
+      LogMessageBuilder builder = null;
+      object applicationContentDataID = null;
+      if (!this.RouteData.Values.TryGetValue("id", out applicationContentDataID) ||
+          applicationContentDataID == null)
+      {
+        // problem here...
+        throw new ArgumentException("Invalid argument supplied for contentID parameter.", "contentID");
+      }
+
+      int applicationContentDataIDValue = Int32.Parse(applicationContentDataID.ToString());
+      ApplicationContentData data = ApplicationContentData.LoadByID(applicationContentDataIDValue);
+      if (data == null)
+      {
+        builder = new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "applicationcontent", "getrequestedcontent"), "ApplicationContentDAta is not found in database for " + applicationContentDataID);
+        Log.Error(builder);
+
+        // Application is not found. Return error page or so? (done in RestrictedAccessAttribute->OnActionExecuting)
+        return null;
+      }
+      return this.Cache.GetContent(data.ID);
+    }
+
+  }
+}

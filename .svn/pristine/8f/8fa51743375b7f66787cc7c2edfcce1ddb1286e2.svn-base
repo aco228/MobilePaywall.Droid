@@ -1,0 +1,133 @@
+﻿  using System;
+using System.Web.Mvc;
+
+using MobilePaywall.Data;
+using MobilePaywall.Web.Models;
+
+using Senti.Diagnostics.Log;
+
+using log4net;
+
+namespace MobilePaywall.Web.Filters
+{
+  [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, Inherited = true, AllowMultiple = true)]
+  public class TemplateAttribute : PaywallActionFilterAttributeBase
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (TemplateAttribute._log == null)
+          TemplateAttribute._log = LogManager.GetLogger(typeof(TemplateAttribute));
+        return TemplateAttribute._log;
+      }
+    }
+
+    #endregion #logging#
+
+    private bool _loginRequired = true;
+    private bool _administratorAccess = false;
+    private bool _marketingAccess = false;
+    private bool _merchantAccess = false;
+    private bool _customerCareAccess = false;
+    private TemplateClientType _clientType = TemplateClientType.Tester;
+
+    public bool AdministratorAccess { get { return this._administratorAccess; } set { this._administratorAccess = value; } }
+    public bool MarketingAccess { get { return this._marketingAccess; } set { this._marketingAccess = value; } }
+    public bool MerchantAccess { get { return this._merchantAccess; } set { this._merchantAccess = value; } }
+    public bool CustomerCareAccess { get { return this._customerCareAccess; } set { this._customerCareAccess = value; } }
+    public bool LoginRequired { get { return this._loginRequired; } set { this._loginRequired = value; } }
+    public TemplateClientType ClientType { get { return this._clientType; } set { this._clientType = value; } }
+
+    public override void OnActionExecuting(ActionExecutingContext filterContext)
+    {
+      base.OnActionExecuting(filterContext);
+
+      #region # Skip attribute #
+
+      if ( filterContext.HttpContext.Request.RawUrl.Contains("skip=") ||  !this._loginRequired ||  filterContext.HttpContext.Request.RawUrl.ToLower().Contains("api"))
+       return;
+
+      #endregion
+
+      #region # Check ClientSession #
+
+      if ( this.PaywallContext.Session == null || 
+        this.PaywallContext.Session.ClientSession == null || 
+        !this.PaywallContext.Session.ClientSession.IsActive || 
+        DateTime.Now > this.PaywallContext.Session.ClientSession.ValidUntil )
+      {
+        this.Login(filterContext, "", filterContext.HttpContext.Request.RawUrl);
+        return;
+      }
+
+      #endregion
+
+      #region # Access Restriction #
+      
+
+      if(!this.PaywallContext.Session.ClientSession.HasAccesToTemplateContent(this._clientType))
+      {
+        this.Error(filterContext, "You dont have rights to see this page! ");
+        return;
+      }
+
+      //if ((this._administratorAccess && this.PaywallContext.Session.ClientSession.Client.ClientType.Name.Equals("Administrator") || this.PaywallContext.Session.ClientSession.Client.ClientType.Name.Equals("Marketing")) ||
+      //  (this._merchantAccess && this.PaywallContext.Session.ClientSession.Client.ClientType.Name.Equals("Merchant")) ||
+      //  (this._customerCareAccess && this.PaywallContext.Session.ClientSession.Client.ClientType.Name.Equals("CustomerCare")) ||
+      //  (!this._administratorAccess && !this._marketingAccess && !this._merchantAccess && !this._customerCareAccess))
+      //{ }
+      //else
+      //{
+      //  this.Error(filterContext, "You dont have rights to see this page! ");
+      //  return;
+      //}
+
+      #endregion
+
+    }
+
+    private void Login(ActionExecutingContext filterContext, string username, string originalRequest)
+    {
+      if (filterContext.HttpContext.Request.IsAjaxRequest())
+      {
+        JsonResult jsonResutl = new JsonResult();
+        jsonResutl.Data = new { status = false, message = "Your session is over. Please refresh page!", redirect = "/" };
+        filterContext.Result = jsonResutl;
+        return;
+      }
+
+      ViewResult result = new ViewResult();
+      result.ViewName = "~/Views/Template/Login.cshtml";
+      result.ViewBag.Username = username;
+      result.ViewBag.OriginalRequest = originalRequest;
+      filterContext.Result = result;
+      return;
+    }
+
+    private void Error(ActionExecutingContext filterContext, string errorMessage)
+    {
+      if (filterContext.HttpContext.Request.IsAjaxRequest())
+      {
+        JsonResult jsonResutl = new JsonResult();
+        jsonResutl.Data = new { status = false, message = "You dont have permission for this action", redirect = "/" };
+        filterContext.Result = jsonResutl;
+        return;
+      }
+
+      ErrorViewModel model = new ErrorViewModel(this.PaywallContext, 0, "Error", errorMessage);
+      ViewResult viewResult = new ViewResult();
+      viewResult.ViewName = "Error";
+      viewResult.ViewData.Model = model;
+      filterContext.Result = viewResult;
+      return;
+    }
+
+
+  
+  }
+}

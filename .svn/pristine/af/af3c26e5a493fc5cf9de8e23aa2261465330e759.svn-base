@@ -1,0 +1,301 @@
+﻿using Cashflow.Client;
+using Cashflow.Message;
+using Cashflow.Message.Mobile;
+using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Direct;
+using MobilePaywall.Web.Models.Specific.PL;
+using Senti.Security;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers._Specific.PL
+{
+  public class PolandPaymentController : Controller
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (PolandPaymentController._log == null)
+          PolandPaymentController._log = LogManager.GetLogger(typeof(PolandPaymentController));
+        return PolandPaymentController._log;
+      }
+    }
+    #endregion
+
+    private PaymentConfiguration _paymentConfiguration = null;
+    private PaymentConfiguration PaymentConfiguration
+    {
+      get
+      {
+        if (this._paymentConfiguration != null)
+          return this._paymentConfiguration;
+
+        ServiceOffer so = (from s in ServiceOffer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData) where s.IsActive && s.IsDefault select s).FirstOrDefault();
+        if (so == null)
+          return null;
+
+        this._paymentConfiguration = so.PaymentConfiguration;
+        return this._paymentConfiguration;
+      }
+    }
+
+    public ActionResult Index(string cid)
+    {
+      int _cid = -1;
+      Data.Content content = null;
+      if(Int32.TryParse(cid, out _cid))
+        content = Data.Content.CreateManager().Load(_cid);
+      
+      if (content == null)
+      {
+        ServiceContentGroupMap map = ServiceContentGroupMap.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData).FirstOrDefault();
+        content = Data.Content.CreateManager().Load(map.ContentGroup).FirstOrDefault();
+      }
+
+      if (content == null)
+        Log.Error("PolandPayment:: Content is null");
+      else
+        Log.Debug("PolandPayment:: Content ID: " + content.ID);
+
+      PolandPaymentViewModel model = new PolandPaymentViewModel(PaywallHttpContext.Current, content);
+      return View("PaymentPage", model);
+    }
+
+    public ActionResult PostMsisdn()
+    {
+      string msisdn = Request["input"] != null ? Request["input"].ToString() : string.Empty;
+      string userSessionID = Request["userSessionID"] != null ? Request["userSessionID"].ToString() : string.Empty;
+      if (!string.IsNullOrEmpty(userSessionID))
+        this.ChangeLandingSession(userSessionID);
+
+      msisdn = this.FixNumber(msisdn);
+
+      if(string.IsNullOrEmpty(msisdn))
+      {
+        Log.Error("PolandPayment:: Input is empty");
+        return this.Json(new { status = false, message = "Proszę podać swój numer MSISDN" }, JsonRequestBehavior.AllowGet);
+      }
+
+      Log.Debug("PolandPayment:: Process for number: " + msisdn);
+
+      Customer customer = Customer.CreateManager().Load(msisdn, CustomerIdentifier.Msisdn).FirstOrDefault();
+      if(customer != null)
+      {
+        if (MobilePaywall.Web.Controllers._Specific.GR.GreeceCustomerResult.CheckIfCustomerHasActivePayment(msisdn)!=null)
+        {
+          Log.Error("PolandPayment:: Customer with msisdn: " + msisdn + " has active payment");
+          return this.Json(new { status = false, message = "Liczba ta ma już subskrypcję." }, JsonRequestBehavior.AllowGet);
+        }
+
+        Log.Debug("PolandPayment:: Customer is loaded with id:" + customer.ID);
+      }
+      else
+      {
+        MobileOperator mobileOperator = PaywallHttpContext.Current.Session.SessionData.MobileOperator != null ?
+          PaywallHttpContext.Current.Session.SessionData.MobileOperator : this.GetMobileOperator(msisdn);
+
+        if(mobileOperator == null)
+        {
+          Log.Error("PolandPayment:: Could not get MobileOperator for msisdn: " + msisdn);
+          return this.Json(new { status = false, message = "Błąd wewnętrzny. Spróbuj ponownie później" }, JsonRequestBehavior.AllowGet);
+        }
+
+        string password = Guid.NewGuid().ToString().Substring(0, 4);
+        customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Active, PaywallHttpContext.Current.Service.ServiceData, PaywallHttpContext.Current.Service.ServiceData.FallbackCountry,
+          mobileOperator, null, msisdn, string.Empty, msisdn, PasswordEncryption.Create(password).EncryptedPasswordAndSalt, DateTime.Now, DateTime.Now);
+        customer.Insert();
+        customer.Storage.PutString("password", password);
+
+        Log.Debug("PolandPayment:: New customer is created with id:" + customer.ID);
+      }
+
+      PaywallHttpContext.Current.Session.SessionData.Customer = customer;
+      PaywallHttpContext.Current.Session.SessionData.MobileOperator = customer.MobileOperator;
+      PaywallHttpContext.Current.Session.SessionData.Update();
+
+      MobileSubscriberArguments arguments = new MobileSubscriberArguments();
+      arguments.Msisdn = msisdn;
+      arguments.OperatorCode = customer.MobileOperator.ExternalMobileOperatorID.ToString();
+
+      SubscriptionClient mobileClient = CashflowClientPaywallManager.GetSubscriptionClient(PaywallHttpContext.Current.Service.ServiceData);
+      mobileClient.AttachLogWriter(new CashflowLog(PaywallHttpContext.Current.Service.ServiceData));
+      
+      InitiateSubscriptionResponse response = CashflowClientPaywallManager.GetInitiateSubscriptionResponse(PaywallHttpContext.Current.Session, string.Empty, arguments);
+      if (response.Status.Code == MessageStatusCode.Success || response.Status.Code == MessageStatusCode.Redirect)
+      {
+        customer.ExternalCustomerGuid = response.CustomerID;
+        customer.Update();
+
+        Log.Debug("PolandPayment:: Initiate subscription is success for customer:" + customer.ID);
+        return this.Json(new { status = true, message = "" }, JsonRequestBehavior.AllowGet);
+      }
+      else
+      {
+        Log.Error("PolandPayment:: Initiate subscription is not successfull");
+        return this.Json(new { status = false, message = "Błąd wewnętrzny. Spróbuj ponownie później" }, JsonRequestBehavior.AllowGet);
+      }
+
+    }
+
+    public ActionResult PostPin()
+    {
+      string pin = Request["input"] != null ? Request["input"].ToString() : string.Empty;
+      string userSessionID = Request["userSessionID"] != null ? Request["userSessionID"].ToString() : string.Empty;
+      if (!string.IsNullOrEmpty(userSessionID))
+        this.ChangeLandingSession(userSessionID);
+
+      pin = Regex.Replace(pin, "[^0-9]", "");
+
+      if(string.IsNullOrEmpty(pin))
+      {
+        Log.Error("PolandPin:: Pin is not set");
+        return this.Json(new { status = false, message = "Proszę podać numer PIN" }, JsonRequestBehavior.AllowGet);
+      }
+
+      if(PaywallHttpContext.Current.Session.SessionData.Customer == null)
+      {
+        Log.Error("PolandPin:: There is no Customer in Session");
+        return this.Json(new { status = false, message = "Błąd wewnętrzny. Spróbuj ponownie później" }, JsonRequestBehavior.AllowGet);
+      }
+
+      Log.Debug("PolandPin:: Customer entered pin: " + pin);
+
+      MobileTanArguments arguments = new MobileTanArguments();
+      arguments.Tan = pin;
+      arguments.Msisdn = PaywallHttpContext.Current.Session.SessionData.Customer.Msisdn;
+
+      SubscriptionClient mobileClient = CashflowClientPaywallManager.GetSubscriptionClient(PaywallHttpContext.Current.Service.ServiceData);
+      mobileClient.AttachLogWriter(new CashflowLog(PaywallHttpContext.Current.Service.ServiceData));
+
+      UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), PaywallHttpContext.Current.Session.SessionData, null, "/PolandPayment", DateTime.Now, DateTime.Now);
+      uhr.Insert();
+      LookupSession ls = new LookupSession(-1, Guid.NewGuid(), LookupSessionStatus.Complete, PaywallHttpContext.Current.Session.SessionData, uhr, null, string.Empty, DateTime.Now, DateTime.Now);
+      ls.Insert();
+      ServiceOffer so = (from s in ServiceOffer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData) where s.IsActive && s.IsDefault select s).FirstOrDefault();
+      PaymentRequest pr = new PaymentRequest(-1, Guid.NewGuid(), PaymentType.Subscription, PaymentRequestStatus.Initialized, ls, PaywallHttpContext.Current.Session.SessionData.Customer,
+        PaywallHttpContext.Current.Session.SessionData, so, so.BusinessModelEntry, null, uhr, string.Empty, DateTime.Now, DateTime.Now);
+      pr.Insert();
+      
+      InitiateSubscriptionResponse response = CashflowClientPaywallManager.GetInitiateSubscriptionResponse(PaywallHttpContext.Current.Session, string.Empty, arguments);
+      if (response.Status.Code == MessageStatusCode.Success || response.Status.Code == MessageStatusCode.Redirect)
+      {
+
+        pr.ExternalPaymentRequestGuid = response.SubscriptionRequestID;
+        pr.Update();
+
+        Log.Debug("PolanPin:: Initiate subscription TAN is success for customer:");
+        return this.Json(new { status = true, message = "Powodzenie. Wkrótce zostaniesz przekierowany" }, JsonRequestBehavior.AllowGet);
+      }
+      else
+      {
+        Log.Error("PolanPin:: Initiate subscription is not successfull");
+        return this.Json(new { status = false, message = "Błąd wewnętrzny. Spróbuj ponownie później" }, JsonRequestBehavior.AllowGet);
+      }
+    }
+
+    public MobileOperator GetMobileOperator(string msisdn)
+    {
+      SmsArguments smsArguments = new SmsArguments();
+      smsArguments.Msisdn = msisdn;
+
+      MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(PaywallHttpContext.Current.Service.ServiceData);
+      mobileClient.AttachLogWriter(new CashflowLog(PaywallHttpContext.Current.Service.ServiceData));
+      LookupOperatorRequest loreq = new LookupOperatorRequest(RequestMode.Synchronous,
+        PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+        this.PaymentConfiguration.PaymentCredentials.Username,
+        this.PaymentConfiguration.PaymentCredentials.Password,
+        PaywallHttpContext.Current.Service.ServiceData.Product.ExternalProductGuid,
+        this.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+        PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode,
+        this.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+        this.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+        PaywallHttpContext.Current.Session.SessionData.IPAddress,
+        "", //  notifcationUrl
+        smsArguments.ToMessageArguments()); // arguments
+      loreq.ReferenceIntID = PaywallHttpContext.Current.Session.SessionData.ID;
+
+      LookupOperatorResponse lookupOperatorResponse = mobileClient.LookupOperator(loreq);
+      switch (lookupOperatorResponse.Status.Code)
+      {
+        case MessageStatusCode.Success:
+          int mobileOperaotID = -1;
+          if (!Int32.TryParse(lookupOperatorResponse.OperatorID.ToString(), out mobileOperaotID))
+          {
+            Log.Error("PolandPayment:: Could not parse mobileoperator from this: " + lookupOperatorResponse.OperatorID.ToString());
+            return null;
+          }
+          MobileOperator mobileOperator = MobileOperator.CreateManager().Load(mobileOperaotID, IDType.External);
+          if (mobileOperator == null)
+          {
+            Log.Error("PolandPayment::Could not load mobileOperator by ID: " + mobileOperaotID);
+            return null;
+          }
+          return mobileOperator;
+        default:
+          return null;
+      }
+    }
+
+    public void ChangeLandingSession(string sessionID)
+    {
+      Guid usGuid;
+      if (!Guid.TryParse(sessionID, out usGuid))
+        return;
+
+      UserSession us = UserSession.CreateManager().Load(usGuid);
+      if (us == null)
+        return;
+
+      Log.Debug("PolandPayment:: Session changed for landing page: " + us.ID);
+      IUserSession ius = us.Instantiate(PaywallHttpContext.Current.Service);
+      PaywallHttpContext.Current.SetTemplateSession(ius);
+    }
+
+    public string FixNumber(string input)
+    {
+      input = Regex.Replace(input, "[^0-9]", "");
+      if (string.IsNullOrEmpty(input))
+        return input;
+
+      if (input.StartsWith("00"))
+        input = input.Substring(2);
+      if (input[0] == '0')
+        input = input.Substring(1);
+      if (!input.StartsWith("48"))
+        input = "48" + input;
+      return input;
+    }
+
+    // QUICKFIX:: This method is taking redirectUrl we got from callback and we redirect customer to that url
+    public ActionResult PlusRedirection()
+    {      
+      string redirectUrl = "";
+      MobilePaywallDirect db = MobilePaywallDirect.Instance;
+
+      for(int i = 0; i < 20; i++)
+      {
+        redirectUrl = db.LoadString("SELECT PaymentRedirectUrl FROM MobilePaywall.core.PaymentRequest WHERE UserSessionID=" + PaywallHttpContext.Current.Session.SessionData.ID);
+        if (!string.IsNullOrEmpty(redirectUrl))
+          break;
+
+        System.Threading.Thread.Sleep(1000);
+      }
+
+      if (string.IsNullOrEmpty(redirectUrl))
+        redirectUrl = "http://" + PaywallHttpContext.Current.Service.ServiceData.Name;
+
+      Log.Debug("PlusRedirection:: Redirection to " + redirectUrl);
+      return this.Redirect(redirectUrl);
+    }
+
+  }
+}

@@ -1,0 +1,125 @@
+﻿@model MobilePaywall.Web.Models.ContentListViewModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+  bool hasAccess = ContentAccessPolicy.HasAccess(PaywallHttpContext.Current.Service.ServiceData, PaywallHttpContext.Current.Session.SessionData.Customer, null);
+  hasAccess = Model.TemplateMode ? false : hasAccess;
+}
+
+@Scripts.Render("~/Script/Home")
+@Scripts.Render("~/Script/Pink/Home")
+
+@if(!hasAccess)
+{
+  <style>
+    .contentnVideosOfDay_before{ pointer-events:none!important; }
+    .contentnVideosOfDay_before .content_video_playIcon{ display:none }
+
+    #contentVideos{ display:none; }
+    #btnContinue{    
+      cursor: hand;
+      cursor: pointer;
+      text-align: center;
+      background: linear-gradient(#9D3B6E, #91235C);
+      background-color: #9D3B6E;
+      padding: 10px 0px 10px 0px;
+      border-radius: 4px;
+      color: #FFF;
+      font-size: 18px;
+      margin-top: 10px;
+    }
+  </style>  
+}
+
+@{
+  //Change it to take random content!
+  Random rnd = new Random();
+  int index = rnd.Next(0, Model.Content.Count);
+  MobilePaywall.IContent content = Model.Content.ElementAt(index);
+  MobilePaywall.ContentInformations info = Model.ContentInformations(content);
+}
+
+<div id="contentVideoOfDay" class="row contentnVideosOfDay_before">
+  <div class="header row">@Translations.Web.Home.Header1</div>
+
+  @*<a href="@MobilePaywall.Web.Helpers.UrlHelper.AppendSessionID(PaywallHttpContext.Current.HttpContext.Request.RequestContext, content.GetAccessUrl(this.Request.UserAgent))">*@
+  <a href="@Model.AppendSessionID(content)">
+    <div class="content_video col-sm-12 col-xs-12" id="conten_video_ofDay">
+      <div class="content_video_inside" id="conten_video_ofDay_in">
+        <div class="content_video_playIcon @content.ContentIconClass"></div>
+        <div class="content_video_title">@info.Title</div>
+        <img src="@content.GetThumbnailUrl(this.Request.UserAgent)" alt="Alternate Text" />
+      </div>
+    </div>
+  </a>
+
+  <div style="clear:both"></div>
+</div>
+
+
+@if (!hasAccess)
+{
+<div id="esContinuar">
+
+  <div style="margin-top: 15px; text-align: center; font-size: 13px;">
+    <strong>SUSCRIPCIÓN: 6.05€/Semana IVA incl. </strong>
+  </div>
+  <div id="contentVideoControls" class="row">
+    <div class="content_videoControl" id="btnContinue">Continuar</div>
+  </div>
+
+</div>
+}
+
+<div id="contentVideos" class="row">
+  <div class="header row">@Translations.Web.Home.Header2</div>
+
+  <div id="contentVideoContainer">
+    @foreach (MobilePaywall.IContent item in Model.Content)
+    {
+      <a href="@Model.AppendSessionID(item)">
+        <div class="content_video col-sm-6 col-xs-6">
+          <div class="content_video_inside">
+            <div class="content_video_playIcon @item.ContentIconClass"></div>
+            <img src="@item.GetThumbnailUrl(this.Request.UserAgent)" alt="" style="width:100%" />
+          </div>
+        </div>
+      </a>
+    }
+  </div>
+  <div style="clear:both"></div>
+
+  <div id="contentVideoControls" class="row">
+    <div class="content_videoControl" id="controlLoadMore">@Translations.Web.Controls.More</div>
+  </div>
+
+</div>
+
+<script>
+  var _videoController = null;
+  var _contentHome = null;
+  
+  $(document).ready(function () {
+    _videoController = new VideoController();
+    _videoController.TextPending = '@Translations.Web.Pending.PleaseWait';
+
+    @if(Model.Category != null)
+    {
+      @Html.Raw(Server.HtmlDecode("_homeVideoControler.CategoryID = '" + Model.Category.ID + "';"));
+    }
+    
+    _contentHome = new ContentHome();
+
+    // button continuar
+    $('#btnContinue').click(function () {
+      $('#esContinuar').remove();
+      $('#contentVideos').css('display', 'initial');
+      $('.contentnVideosOfDay_before').removeClass("contentnVideosOfDay_before");
+      _system.AdjustFooter();
+    });
+  });
+</script>
+
+
+
+
+

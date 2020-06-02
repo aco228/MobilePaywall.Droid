@@ -1,0 +1,90 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using MobilePaywall.Data;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface ILoginAttemptManager : IDataManager<LoginAttempt> 
+  {
+	
+
+  }
+
+  public partial class LoginAttempt : MobilePaywallObject<ILoginAttemptManager> 
+  {
+		private UserSession _userSession;
+		private Customer _customer;
+		private string _enteredUsername = String.Empty;
+		private bool _isSuccessful = false;
+		
+
+		public UserSession UserSession 
+		{
+			get
+			{
+				if (this._userSession != null &&
+						this._userSession.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._userSession = UserSession.CreateManager().LazyLoad(this.ConnectionContext, this._userSession.ID) as UserSession;
+					else
+						this._userSession = UserSession.CreateManager().LazyLoad(this._userSession.ID) as UserSession;
+				return this._userSession;
+			}
+			set { _userSession = value; }
+		}
+
+		public Customer Customer 
+		{
+			get
+			{
+				if (this._customer != null &&
+						this._customer.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._customer = Customer.CreateManager().LazyLoad(this.ConnectionContext, this._customer.ID) as Customer;
+					else
+						this._customer = Customer.CreateManager().LazyLoad(this._customer.ID) as Customer;
+				return this._customer;
+			}
+			set { _customer = value; }
+		}
+
+		public string EnteredUsername{ get {return this._enteredUsername; } set { this._enteredUsername = value;} }
+		public bool IsSuccessful {get {return this._isSuccessful; } set { this._isSuccessful = value;} }
+		
+
+    public override bool IsInsertable { get { return true;} }
+
+    public override bool IsDeletable { get { return false;} }
+
+    public override bool IsUpdatable { get { return true;} }
+
+    public LoginAttempt()
+    { 
+    }
+
+    public LoginAttempt(int id): base(id, DateTime.Now, DateTime.Now, true)
+    {
+    }
+
+    public LoginAttempt(int id,  UserSession userSession, Customer customer, string enteredUsername, bool isSuccessful, DateTime updated, DateTime created): base(id, updated, created, false)
+    {
+			this._userSession = userSession;
+			this._customer = customer;
+			this._enteredUsername = enteredUsername;
+			this._isSuccessful = isSuccessful;
+			
+    }
+
+    public override object Clone(bool deepClone)
+    {
+      return new LoginAttempt(-1,  this.UserSession, this.Customer,this.EnteredUsername,this.IsSuccessful, DateTime.Now, DateTime.Now);
+    }
+  }
+}
+

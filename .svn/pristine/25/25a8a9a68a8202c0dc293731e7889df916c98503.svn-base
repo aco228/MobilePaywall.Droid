@@ -1,0 +1,139 @@
+﻿@model MobilePaywall.Web.Models.ContentListViewModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+}
+
+@Scripts.Render("~/Script/Home")
+@Scripts.Render("~/Scripts/Curiosity/Home")
+
+@*{
+    if (PaymentHelper.HasPayment())
+    {
+      <script>
+        $(document).ready(function () {
+          $('#confirm-check').hide();
+        });
+      </script>
+    }
+    else
+    {
+      <script>
+        $(document).ready(function () {
+          $('.vContent a').click(function () {
+            var confirmBox = $('#confirm-check');
+            var position = confirmBox.offset().top;
+            window.scrollTo(position, 0);
+
+            // Red effect
+            confirmBox.find('label').css('background-color', '#FDC2C2!important');
+            confirmBox.find('label').css('transition', 'all 1s');
+            confirmBox.find('label').css('background-color', '#FFF!important');
+            setTimeout(function () {
+              confirmBox.find('label').css('transition', 'initial');
+            }, 1000);
+
+            return false;
+          });
+          $('#check').click(function () {
+            if (!$(this).is(':checked')) {
+              $('.vContent a').bind('click', function () { return false; });
+            } else {
+              $('.vContent a').unbind('click');
+            }
+          });
+        });
+      </script>
+    }
+  }
+
+  @section belgium {
+    <div id="confirm-check">
+      <input type="checkbox" id="check" />
+      <label for="check">Bij inschrijving bevestig ik dat ik ouder ben dan 18 jaar en ik bevestig de voorwaarden te hebben gelezen en te accepteren en hierbij geef ik mijn herroepingsrecht op de aankoop van dit product op.</label>
+    </div>
+  }
+*@
+
+
+
+@* 
+  -----------------------------------------------------------------------------------------------
+  RANDOM CONTENT
+*@
+
+<div class="block clearfix vContent">
+  <ul class="rslides">
+    @{
+      List<int> randomNumbers = new List<int>();
+      int numberOfRandomContent = 3;
+      Random rnd = new Random();
+
+      for (int i = 0; i < numberOfRandomContent; i++)
+      {
+        int index = rnd.Next(0, Model.Content.Count - 1);
+        if (randomNumbers.Contains(index))
+        {
+          i--;
+          continue;
+        }
+        randomNumbers.Add(index);
+        MobilePaywall.IContent content = Model.Content.ElementAt(index);
+
+        <li>
+            <a href="@MobilePaywall.Web.Helpers.UrlHelper.AppendSessionID(PaywallHttpContext.Current.HttpContext.Request.RequestContext, content.GetAccessUrl(this.Request.UserAgent))" class="___clink" data-ajax="false">
+                <img src="@content.GetThumbnailUrl(this.Request.UserAgent)" alt="">
+            </a>
+        </li>
+      }
+    }
+  </ul>
+</div>
+
+@*
+  -----------------------------------------------------------------------------------------------
+  CONTENT
+*@
+
+<div id="contentVideoContainer" class="vContent">
+  @*<div class="bubble home-service"></div>*@
+  @foreach (MobilePaywall.IContent content in Model.Content)
+  {
+      MobilePaywall.Video video = content as MobilePaywall.Video;
+
+    <a href="@MobilePaywall.Web.Helpers.UrlHelper.AppendSessionID(PaywallHttpContext.Current.HttpContext.Request.RequestContext, content.GetAccessUrl(this.Request.UserAgent))" class="___clink" data-ajax="false">
+        <div class="blog-post clearfix _videoBox">
+            <div class="playBtn"></div>
+            <div class="blogIMG" style="background-image:url('@content.GetThumbnailUrl(this.Request.UserAgent)')"></div>
+
+            <div class="info_post">
+                <div class="posted-by"> Koop nu </div>
+            </div>
+        </div>
+    </a>
+  }
+</div>
+
+<input type="button" value="@Translations.Web.Controls.More" id="controlLoadMore" class="submitButton">
+
+
+<script>
+  var _videoController = null;
+  var _contentHome = null;
+  var _sizeManager = null;
+
+  $(document).ready(function () {
+    _sizeManager = new CustomSizeManager();
+    _videoController = new VideoController();
+    _videoController.TextPending = '@Translations.Web.Pending.PleaseWait';
+    _videoController.OnAppendFunc = function () { setTimeout(_sizeManager.Resize(), 200); };
+
+    @{
+      if(Model.Category != null)
+      {
+        @Html.Raw(Server.HtmlDecode("_homeVideoControler.CategoryID = '" + Model.Category.ID + "';"));
+      }
+    }
+
+    //_contentHome = new ContentHome();
+  });
+</script>

@@ -1,0 +1,359 @@
+﻿var ServiceTask = function () {
+
+  return {
+    //main function to initiate the module
+    init: function (clientType, taskAction) {      
+
+      $('#btnCancelEdit').click(function () {
+        window.location.href = '/tasks';
+      });
+
+      $('#configure_service_simple').on('click', '.cancel-task, .accept-task, .decline-task', function () {
+        var id = $(this).data('task-id');
+        var action = $(this).data('action');
+        bootbox.confirm("Are you sure you want to " + action + " this task?", function (result) {
+          if (result == true) {
+            resolveTask(id, action);
+          }
+        });
+      });
+      
+      function resolveTask(id, action) {
+        Metronic.blockUI({
+          target: '.page-content',
+          animate: true
+        });
+
+        $.ajax({
+          url: '/task/resolve',
+          cache: false,
+          method: 'POST',
+          data: {
+            id: id,
+            action: action
+          },
+          success: function (response) {
+            window.location.href = '/tasks';
+          },
+          error: function () {
+            $('.portlet-body').html('Some error occurred. Please refresh page.');
+            Metronic.unblockUI('.page-content');
+          }
+        })
+      }
+
+
+      //adding new merchant
+      $('#add_new_merchant_btn').click(function (event) {
+        event.preventDefault();
+        $('#merchant_choose, #merchant_add, .merchant-section-header').toggleClass('hidden');
+        $('#merchant').rules('remove', 'required');
+
+        $('#merchant').val('').change();
+
+        $('#merchant_name').rules('add', 'required');
+        $('#merchant_address').rules('add', 'required');
+        $('#merchant_email').rules('add', 'required');
+      });
+
+      $('#choose_merchant_btn').click(function (event) {
+        event.preventDefault();
+        $('#merchant_choose, #merchant_add, .merchant-section-header').toggleClass('hidden');
+        $('#merchant_add input').val('');
+
+        $('#merchant').rules('add', 'required');
+        $('#merchant').val('').change();
+
+        $('#merchant_name').rules('remove', 'required');
+        $('#merchant_address').rules('remove', 'required');
+        $('#merchant_email').rules('remove', 'required');
+      });
+      
+      //Add domain
+      var domainIdIndex = $('div.domain-container').length;
+      $('#add_domain_btn').on('click', function (event) {
+        event.preventDefault();
+        var index = $('div.domain-container').length;
+
+        $('div.domain-container:first').clone().removeClass('has-error has-success')
+          .find('input:text').val('').end()
+          .insertAfter('div.domain-container:last')
+          .find('input.domain').each(function () {
+            $(this).attr('id', 'domain' + domainIdIndex);
+            $(this).attr('name', 'TemporaryData.Domains[' + index + '].DomainName');
+            $(this).removeAttr('aria-describedby aria-required aria-invalid');
+          }).end()
+          .find('input.domain-id').each(function () {
+            $(this).attr('id', 'domainID' + domainIdIndex);
+            $(this).attr('name', 'TemporaryData.Domains[' + index + '].DomainID');
+          }).end()
+          .find('label.control-label').each(function () { $(this).text('Domain ' + domainIdIndex) }).end()
+          .find('span.required, span.help-block-error, div.add-domain').remove().end();
+
+        var id = '#domain' + domainIdIndex;
+
+        $(id).rules('add', { //add validation rule
+          required: true,
+          remote: (taskAction == 'Insert') ? {
+            url: '/task/domaincheck',
+            method: 'POST',
+            data: {
+              domainName: function () {
+                return $(id).val();
+              }
+            }
+          } : false,
+          checkDomain: true,
+          messages: {
+            required: 'Enter domain name or remove this field',
+            remote: 'This domain already exists in database'
+          }
+        });
+
+        domainIdIndex++;
+      });
+
+      //remove domain
+      $('#configure_service_simple').on('click', '.remove-domain-btn', function (event) {
+        event.preventDefault();
+        domain = $(this);
+        if ($('.domain').length == 1) {
+          bootbox.alert('You must enter at least one domain', function () {
+          });
+          return;
+        }
+
+        $(domain).parent().parent().remove();
+
+        var index = 0;
+        $('.domain-container').each(function () {
+          $(this).find('.domain-id').attr('name', replaceIndex($(this).find('.domain-id').attr('name'), 'Domains', index));
+          $(this).find('.domain').attr('name', replaceIndex($(this).find('.domain').attr('name'), 'Domains', index));
+          index++;
+        });
+      });
+
+      
+      //replace indexes in names of form inputs
+      function replaceIndex(name, klass, index) {
+        var split = name.split('.');
+        var data = '';
+        for (var i = 0; i < split.length; i++) {
+          if (data != '') data += '.';
+          if (split[i].indexOf(klass + '[') > -1) {
+            data += klass + '[' + index + ']';
+            continue;
+          }
+          data += split[i];
+        }
+        return data;
+      }
+
+
+      function change(label, id) {
+        if (typeof label != 'undefined' && label.length > 0) {
+          //Set all to hidden up front
+          $(id + " optgroup").each(function () {
+            if (!$(this).hasClass('hidden')) {
+              $(this).addClass('hidden');
+            }
+          });
+
+          //Remove hidden if match
+          $(id + " optgroup").each(function () {
+            if (label == $(this).attr('label') && $(this).hasClass('hidden')) {
+              $(this).removeClass('hidden');
+            }
+          });
+        } else {
+          $(id + " optgroup").each(function () {
+            if ($(this).hasClass('hidden')) {
+              $(this).removeClass('hidden');
+            }
+          });
+        }
+      }
+    }
+  };
+}();
+
+var ServiceTaskForm = function () {
+
+  return {
+    //main function to initiate the module
+    init: function (role, taskAction) {
+
+      jQuery.validator.addMethod("notEqual", function (value, element, param) {
+        return this.optional(element) || value.toLowerCase() != param.toLowerCase();
+      }, "Please choose a different value");
+      
+      jQuery.validator.addMethod("checkDomain", function (value, element, param) {
+        var result = true;
+        $('.domain').not(element).each(function () {
+          if ($(this).val() == value)
+            result = false;
+        });
+        return this.optional(element) || result;
+      }, "You already entered this domain");
+      
+      var form = $('#configure_service_simple_form');
+      var error = $('.alert-danger.global-error', form);
+      var success = $('.alert-success', form);
+      var merchantError = $('#merchant_error', form);
+      var nameError = $('#name_error', form);
+
+      form.validate({
+        doNotHideMessage: true,
+        errorElement: 'span', //default input error message container
+        errorClass: 'help-block help-block-error', // default input error message class
+        focusInvalid: false, // do not focus the last invalid input
+
+        rules: {
+          'TemporaryData.Service.Name': {
+            required: true,
+            remote: {
+              url: '/task/check-service-name',
+              method: 'POST',
+              data: {
+                serviceName: function () {
+                  return $('#name').val();
+                }
+              }
+            },
+          },
+          'TemporaryData.Domains[0].DomainName': {
+            required: true,
+            remote: {
+              url: '/task/domaincheck',
+              method: 'POST',
+              data: {
+                domainName: function () {
+                  return $('#domain0').val();
+                }
+              }
+            },
+            checkDomain: true
+          },
+          'TemporaryData.RequestedCountries': {
+            required: true
+          },
+          'TemporaryData.Service.MerchantModel.MerchantID': {
+            required: true
+          },
+          'TemporaryData.RequestedServiceType': {
+            required: true
+          },
+          'TemporaryData.Price': {
+            required: true,
+            number: true
+          }
+        },
+
+        messages: { // custom messages for radio buttons and checkboxes
+          'TemporaryData.Service.Name': {
+            remote: "This service name already exists in database"
+          },
+          'TemporaryData.Domains[0].DomainName': {
+            remote: "This domain already exists in database"
+          }
+        },
+
+        errorPlacement: function (error, element) { // render error placement for input type
+            error.insertAfter(element); 
+        },
+
+        //invalidHandler: function (event, validator) { //display error alert on form submit   
+        //  success.hide();
+        //  error.show();
+        //  Metronic.scrollTo(error, -200);
+        //},
+
+        highlight: function (element) { // hightlight error inputs
+          $(element)
+              .closest('.form-group').removeClass('has-success').addClass('has-error'); // set error class to the control group
+        },
+
+        unhighlight: function (element) { // revert the change done by hightlight
+          $(element)
+              .closest('.form-group').removeClass('has-error'); // set error class to the control group
+        },
+
+        success: function (label) {
+            label.addClass('valid') // mark the current input as valid and display OK icon
+            .closest('.form-group').removeClass('has-error').addClass('has-success'); // set success class to the control group
+        },
+
+        submitHandler: function (form) {
+          success.show();
+          error.hide();
+          //add here some ajax code to submit your form or just call form.submit() if you want to submit the form without ajax
+          form.submit();
+        }
+      });
+
+      var action;
+
+      var showMessages = function (navigation, index) {
+        var li_list = navigation.find('li');
+        if (jQuery(li_list[index]).hasClass('has-errors'))
+          form.valid();
+      }
+
+      var checkMerchant = function () {
+        var nameValidation = $('#merchant_name').valid();
+        var addressValidation = $('#merchant_address').valid();
+        var emailValidation = $('#merchant_email').valid();
+        if (!nameValidation || !addressValidation || !emailValidation) {
+          merchantError.show();
+          Metronic.scrollTo(merchantError, -200);
+          return false;
+        }
+        merchantError.hide();
+      }
+
+      var checkName = function () {
+        var nameValidation = $('#name').valid();
+        if (!nameValidation) {
+          nameError.show();
+          Metronic.scrollTo(nameError, -200);
+          return false;
+        }
+        nameError.hide();
+      }
+      
+      $('#configure_service_simple .button-submit').click(function () {
+        console.log($(this));
+
+        Metronic.blockUI({
+          animate: true
+        });
+
+        $(this).prop('disabled', true);
+
+        //alert('Finished!');
+        if (form.valid() == false) {
+          console.log('not valid');
+          success.hide();
+          error.show();
+          Metronic.scrollTo(error, -200);
+          Metronic.unblockUI();
+          $(this).prop('disabled', false);
+          return false;
+        }
+
+        console.log('valid');
+        success.show();
+        error.hide();
+        var actionUrl = $('#configure_service_simple_form').attr('action') + '?actionText=' + $(this).attr('action') + '&task_id=' + $('#inputTaskID').val();
+        $('#configure_service_simple_form').attr('action', actionUrl);
+        $('#configure_service_simple_form').submit();
+      });
+
+
+      //apply validation on select2 dropdown value change, this is only needed for chosen dropdown integration.
+      $('.select2', form).change(function () {
+        form.validate().element($(this)); //revalidate the chosen dropdown value and show error or success message for the input
+      });
+    }
+  };
+}();

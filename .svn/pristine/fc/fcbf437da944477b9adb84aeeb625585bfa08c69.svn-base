@@ -1,0 +1,95 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class AndroidPremiumCustomerManager : IAndroidPremiumCustomerManager
+  {
+
+    public AndroidPremiumCustomer Load(string uniqueID)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, uniqueID);
+    }
+
+    public AndroidPremiumCustomer Load(IConnectionInfo connection, string uniqueID)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, uniqueID);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, uniqueID);
+    }
+
+    public AndroidPremiumCustomer Load(ISqlConnectionInfo connection, string uniqueID)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[apc].AndroidCustomerUniqueID = @UniqueID";
+      parameters.Arguments.Add("UniqueID", uniqueID);
+      return this.Load(connection, parameters);
+    }
+
+    public List<AndroidPremiumCustomer> Load()
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection);
+    }
+
+    public List<AndroidPremiumCustomer> Load(IConnectionInfo connection )
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection);
+    }
+
+    public List<AndroidPremiumCustomer> Load(ISqlConnectionInfo connection)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.OrderBy = "[apc].AndroidPremiumCustomerID DESC";
+      return this.LoadMany(connection, parameters);
+    }
+
+
+    public List<AndroidPremiumCustomer> Load(DateTime from, DateTime to, Country country, int limit)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, from, to, country, limit);
+    }
+
+    public List<AndroidPremiumCustomer> Load(IConnectionInfo connection, DateTime from, DateTime to, Country country, int limit)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, from, to, country, limit);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, from, to, country, limit);
+    }
+
+    public List<AndroidPremiumCustomer> Load(ISqlConnectionInfo connection, DateTime from, DateTime to, Country country, int limit)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      if(country.ID != 0)
+        parameters.Where = "[apc].CountryID ="+country.ID+ " and [apc].Created >= '" + from.ToString("yyyy-MM-dd")+ "' and [apc].Created <= '" + to.ToString("yyyy-MM-dd") +"'";
+      else
+        parameters.Where = "[apc].CountryID > 0 and [apc].Created >= '" + from.ToString("yyyy-MM-dd") + "' and [apc].Created <= '" + to.ToString("yyyy-MM-dd") + "'";
+
+      if (limit > 0)
+        parameters.Top = limit;
+
+      parameters.OrderBy = "[apc].AndroidPremiumCustomerID DESC";
+      return this.LoadMany(connection, parameters);
+    }
+  }
+}
+

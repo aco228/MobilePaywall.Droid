@@ -1,0 +1,497 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(PaymentCallback))] 
+  public partial class PaymentCallbackManager : MobilePaywall.Data.Sql.SqlManagerBase<PaymentCallback>, IPaymentCallbackManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override PaymentCallback LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							PaymentCallbackTable.GetColumnNames("[pc]") + 
+							(this.Depth > 0 ? "," + PaymentRequestTable.GetColumnNames("[pc_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LookupSessionTable.GetColumnNames("[pc_pr_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[pc_pr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTable.GetColumnNames("[pc_pr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[pc_pr_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[pc_pr_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserHttpRequestTable.GetColumnNames("[pc_pr_uhr]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentTable.GetColumnNames("[pc_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentRequestTable.GetColumnNames("[pc_p_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[pc_p_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[pc_p_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[pc_p_bme]") : string.Empty) + 
+					" FROM [async].[PaymentCallback] AS [pc] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [pc_pr] ON [pc].[PaymentRequestID] = [pc_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[LookupSession] AS [pc_pr_ls] ON [pc_pr].[LookupSessionID] = [pc_pr_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [pc_pr_c] ON [pc_pr].[CustomerID] = [pc_pr_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [pc_pr_us] ON [pc_pr].[UserSessionID] = [pc_pr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [pc_pr_so] ON [pc_pr].[ServiceOfferID] = [pc_pr_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [pc_pr_bme] ON [pc_pr].[BusinessModelEntryID] = [pc_pr_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [pc_pr_uhr] ON [pc_pr].[UserHttpRequestID] = [pc_pr_uhr].[UserHttpRequestID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Payment] AS [pc_p] ON [pc].[PaymentID] = [pc_p].[PaymentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentRequest] AS [pc_p_pr] ON [pc_p].[PaymentRequestID] = [pc_p_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [pc_p_c] ON [pc_p].[CustomerID] = [pc_p_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceOffer] AS [pc_p_so] ON [pc_p].[ServiceOfferID] = [pc_p_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModelEntry] AS [pc_p_bme] ON [pc_p].[BusinessModelEntryID] = [pc_p_bme].[BusinessModelEntryID] ";
+				sqlCmdText += "WHERE [pc].[PaymentCallbackID] = @PaymentCallbackID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@PaymentCallbackID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pc", "loadinternal", "notfound"), "PaymentCallback could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				PaymentCallbackTable pcTable = new PaymentCallbackTable(query);
+				PaymentRequestTable pc_prTable = (this.Depth > 0) ? new PaymentRequestTable(query) : null;
+				LookupSessionTable pc_pr_lsTable = (this.Depth > 1) ? new LookupSessionTable(query) : null;
+				CustomerTable pc_pr_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				UserSessionTable pc_pr_usTable = (this.Depth > 1) ? new UserSessionTable(query) : null;
+				ServiceOfferTable pc_pr_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable pc_pr_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				UserHttpRequestTable pc_pr_uhrTable = (this.Depth > 1) ? new UserHttpRequestTable(query) : null;
+				PaymentTable pc_pTable = (this.Depth > 0) ? new PaymentTable(query) : null;
+				PaymentRequestTable pc_p_prTable = (this.Depth > 1) ? new PaymentRequestTable(query) : null;
+				CustomerTable pc_p_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				ServiceOfferTable pc_p_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable pc_p_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+
+        
+				LookupSession pc_pr_lsObject = (this.Depth > 1) ? pc_pr_lsTable.CreateInstance() : null;
+				Customer pc_pr_cObject = (this.Depth > 1) ? pc_pr_cTable.CreateInstance() : null;
+				UserSession pc_pr_usObject = (this.Depth > 1) ? pc_pr_usTable.CreateInstance() : null;
+				ServiceOffer pc_pr_soObject = (this.Depth > 1) ? pc_pr_soTable.CreateInstance() : null;
+				BusinessModelEntry pc_pr_bmeObject = (this.Depth > 1) ? pc_pr_bmeTable.CreateInstance() : null;
+				UserHttpRequest pc_pr_uhrObject = (this.Depth > 1) ? pc_pr_uhrTable.CreateInstance() : null;
+				PaymentRequest pc_prObject = (this.Depth > 0) ? pc_prTable.CreateInstance(pc_pr_lsObject, pc_pr_cObject, pc_pr_usObject, pc_pr_soObject, pc_pr_bmeObject, pc_pr_uhrObject) : null;
+				PaymentRequest pc_p_prObject = (this.Depth > 1) ? pc_p_prTable.CreateInstance() : null;
+				Customer pc_p_cObject = (this.Depth > 1) ? pc_p_cTable.CreateInstance() : null;
+				ServiceOffer pc_p_soObject = (this.Depth > 1) ? pc_p_soTable.CreateInstance() : null;
+				BusinessModelEntry pc_p_bmeObject = (this.Depth > 1) ? pc_p_bmeTable.CreateInstance() : null;
+				Payment pc_pObject = (this.Depth > 0) ? pc_pTable.CreateInstance(pc_p_prObject, pc_p_cObject, pc_p_soObject, pc_p_bmeObject) : null;
+				PaymentCallback pcObject = pcTable.CreateInstance(pc_prObject, pc_pObject);
+				sqlReader.Close();
+
+				return pcObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pc", "loadinternal", "exception"), "PaymentCallback could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "PaymentCallback", "Exception while loading PaymentCallback object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public PaymentCallback Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							PaymentCallbackTable.GetColumnNames("[pc]") + 
+							(this.Depth > 0 ? "," + PaymentRequestTable.GetColumnNames("[pc_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LookupSessionTable.GetColumnNames("[pc_pr_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[pc_pr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTable.GetColumnNames("[pc_pr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[pc_pr_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[pc_pr_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserHttpRequestTable.GetColumnNames("[pc_pr_uhr]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentTable.GetColumnNames("[pc_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentRequestTable.GetColumnNames("[pc_p_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[pc_p_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[pc_p_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[pc_p_bme]") : string.Empty) +  
+					" FROM [async].[PaymentCallback] AS [pc] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [pc_pr] ON [pc].[PaymentRequestID] = [pc_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[LookupSession] AS [pc_pr_ls] ON [pc_pr].[LookupSessionID] = [pc_pr_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [pc_pr_c] ON [pc_pr].[CustomerID] = [pc_pr_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [pc_pr_us] ON [pc_pr].[UserSessionID] = [pc_pr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [pc_pr_so] ON [pc_pr].[ServiceOfferID] = [pc_pr_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [pc_pr_bme] ON [pc_pr].[BusinessModelEntryID] = [pc_pr_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [pc_pr_uhr] ON [pc_pr].[UserHttpRequestID] = [pc_pr_uhr].[UserHttpRequestID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Payment] AS [pc_p] ON [pc].[PaymentID] = [pc_p].[PaymentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentRequest] AS [pc_p_pr] ON [pc_p].[PaymentRequestID] = [pc_p_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [pc_p_c] ON [pc_p].[CustomerID] = [pc_p_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceOffer] AS [pc_p_so] ON [pc_p].[ServiceOfferID] = [pc_p_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModelEntry] AS [pc_p_bme] ON [pc_p].[BusinessModelEntryID] = [pc_p_bme].[BusinessModelEntryID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pc", "customload", "notfound"), "PaymentCallback could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				PaymentCallbackTable pcTable = new PaymentCallbackTable(query);
+				PaymentRequestTable pc_prTable = (this.Depth > 0) ? new PaymentRequestTable(query) : null;
+				LookupSessionTable pc_pr_lsTable = (this.Depth > 1) ? new LookupSessionTable(query) : null;
+				CustomerTable pc_pr_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				UserSessionTable pc_pr_usTable = (this.Depth > 1) ? new UserSessionTable(query) : null;
+				ServiceOfferTable pc_pr_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable pc_pr_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				UserHttpRequestTable pc_pr_uhrTable = (this.Depth > 1) ? new UserHttpRequestTable(query) : null;
+				PaymentTable pc_pTable = (this.Depth > 0) ? new PaymentTable(query) : null;
+				PaymentRequestTable pc_p_prTable = (this.Depth > 1) ? new PaymentRequestTable(query) : null;
+				CustomerTable pc_p_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				ServiceOfferTable pc_p_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable pc_p_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+
+        
+				LookupSession pc_pr_lsObject = (this.Depth > 1) ? pc_pr_lsTable.CreateInstance() : null;
+				Customer pc_pr_cObject = (this.Depth > 1) ? pc_pr_cTable.CreateInstance() : null;
+				UserSession pc_pr_usObject = (this.Depth > 1) ? pc_pr_usTable.CreateInstance() : null;
+				ServiceOffer pc_pr_soObject = (this.Depth > 1) ? pc_pr_soTable.CreateInstance() : null;
+				BusinessModelEntry pc_pr_bmeObject = (this.Depth > 1) ? pc_pr_bmeTable.CreateInstance() : null;
+				UserHttpRequest pc_pr_uhrObject = (this.Depth > 1) ? pc_pr_uhrTable.CreateInstance() : null;
+				PaymentRequest pc_prObject = (this.Depth > 0) ? pc_prTable.CreateInstance(pc_pr_lsObject, pc_pr_cObject, pc_pr_usObject, pc_pr_soObject, pc_pr_bmeObject, pc_pr_uhrObject) : null;
+				PaymentRequest pc_p_prObject = (this.Depth > 1) ? pc_p_prTable.CreateInstance() : null;
+				Customer pc_p_cObject = (this.Depth > 1) ? pc_p_cTable.CreateInstance() : null;
+				ServiceOffer pc_p_soObject = (this.Depth > 1) ? pc_p_soTable.CreateInstance() : null;
+				BusinessModelEntry pc_p_bmeObject = (this.Depth > 1) ? pc_p_bmeTable.CreateInstance() : null;
+				Payment pc_pObject = (this.Depth > 0) ? pc_pTable.CreateInstance(pc_p_prObject, pc_p_cObject, pc_p_soObject, pc_p_bmeObject) : null;
+				PaymentCallback pcObject = pcTable.CreateInstance(pc_prObject, pc_pObject);
+				sqlReader.Close();
+
+				return pcObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pc", "customload", "exception"), "PaymentCallback could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "PaymentCallback", "Exception while loading (custom/single) PaymentCallback object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<PaymentCallback> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							PaymentCallbackTable.GetColumnNames("[pc]") + 
+							(this.Depth > 0 ? "," + PaymentRequestTable.GetColumnNames("[pc_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LookupSessionTable.GetColumnNames("[pc_pr_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[pc_pr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTable.GetColumnNames("[pc_pr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[pc_pr_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[pc_pr_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserHttpRequestTable.GetColumnNames("[pc_pr_uhr]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentTable.GetColumnNames("[pc_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentRequestTable.GetColumnNames("[pc_p_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[pc_p_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[pc_p_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[pc_p_bme]") : string.Empty) +  
+					" FROM [async].[PaymentCallback] AS [pc] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [pc_pr] ON [pc].[PaymentRequestID] = [pc_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[LookupSession] AS [pc_pr_ls] ON [pc_pr].[LookupSessionID] = [pc_pr_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [pc_pr_c] ON [pc_pr].[CustomerID] = [pc_pr_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [pc_pr_us] ON [pc_pr].[UserSessionID] = [pc_pr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [pc_pr_so] ON [pc_pr].[ServiceOfferID] = [pc_pr_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [pc_pr_bme] ON [pc_pr].[BusinessModelEntryID] = [pc_pr_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [pc_pr_uhr] ON [pc_pr].[UserHttpRequestID] = [pc_pr_uhr].[UserHttpRequestID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Payment] AS [pc_p] ON [pc].[PaymentID] = [pc_p].[PaymentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentRequest] AS [pc_p_pr] ON [pc_p].[PaymentRequestID] = [pc_p_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [pc_p_c] ON [pc_p].[CustomerID] = [pc_p_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceOffer] AS [pc_p_so] ON [pc_p].[ServiceOfferID] = [pc_p_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModelEntry] AS [pc_p_bme] ON [pc_p].[BusinessModelEntryID] = [pc_p_bme].[BusinessModelEntryID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pc", "customloadmany", "notfound"), "PaymentCallback list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<PaymentCallback>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				PaymentCallbackTable pcTable = new PaymentCallbackTable(query);
+				PaymentRequestTable pc_prTable = (this.Depth > 0) ? new PaymentRequestTable(query) : null;
+				LookupSessionTable pc_pr_lsTable = (this.Depth > 1) ? new LookupSessionTable(query) : null;
+				CustomerTable pc_pr_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				UserSessionTable pc_pr_usTable = (this.Depth > 1) ? new UserSessionTable(query) : null;
+				ServiceOfferTable pc_pr_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable pc_pr_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				UserHttpRequestTable pc_pr_uhrTable = (this.Depth > 1) ? new UserHttpRequestTable(query) : null;
+				PaymentTable pc_pTable = (this.Depth > 0) ? new PaymentTable(query) : null;
+				PaymentRequestTable pc_p_prTable = (this.Depth > 1) ? new PaymentRequestTable(query) : null;
+				CustomerTable pc_p_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				ServiceOfferTable pc_p_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable pc_p_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+
+        List<PaymentCallback> result = new List<PaymentCallback>();
+        do
+        {
+          
+					LookupSession pc_pr_lsObject = (this.Depth > 1) ? pc_pr_lsTable.CreateInstance() : null;
+					Customer pc_pr_cObject = (this.Depth > 1) ? pc_pr_cTable.CreateInstance() : null;
+					UserSession pc_pr_usObject = (this.Depth > 1) ? pc_pr_usTable.CreateInstance() : null;
+					ServiceOffer pc_pr_soObject = (this.Depth > 1) ? pc_pr_soTable.CreateInstance() : null;
+					BusinessModelEntry pc_pr_bmeObject = (this.Depth > 1) ? pc_pr_bmeTable.CreateInstance() : null;
+					UserHttpRequest pc_pr_uhrObject = (this.Depth > 1) ? pc_pr_uhrTable.CreateInstance() : null;
+					PaymentRequest pc_prObject = (this.Depth > 0) ? pc_prTable.CreateInstance(pc_pr_lsObject, pc_pr_cObject, pc_pr_usObject, pc_pr_soObject, pc_pr_bmeObject, pc_pr_uhrObject) : null;
+					PaymentRequest pc_p_prObject = (this.Depth > 1) ? pc_p_prTable.CreateInstance() : null;
+					Customer pc_p_cObject = (this.Depth > 1) ? pc_p_cTable.CreateInstance() : null;
+					ServiceOffer pc_p_soObject = (this.Depth > 1) ? pc_p_soTable.CreateInstance() : null;
+					BusinessModelEntry pc_p_bmeObject = (this.Depth > 1) ? pc_p_bmeTable.CreateInstance() : null;
+					Payment pc_pObject = (this.Depth > 0) ? pc_pTable.CreateInstance(pc_p_prObject, pc_p_cObject, pc_p_soObject, pc_p_bmeObject) : null;
+					PaymentCallback pcObject = (this.Depth > -1) ? pcTable.CreateInstance(pc_prObject, pc_pObject) : null;
+					result.Add(pcObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pc", "customloadmany", "exception"), "PaymentCallback list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "PaymentCallback", "Exception while loading (custom/many) PaymentCallback object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, PaymentCallback data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [async].[PaymentCallback] ([PaymentCallbackGuid],[PaymentRequestID],[PaymentID],[IsCompleted],[ValidTo]) VALUES(@PaymentCallbackGuid,@PaymentRequestID,@PaymentID,@IsCompleted,@ValidTo); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@PaymentCallbackGuid", data.Guid);
+				sqlCmd.Parameters.AddWithValue("@PaymentRequestID", data.PaymentRequest.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentID", data.Payment == null ? DBNull.Value : (object)data.Payment.ID);
+				sqlCmd.Parameters.AddWithValue("@IsCompleted", data.IsCompleted).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@ValidTo", data.ValidTo).SqlDbType = SqlDbType.DateTime2;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pc", "insert", "noprimarykey"), "PaymentCallback could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "PaymentCallback", "Exception while inserting PaymentCallback object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pc", "insert", "exception"), "PaymentCallback could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "PaymentCallback", "Exception while inserting PaymentCallback object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, PaymentCallback data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [async].[PaymentCallback] SET " +
+												"[PaymentCallbackGuid] = @PaymentCallbackGuid, " + 
+												"[PaymentRequestID] = @PaymentRequestID, " + 
+												"[PaymentID] = @PaymentID, " + 
+												"[IsCompleted] = @IsCompleted, " + 
+												"[ValidTo] = @ValidTo, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [PaymentCallbackID] = @PaymentCallbackID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@PaymentCallbackGuid", data.Guid);
+				sqlCmd.Parameters.AddWithValue("@PaymentRequestID", data.PaymentRequest.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentID", data.Payment == null ? DBNull.Value : (object)data.Payment.ID);
+				sqlCmd.Parameters.AddWithValue("@IsCompleted", data.IsCompleted).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@ValidTo", data.ValidTo).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@PaymentCallbackID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pc", "update", "norecord"), "PaymentCallback could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "PaymentCallback", "Exception while updating PaymentCallback object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pc", "update", "morerecords"), "PaymentCallback was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "PaymentCallback", "Exception while updating PaymentCallback object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pc", "update", "exception"), "PaymentCallback could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "PaymentCallback", "Exception while updating PaymentCallback object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, PaymentCallback data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [async].[PaymentCallback] WHERE PaymentCallbackID = @PaymentCallbackID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@PaymentCallbackID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pc", "delete", "norecord"), "PaymentCallback could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "PaymentCallback", "Exception while deleting PaymentCallback object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pc", "delete", "exception"), "PaymentCallback could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "PaymentCallback", "Exception while deleting PaymentCallback object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

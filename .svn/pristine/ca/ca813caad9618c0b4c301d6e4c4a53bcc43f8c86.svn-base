@@ -1,0 +1,443 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ServiceVisualMediaDimensionsMap))] 
+  public partial class ServiceVisualMediaDimensionsMapManager : MobilePaywall.Data.Sql.SqlManagerBase<ServiceVisualMediaDimensionsMap>, IServiceVisualMediaDimensionsMapManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ServiceVisualMediaDimensionsMap LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ServiceVisualMediaDimensionsMapTable.GetColumnNames("[svmdm]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[svmdm_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[svmdm_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[svmdm_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[svmdm_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[svmdm_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[svmdm_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[svmdm_s_bm]") : string.Empty) + 
+							(this.Depth > 0 ? "," + VisualMediaDimensionsTable.GetColumnNames("[svmdm_vmd]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[svmdm_vmd_i]") : string.Empty) + 
+					" FROM [core].[ServiceVisualMediaDimensionsMap] AS [svmdm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [svmdm_s] ON [svmdm].[ServiceID] = [svmdm_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [svmdm_s_a] ON [svmdm_s].[ApplicationID] = [svmdm_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [svmdm_s_p] ON [svmdm_s].[ProductID] = [svmdm_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [svmdm_s_m] ON [svmdm_s].[MerchantID] = [svmdm_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [svmdm_s_st] ON [svmdm_s].[ServiceTypeID] = [svmdm_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [svmdm_s_sc] ON [svmdm_s].[ServiceConfigurationID] = [svmdm_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [svmdm_s_bm] ON [svmdm_s].[BusinessModelID] = [svmdm_s_bm].[BusinessModelID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[VisualMediaDimensions] AS [svmdm_vmd] ON [svmdm].[VisualMediaDimensionsID] = [svmdm_vmd].[VisualMediaDimensionsID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [svmdm_vmd_i] ON [svmdm_vmd].[InstanceID] = [svmdm_vmd_i].[InstanceID] ";
+				sqlCmdText += "WHERE [svmdm].[ServiceVisualMediaDimensionsMapID] = @ServiceVisualMediaDimensionsMapID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ServiceVisualMediaDimensionsMapID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svmdm", "loadinternal", "notfound"), "ServiceVisualMediaDimensionsMap could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ServiceVisualMediaDimensionsMapTable svmdmTable = new ServiceVisualMediaDimensionsMapTable(query);
+				ServiceTable svmdm_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable svmdm_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable svmdm_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable svmdm_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable svmdm_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				ServiceConfigurationTable svmdm_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable svmdm_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				VisualMediaDimensionsTable svmdm_vmdTable = (this.Depth > 0) ? new VisualMediaDimensionsTable(query) : null;
+				InstanceTable svmdm_vmd_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+
+        
+				Application svmdm_s_aObject = (this.Depth > 1) ? svmdm_s_aTable.CreateInstance() : null;
+				Product svmdm_s_pObject = (this.Depth > 1) ? svmdm_s_pTable.CreateInstance() : null;
+				Merchant svmdm_s_mObject = (this.Depth > 1) ? svmdm_s_mTable.CreateInstance() : null;
+				ServiceType svmdm_s_stObject = (this.Depth > 1) ? svmdm_s_stTable.CreateInstance() : null;
+				ServiceConfiguration svmdm_s_scObject = (this.Depth > 1) ? svmdm_s_scTable.CreateInstance() : null;
+				BusinessModel svmdm_s_bmObject = (this.Depth > 1) ? svmdm_s_bmTable.CreateInstance() : null;
+				Service svmdm_sObject = (this.Depth > 0) ? svmdm_sTable.CreateInstance(svmdm_s_aObject, svmdm_s_pObject, svmdm_s_mObject, svmdm_s_stObject, svmdm_s_scObject, svmdm_s_bmObject) : null;
+				Instance svmdm_vmd_iObject = (this.Depth > 1) ? svmdm_vmd_iTable.CreateInstance() : null;
+				VisualMediaDimensions svmdm_vmdObject = (this.Depth > 0) ? svmdm_vmdTable.CreateInstance(svmdm_vmd_iObject) : null;
+				ServiceVisualMediaDimensionsMap svmdmObject = svmdmTable.CreateInstance(svmdm_sObject, svmdm_vmdObject);
+				sqlReader.Close();
+
+				return svmdmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svmdm", "loadinternal", "exception"), "ServiceVisualMediaDimensionsMap could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ServiceVisualMediaDimensionsMap", "Exception while loading ServiceVisualMediaDimensionsMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ServiceVisualMediaDimensionsMap Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ServiceVisualMediaDimensionsMapTable.GetColumnNames("[svmdm]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[svmdm_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[svmdm_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[svmdm_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[svmdm_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[svmdm_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[svmdm_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[svmdm_s_bm]") : string.Empty) + 
+							(this.Depth > 0 ? "," + VisualMediaDimensionsTable.GetColumnNames("[svmdm_vmd]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[svmdm_vmd_i]") : string.Empty) +  
+					" FROM [core].[ServiceVisualMediaDimensionsMap] AS [svmdm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [svmdm_s] ON [svmdm].[ServiceID] = [svmdm_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [svmdm_s_a] ON [svmdm_s].[ApplicationID] = [svmdm_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [svmdm_s_p] ON [svmdm_s].[ProductID] = [svmdm_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [svmdm_s_m] ON [svmdm_s].[MerchantID] = [svmdm_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [svmdm_s_st] ON [svmdm_s].[ServiceTypeID] = [svmdm_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [svmdm_s_sc] ON [svmdm_s].[ServiceConfigurationID] = [svmdm_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [svmdm_s_bm] ON [svmdm_s].[BusinessModelID] = [svmdm_s_bm].[BusinessModelID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[VisualMediaDimensions] AS [svmdm_vmd] ON [svmdm].[VisualMediaDimensionsID] = [svmdm_vmd].[VisualMediaDimensionsID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [svmdm_vmd_i] ON [svmdm_vmd].[InstanceID] = [svmdm_vmd_i].[InstanceID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svmdm", "customload", "notfound"), "ServiceVisualMediaDimensionsMap could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ServiceVisualMediaDimensionsMapTable svmdmTable = new ServiceVisualMediaDimensionsMapTable(query);
+				ServiceTable svmdm_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable svmdm_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable svmdm_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable svmdm_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable svmdm_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				ServiceConfigurationTable svmdm_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable svmdm_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				VisualMediaDimensionsTable svmdm_vmdTable = (this.Depth > 0) ? new VisualMediaDimensionsTable(query) : null;
+				InstanceTable svmdm_vmd_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+
+        
+				Application svmdm_s_aObject = (this.Depth > 1) ? svmdm_s_aTable.CreateInstance() : null;
+				Product svmdm_s_pObject = (this.Depth > 1) ? svmdm_s_pTable.CreateInstance() : null;
+				Merchant svmdm_s_mObject = (this.Depth > 1) ? svmdm_s_mTable.CreateInstance() : null;
+				ServiceType svmdm_s_stObject = (this.Depth > 1) ? svmdm_s_stTable.CreateInstance() : null;
+				ServiceConfiguration svmdm_s_scObject = (this.Depth > 1) ? svmdm_s_scTable.CreateInstance() : null;
+				BusinessModel svmdm_s_bmObject = (this.Depth > 1) ? svmdm_s_bmTable.CreateInstance() : null;
+				Service svmdm_sObject = (this.Depth > 0) ? svmdm_sTable.CreateInstance(svmdm_s_aObject, svmdm_s_pObject, svmdm_s_mObject, svmdm_s_stObject, svmdm_s_scObject, svmdm_s_bmObject) : null;
+				Instance svmdm_vmd_iObject = (this.Depth > 1) ? svmdm_vmd_iTable.CreateInstance() : null;
+				VisualMediaDimensions svmdm_vmdObject = (this.Depth > 0) ? svmdm_vmdTable.CreateInstance(svmdm_vmd_iObject) : null;
+				ServiceVisualMediaDimensionsMap svmdmObject = svmdmTable.CreateInstance(svmdm_sObject, svmdm_vmdObject);
+				sqlReader.Close();
+
+				return svmdmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svmdm", "customload", "exception"), "ServiceVisualMediaDimensionsMap could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ServiceVisualMediaDimensionsMap", "Exception while loading (custom/single) ServiceVisualMediaDimensionsMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ServiceVisualMediaDimensionsMap> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ServiceVisualMediaDimensionsMapTable.GetColumnNames("[svmdm]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[svmdm_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[svmdm_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[svmdm_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[svmdm_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[svmdm_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[svmdm_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[svmdm_s_bm]") : string.Empty) + 
+							(this.Depth > 0 ? "," + VisualMediaDimensionsTable.GetColumnNames("[svmdm_vmd]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[svmdm_vmd_i]") : string.Empty) +  
+					" FROM [core].[ServiceVisualMediaDimensionsMap] AS [svmdm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [svmdm_s] ON [svmdm].[ServiceID] = [svmdm_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [svmdm_s_a] ON [svmdm_s].[ApplicationID] = [svmdm_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [svmdm_s_p] ON [svmdm_s].[ProductID] = [svmdm_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [svmdm_s_m] ON [svmdm_s].[MerchantID] = [svmdm_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [svmdm_s_st] ON [svmdm_s].[ServiceTypeID] = [svmdm_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [svmdm_s_sc] ON [svmdm_s].[ServiceConfigurationID] = [svmdm_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [svmdm_s_bm] ON [svmdm_s].[BusinessModelID] = [svmdm_s_bm].[BusinessModelID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[VisualMediaDimensions] AS [svmdm_vmd] ON [svmdm].[VisualMediaDimensionsID] = [svmdm_vmd].[VisualMediaDimensionsID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [svmdm_vmd_i] ON [svmdm_vmd].[InstanceID] = [svmdm_vmd_i].[InstanceID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svmdm", "customloadmany", "notfound"), "ServiceVisualMediaDimensionsMap list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ServiceVisualMediaDimensionsMap>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ServiceVisualMediaDimensionsMapTable svmdmTable = new ServiceVisualMediaDimensionsMapTable(query);
+				ServiceTable svmdm_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable svmdm_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable svmdm_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable svmdm_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable svmdm_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				ServiceConfigurationTable svmdm_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable svmdm_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				VisualMediaDimensionsTable svmdm_vmdTable = (this.Depth > 0) ? new VisualMediaDimensionsTable(query) : null;
+				InstanceTable svmdm_vmd_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+
+        List<ServiceVisualMediaDimensionsMap> result = new List<ServiceVisualMediaDimensionsMap>();
+        do
+        {
+          
+					Application svmdm_s_aObject = (this.Depth > 1) ? svmdm_s_aTable.CreateInstance() : null;
+					Product svmdm_s_pObject = (this.Depth > 1) ? svmdm_s_pTable.CreateInstance() : null;
+					Merchant svmdm_s_mObject = (this.Depth > 1) ? svmdm_s_mTable.CreateInstance() : null;
+					ServiceType svmdm_s_stObject = (this.Depth > 1) ? svmdm_s_stTable.CreateInstance() : null;
+					ServiceConfiguration svmdm_s_scObject = (this.Depth > 1) ? svmdm_s_scTable.CreateInstance() : null;
+					BusinessModel svmdm_s_bmObject = (this.Depth > 1) ? svmdm_s_bmTable.CreateInstance() : null;
+					Service svmdm_sObject = (this.Depth > 0) ? svmdm_sTable.CreateInstance(svmdm_s_aObject, svmdm_s_pObject, svmdm_s_mObject, svmdm_s_stObject, svmdm_s_scObject, svmdm_s_bmObject) : null;
+					Instance svmdm_vmd_iObject = (this.Depth > 1) ? svmdm_vmd_iTable.CreateInstance() : null;
+					VisualMediaDimensions svmdm_vmdObject = (this.Depth > 0) ? svmdm_vmdTable.CreateInstance(svmdm_vmd_iObject) : null;
+					ServiceVisualMediaDimensionsMap svmdmObject = (this.Depth > -1) ? svmdmTable.CreateInstance(svmdm_sObject, svmdm_vmdObject) : null;
+					result.Add(svmdmObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svmdm", "customloadmany", "exception"), "ServiceVisualMediaDimensionsMap list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ServiceVisualMediaDimensionsMap", "Exception while loading (custom/many) ServiceVisualMediaDimensionsMap object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ServiceVisualMediaDimensionsMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ServiceVisualMediaDimensionsMap] ([ServiceID],[VisualMediaDimensionsID]) VALUES(@ServiceID,@VisualMediaDimensionsID); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@VisualMediaDimensionsID", data.VisualMediaDimensions.ID);
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svmdm", "insert", "noprimarykey"), "ServiceVisualMediaDimensionsMap could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ServiceVisualMediaDimensionsMap", "Exception while inserting ServiceVisualMediaDimensionsMap object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svmdm", "insert", "exception"), "ServiceVisualMediaDimensionsMap could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ServiceVisualMediaDimensionsMap", "Exception while inserting ServiceVisualMediaDimensionsMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ServiceVisualMediaDimensionsMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ServiceVisualMediaDimensionsMap] SET " +
+												"[ServiceID] = @ServiceID, " + 
+												"[VisualMediaDimensionsID] = @VisualMediaDimensionsID, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ServiceVisualMediaDimensionsMapID] = @ServiceVisualMediaDimensionsMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@VisualMediaDimensionsID", data.VisualMediaDimensions.ID);
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ServiceVisualMediaDimensionsMapID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svmdm", "update", "norecord"), "ServiceVisualMediaDimensionsMap could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ServiceVisualMediaDimensionsMap", "Exception while updating ServiceVisualMediaDimensionsMap object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svmdm", "update", "morerecords"), "ServiceVisualMediaDimensionsMap was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ServiceVisualMediaDimensionsMap", "Exception while updating ServiceVisualMediaDimensionsMap object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svmdm", "update", "exception"), "ServiceVisualMediaDimensionsMap could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ServiceVisualMediaDimensionsMap", "Exception while updating ServiceVisualMediaDimensionsMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ServiceVisualMediaDimensionsMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ServiceVisualMediaDimensionsMap] WHERE ServiceVisualMediaDimensionsMapID = @ServiceVisualMediaDimensionsMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ServiceVisualMediaDimensionsMapID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svmdm", "delete", "norecord"), "ServiceVisualMediaDimensionsMap could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ServiceVisualMediaDimensionsMap", "Exception while deleting ServiceVisualMediaDimensionsMap object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svmdm", "delete", "exception"), "ServiceVisualMediaDimensionsMap could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ServiceVisualMediaDimensionsMap", "Exception while deleting ServiceVisualMediaDimensionsMap object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

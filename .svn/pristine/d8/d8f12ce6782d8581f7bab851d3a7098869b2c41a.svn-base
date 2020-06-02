@@ -1,0 +1,47 @@
+﻿using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Direct
+{
+  public class DirectAuctionBidManager : MobilePaywallDirect
+  {
+    public bool IsUnique(AuctionRound auctionRound, decimal value)
+    {
+      string command = string.Empty;
+      #region # sql command #
+
+      command = string.Format(@"
+          SELECT TOP 1 r.Amount FROM 
+          (SELECT ab.Amount, COUNT(*) AS num FROM MobilePaywall.core.AuctionBid AS ab WHERE AuctionRoundID={0} GROUP BY ab.Amount) 
+          AS r 
+          WHERE r.num = 1 ORDER BY r.Amount ASC;", auctionRound.ID);
+
+      #endregion
+
+      DataTable table = this.Load(command);
+      if (table == null || table.Rows.Count == 0)
+        return false;
+
+      decimal result = 0;
+      decimal.TryParse(table.Rows[0][0].ToString(), out result);
+
+      return result == value;
+    }
+
+  }
+
+  public class DirectAuctionBidTable
+  {
+    public static bool IsUnique(AuctionRound auctionRound, decimal value)
+    {
+      return (new DirectAuctionBidManager()).IsUnique(auctionRound, value);
+    }
+  }
+
+
+}

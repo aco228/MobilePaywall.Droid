@@ -1,0 +1,190 @@
+﻿using Cashflow.Client;
+using Cashflow.Message;
+using Cashflow.Message.Mobile;
+using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.MobilePaywallDirect;
+using MobilePaywall.Service.Callback.Log;
+using Senti.Diagnostics.Log;
+using Senti.Security;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+
+namespace MobilePaywall.Service.Callback.Handlers._Specific.HU
+{
+  public class HUDimocoHandler : NotificationHandlerBase
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (HUDimocoHandler._log == null)
+          HUDimocoHandler._log = log4net.LogManager.GetLogger(typeof(HUDimocoHandler));
+        return HUDimocoHandler._log;
+      }
+    }
+    #endregion
+
+    protected override void ProcessReceiveShortMessageNotification(Cashflow.Message.Mobile.ReceiveShortMessageNotification notification)
+    {
+      CallbackLog CLog = new CallbackLog(notification, Log);
+      try
+      {
+        MessageArgument countryArgument = (from a in notification.Arguments where a.Key.Equals("Country") select a).FirstOrDefault();
+
+        Log.Info(new LogMessageBuilder(new LogErrorCode("paywall.core", "contentcache", "getcontent"), "HUUUUU ", notification));
+        if (countryArgument == null || (countryArgument != null && !countryArgument.Value.Equals("HU")))
+          return;
+
+				PaywallDirect db = PaywallDirect.Instance;
+
+        Data.Service service = this.GetService(CLog, notification, db);
+        if (service == null)
+        {
+          Log.Error("HU_Dimoco:: Could not load service");
+          return;
+        }
+
+        Customer customer = this.GetCustomer(service, notification, db);
+        if (customer == null)
+        {
+          Log.Error("HU_Dimoco:: Could not get customer");
+          return;
+        }
+
+        int? userSessionID = db.LoadInt(string.Format(@"SELECT TOP 1 UserSessionID FROM MobilePaywall.core.UserSession WHERE CustomerID={0} ORDER BY UserSessionID ASC;", customer.ID));
+        if (!userSessionID.HasValue)
+        {
+          Log.Error("HU_Dimoco:: Could not load UserSessionID for customer with id " + customer.ID);
+          return;
+        }
+
+        CLog.UserSession = UserSession.CreateManager().Load(userSessionID.Value);
+        if (CLog.UserSession == null)
+        {
+          Log.Error("HU_Dimoco:: There is no UserSessionID for Customer with ID " + customer.ID);
+          return;
+        }
+
+        ServiceOffer so = (from s in ServiceOffer.CreateManager().Load(service) where s.IsActive && s.IsDefault select s).FirstOrDefault();
+        if (so == null)
+        {
+          Log.Error("HU_Dimoco:: ServiceOffer is null for serice " + service.Name);
+          return;
+        }
+
+        Random rnd = new Random();
+        int usernameNumber = rnd.Next(1000, 9999), passwordNumber = rnd.Next(1000, 9999);
+        customer.Username = "hu" + usernameNumber.ToString();
+        customer.EncryptedPassword = Senti.Security.PasswordEncryption.Create(passwordNumber.ToString()).EncryptedPasswordAndSalt;
+        customer.Update();
+        customer.Storage.PutString("password", passwordNumber.ToString());
+
+        UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), customer.OriginalUserSession, null, "-nil-", DateTime.Now, DateTime.Now); uhr.Insert();
+        LookupSession ls = new LookupSession(-1, Guid.NewGuid(), LookupSessionStatus.Complete, customer.OriginalUserSession, uhr, null, "-nil-", DateTime.Now, DateTime.Now); ls.Insert();
+        LookupSessionResult lsr = new LookupSessionResult(-1, ls, true, true, null, customer.MobileOperator, notification.ShortMessage.Msisdn, string.Empty, DateTime.Now, DateTime.Now); lsr.Insert();
+
+        SmsArguments arguments = new SmsArguments();
+        arguments.PreviousSmsId = notification.ShortMessage.ShortMessageID.ToString();
+        arguments.Username = customer.Username;
+        arguments.Password = passwordNumber.ToString();
+
+        SendSmsRequest sendSmsRequest = new SendSmsRequest(RequestMode.Synchronous,
+         CLog.UserSession.Guid.ToString(),
+         so.PaymentConfiguration.PaymentCredentials.Username,
+         so.PaymentConfiguration.PaymentCredentials.Password,
+         so.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+         so.Service.Product.ExternalProductGuid,
+         so.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+         so.Service.FallbackCountry.TwoLetterIsoCode,
+         so.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid.Value,
+         notification.ShortMessage.Operator.Value.ToString(),
+         notification.ShortMessage.Msisdn,
+         string.Format("GRATULALUNK! Regisztralt a {0} szolgaltatasra. Dija: 3 sms/het/960ft/sms. Minden heten uj tartalom! Lemondas a stop valasszal", so.Service.Name),
+         CLog.UserSession.Guid.ToString(), // sendSmsRequestReference
+         "", // notificationUrl
+         arguments.ToMessageArguments());
+        sendSmsRequest.ReferenceIntID = CLog.UserSession.ID;
+
+        MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(CLog.UserSession.Service);
+        mobileClient.AttachLogWriter(new CashflowLog(so.Service));
+
+        SendSmsResponse sendSmsResponse = mobileClient.SendSms(sendSmsRequest);
+        if (sendSmsResponse.Status.Code != MessageStatusCode.Success)
+          CLog.Error("HU_Dimoco:: SendSmsResponse is not successful..");
+        else
+          CLog.Error("HU_Dimoco:: SendSmsResponse DONE");
+      }
+      catch(Exception e)
+      {
+        Log.Fatal("HUDimocoHandler.ProcessReceiveShortMessageNotification FATAL", e);
+      }
+    }
+
+    /*
+      FUNCTIONS
+    */
+
+    // SUMMARY: Load service by BM from notification
+    private Data.Service GetService(CallbackLog CLog, Cashflow.Message.Mobile.ReceiveShortMessageNotification notification, PaywallDirect db)
+    {
+      MessageArgument behaviorModel = (from a in notification.Arguments where a.Key.Equals("BehaviorModelGuid") select a).FirstOrDefault();
+      if (behaviorModel == null)
+      { CLog.Error("HU_Dimoco:: There is not behavior model argument"); return null; }
+
+      int? _serviceID = db.LoadInt(string.Format(@"SELECT TOP 1 so.ServiceID FROM MobilePaywall.core.BehaviorModel AS bm
+          LEFT OUTER JOIN MobilePaywall.core.PaymentConfiguration AS pc ON pc.BehaviorModelID=bm.BehaviorModelID
+          LEFT OUTER JOIN MobilePaywall.core.ServiceOffer AS so ON so.PaymentConfigurationID=pc.PaymentConfigurationID
+          WHERE bm.ExternalBehaviorModelGuid='{0}'", behaviorModel.Value));
+
+      if (!_serviceID.HasValue)
+      { CLog.Error("HU_Dimoco:: Could not load ServiceID by BM: " + behaviorModel.Value); return null; }
+
+      Data.Service service = Data.Service.CreateManager().Load(_serviceID.Value);
+      if (service == null)
+      { CLog.Error("HU_Dimoco:: Service could not be loaded by ID: " + _serviceID.Value); return null; }
+
+      return service;
+    }
+
+    private Data.Customer GetCustomer(Data.Service service, Cashflow.Message.Mobile.ReceiveShortMessageNotification notification, PaywallDirect db)
+    {
+      MobileOperator mobileOperator = null;
+      if (notification.ShortMessage.Operator.HasValue)
+        mobileOperator = MobileOperator.CreateManager().Load(notification.ShortMessage.Operator.Value, IDType.External);
+
+      Customer customer = null;
+      int? _customerID = db.LoadInt(string.Format(@"SELECT TOP 1 CustomerID FROM MobilePaywall.core.Customer WHERE ServiceID={0} AND Msisdn='{1}' ORDER BY CustomerID DESC", service.ID, notification.ShortMessage.Msisdn));
+      if (_customerID.HasValue)
+        customer = Customer.CreateManager().Load(_customerID.Value);
+
+      if (customer != null)
+        return customer;
+
+      string username = Guid.NewGuid().ToString();
+      string password = Guid.NewGuid().ToString();
+      customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Active, service, service.FallbackCountry, mobileOperator, null, notification.ShortMessage.Msisdn, string.Empty, username, 
+        PasswordEncryption.Create(password).EncryptedPasswordAndSalt, DateTime.Now, DateTime.Now);
+      customer.Insert();
+      customer.SetUsernameAndPassword();
+
+      string pxid = "";
+      string[] pxidSplit = notification.ShortMessage.Text.Split('/');
+      if (pxidSplit.Length > 0) pxid = "?pxid=" + pxid;
+
+      Data.Domain domain = Data.Domain.CreateManager().Load(service).FirstOrDefault();
+      UserSession us = new UserSession(-1, Guid.NewGuid(), UserSessionType.CreateManager().Load(1), service, domain, customer, service.FallbackCountry, service.FallbackLanguage, mobileOperator, null, null, false, false,
+        "", IPAddressType.IPv4, "", string.Format("http://{0}{1}", service.Name, pxid), "", DateTime.Now.AddMinutes(20), DateTime.Now, DateTime.Now);
+      us.Insert();
+
+      return customer;
+    }
+
+  }
+}

@@ -1,0 +1,47 @@
+﻿@model MobilePaywall.Web.Models.TemplateContentModel
+
+
+@foreach (MobilePaywall.IContent item in Model.Icontents)
+{
+  <div class="content_detail">
+    <label><input type="checkbox" class="checkboxforcontentcategory" @Html.Raw(Model.IsContentEnabled(item.ID) ? "checked" : "") name="usethiscontent" value="1">@item.DefaultTitle</label>
+    <input value="@item.ID" type="text" class="form-control contentid" hidden>
+  </div>
+}
+<a class="md-btn md-btn-flat md-btn-flat-primary btnUpdateContentUsageByCategory" inuse="false">Update</a>
+
+<script>
+  $(".btnUpdateContentUsageByCategory").click(function () {
+
+    if ($(this).attr('inuse') == 'true')
+      return;
+    var btn = $(this);
+
+
+    visual.Confirm('Are you sure you want to make this change?', 'Yes', 'No', function () {
+
+      var tmplText = btn.text();
+      btn.attr('inuse', 'true');
+      btn.text('...');
+      var _categoryID = $('#categoryID').val();
+      var _contentGroupID = btn.closest(".content_group").attr('id');
+
+
+      console.log(_contentGroupID);
+      var _usedContents = "";
+      $('.content_detail').each(function () {
+        if ($(this).find(".checkboxforcontentcategory").is(':checked')) {
+          _usedContents = _usedContents + $(this).find('.contentid').val() + ",";
+        }
+      });
+      _usedContents = _usedContents.substring(0, _usedContents.length - 1);
+
+      template.call('ApiTemplateAddCategoryContentUsedByCategory', { categoryID: _categoryID, useContents: _usedContents, contentGroupID: _contentGroupID }, function (response) {
+        btn.attr('inuse', 'false');
+        btn.text(tmplText);
+        visual.Alert(response.message);
+      });
+
+    });
+  });
+</script>

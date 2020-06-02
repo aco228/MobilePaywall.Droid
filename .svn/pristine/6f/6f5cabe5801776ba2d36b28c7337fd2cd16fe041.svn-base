@@ -1,0 +1,100 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using MobilePaywall.Data;
+
+namespace MobilePaywall
+{
+	public class ServiceConfigurationEntryKey : IComparable<ServiceConfigurationEntryKey>
+	{
+		private int? _countryID = null;
+		private int? _mobileOperatorID = null;
+
+		public int? CountryID { get { return this._countryID; } }
+		public int? MobileOperatorID { get { return this._mobileOperatorID; } }
+
+		public ServiceConfigurationEntryKey(int countryID, int? mobileOperatorID)
+		{
+			this._countryID = countryID;
+			this._mobileOperatorID = mobileOperatorID;
+		}
+
+		public ServiceConfigurationEntryKey(Country country, MobileOperator mobileOperator)
+		{
+			if (country == null)
+				throw new ArgumentNullException("country");
+			this._countryID = country.ID;
+			this._mobileOperatorID = mobileOperator != null ?
+																(int?)mobileOperator.ID :
+																null;
+		}
+
+		public ServiceConfigurationEntryKey(ServiceConfigurationEntry serviceConfigurationEntry)
+		{
+			if (serviceConfigurationEntry == null)
+				throw new ArgumentNullException("serviceConfigurationEntry");
+			this._countryID = serviceConfigurationEntry.Country.ID;
+			this._mobileOperatorID = serviceConfigurationEntry.MobileOperator != null ? 
+																(int?)serviceConfigurationEntry.MobileOperator.ID : 
+																null;
+		}
+
+		public int CompareTo(ServiceConfigurationEntryKey other)
+		{
+			if (other == null)
+				return 1;
+
+			if (other.CountryID.HasValue)
+				if (!this.CountryID.HasValue)
+					return -1;
+				else
+				{
+					int countryComparison = this.CountryID.Value.CompareTo(other.CountryID.Value);
+					if (countryComparison != 0)
+						return countryComparison;
+				}
+			else
+				if (this.CountryID.HasValue)
+					return 1;
+
+			if (other.MobileOperatorID.HasValue)
+				if (!this.MobileOperatorID.HasValue)
+					return -1;
+				else
+				{
+					int moComparison = this.MobileOperatorID.Value.CompareTo(other.MobileOperatorID.Value);
+					if (moComparison != 0)
+						return moComparison;
+				}
+			else
+				if (this.MobileOperatorID.HasValue)
+					return 1;
+
+			return 0;
+		}
+
+		public override int GetHashCode()
+		{
+			return string.Format("{0}_{1}",
+													 this.CountryID.HasValue ? this.CountryID.Value.ToString() : "null",
+													 this.MobileOperatorID.HasValue ? this.MobileOperatorID.Value.ToString() : "null").GetHashCode();
+		}
+
+		public override bool Equals(object obj)
+		{
+			ServiceConfigurationEntryKey other = obj as ServiceConfigurationEntryKey;
+			if (other == null) return false;
+
+			string a = string.Format("{0}_{1}",
+															 this.CountryID.HasValue ? this.CountryID.Value.ToString() : "null",
+															 this.MobileOperatorID.HasValue ? this.MobileOperatorID.Value.ToString() : "null");
+			string b = string.Format("{0}_{1}",
+															 other.CountryID.HasValue ? other.CountryID.Value.ToString() : "null",
+															 other.MobileOperatorID.HasValue ? other.MobileOperatorID.Value.ToString() : "null");
+			return a.Equals(b);
+		}
+	}
+}

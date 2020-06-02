@@ -1,0 +1,190 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web.Models
+{
+  public class QuizModel : PaywallViewModelBase
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (QuizModel._log == null)
+          QuizModel._log = LogManager.GetLogger(typeof(QuizModel));
+        return QuizModel._log;
+      }
+    }
+    #endregion
+
+    private QuizContent _quizContent = null;
+    private Quiz _quiz = null;
+    private List<QuizQuestion> _questions = null;
+    private string _avalibleQuestions = "";
+    private bool _hasAccess = true;
+    private bool _hasError = false;
+
+    public int QuizContentID { get { return this._quizContent != null ? this._quizContent.ID : -1; } }
+    public QuizContent QuizContent { get { return this._quizContent; } }
+    public Quiz Quiz { get { return this._quiz; } }
+    public List<QuizQuestion> Questions { get { return this._questions; } }
+    public bool HasError { get { return this._hasError; } }
+    public bool HasAccess { get { return this._hasAccess; } }
+
+    public string AvalibleQuestions
+    {
+      get
+      {
+        if (!string.IsNullOrEmpty(this._avalibleQuestions))
+          return this._avalibleQuestions;
+
+        if (this._questions == null)
+          this._questions = new List<QuizQuestion>();
+
+        for (int i = 0; i < this._questions.Count; i++)
+          this._avalibleQuestions += (i == 0 ? "" : ",") + this._questions[i].ID;
+
+        this._avalibleQuestions = "[" + this._avalibleQuestions + "]";
+        return this._avalibleQuestions;
+      }
+    }
+
+    public QuizModel(PaywallHttpContext context, IContent content)
+      : base(context)
+    {
+      this._quiz = content as Quiz;
+      if (this._quiz == null)
+      {
+        Log.Error("QuizModel:: IContent could not be parsed into Quiz");
+        this._hasError = true;
+        return;
+      }
+
+      if ((this.Context.Service as QuizService) == null)
+      {
+        Log.Error("QuizModel:: Service is not type QuizService");
+        this._hasError = true;
+        return;
+      }
+
+      QuizDefaultUserSession session = (this.Context.Session as QuizDefaultUserSession);
+      if (session == null)
+      {
+        Log.Error("QuizModel:: Session is not type QuizDefaultUserSession");
+        this._hasError = true;
+        return;
+      }
+      
+      this._quizContent = this._quiz.QuizContent;
+      if (this._quizContent == null)
+      {
+        Log.Error("QuizModel:: QuizContent is null. WTF?");
+        this._hasError = true;
+        return;
+      }
+
+      // TODO: load all questions
+      this._questions = QuizQuestion.CreateManager().Load(this._quizContent, PaywallHttpContext.Current.Service.ServiceData.FallbackLanguage);
+      if (this._questions == null || this._questions.Count == 0)
+        this._questions = QuizQuestion.CreateManager().Load(this._quizContent, Language.CreateManager().Load(1));
+      if (this._questions == null || this._questions.Count == 0)
+      {
+        Log.Error("QuizModel:: Questions are NULL or Countr=0");
+        this._hasError = true;
+        return;
+      }
+
+      #region # only in case of GR we need couple of questions (Dimoco and Amaze) #
+
+      if ((PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("GR") && PaywallHttpContext.Current.Service.PaymentProvider.ID == 3) ||
+          (PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("GR") && PaywallHttpContext.Current.Service.PaymentProvider.ID == 16) ||
+          (PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("GR") && PaywallHttpContext.Current.Service.PaymentProvider.ID == 28))
+      {
+        Random rand = new Random();
+        this._questions = this._questions.OrderBy(c => rand.Next()).Select(c => c).ToList();
+
+        if (this._questions.Count > this._quizContent.NumOfQuestions)
+          this._questions = this._questions.GetRange(0, this._quizContent.NumOfQuestions);
+      }
+
+      #endregion
+
+      if (this.Context.HttpContext.Request[Constants.TemplateBypass] != null)
+        return;
+
+      // customer is not identified.. should be redirected to payment page
+      if(this.Context.Service.ServiceData.ServiceStatus != ServiceStatus.Free && 
+        (session.SessionData.Customer == null))
+      {
+        Log.Info("QuizModel:: Customer is null so customer will be redirected to our PaymentPage");
+        #region # this part is only for GR Dimoco (if there is no customer, redirect him to our payment page) #
+
+        if(PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("GR") && PaywallHttpContext.Current.Service.PaymentProvider.ID==3)
+        {
+          /// check if there is msisdn (if this is wind flow)
+          string msisdn = this.TryToGetMsisdn();
+
+          if (!string.IsNullOrEmpty(msisdn))
+          {
+            Log.Debug("QuizModel:: Msisdn is detected: " + msisdn);
+            this.Context.HttpContext.Response.Headers.Add("MSISDN", msisdn);
+            this.Context.HttpContext.Response.Redirect("/payment/gr/wind");
+          }
+          else
+          {
+            Log.Debug("QuizModel:: There is no msisdn");
+            if (PaywallHttpContext.Current.Service.ServiceData.ID == 239)
+              this.Context.HttpContext.Response.Redirect("/login");
+            else
+              this.Context.HttpContext.Response.Redirect("/payment/gr");
+          }
+
+          return;
+        }
+
+        #endregion
+
+      }
+
+      this._hasAccess = session.HasAccessToQuiz();
+      
+      if (this.Service.ServiceData.ServiceStatus != ServiceStatus.Free && !session.HasAccessToQuiz())
+      {
+        Log.Info("QuizModel:: Session returned FALSE to HasAccessToQuiz");
+        this._hasAccess = false;
+      }
+
+      if (this.Service.PaymentProvider.ID == 16) // quick fix for amaze
+        this._hasAccess = true;
+
+      #region # update number of questions in quiz if value is 0 #
+
+      if (this._quizContent.NumOfQuestions == 0)
+      {
+        // preko Direct ucitaj int? i updejtuj this._quizContent
+      }
+
+      #endregion
+
+    }
+
+
+    private string TryToGetMsisdn()
+    {
+      foreach (string key in this.Context.HttpContext.Request.Headers.AllKeys)
+        if (key.ToLower().Contains("msisdn"))
+          return this.Context.HttpContext.Request.Headers[key];
+
+      return string.Empty;
+    }
+
+  }
+}

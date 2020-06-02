@@ -1,0 +1,90 @@
+﻿function SendNumberManager()
+{
+  this.buttonElem = null;
+  this.numberElem = null;
+  this.mobileOperatorElem = null;
+  this.url = 'send';
+  this.onSuccess = null;
+
+  this.originalText = '';
+  this.waitText = '';
+  this.contentUrl = '';
+
+
+  this.init = function()
+  {
+    this.onClick();
+  }
+
+  // SUMMARY: On submit click, should
+  this.onClick = function()
+  {
+    var self = this;
+    self.buttonElem.attr('inuse', 'false');
+    self.originalText = self.buttonElem.text();
+    self.buttonElem.click(function () {
+      if (self.buttonElem.attr('inuse') == 'true')
+        return;
+
+      var number = self.numberElem.val();
+      var mobileOperatorID = '';
+
+      if (self.mobileOperatorElem.length > 0)
+        mobileOperatorID = self.mobileOperatorElem.find('option:selected').attr('value');
+
+      if(number == '')
+      {
+        _visual.Alert('You did not entered msisnd');
+        return;
+      }
+      
+      self.buttonElem.attr('inuse', 'true');
+      self.buttonElem.text(self.waitText);
+      self.call('/sendnumber/' + self.url, { number: number, mobileOperatorID: mobileOperatorID }, function (response)
+      {
+        if (!response.status)
+        {
+          _visual.Alert(response.message);
+          self.buttonElem.text(self.originalText);
+          self.buttonElem.attr('inuse', 'false');
+        }
+        else
+          if (typeof self.onSuccess === 'function')
+            self.onSuccess();
+          else
+            self.waitForConversion(number);
+      });
+    });
+  }
+  
+  this.waitForConversion = function(number)
+  {
+    console.log("starter waiting for conversion..");
+
+    var self = this;
+    var waitID = _visual.Wait(this.waitText);
+    var waitingResponse = false;
+
+    var interval = setInterval(function () {
+      if (waitingResponse) return;
+
+      waitingResponse = true;
+      self.call('/sendnumber/CheckNumber', { number: number }, function (response) {
+        if (response.status)
+          window.location = self.contentUrl;
+        waitingResponse = false;
+      });
+    }, 500); 
+  }
+
+  this.call = function(url, data, succ_func)
+  {
+    $.ajax({
+      url: url,
+      data: data,
+      method: 'POST',
+      success: function (response) { succ_func(response); }
+    });
+  }
+
+}

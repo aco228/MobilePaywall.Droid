@@ -1,0 +1,39 @@
+﻿using log4net.Layout.Pattern;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Web;
+
+namespace MobilePaywall.Web.Log
+{
+  public class ServiceConverter : PatternLayoutConverter
+  {
+    protected override void Convert(TextWriter writer, log4net.Core.LoggingEvent loggingEvent)
+    {
+      try
+      {
+        HttpContext context = HttpContext.Current;
+        if(context == null)
+        {
+          writer.Write("0");
+          return;
+        }
+
+        if (!PaywallHttpApplication.CurrentApplicationServices.ContainsKey(context.Request.Url.Host))
+        {
+          writer.Write("0");
+          return;
+        }
+        
+        writer.Write(PaywallHttpApplication.CurrentApplicationServices[context.Request.Url.Host]);
+      }
+      catch(Exception e)
+      {
+        writer.Write("0");
+      } 
+    }
+  }
+}

@@ -1,0 +1,265 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using MobilePaywall.Data;
+using log4net;
+using Senti.Diagnostics.Log;
+using System.Collections.Specialized;
+using System.Web;
+using MobilePaywall.Implementation.Session;
+
+namespace MobilePaywall
+{
+  public class UserSessionBase : IUserSession
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (UserSessionBase._log == null)
+          UserSessionBase._log = LogManager.GetLogger(typeof(UserSessionBase));
+        return UserSessionBase._log;
+      }
+    }
+    #endregion
+
+    private IService _service = null;
+    private UserSession _sessionData = null;
+		private Country _country = null;
+		private Language _language = null;
+    //private UserSessionStorageManager _storageManager = null;
+    protected LookupSessionResult _lastLookupResult = null;
+    protected ILookupManager _lookupManager = null;
+    protected ClientSession _clientSession = null;
+    protected bool _isIdentified = false;
+
+    public IService Service { get { return this._service; } }
+    public UserSession SessionData { get { return this._sessionData; } }
+    public LookupSessionResult LastLookupResult { get { return this._lastLookupResult; } }
+		public Language Language { get { return this._language; } }
+    public bool IsIdentified { get { return this._isIdentified; } }
+
+    public Country Country
+    {
+      get
+      {
+        if (this._country != null)
+          return this._country;
+        this._country = this.SessionData.Country != null ? this.SessionData.Country : this.Service.ServiceData.FallbackCountry;
+        return this._country;
+      }
+    }
+
+    public ILookupManager LookupManager
+    {
+      get
+      {
+        if (this._lookupManager != null)
+          return this._lookupManager;
+        this._lookupManager = this._service.CreateLookupManager(this);
+        return this._lookupManager;
+      }
+    }
+
+    public UserSessionBase(IService service, UserSession sessionData)
+    {
+      this._service = service;
+      this._sessionData = sessionData;
+      //this._lookupManager = this.Service.CreateLookupManager(this);
+      //this._isIdentified = this.SessionData.Customer != null;
+			//this._country = this.GetUserSessionCountry();
+      //this._language = this.GetUserSessionLanguage();
+    }
+
+		public UserSessionStorageManager Storage => this._sessionData.Storage;
+    //{
+    //  get
+    //  {
+    //    if (this._storageManager != null)
+    //      return this._storageManager;
+    //    this._storageManager = new UserSessionStorageManager(this._sessionData);
+    //    return this._storageManager;
+    //  }
+    //}
+
+    public virtual void TryIdentificationByCookie()
+    { 
+    }
+
+    public Country GetUserSessionCountry()
+    {
+      Country country = this.SessionData.Country ?? this.Service.ServiceData.FallbackCountry;
+      if (country == null)
+        PLog.Error("Could not find user country of Service fallback country");
+      return country;
+    }
+
+		public Language GetUserSessionLanguage()
+		{
+      try
+      {
+        ILanguageManager lManager = Data.Language.CreateManager();
+        Language language = this._service.ServiceData.ServiceStatus == ServiceStatus.Free ? this._service.ServiceData.FallbackLanguage : this.SessionData.Language ?? lManager.Load(this.GetUserSessionCountry().TwoLetterIsoCode, LanguageIdentifier.TwoLetterIsoCode) ?? this.Service.ServiceData.FallbackLanguage;
+        if (language == null)
+          PLog.Error("Language is not found, internation localization will be taken.");
+        return language;
+      }
+      catch (Exception ex)
+      {
+        PLog.Fatal("Something failed while determining right language!", ex.ToString());
+        return null;
+      }
+		}
+
+    public ILookupManager CreateLookupManager()
+    {
+      return this.Service.CreateLookupManager(this);
+    }
+
+    public IPaymentManager CreatePaymentManager()
+    {
+      return this.Service.CreatePaymentManager(this);
+    }
+
+    public virtual bool TryGetLookupResult(string requestRawUrl)
+    {
+
+      //if (this.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("TH") && this.Service.PaymentProvider.ID == 10)
+      //{
+      //  LookupSession ls = LookupSession.CreateManager().Load(this.SessionData);
+      //  this._lastLookupResult = new LookupSessionResult(-1, ls, true, true, null, null, string.Empty, string.Empty, DateTime.Now, DateTime.Now);
+      //  this._lastLookupResult.Insert();
+      //  return true;
+      //}
+
+      ILookupManager lookupManager = this.CreateLookupManager();
+      
+      if (lookupManager.SkipLookup)
+        return true; 
+
+      this._lastLookupResult = lookupManager.TryGetLookupSessionResult();
+
+      if (this.LastLookupResult != null)
+      {
+
+				/*
+				if(this.Service.PaymentProvider.ID == 6 && this.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("PT") && this.Storage.GetBoolean("redirectedToPaymentPage"))
+				{
+					this.Storage.PutBool("redirectedToPaymentPage", false);
+					this._lastLookupResult = null;
+					return false;
+				}
+				*/
+
+        PLog.Error(string.Format("LookupSessionResult Session (GUID: {0}) (IdentificationResultID: {1}) - (IdentificationSessionID: {2}) // Final ({3}) // Successful ({4})",
+            this.SessionData.Guid, this.LastLookupResult.IdentificationResultGuid, this.LastLookupResult.LookupSession.IdentificationSessionGuid, this.LastLookupResult.IsFinalResult, this.LastLookupResult.IsSuccessful));
+        if (this.LastLookupResult.IsFinalResult && this.LastLookupResult.IsSuccessful)
+        {
+          ILookupSessionManager lsManager = LookupSession.CreateManager(2);
+          LookupSession lookupSession = lsManager.Load(this._lastLookupResult.LookupSession.ID);
+          if (lookupSession != null)
+            this.UpdateCustomer(lookupSession.UserSession.Customer);
+          return true;
+        }
+      }
+
+      LookupSessionResult processedLookupResult = null;
+      if (lookupManager.IsLookupCallback(requestRawUrl))
+        processedLookupResult = lookupManager.ProcessLookupCallbackResult(requestRawUrl);
+      if (processedLookupResult != null)
+      {
+        // TODO: review to make sure we dont overwrite a better result from before.
+        this._lastLookupResult = processedLookupResult;
+      }
+
+      return (this.LastLookupResult != null);
+    }
+
+    public LookupSession InitiateLookup(string requestRawUrl)
+    {
+      LookupSession lookupSession = LookupSession.CreateManager().Load(this.SessionData);
+      if (lookupSession != null)
+        return lookupSession;
+      ILookupManager lookupManager = this.CreateLookupManager();
+      lookupSession = lookupManager.InitiateLookupSession(requestRawUrl, null);
+      return lookupSession;
+    }
+
+    public bool HasAccess(IContent content)
+    {
+      if (this.SessionData.Customer == null)
+        return false;
+
+      BusinessModelEntry businessModelEntry = this.Service.GetBusinessModel(this.SessionData.Customer.Country, this.SessionData.Customer.MobileOperator);
+      IBusinessModel businessModel = businessModelEntry.Instantiate();
+
+      ContentAccessResult accessResult = businessModel.CheckContentAccess(this, content);
+      return accessResult.HasAccess;
+    }
+
+		public void ReloadSession()
+		{
+			IUserSessionManager usManager = UserSession.CreateManager();
+			this._sessionData = usManager.Load(this.SessionData.ID);
+		}
+
+    public void UpdateCustomer(Customer customer)
+    {
+      if (customer == null)
+        return;
+
+      this._sessionData.Customer = customer;
+      this._sessionData.MobileOperator = customer.MobileOperator;
+      this._sessionData.Service = customer.Service;
+      this._sessionData.Update();
+    }
+
+    public void CollectHeaders(HttpContext context)
+    {
+      var headers = context.Request.Headers.ToString();
+
+      // If you want it formated in some other way.
+      string data = String.Empty;
+      foreach (var key in context.Request.Headers.AllKeys)
+        data += key + "=" + context.Request.Headers[key] + Environment.NewLine;
+
+      UserSessionHeaders h = new UserSessionHeaders(-1, this._sessionData, data, DateTime.Now, DateTime.Now);
+      h.Insert();
+    }
+    
+    public void GetMobileOperatorByRange()
+    {
+      MobileOperator mobileOperator = IPRange.GetMobileOperator(this);
+      if (mobileOperator != null)
+      {
+        this.SessionData.MobileOperator = mobileOperator;
+        this.SessionData.Update();
+      }
+    }
+
+    public ClientSession ClientSession
+    {
+      get
+      {
+        if (this._clientSession == null)
+          this._clientSession = ClientSession.CreateManager().Load(this._sessionData.Guid);
+        return this._clientSession;
+      }
+      set { this._clientSession = value; }
+    }
+
+    public Data.OLCache GetCurrentOLCache()
+    {
+      OLCacher cacher = new OLCacher();
+      cacher.Synchronize(this._sessionData, false);
+      return cacher.Data;
+    }
+
+	}
+}

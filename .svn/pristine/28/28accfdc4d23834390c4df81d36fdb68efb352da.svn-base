@@ -1,0 +1,70 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using MobilePaywall.Data;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class PaymentCallbackManager : IPaymentCallbackManager
+  {
+
+    public PaymentCallback Load(Guid value, PaymentCallbackGuidColumnIdentifier identifier)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, value, identifier);
+    }
+
+    public PaymentCallback Load(IConnectionInfo connection, Guid value, PaymentCallbackGuidColumnIdentifier identifier)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, value, identifier);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, value, identifier);
+    }
+
+    public PaymentCallback Load(ISqlConnectionInfo connection, Guid value, PaymentCallbackGuidColumnIdentifier identifier)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      string parameter = string.Format("{0}", 
+        identifier == PaymentCallbackGuidColumnIdentifier.Internal ? "[pc].PaymentCallbackGuid" :
+        identifier == PaymentCallbackGuidColumnIdentifier.Request ? "[pc_pr].PaymentRequestGuid" : 
+        identifier == PaymentCallbackGuidColumnIdentifier.ExternalRequest ? "[pc_pr].ExternalPaymentRequestGuid" : "");
+      parameters.Where = string.Format("{0} = @Value", parameter);
+			parameters.Arguments.Add("Value", value);
+      return this.Load(connection, parameters);
+    }
+
+		public PaymentCallback Load(PaymentRequest paymentRequest)
+		{
+			using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+				return this.Load(connection, paymentRequest);
+		}
+
+		public PaymentCallback Load(IConnectionInfo connection, PaymentRequest paymentRequest)
+		{
+			ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+			if (sqlConnection != null)
+				return this.Load(sqlConnection, paymentRequest);
+			using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+				return this.Load(sqlConnection, paymentRequest);
+		}
+
+		public PaymentCallback Load(ISqlConnectionInfo connection, PaymentRequest paymentRequest)
+		{
+			SqlQueryParameters parameters = new SqlQueryParameters();
+			parameters.Where = "[pc_pr].PaymentRequestID = @PaymentRequestID";
+			parameters.Arguments.Add("PaymentRequestID", paymentRequest.ID);
+			return this.Load(connection, parameters);
+		}
+
+  }
+}
+

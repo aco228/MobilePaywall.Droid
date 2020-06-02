@@ -1,0 +1,491 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ServiceStorage))] 
+  public partial class ServiceStorageManager : MobilePaywall.Data.Sql.SqlManagerBase<ServiceStorage>, IServiceStorageManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ServiceStorage LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ServiceStorageTable.GetColumnNames("[ss]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[ss_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[ss_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[ss_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[ss_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[ss_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[ss_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[ss_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[ss_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[ss_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[ss_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[ss_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[ss_s_t]") : string.Empty) + 
+					" FROM [core].[ServiceStorage] AS [ss] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [ss_s] ON [ss].[ServiceID] = [ss_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [ss_s_a] ON [ss_s].[ApplicationID] = [ss_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [ss_s_p] ON [ss_s].[ProductID] = [ss_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [ss_s_m] ON [ss_s].[MerchantID] = [ss_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [ss_s_st] ON [ss_s].[ServiceTypeID] = [ss_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [ss_s_ust] ON [ss_s].[UserSessionTypeID] = [ss_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [ss_s_c] ON [ss_s].[FallbackCountryID] = [ss_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [ss_s_l] ON [ss_s].[FallbackLanguageID] = [ss_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [ss_s_ar] ON [ss_s].[FallbackAgeRatingID] = [ss_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [ss_s_sc] ON [ss_s].[ServiceConfigurationID] = [ss_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [ss_s_bm] ON [ss_s].[BusinessModelID] = [ss_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [ss_s_t] ON [ss_s].[TemplateID] = [ss_s_t].[TemplateID] ";
+				sqlCmdText += "WHERE [ss].[ServiceStorageID] = @ServiceStorageID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ServiceStorageID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ss", "loadinternal", "notfound"), "ServiceStorage could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ServiceStorageTable ssTable = new ServiceStorageTable(query);
+				ServiceTable ss_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable ss_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable ss_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable ss_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable ss_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable ss_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable ss_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable ss_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable ss_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable ss_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable ss_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable ss_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        
+				Application ss_s_aObject = (this.Depth > 1) ? ss_s_aTable.CreateInstance() : null;
+				Product ss_s_pObject = (this.Depth > 1) ? ss_s_pTable.CreateInstance() : null;
+				Merchant ss_s_mObject = (this.Depth > 1) ? ss_s_mTable.CreateInstance() : null;
+				ServiceType ss_s_stObject = (this.Depth > 1) ? ss_s_stTable.CreateInstance() : null;
+				UserSessionType ss_s_ustObject = (this.Depth > 1) ? ss_s_ustTable.CreateInstance() : null;
+				Country ss_s_cObject = (this.Depth > 1) ? ss_s_cTable.CreateInstance() : null;
+				Language ss_s_lObject = (this.Depth > 1) ? ss_s_lTable.CreateInstance() : null;
+				AgeRating ss_s_arObject = (this.Depth > 1) ? ss_s_arTable.CreateInstance() : null;
+				ServiceConfiguration ss_s_scObject = (this.Depth > 1) ? ss_s_scTable.CreateInstance() : null;
+				BusinessModel ss_s_bmObject = (this.Depth > 1) ? ss_s_bmTable.CreateInstance() : null;
+				Template ss_s_tObject = (this.Depth > 1) ? ss_s_tTable.CreateInstance() : null;
+				Service ss_sObject = (this.Depth > 0) ? ss_sTable.CreateInstance(ss_s_aObject, ss_s_pObject, ss_s_mObject, ss_s_stObject, ss_s_ustObject, ss_s_cObject, ss_s_lObject, ss_s_arObject, ss_s_scObject, ss_s_bmObject, ss_s_tObject) : null;
+				ServiceStorage ssObject = ssTable.CreateInstance(ss_sObject);
+				sqlReader.Close();
+
+				return ssObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ss", "loadinternal", "exception"), "ServiceStorage could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ServiceStorage", "Exception while loading ServiceStorage object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ServiceStorage Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ServiceStorageTable.GetColumnNames("[ss]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[ss_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[ss_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[ss_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[ss_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[ss_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[ss_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[ss_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[ss_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[ss_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[ss_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[ss_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[ss_s_t]") : string.Empty) +  
+					" FROM [core].[ServiceStorage] AS [ss] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [ss_s] ON [ss].[ServiceID] = [ss_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [ss_s_a] ON [ss_s].[ApplicationID] = [ss_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [ss_s_p] ON [ss_s].[ProductID] = [ss_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [ss_s_m] ON [ss_s].[MerchantID] = [ss_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [ss_s_st] ON [ss_s].[ServiceTypeID] = [ss_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [ss_s_ust] ON [ss_s].[UserSessionTypeID] = [ss_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [ss_s_c] ON [ss_s].[FallbackCountryID] = [ss_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [ss_s_l] ON [ss_s].[FallbackLanguageID] = [ss_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [ss_s_ar] ON [ss_s].[FallbackAgeRatingID] = [ss_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [ss_s_sc] ON [ss_s].[ServiceConfigurationID] = [ss_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [ss_s_bm] ON [ss_s].[BusinessModelID] = [ss_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [ss_s_t] ON [ss_s].[TemplateID] = [ss_s_t].[TemplateID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ss", "customload", "notfound"), "ServiceStorage could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ServiceStorageTable ssTable = new ServiceStorageTable(query);
+				ServiceTable ss_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable ss_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable ss_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable ss_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable ss_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable ss_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable ss_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable ss_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable ss_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable ss_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable ss_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable ss_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        
+				Application ss_s_aObject = (this.Depth > 1) ? ss_s_aTable.CreateInstance() : null;
+				Product ss_s_pObject = (this.Depth > 1) ? ss_s_pTable.CreateInstance() : null;
+				Merchant ss_s_mObject = (this.Depth > 1) ? ss_s_mTable.CreateInstance() : null;
+				ServiceType ss_s_stObject = (this.Depth > 1) ? ss_s_stTable.CreateInstance() : null;
+				UserSessionType ss_s_ustObject = (this.Depth > 1) ? ss_s_ustTable.CreateInstance() : null;
+				Country ss_s_cObject = (this.Depth > 1) ? ss_s_cTable.CreateInstance() : null;
+				Language ss_s_lObject = (this.Depth > 1) ? ss_s_lTable.CreateInstance() : null;
+				AgeRating ss_s_arObject = (this.Depth > 1) ? ss_s_arTable.CreateInstance() : null;
+				ServiceConfiguration ss_s_scObject = (this.Depth > 1) ? ss_s_scTable.CreateInstance() : null;
+				BusinessModel ss_s_bmObject = (this.Depth > 1) ? ss_s_bmTable.CreateInstance() : null;
+				Template ss_s_tObject = (this.Depth > 1) ? ss_s_tTable.CreateInstance() : null;
+				Service ss_sObject = (this.Depth > 0) ? ss_sTable.CreateInstance(ss_s_aObject, ss_s_pObject, ss_s_mObject, ss_s_stObject, ss_s_ustObject, ss_s_cObject, ss_s_lObject, ss_s_arObject, ss_s_scObject, ss_s_bmObject, ss_s_tObject) : null;
+				ServiceStorage ssObject = ssTable.CreateInstance(ss_sObject);
+				sqlReader.Close();
+
+				return ssObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ss", "customload", "exception"), "ServiceStorage could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ServiceStorage", "Exception while loading (custom/single) ServiceStorage object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ServiceStorage> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ServiceStorageTable.GetColumnNames("[ss]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[ss_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[ss_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[ss_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[ss_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[ss_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[ss_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[ss_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[ss_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[ss_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[ss_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[ss_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[ss_s_t]") : string.Empty) +  
+					" FROM [core].[ServiceStorage] AS [ss] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [ss_s] ON [ss].[ServiceID] = [ss_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [ss_s_a] ON [ss_s].[ApplicationID] = [ss_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [ss_s_p] ON [ss_s].[ProductID] = [ss_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [ss_s_m] ON [ss_s].[MerchantID] = [ss_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [ss_s_st] ON [ss_s].[ServiceTypeID] = [ss_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [ss_s_ust] ON [ss_s].[UserSessionTypeID] = [ss_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [ss_s_c] ON [ss_s].[FallbackCountryID] = [ss_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [ss_s_l] ON [ss_s].[FallbackLanguageID] = [ss_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [ss_s_ar] ON [ss_s].[FallbackAgeRatingID] = [ss_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [ss_s_sc] ON [ss_s].[ServiceConfigurationID] = [ss_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [ss_s_bm] ON [ss_s].[BusinessModelID] = [ss_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [ss_s_t] ON [ss_s].[TemplateID] = [ss_s_t].[TemplateID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ss", "customloadmany", "notfound"), "ServiceStorage list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ServiceStorage>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ServiceStorageTable ssTable = new ServiceStorageTable(query);
+				ServiceTable ss_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable ss_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable ss_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable ss_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable ss_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable ss_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable ss_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable ss_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable ss_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable ss_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable ss_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable ss_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        List<ServiceStorage> result = new List<ServiceStorage>();
+        do
+        {
+          
+					Application ss_s_aObject = (this.Depth > 1) ? ss_s_aTable.CreateInstance() : null;
+					Product ss_s_pObject = (this.Depth > 1) ? ss_s_pTable.CreateInstance() : null;
+					Merchant ss_s_mObject = (this.Depth > 1) ? ss_s_mTable.CreateInstance() : null;
+					ServiceType ss_s_stObject = (this.Depth > 1) ? ss_s_stTable.CreateInstance() : null;
+					UserSessionType ss_s_ustObject = (this.Depth > 1) ? ss_s_ustTable.CreateInstance() : null;
+					Country ss_s_cObject = (this.Depth > 1) ? ss_s_cTable.CreateInstance() : null;
+					Language ss_s_lObject = (this.Depth > 1) ? ss_s_lTable.CreateInstance() : null;
+					AgeRating ss_s_arObject = (this.Depth > 1) ? ss_s_arTable.CreateInstance() : null;
+					ServiceConfiguration ss_s_scObject = (this.Depth > 1) ? ss_s_scTable.CreateInstance() : null;
+					BusinessModel ss_s_bmObject = (this.Depth > 1) ? ss_s_bmTable.CreateInstance() : null;
+					Template ss_s_tObject = (this.Depth > 1) ? ss_s_tTable.CreateInstance() : null;
+					Service ss_sObject = (this.Depth > 0) ? ss_sTable.CreateInstance(ss_s_aObject, ss_s_pObject, ss_s_mObject, ss_s_stObject, ss_s_ustObject, ss_s_cObject, ss_s_lObject, ss_s_arObject, ss_s_scObject, ss_s_bmObject, ss_s_tObject) : null;
+					ServiceStorage ssObject = (this.Depth > -1) ? ssTable.CreateInstance(ss_sObject) : null;
+					result.Add(ssObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ss", "customloadmany", "exception"), "ServiceStorage list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ServiceStorage", "Exception while loading (custom/many) ServiceStorage object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ServiceStorage data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ServiceStorage] ([ServiceID],[Key],[Value]) VALUES(@ServiceID,@Key,@Value); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@Key", data.Key).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Value", data.Value).SqlDbType = SqlDbType.NVarChar;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ss", "insert", "noprimarykey"), "ServiceStorage could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ServiceStorage", "Exception while inserting ServiceStorage object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ss", "insert", "exception"), "ServiceStorage could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ServiceStorage", "Exception while inserting ServiceStorage object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ServiceStorage data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ServiceStorage] SET " +
+												"[ServiceID] = @ServiceID, " + 
+												"[Key] = @Key, " + 
+												"[Value] = @Value, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ServiceStorageID] = @ServiceStorageID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@Key", data.Key).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Value", data.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ServiceStorageID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ss", "update", "norecord"), "ServiceStorage could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ServiceStorage", "Exception while updating ServiceStorage object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ss", "update", "morerecords"), "ServiceStorage was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ServiceStorage", "Exception while updating ServiceStorage object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ss", "update", "exception"), "ServiceStorage could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ServiceStorage", "Exception while updating ServiceStorage object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ServiceStorage data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ServiceStorage] WHERE ServiceStorageID = @ServiceStorageID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ServiceStorageID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ss", "delete", "norecord"), "ServiceStorage could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ServiceStorage", "Exception while deleting ServiceStorage object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ss", "delete", "exception"), "ServiceStorage could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ServiceStorage", "Exception while deleting ServiceStorage object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

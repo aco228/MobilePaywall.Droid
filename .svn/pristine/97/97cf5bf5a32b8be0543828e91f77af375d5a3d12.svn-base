@@ -1,0 +1,419 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(InitiateCallback))] 
+  public partial class InitiateCallbackManager : MobilePaywall.Data.Sql.SqlManagerBase<InitiateCallback>, IInitiateCallbackManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override InitiateCallback LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							InitiateCallbackTable.GetColumnNames("[ic]") + 
+							(this.Depth > 0 ? "," + PaymentRequestTable.GetColumnNames("[ic_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LookupSessionTable.GetColumnNames("[ic_pr_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[ic_pr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTable.GetColumnNames("[ic_pr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[ic_pr_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[ic_pr_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserHttpRequestTable.GetColumnNames("[ic_pr_uhr]") : string.Empty) + 
+					" FROM [async].[InitiateCallback] AS [ic] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [ic_pr] ON [ic].[PaymentRequestID] = [ic_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[LookupSession] AS [ic_pr_ls] ON [ic_pr].[LookupSessionID] = [ic_pr_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [ic_pr_c] ON [ic_pr].[CustomerID] = [ic_pr_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [ic_pr_us] ON [ic_pr].[UserSessionID] = [ic_pr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [ic_pr_so] ON [ic_pr].[ServiceOfferID] = [ic_pr_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [ic_pr_bme] ON [ic_pr].[BusinessModelEntryID] = [ic_pr_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [ic_pr_uhr] ON [ic_pr].[UserHttpRequestID] = [ic_pr_uhr].[UserHttpRequestID] ";
+				sqlCmdText += "WHERE [ic].[InitiateCallbackID] = @InitiateCallbackID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@InitiateCallbackID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "loadinternal", "notfound"), "InitiateCallback could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				InitiateCallbackTable icTable = new InitiateCallbackTable(query);
+				PaymentRequestTable ic_prTable = (this.Depth > 0) ? new PaymentRequestTable(query) : null;
+				LookupSessionTable ic_pr_lsTable = (this.Depth > 1) ? new LookupSessionTable(query) : null;
+				CustomerTable ic_pr_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				UserSessionTable ic_pr_usTable = (this.Depth > 1) ? new UserSessionTable(query) : null;
+				ServiceOfferTable ic_pr_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable ic_pr_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				UserHttpRequestTable ic_pr_uhrTable = (this.Depth > 1) ? new UserHttpRequestTable(query) : null;
+
+        
+				LookupSession ic_pr_lsObject = (this.Depth > 1) ? ic_pr_lsTable.CreateInstance() : null;
+				Customer ic_pr_cObject = (this.Depth > 1) ? ic_pr_cTable.CreateInstance() : null;
+				UserSession ic_pr_usObject = (this.Depth > 1) ? ic_pr_usTable.CreateInstance() : null;
+				ServiceOffer ic_pr_soObject = (this.Depth > 1) ? ic_pr_soTable.CreateInstance() : null;
+				BusinessModelEntry ic_pr_bmeObject = (this.Depth > 1) ? ic_pr_bmeTable.CreateInstance() : null;
+				UserHttpRequest ic_pr_uhrObject = (this.Depth > 1) ? ic_pr_uhrTable.CreateInstance() : null;
+				PaymentRequest ic_prObject = (this.Depth > 0) ? ic_prTable.CreateInstance(ic_pr_lsObject, ic_pr_cObject, ic_pr_usObject, ic_pr_soObject, ic_pr_bmeObject, ic_pr_uhrObject) : null;
+				InitiateCallback icObject = icTable.CreateInstance(ic_prObject);
+				sqlReader.Close();
+
+				return icObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "loadinternal", "exception"), "InitiateCallback could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "InitiateCallback", "Exception while loading InitiateCallback object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public InitiateCallback Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							InitiateCallbackTable.GetColumnNames("[ic]") + 
+							(this.Depth > 0 ? "," + PaymentRequestTable.GetColumnNames("[ic_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LookupSessionTable.GetColumnNames("[ic_pr_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[ic_pr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTable.GetColumnNames("[ic_pr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[ic_pr_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[ic_pr_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserHttpRequestTable.GetColumnNames("[ic_pr_uhr]") : string.Empty) +  
+					" FROM [async].[InitiateCallback] AS [ic] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [ic_pr] ON [ic].[PaymentRequestID] = [ic_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[LookupSession] AS [ic_pr_ls] ON [ic_pr].[LookupSessionID] = [ic_pr_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [ic_pr_c] ON [ic_pr].[CustomerID] = [ic_pr_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [ic_pr_us] ON [ic_pr].[UserSessionID] = [ic_pr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [ic_pr_so] ON [ic_pr].[ServiceOfferID] = [ic_pr_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [ic_pr_bme] ON [ic_pr].[BusinessModelEntryID] = [ic_pr_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [ic_pr_uhr] ON [ic_pr].[UserHttpRequestID] = [ic_pr_uhr].[UserHttpRequestID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "customload", "notfound"), "InitiateCallback could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				InitiateCallbackTable icTable = new InitiateCallbackTable(query);
+				PaymentRequestTable ic_prTable = (this.Depth > 0) ? new PaymentRequestTable(query) : null;
+				LookupSessionTable ic_pr_lsTable = (this.Depth > 1) ? new LookupSessionTable(query) : null;
+				CustomerTable ic_pr_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				UserSessionTable ic_pr_usTable = (this.Depth > 1) ? new UserSessionTable(query) : null;
+				ServiceOfferTable ic_pr_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable ic_pr_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				UserHttpRequestTable ic_pr_uhrTable = (this.Depth > 1) ? new UserHttpRequestTable(query) : null;
+
+        
+				LookupSession ic_pr_lsObject = (this.Depth > 1) ? ic_pr_lsTable.CreateInstance() : null;
+				Customer ic_pr_cObject = (this.Depth > 1) ? ic_pr_cTable.CreateInstance() : null;
+				UserSession ic_pr_usObject = (this.Depth > 1) ? ic_pr_usTable.CreateInstance() : null;
+				ServiceOffer ic_pr_soObject = (this.Depth > 1) ? ic_pr_soTable.CreateInstance() : null;
+				BusinessModelEntry ic_pr_bmeObject = (this.Depth > 1) ? ic_pr_bmeTable.CreateInstance() : null;
+				UserHttpRequest ic_pr_uhrObject = (this.Depth > 1) ? ic_pr_uhrTable.CreateInstance() : null;
+				PaymentRequest ic_prObject = (this.Depth > 0) ? ic_prTable.CreateInstance(ic_pr_lsObject, ic_pr_cObject, ic_pr_usObject, ic_pr_soObject, ic_pr_bmeObject, ic_pr_uhrObject) : null;
+				InitiateCallback icObject = icTable.CreateInstance(ic_prObject);
+				sqlReader.Close();
+
+				return icObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "customload", "exception"), "InitiateCallback could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "InitiateCallback", "Exception while loading (custom/single) InitiateCallback object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<InitiateCallback> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							InitiateCallbackTable.GetColumnNames("[ic]") + 
+							(this.Depth > 0 ? "," + PaymentRequestTable.GetColumnNames("[ic_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LookupSessionTable.GetColumnNames("[ic_pr_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[ic_pr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTable.GetColumnNames("[ic_pr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[ic_pr_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[ic_pr_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserHttpRequestTable.GetColumnNames("[ic_pr_uhr]") : string.Empty) +  
+					" FROM [async].[InitiateCallback] AS [ic] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [ic_pr] ON [ic].[PaymentRequestID] = [ic_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[LookupSession] AS [ic_pr_ls] ON [ic_pr].[LookupSessionID] = [ic_pr_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [ic_pr_c] ON [ic_pr].[CustomerID] = [ic_pr_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [ic_pr_us] ON [ic_pr].[UserSessionID] = [ic_pr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [ic_pr_so] ON [ic_pr].[ServiceOfferID] = [ic_pr_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [ic_pr_bme] ON [ic_pr].[BusinessModelEntryID] = [ic_pr_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [ic_pr_uhr] ON [ic_pr].[UserHttpRequestID] = [ic_pr_uhr].[UserHttpRequestID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "customloadmany", "notfound"), "InitiateCallback list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<InitiateCallback>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				InitiateCallbackTable icTable = new InitiateCallbackTable(query);
+				PaymentRequestTable ic_prTable = (this.Depth > 0) ? new PaymentRequestTable(query) : null;
+				LookupSessionTable ic_pr_lsTable = (this.Depth > 1) ? new LookupSessionTable(query) : null;
+				CustomerTable ic_pr_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				UserSessionTable ic_pr_usTable = (this.Depth > 1) ? new UserSessionTable(query) : null;
+				ServiceOfferTable ic_pr_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable ic_pr_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				UserHttpRequestTable ic_pr_uhrTable = (this.Depth > 1) ? new UserHttpRequestTable(query) : null;
+
+        List<InitiateCallback> result = new List<InitiateCallback>();
+        do
+        {
+          
+					LookupSession ic_pr_lsObject = (this.Depth > 1) ? ic_pr_lsTable.CreateInstance() : null;
+					Customer ic_pr_cObject = (this.Depth > 1) ? ic_pr_cTable.CreateInstance() : null;
+					UserSession ic_pr_usObject = (this.Depth > 1) ? ic_pr_usTable.CreateInstance() : null;
+					ServiceOffer ic_pr_soObject = (this.Depth > 1) ? ic_pr_soTable.CreateInstance() : null;
+					BusinessModelEntry ic_pr_bmeObject = (this.Depth > 1) ? ic_pr_bmeTable.CreateInstance() : null;
+					UserHttpRequest ic_pr_uhrObject = (this.Depth > 1) ? ic_pr_uhrTable.CreateInstance() : null;
+					PaymentRequest ic_prObject = (this.Depth > 0) ? ic_prTable.CreateInstance(ic_pr_lsObject, ic_pr_cObject, ic_pr_usObject, ic_pr_soObject, ic_pr_bmeObject, ic_pr_uhrObject) : null;
+					InitiateCallback icObject = (this.Depth > -1) ? icTable.CreateInstance(ic_prObject) : null;
+					result.Add(icObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "customloadmany", "exception"), "InitiateCallback list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "InitiateCallback", "Exception while loading (custom/many) InitiateCallback object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, InitiateCallback data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [async].[InitiateCallback] ([InitiateCallbackGuid],[PaymentRequestID],[IsCompleted],[ValidTo]) VALUES(@InitiateCallbackGuid,@PaymentRequestID,@IsCompleted,@ValidTo); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@InitiateCallbackGuid", data.Guid);
+				sqlCmd.Parameters.AddWithValue("@PaymentRequestID", data.PaymentRequest.ID);
+				sqlCmd.Parameters.AddWithValue("@IsCompleted", data.IsCompleted).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@ValidTo", data.ValidTo).SqlDbType = SqlDbType.DateTime2;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "insert", "noprimarykey"), "InitiateCallback could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "InitiateCallback", "Exception while inserting InitiateCallback object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "insert", "exception"), "InitiateCallback could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "InitiateCallback", "Exception while inserting InitiateCallback object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, InitiateCallback data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [async].[InitiateCallback] SET " +
+												"[InitiateCallbackGuid] = @InitiateCallbackGuid, " + 
+												"[PaymentRequestID] = @PaymentRequestID, " + 
+												"[IsCompleted] = @IsCompleted, " + 
+												"[ValidTo] = @ValidTo, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [InitiateCallbackID] = @InitiateCallbackID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@InitiateCallbackGuid", data.Guid);
+				sqlCmd.Parameters.AddWithValue("@PaymentRequestID", data.PaymentRequest.ID);
+				sqlCmd.Parameters.AddWithValue("@IsCompleted", data.IsCompleted).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@ValidTo", data.ValidTo).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@InitiateCallbackID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "update", "norecord"), "InitiateCallback could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "InitiateCallback", "Exception while updating InitiateCallback object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "update", "morerecords"), "InitiateCallback was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "InitiateCallback", "Exception while updating InitiateCallback object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "update", "exception"), "InitiateCallback could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "InitiateCallback", "Exception while updating InitiateCallback object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, InitiateCallback data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [async].[InitiateCallback] WHERE InitiateCallbackID = @InitiateCallbackID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@InitiateCallbackID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "delete", "norecord"), "InitiateCallback could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "InitiateCallback", "Exception while deleting InitiateCallback object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "delete", "exception"), "InitiateCallback could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "InitiateCallback", "Exception while deleting InitiateCallback object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

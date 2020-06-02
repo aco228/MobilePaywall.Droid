@@ -1,0 +1,357 @@
+﻿jQuery(document).ready(function () {
+  //ComponentsDropdowns.init();
+  loadMerchants();
+
+  $('.reload').click(function () {
+    loadMerchants();
+  });
+
+});
+
+function loadMerchants() {
+  Metronic.blockUI({
+    animate: true
+  });
+
+  $.ajax({
+    url: '/merchants/table',
+    cache: false,
+    method: 'POST',
+    success: function (response) {
+      $('#table_container').html(response);
+      TableEditable.init();
+      Metronic.unblockUI();
+    },
+    error: function () {
+      Metronic.unblockUI();
+      errorNotification('error msg here');
+    }
+  });
+}
+
+function generateDropdowns(instanceEl, instanceName, templateEl, templateName) {
+  $.ajax({
+    url: '/merchants/generate-dropdowns',
+    cache: false,
+    method: 'POST',
+    data: {
+      instanceName: instanceName,
+      templateName: templateName
+    },
+    success: function (response) {
+      updateSelect(response[0], instanceEl, 'select_instance');
+      updateSelect(response[1], templateEl, 'select_template');
+
+      $('#select_instance').select2({
+        placeholder: "Instance"
+      });
+      $('<div class="empty has-error hidden">Please choose instance</div>').insertAfter('#select_instance');
+
+      $('#select_template').select2({
+        placeholder: "Template",
+        allowClear: true
+      });
+    },
+    error: function () {
+      errorNotification('Error while generating dropdowns')
+    }
+  });
+}
+
+
+function updateSelect(response, element, id) {
+  $(element).html('');
+  var $select = $('<select />').prop('id', id).addClass('column form-control select2').appendTo(element);
+  $('<option />').val('').text('').appendTo($select);
+
+  $.each(response, function (index, data) {
+    $('<option />').val(data.Value).text(data.Text).attr('selected', data.Selected).appendTo($select);
+  });
+}
+
+function validate(value, element) {
+  if (value == null || value == '') {
+    $(element).siblings('.empty').removeClass('hidden');
+    return false;
+  }
+  else {
+    $(element).siblings('.empty').addClass('hidden');
+    return true;
+  }
+}
+
+function validateName(name, element, merchId) {
+  var result;
+  $.ajax({
+    url: '/merchants/check-name',
+    cache: false,
+    method: 'POST',
+    data: {
+      name: name,
+      id: merchId
+    },
+    async: false
+  }).done(function (response) {
+    if (response == 'False') {
+      $(element).siblings('.exists').removeClass('hidden');
+      result = false;
+    }
+    else {
+      $(element).siblings('.exists').addClass('hidden');
+      result = true;
+    }
+  }).fail(function () {
+    errorNotification('Error while checking merchant name')
+  });
+  return result;
+}
+
+var TableEditable = function () {
+
+  var handleTable = function () {
+
+    function restoreRow(oTable, nRow) {
+      var aData = oTable.fnGetData(nRow);
+      var jqTds = $('>td', nRow);
+
+      for (var i = 0, iLen = jqTds.length; i < iLen; i++) {
+        oTable.fnUpdate(aData[i], nRow, i, false);
+      }
+
+      oTable.fnDraw();
+    }
+
+    function editRow(oTable, nRow) {
+      var aData = oTable.fnGetData(nRow);
+      var jqTds = $('>td', nRow);
+
+      jqTds[1].innerHTML = '<input id="name" type="text" class="form-control column" value="' + aData[1] + '"><div class="empty has-error hidden">Name is required</div><div class="exists has-error hidden">This merchant already exists in database</div>'; //name
+      generateDropdowns(jqTds[2], aData[2], jqTds[3], aData[3]); //instance and template
+      jqTds[4].innerHTML = '<input type="text" class="form-control column" value="' + aData[4] + '">'; //address
+      jqTds[5].innerHTML = '<input type="text" class="form-control column" value="' + aData[5] + '">'; //phone
+      jqTds[6].innerHTML = '<input type="text" class="form-control column" value="' + aData[6] + '">'; //email
+      jqTds[7].innerHTML = '<input type="text" class="form-control column" value="' + aData[7] + '">'; //regNo
+      jqTds[8].innerHTML = '<input type="text" class="form-control column" value="' + aData[8] + '">'; //vatNo
+      jqTds[9].innerHTML = '<span style="white-space: nowrap;"><a class="edit btn default btn-sm green" href="">Save</a> <a class="cancel btn default btn-sm" href="">Cancel</a></span>';
+    }
+
+    function saveRow(oTable, nRow) {
+      var jqColumns = $('td.column, input.column, select.column', nRow);
+
+      //console.log($(jqColumns[0]).html());
+
+      var validName = validate(jqColumns[1].value, jqColumns[1]) && validateName(jqColumns[1].value, jqColumns[1], $(jqColumns[0]).html());
+      var validInstance = validate($(jqColumns[2]).select2('data'), '#select_instance');
+
+      //console.log(validName);
+
+      if (!validName || !validInstance)
+        return false;
+
+      var id = jqColumns[0].innerHTML;
+      var name = jqColumns[1].value;
+      var instanceId = jqColumns[2].value;
+      var instanceName = $(jqColumns[2]).select2('data').text;
+
+      if ($(jqColumns[3]).select2('data') != null) {
+        var templateId = jqColumns[3].value;
+        var templateName = $(jqColumns[3]).select2('data').text;
+      } else {
+        var templateId = '';
+        var templateName = '';
+      }
+
+      var address = jqColumns[4].value;
+      var phone = jqColumns[5].value;
+      var email = jqColumns[6].value;
+      var regNo = jqColumns[7].value;
+      var vatNo = jqColumns[8].value;
+
+      $.ajax({
+        url: "/merchants/update",
+        type: 'POST',
+        data: {
+          id: id,
+          name: name,
+          instanceId: instanceId,
+          templateId: templateId,
+          address: address,
+          phone: phone,
+          email: email,
+          regNo: regNo,
+          vatNo: vatNo
+        },
+        success: function (data) {
+          oTable.fnUpdate(data, nRow, 0, false);
+          oTable.fnUpdate(name, nRow, 1, false);
+          oTable.fnUpdate(instanceName, nRow, 2, false);
+          oTable.fnUpdate(templateName, nRow, 3, false);
+          oTable.fnUpdate(address, nRow, 4, false);
+          oTable.fnUpdate(phone, nRow, 5, false);
+          oTable.fnUpdate(email, nRow, 6, false);
+          oTable.fnUpdate(regNo, nRow, 7, false);
+          oTable.fnUpdate(vatNo, nRow, 8, false);
+          oTable.fnUpdate('<a class="edit btn default btn-sm purple" href=""><i class="fa fa-edit"></i>Edit</a>', nRow, 9, false);
+          oTable.fnDraw();
+          oTable.fnSort([[0, 'desc']]);
+        }
+      })
+
+      return true;
+    }
+
+    function cancelEditRow(oTable, nRow) {
+
+      var jqColumns = $('td.column, input.column, select.column', nRow);
+      oTable.fnUpdate(jqColumns[0].innerHTML, nRow, 0, false);
+      oTable.fnUpdate(jqColumns[1].value, nRow, 1, false);
+      oTable.fnUpdate(jqColumns[2].value, nRow, 2, false);
+      oTable.fnUpdate(jqColumns[3].value, nRow, 3, false);
+      oTable.fnUpdate(jqColumns[4].value, nRow, 4, false);
+      oTable.fnUpdate(jqColumns[5].value, nRow, 5, false);
+      oTable.fnUpdate(jqColumns[6].value, nRow, 6, false);
+      oTable.fnUpdate(jqColumns[7].value, nRow, 7, false);
+      oTable.fnUpdate(jqColumns[8].value, nRow, 8, false);
+      oTable.fnUpdate('<a class="edit btn default btn-sm purple" href=""><i class="fa fa-edit"></i>Edit</a>', nRow, 9, false);
+      oTable.fnDraw();
+    }
+
+
+    function addNewRow(oTable) {
+      var aiNew = oTable.fnAddData(['', '', '', '', '', '', '', '', '', '']);
+      var nRow = oTable.fnGetNodes(aiNew[0]);
+      $($('>td', nRow)[0]).addClass('column');
+      $($('>td', nRow)[9]).addClass('actions');
+      editRow(oTable, nRow);
+      nEditing = nRow;
+      nNew = true;
+    }
+
+    var table = $('#merchants_table');
+
+    var oTable = table.dataTable({
+
+      // Uncomment below line("dom" parameter) to fix the dropdown overflow issue in the datatable cells. The default datatable layout
+      // setup uses scrollable div(table-scrollable) with overflow:auto to enable vertical scroll(see: assets/global/plugins/datatables/plugins/bootstrap/dataTables.bootstrap.js).
+
+      "dom": "<'row'<'#add_new_btn.col-md-6 col-sm-6'><'#merchants_table_filters.col-md-6 col-sm-6'fl>r><'table-scrollable't><'row'<'col-md-5 col-sm-5'i><'col-md-7 col-sm-7'p>>",
+
+      "lengthMenu": [
+          [5, 10, 15, 20, -1],
+          [5, 10, 15, 20, "All"] // change per page values here
+      ],
+      // set the initial value
+      "pageLength": 10,
+      "columnDefs": [
+        { "orderable": true, "targets": [0] },
+        { "searchable": true, "targets": [0] }
+      ],
+      "order": [
+          [0, "asc"]
+      ]
+    });
+
+    var tableWrapper = $("#merchants_table_wrapper");
+
+    tableWrapper.find(".dataTables_length select").select2({
+      showSearchInput: true, //hide search box with special css class
+      placeholder: 'Show'
+    }); // initialize select2 dropdown
+
+    $('#add_new_btn').append('<button id="merchants_table_new" class="btn green">Add New <i class="fa fa-plus"></i></button>');
+
+    var nEditing = null;
+    var nNew = false;
+
+    $('#merchants_table_new').click(function (e) {
+      e.preventDefault();
+      oTable.fnSort([[0, 'asc']]);
+
+      var confirmed = true;
+
+      if (nNew && nEditing) {
+        bootbox.confirm("Previous row not saved. Do you want to save it ?", function (result) {
+          if (result) {
+            var saveSuccessful = saveRow(oTable, nEditing); // save
+            if (!saveSuccessful)
+              return;
+
+            $(nEditing).find("td:first").html("Untitled");
+            nEditing = null;
+            nNew = false;
+            addNewRow(oTable);
+          } else {
+            oTable.fnDeleteRow(nEditing); // cancel
+            nEditing = null;
+            nNew = false;
+
+            return;
+          }
+        });
+      } else {
+        addNewRow(oTable);
+      }
+
+      //console.log('izaslo vec');
+      //if (!confirmed)
+      //  return;
+
+      //console.log('izaslo skroz');
+      //oTable.fnSort([[0, 'asc']]);
+
+      //var aiNew = oTable.fnAddData(['', '', '', '', '', '', '', '', '', '']);
+      //var nRow = oTable.fnGetNodes(aiNew[0]);
+      //$($('>td', nRow)[0]).addClass('column');
+      //$($('>td', nRow)[9]).addClass('actions');
+      //editRow(oTable, nRow);
+      //nEditing = nRow;
+      //nNew = true;
+    });
+
+    table.on('click', '.cancel', function (e) {
+      e.preventDefault();
+
+      //console.log('cancelKlik ' + nNew + ' ' + nEditing)
+
+      if (nNew) {
+        oTable.fnDeleteRow(nEditing);
+        nEditing = null;
+        nNew = false;
+      } else {
+        restoreRow(oTable, nEditing);
+        nEditing = null;
+      }
+    });
+
+    table.on('click', '.edit', function (e) {
+      e.preventDefault();
+
+      /* Get the row as a parent of the link that was clicked on */
+      var nRow = $(this).parents('tr')[0];
+
+      if (nEditing !== null && nEditing != nRow) {
+        /* Currently editing - but not this row - restore the old before continuing to edit mode */
+        restoreRow(oTable, nEditing);
+        editRow(oTable, nRow);
+        nEditing = nRow;
+      } else if (nEditing == nRow && this.innerHTML == "Save") {
+        /* Editing this row and want to save it */
+        //saveRow(oTable, nEditing);
+        nEditing = saveRow(oTable, nEditing) ? null : nEditing; //if save is unsuccessful don't change nEditing 
+      } else {
+        /* No edit in progress - let's start one */
+        editRow(oTable, nRow);
+        nEditing = nRow;
+      }
+    });
+  }
+
+  return {
+
+    //main function to initiate the module
+    init: function () {
+      handleTable();
+    }
+
+  };
+}();

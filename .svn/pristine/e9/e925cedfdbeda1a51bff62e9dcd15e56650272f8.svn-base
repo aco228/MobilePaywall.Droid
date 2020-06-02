@@ -1,0 +1,374 @@
+﻿jQuery(document).ready(function () {
+  loadMsisdns();
+
+  $('.reload').click(function () {
+    loadMsisdns();
+  });
+
+
+  $('#blacklistgen').on('click', function () {
+    var lines = $('textarea#tt').val().split('\n');
+    var arr = [];
+    for (var i = 0; i < lines.length; i++) {
+      arr.push(lines[i]);
+    }
+
+    $.ajax({
+      url: "/blacklist/table-add-new",
+      type: 'POST',
+      data: {
+        msisdns: arr,
+      },
+      success: function (response) {
+        $('#AddUserForm').html(response);
+        AddNewTableEditable.init();
+      }
+    })
+  });
+});
+
+
+function loadMsisdns() {
+  Metronic.blockUI({
+    animate: true
+  });
+
+  $.ajax({
+    url: '/blacklist/table',
+    cache: false,
+    method: 'POST',
+    success: function (response) {
+      $('#table_container').html(response);
+      TableEditable.init();
+      Metronic.unblockUI();
+    },
+    error: function () {
+      Metronic.unblockUI();
+      errorNotification('error msg here');
+    }
+  });
+}
+
+function generateDropdowns(instanceEl, instanceName, merchantEl, merchantName, serviceEl, serviceName) {
+  $.ajax({
+    url: '/blacklist/generatedropdowns',
+    chache: false,
+    method: 'POST',
+    data: {
+      instanceName: instanceName,
+      merchantName: merchantName,
+      serviceName: serviceName
+    },
+    success: function (response) {
+      updateSelect(response[0], instanceEl, 'select_instance');
+      updateSelect(response[1], merchantEl, 'select_merchant');
+      updateSelect(response[2], serviceEl, 'select_service');
+
+      $('#select_instance').select2({
+        placeholder: "Instance",
+        allowClear: true
+      });
+
+      $('#select_merchant').select2({
+        placeholder: "Merchant",
+        allowClear: true
+      });
+
+      $('#select_service').select2({
+        placeholder: "Service",
+        allowClear: true
+      });
+
+    },
+    error: function () {
+      errorNotification('Error while generating dropdowns')
+    }
+  });
+}
+
+function updateSelect(response, element, id) {
+  $(element).html('');
+  var $select = $('<select />').prop('id', id).addClass('coll form-control select2').appendTo(element);
+  $('<option />').val('0').text('All').appendTo($select);
+  $.each(response, function (i, data) {
+    $('<option />').val(data.Value).text(data.Text).attr('selected', data.Selected).appendTo($select);
+  });
+}
+
+
+var TableEditable = function () {
+
+  var handleTable = function () {
+
+    function restoreRow(oTable, nRow) {
+      var aData = oTable.fnGetData(nRow);
+      var jqTds = $('>td', nRow);
+
+      for (var i = 0, iLen = jqTds.length; i < iLen; i++) {
+        oTable.fnUpdate(aData[i], nRow, i, false);
+      }
+      oTable.fnDraw();
+    }
+
+    function editRow(oTable, nRow, action) {
+      var aData = oTable.fnGetData(nRow);
+      var jqTds = $('>td', nRow);
+
+      //var dss = $("#checkbox:checked").prop('#checked') ? "True" : "False";
+
+      //if (action == 'addNew')
+      //  aData[1] = 'MobilePaywall Local Test Instance';  // TODO change name like livebase
+      var ischecked = aData[6] == 'True' ? 'checked' : '';
+      console.log(ischecked);
+
+      generateDropdowns(jqTds[1], aData[1], jqTds[2], aData[2], jqTds[3], aData[3]);
+      jqTds[4].innerHTML = '<input type="text" class="form-control input-small coll" value="' + aData[4] + '">';
+      jqTds[5].innerHTML = '<input type="text" class="form-control input-small coll" value="' + aData[5] + '">';
+      jqTds[6].innerHTML = '<div class="md-checkbox">' +
+                              '<input type="checkbox" id="checkbox2" class="md-check coll" ' + ischecked + '>' +
+                              '<label for="checkbox2">' +
+                                 '<span></span>' +
+                                 '<span class="check"></span>' +
+                                 '<span class="box"></span>' +
+                              '</label>' +
+                           '</div>';
+      jqTds[7].innerHTML = '<span style="white-space: nowrap;"><a class="edit btn default btn-sm green" href="">Save</a> <a class="cancel btn default btn-sm" href="">Cancel</a></span>';
+    }
+
+    function saveRow(oTable, nRow) {
+      oTable.fnSort([[0, 'desc']]);
+      var jqColumns = $('td.coll, input.coll, select.coll', nRow);
+      var id = jqColumns[0].innerHTML;
+
+      if ($(jqColumns[1]).select2('data') != null) {
+        var instanceId = jqColumns[1].value;
+        var instanceName = $(jqColumns[1]).select2('data').text;
+      } else {
+        var instanceId = '';
+        var instanceName = '';
+      }
+
+      if ($(jqColumns[2]).select2('data') != null) {
+        var merchantId = jqColumns[2].value;
+        var merchantName = $(jqColumns[2]).select2('data').text;
+      } else {
+        var merchantId = '';
+        var merchantName = 'All';
+      }
+
+      if ($(jqColumns[3]).select2('data') != null) {
+        var serviceId = jqColumns[3].value;
+        var serviceName = $(jqColumns[3]).select2('data').text;
+      } else {
+        var serviceId = '';
+        var serviceName = 'All';
+      }
+
+      var msisdn = jqColumns[4].value;
+      var description = jqColumns[5].value;
+      var isactive = jqColumns[6].checked ? 'True' : 'False';
+
+
+      $.ajax({
+        url: "/blacklist/edit",
+        type: 'POST',
+        data: {
+          id: id,
+          instanceId: instanceId,
+          merchantId: merchantId,
+          serviceId: serviceId,
+          msisdn: msisdn,
+          description: description,
+          isactive: isactive
+        },
+
+        success: function (data) {
+          console.log(data.success);
+          if (data.success) {
+            oTable.fnUpdate(id, nRow, 0, false);
+            oTable.fnUpdate(instanceName, nRow, 1, false);
+            oTable.fnUpdate(merchantName, nRow, 2, false);
+            oTable.fnUpdate(serviceName, nRow, 3, false);
+            oTable.fnUpdate(msisdn, nRow, 4, false);
+            oTable.fnUpdate(description, nRow, 5, false);
+            oTable.fnUpdate(isactive, nRow, 6, false);
+            oTable.fnUpdate('<a class="edit btn default btn-sm blue-steel" href=""><i class="fa fa-edit"></i>Edit</a>', nRow, 7, false);
+            oTable.fnDraw();
+          }
+          else {
+            errorNotification(data.message);
+            console.log("nije uspjesno");
+          }            
+        },
+        error: function (ex) {
+          $('.portlet-body').html('Error while retrieving data. Please refresh page.');
+          errorNotification('Error while retrieving data');
+        }
+      })
+    }
+
+    function errorNotification(error) {
+      toastr["error"](error, 'Error');
+
+      toastr.options = {
+        showDuration: 100,
+        hideDuration: 1000,
+        timeOut: 8000,
+        extendedTimeOut: 1000,
+        showEasing: 'swing',
+        hideEasing: 'linear',
+        showMethod: 'fadeIn',
+        hideMethod: 'fadeOut',
+        closeButton: true,
+        positionClass: 'toast-top-right',
+        onclick: null
+      };
+    }
+
+    function cancelEditRow(oTable, nRow) {
+      var jqColumns = $('td.coll, input.coll, select.coll', nRow);
+      oTable.fnUpdate(jqColumns[0].innerHTML, nRow, 0, false);
+      oTable.fnUpdate(jqColumns[1].value, nRow, 1, false);
+      oTable.fnUpdate(jqColumns[2].value, nRow, 2, false);
+      oTable.fnUpdate(jqColumns[3].value, nRow, 3, false);
+      oTable.fnUpdate(jqColumns[4].value, nRow, 4, false);
+      oTable.fnUpdate(jqColumns[5].value, nRow, 5, false);
+      oTable.fnUpdate(jqColumns[6].value, nRow, 6, false);
+      oTable.fnUpdate('<a class="edit btn default btn-sm blue-steel" href=""><i class="fa fa-edit"></i>Edit</a>', nRow, 7, false);
+      oTable.fnDraw();
+    }
+
+    var table = $('#blacklist_table');
+
+    var oTable = table.dataTable({
+
+      // Uncomment below line("dom" parameter) to fix the dropdown overflow issue in the datatable cells. The default datatable layout
+      // setup uses scrollable div(table-scrollable) with overflow:auto to enable vertical scroll(see: assets/global/plugins/datatables/plugins/bootstrap/dataTables.bootstrap.js). 
+      // So when dropdowns used the scrollable div should be removed. 
+      //"dom": "<'row'<'col-md-6 col-sm-12'l><'col-md-6 col-sm-12'f>r>t<'row'<'col-md-5 col-sm-12'i><'col-md-7 col-sm-12'p>>",
+      "dom": "<'row'<'#add_new_btn.col-md-6 col-sm-6'><'#blacklist_table_filters.col-md-6 col-sm-6'fl>r><'table-scrollable't><'row'<'col-md-5 col-sm-5'i><'col-md-7 col-sm-7'p>>",
+      "lengthMenu": [
+          [5, 10, 15, 20, -1],
+          [5, 10, 15, 20, "All"] // change per page values here
+      ],
+
+      // Or you can use remote translation file
+      //"language": {
+      //   url: '//cdn.datatables.net/plug-ins/3cfcc339e89/i18n/Portuguese.json'
+      //},
+
+      // set the initial value
+      "pageLength": 10,
+
+      "columnDefs": [{ // set default column settings
+        'orderable': true,
+        'targets': [0]
+      }, {
+        "searchable": true,
+        "targets": [0]
+      }],
+      "order": [
+
+      ] // set first column as a default sort by asc
+    });
+
+    var tableWrapper = $("#blacklist_table_wrapper");
+
+    tableWrapper.find(".dataTables_length select").select2({
+      showSearchInput: true //hide search box with special css class
+    }); // initialize select2 dropdown
+
+    $('#add_new_btn').append('<a class="btn green" data-toggle="modal" href="#blacklist_modal">Add New</a>');
+
+    var nEditing = null;
+    var nNew = false;
+
+
+    $('#blacklist_table_new').click(function (e) {
+      e.preventDefault();
+
+      if (nNew && nEditing) {
+        if (confirm("Previose row not saved. Do you want to save it ?")) {
+          saveRow(oTable, nEditing); // save
+          console.log($(nEditing).find("td:first").html("Untitled"));
+          $(nEditing).find("td:first").html("Untitled");
+          nEditing = null;
+          nNew = false;
+        } else {
+          oTable.fnDeleteRow(nEditing); // cancel
+          nEditing = null;
+          nNew = false;
+
+          return;
+        }
+      }
+
+      var aiNew = oTable.fnAddData(['', '', '', '', '', '', '', '']);
+      var nRow = oTable.fnGetNodes(aiNew[0]);
+
+
+      $($('>td', nRow)[0]).addClass('coll');
+      var action = 'addNew';
+      console.log("asd");
+      oTable.fnSort([[0, 'asc']]);
+      editRow(oTable, nRow, action);
+      nEditing = nRow;
+      nNew = true;
+    });
+
+    table.on('click', '.delete', function (e) {
+      e.preventDefault();
+
+      if (confirm("Are you sure to delete this row ?") == false) {
+        return;
+      }
+
+      var nRow = $(this).parents('tr')[0];
+      oTable.fnDeleteRow(nRow);
+      //alert("Deleted! Do not forget to do some ajax to sync with backend :)");
+    });
+
+    table.on('click', '.cancel', function (e) {
+      e.preventDefault();
+      if (nNew) {
+        oTable.fnDeleteRow(nEditing);
+        nEditing = null;
+        nNew = false;
+      } else {
+        restoreRow(oTable, nEditing);
+        nEditing = null;
+      }
+    });
+
+    table.on('click', '.edit', function (e) {
+      e.preventDefault();
+      /* Get the row as a parent of the link that was clicked on */
+      var nRow = $(this).parents('tr')[0];
+      var action = 'edit';
+      if (nEditing !== null && nEditing != nRow) {
+        /* Currently editing - but not this row - restore the old before continuing to edit mode */
+        restoreRow(oTable, nEditing);
+        editRow(oTable, nRow, action);
+        nEditing = nRow;
+      } else if (nEditing == nRow && this.innerHTML == "Save") {
+        /* Editing this row and want to save it */
+        saveRow(oTable, nEditing);
+        // onSubmit(nRow);
+        nEditing = null;
+        // alert("Updated! Do not forget to do some ajax to sync with backend :)");
+      } else {
+        /* No edit in progress - let's start one */
+        editRow(oTable, nRow, action);
+        nEditing = nRow;
+      }
+    });
+  }
+
+  return {
+
+    //main function to initiate the module
+    init: function () {
+      handleTable();
+    }
+  };
+}();

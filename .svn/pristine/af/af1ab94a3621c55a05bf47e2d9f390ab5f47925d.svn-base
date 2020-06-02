@@ -1,0 +1,65 @@
+﻿using System.Web.Mvc;
+
+using MobilePaywall.Data;
+using MobilePaywall.Web.Filters;
+using log4net;
+using Senti.Diagnostics.Log;
+using MobilePaywall.Web.Log;
+using System.IO;
+using System.Collections.Generic;
+
+namespace MobilePaywall.Web.Controllers
+{
+  [SessionState(System.Web.SessionState.SessionStateBehavior.ReadOnly)]
+	public class ThumbnailController : Controller
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (ThumbnailController._log == null)
+          ThumbnailController._log = LogManager.GetLogger(typeof(ThumbnailController));
+        return ThumbnailController._log;
+      }
+    }
+    #endregion
+
+		public FileResult Get(int contentID)
+		{
+			ContentThumbnailData contentThumbnailData = PaywallHttpContext.Current.Runtime.Cache.GetDefaultThumbnailData(contentID);
+
+      if(contentThumbnailData == null)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "thumbnailcontroller", "get"),
+          "COULD NOT LOAD THUMBNAIL. ContentnThumbnailData is null for ContentID="+contentID));
+        return null;
+      }
+
+			return File( contentThumbnailData.Data, 
+        contentThumbnailData.ThumbnailConversionProfileEntry.ImageFormat.MimeType, 
+        string.Format("{0}{1}", contentID, contentThumbnailData.ThumbnailConversionProfileEntry.ImageFormat.Extension));
+		}
+
+    public FileResult GetThumbnail(int ContentThumbnailID)
+    {
+      ContentThumbnail ct = ContentThumbnail.CreateManager().Load(ContentThumbnailID);
+      if(ct == null)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "thumbnailcontroller", "get"),
+          "COULD NOT LOAD THUMBNAIL. ContentnThumbnailData is null for ContentThumbnailID=" + ContentThumbnailID));
+        return null;
+      }
+
+      ContentThumbnailData ctd = ContentThumbnailData.LoadByContentThumbnail(ct);
+
+      return File(ctd.Data,
+        ctd.ThumbnailConversionProfileEntry.ImageFormat.MimeType,
+        string.Format("{0}{1}", ct.Content.ID, ctd.ThumbnailConversionProfileEntry.ImageFormat.Extension));
+
+    }
+
+	}
+}

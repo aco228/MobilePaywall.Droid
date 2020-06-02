@@ -1,0 +1,46 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+using log4net;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class QuizAnswerManager : IQuizAnswerManager
+  {
+
+
+    public List<QuizAnswer> Load(QuizQuestion question)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, question);
+    }
+
+    public List<QuizAnswer> Load(IConnectionInfo connection, QuizQuestion question)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, question);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, question);
+    }
+
+    public List<QuizAnswer> Load(ISqlConnectionInfo connection, QuizQuestion question)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[qa].QuizQuestionID = @QuizQuestionID";
+      parameters.Arguments.Add("QuizQuestionID", question.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+
+  }
+}
+

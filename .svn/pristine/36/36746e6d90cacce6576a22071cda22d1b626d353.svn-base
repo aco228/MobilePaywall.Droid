@@ -1,0 +1,153 @@
+﻿@model MobilePaywall.Web.Models.Specific._Template.TemplateServiceStorageModel
+@{
+  Layout = "~/Views/Template/_Layout/_Layout.cshtml";
+}
+
+<div class="md-card" id="serviceConfiguration">
+  <div class="md-card-content">
+    <h3>Update Service Storage</h3>
+
+    <table style="display:none; visibility:hidden" class="uk-table">
+      <tbody id="templateForAdding">
+        <tr class="serviceStorageClass" servicestorageid="-1">
+          <td>
+            <input type="text" class="keyName form-control" value="" />
+          </td>
+          <td>
+            <input type="text" class="keyValue form-control" value="" />
+          </td>
+          <td style="width:20%; text-align:center">
+            <input type="button" class="serviceStorageButtonUpdate md-btn md-btn-flat md-btn-flat-primary" value="Update" />
+            <input type="button" class="serviceStorageButtonDelete md-btn md-btn-flat md-btn-flat-primary" value="Delete" style="display:none" />
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <table class="uk-table">
+      <thead>
+        <tr>
+          <th>Key</th>
+          <th>Value</th>
+          <th>
+
+          </th>
+        </tr>
+      </thead>
+      <tbody id="tbodyHolder">
+        @foreach (ServiceStorage item in Model.ServiceStorage)
+        {
+          <tr class="serviceStorageClass" servicestorageid="@item.ID">
+            <td>
+              <input type="text" class="keyName form-control" value="@item.Key" disabled />
+            </td>
+            <td>
+              <input type="text" class="keyValue form-control" value="@item.Value" />
+            </td>
+            <td style="width:20%; text-align:center">
+              <input type="button" class="serviceStorageButtonUpdate md-btn md-btn-flat md-btn-flat-primary" value="Update" />
+              <input type="button" class="serviceStorageButtonDelete md-btn md-btn-flat md-btn-flat-primary" value="Delete" />
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</div>
+    <script>
+
+      document.addEventListener("DOMContentLoaded", function () {
+        addNewTemplateEntry();
+
+        $('body').on('click', '.serviceStorageButtonUpdate', function () {
+          if ($(this).attr('inuse') == 'true')
+            return;
+
+          var _serviceStorageID = $(this).closest('.serviceStorageClass').attr('serviceStorageID');
+          var _key = $(this).closest('.serviceStorageClass').find('.keyName').val();
+          var _value = $(this).closest('.serviceStorageClass').find('.keyValue').val();
+
+          var _newline = _serviceStorageID;
+
+          if (_key == '')
+          { visual.Alert('Please enter key name'); return; }
+          if (_value == '')
+          { visual.Alert('Please enter value'); return; }
+
+          console.log('Key=' + _key);
+          console.log('Value=' + _value);
+
+          var originalText = $(this).val();
+          var btn = $(this);
+          btn.val('Wait..');
+          btn.attr('inuse', 'true');
+
+          $.ajax({
+            url: '/Template/ApiTemplateServiceStorageNewKey',
+            type: 'POST',
+            data: { id: _serviceStorageID, key: _key, value: _value },
+            success: function (response) {
+              btn.attr('inuse', 'false');
+              btn.val(originalText);
+
+              if (response.status) {
+                btn.closest('.serviceStorageClass').attr('serviceStorageID', response.id);
+                btn.closest('.serviceStorageClass').find('.keyName').attr('disabled', 'disabled');
+
+                visual.Toast('Updated');
+                if (_serviceStorageID == "-1") {
+                  btn.closest('.serviceStorageClass').find('.serviceStorageButtonDelete').css('display', 'inline-block');
+                  addNewTemplateEntry();
+                }
+                return;
+              }
+
+              visual.Alert(response.message);
+            }
+          });
+        });
+
+        $('body').on('click', '.serviceStorageButtonDelete', function () {
+          if ($(this).attr('inuse') == 'true')
+            return;
+
+
+
+          var _serviceStorageID = $(this).closest('.serviceStorageClass').attr('serviceStorageID');
+          var originalText = $(this).val();
+          var btn = $(this);
+
+          if (btn.closest('.serviceStorageClass').find('.keyName').attr('disabled') != 'disabled') {
+            return;
+          }
+
+          btn.val('Wait..');
+          btn.attr('inuse', 'true');
+
+          $.ajax({
+            url: '/Template/ApiTemplateServiceStorageDeleteKey',
+            type: 'POST',
+            data: { id: _serviceStorageID },
+            success: function (response) {
+              btn.attr('inuse', 'false');
+              btn.val(originalText);
+
+              if (response.status) {
+                btn.closest('.serviceStorageClass').remove();
+                visual.Toast('Deleted');
+                return;
+              }
+
+              visual.Alert(response.message);
+            }
+          });
+        });
+
+      });
+
+      function addNewTemplateEntry() {
+        $('#tbodyHolder').append($('#templateForAdding').html());
+      }
+
+
+    </script>

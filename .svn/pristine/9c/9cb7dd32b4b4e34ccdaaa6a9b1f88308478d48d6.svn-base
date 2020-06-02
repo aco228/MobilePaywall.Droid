@@ -1,0 +1,522 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+
+using MobilePaywall.Data;
+
+using Cashflow.Client;
+using Cashflow.Message;
+using System.Text.RegularExpressions;
+using System.Threading;
+using log4net;
+using Senti.Diagnostics.Log;
+using Cashflow.Message.Mobile;
+using MobilePaywall.Service.Callback.Log;
+using MobilePaywall.Direct;
+
+namespace MobilePaywall.Service.Handlers
+{
+  // a service grants temporary access upon successful setup (response or notification) OR not
+  // TemporaryAccessMode -> Setup/Execute, None
+  // TemporaryAccessInSeconds -> nullable
+
+  public class MobileNotificationHandler : NotificationHandlerBase
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (MobileNotificationHandler._log == null)
+          MobileNotificationHandler._log = log4net.LogManager.GetLogger(typeof(MobileNotificationHandler));
+        return MobileNotificationHandler._log;
+      }
+    }
+    #endregion
+
+    protected override void ProcessLookupMsisdnNotification(Cashflow.Message.Mobile.LookupMsisdnNotification notification)
+    {
+      CallbackLog CLog = new CallbackLog(notification, Log);
+
+      try
+      {
+        base.ProcessLookupMsisdnNotification(notification);
+
+        if (notification.Status.Code != MessageStatusCode.Success && notification.Status.Code != MessageStatusCode.Redirect)
+          return;
+
+        ILookupSessionManager lsManager = Data.LookupSession.CreateManager();
+        Data.LookupSession lookupSession = lsManager.Load(notification.IdentificationSessionID.Value, LookupSessionGuidColumnIdentifier.IdentificationSessionGuid);
+        if (lookupSession == null)
+        {
+          Guid userSessionGuid;
+          if (!Guid.TryParse(notification.ReferenceID, out userSessionGuid))
+          {
+            CLog.Error(string.Format("LOOKUP_MSISDN_ERROR:: {0}:: Could not parse ReferenceID into UserSession.Guid ", notification.ReferenceID));
+            return;
+          }
+
+          UserSession userSession = UserSession.CreateManager().Load(userSessionGuid);
+          if (userSession == null)
+          {
+            CLog.Error(string.Format("LOOKUP_MSISDN_ERROR:: {0}:: Could not load UserSession by guid:", notification.ReferenceID));
+            return;
+          }
+
+          UserHttpRequest httpRequest = new UserHttpRequest(-1, Guid.NewGuid(), userSession, null, "", DateTime.Now, DateTime.Now);
+          httpRequest.Insert();
+
+          lookupSession = new LookupSession(-1,
+            Guid.NewGuid(),
+            LookupSessionStatus.Initialized,
+            userSession,
+            httpRequest,
+            notification.IdentificationSessionID,
+            notification.RedirectUrl,
+            DateTime.Now, DateTime.Now);
+          lookupSession.Insert();
+
+        }
+
+        lookupSession.LookupSessionStatus = LookupSessionStatus.Complete;
+        lookupSession.LookupUrl = notification.RedirectUrl;
+        lookupSession.Update();
+      }
+      catch(Exception e)
+      {
+        CLog.Fatal("LOOKUP_MSISDN FATAL", e);
+      }
+    }
+
+    protected override void ProcessLookupMsisdnByCallNotification(Cashflow.Message.Mobile.LookupMsisdnByCallNotification notification)
+    {
+      base.ProcessLookupMsisdnByCallNotification(notification);
+    }
+
+    protected override void ProcessQueryIdentificationNotification(Cashflow.Message.Mobile.QueryIdentificationNotification notification)
+    {
+      base.ProcessQueryIdentificationNotification(notification);
+      CallbackLog CLog = new CallbackLog(notification, Log);
+      //INFO: Remove this after ajax testing!
+      //Thread.Sleep(10000);
+      try
+      {
+
+        IQueryIdentificationCallbackManager qicManager = QueryIdentificationCallback.CreateManager();
+        QueryIdentificationCallback queryIdentificationCallback = qicManager.Load(notification.IdentificationSessionID);
+        LookupSession lookupSession = null;
+
+        if (queryIdentificationCallback == null)
+        {
+          //Log.Debug(new LogMessageBuilder(
+          //  new LogErrorCode("paywall.service.callback", "mobilenotificationhandeler", "processqueryidentificationnotification"),
+          //  "queryIdentificationCallback is null", notification));
+          //HttpContext.Current.Response.StatusCode = 200;
+          //return;
+
+          lookupSession = LookupSession.CreateManager().Load(notification.IdentificationSessionID, LookupSessionGuidColumnIdentifier.IdentificationSessionGuid);
+          if (lookupSession == null)
+          {
+            Guid userSessionGuid;
+            if(!Guid.TryParse(notification.ReferenceID, out userSessionGuid))
+            {
+              CLog.Error("ProcessQueryIdentificationNotification:: Could not parse UserSession guid based on ReferenceID: " + notification.ReferenceID);
+              return;
+            }
+
+            UserSession us = UserSession.CreateManager().Load(userSessionGuid);
+            if(us == null)
+            {
+              CLog.Error("ProcessQueryIdentificationNotification:: Could not load UserSession ReferenceID: " + notification.ReferenceID);
+              return;
+            }
+
+            UserHttpRequest req = new UserHttpRequest(-1, Guid.NewGuid(), us, null, "", DateTime.Now, DateTime.Now); req.Insert();
+
+            lookupSession = new LookupSession(-1,
+              Guid.NewGuid(),
+              LookupSessionStatus.Initialized,
+              us,
+              req,
+              notification.IdentificationSessionID,
+              string.Empty,
+              DateTime.Now, DateTime.Now);
+            lookupSession.Insert();
+
+          }
+        }
+        else
+          lookupSession = queryIdentificationCallback.LookupSession;
+
+        LookupSessionResult result = null;
+        int? resultID = MobilePaywallDirect.Instance.LoadInt(string.Format(@"SELECT LookupSessionResultID FROM MobilePaywall.core.LookupSessionResult WHERE LookupSessionID={0};", lookupSession.ID));
+        if (resultID.HasValue)
+          result = LookupSessionResult.CreateManager().Load(resultID.Value);
+
+        switch (notification.Status.Code)
+        {
+          case MessageStatusCode.Success:
+          case MessageStatusCode.Redirect:
+            // TODO: Change loading logic to NOT take IsDefault flag and instead select default operator implicitly
+            if (!notification.Operator.HasValue)
+            {
+              // Logging. This MUST NOT happen.
+              CLog.Error(new LogMessageBuilder(
+                new LogErrorCode("paywall.service.callback", "mobilenotificationhandeler", "processqueryidentificationnotification"),
+                "Operator has no values", notification));
+            }
+
+            MobileOperator mobileOperator = null;
+            if (notification.Operator.HasValue)
+              mobileOperator = MobileOperator.CreateManager().Load(notification.Operator.Value, IDType.External);
+
+            // TODO: We also need to search for a customer with the given msisdn in here and update the session accordingly.
+            if(result == null)
+            {
+              result = new LookupSessionResult(-1,
+                lookupSession,
+                true,
+                true,
+                notification.IdentificationResultID,
+                mobileOperator,
+                !notification.IsEncrypted.HasValue || notification.IsEncrypted.Value ? null : notification.Msisdn,
+                notification.IsEncrypted.HasValue && notification.IsEncrypted.Value ? notification.Msisdn : null,
+                DateTime.Now, DateTime.Now);
+              result.Insert();
+            }
+            break;
+          case MessageStatusCode.Pending:
+            return;
+          case MessageStatusCode.Failure:
+            if(result == null)
+            {
+              result = new LookupSessionResult(-1, lookupSession, false, true, null, null, null, null, DateTime.Now, DateTime.Now);
+              result.Insert();
+            }
+            break;
+        }
+        
+        if (queryIdentificationCallback != null)
+        {
+          queryIdentificationCallback.LookupSessionResult = result;
+          queryIdentificationCallback.IsCompleted = true;
+          queryIdentificationCallback.Update();
+        }
+
+      }
+      catch(Exception e)
+      {
+        CLog.Fatal("ProcessQueryIdentificationNotification:: Fatal", e);
+      }
+
+    }
+
+    protected override void ProcessLookupOperatorNotification(Cashflow.Message.Mobile.LookupOperatorNotification notification)
+    {
+      CallbackLog CLog = new CallbackLog(notification, Log);
+      try
+      {
+
+        Guid userSessionGuidReference = Guid.Empty;
+        UserSession userSession = null;
+        ServiceOffer serviceOffer = null;
+        MobileOperator mobileOperator = null;
+        Customer customer = null;
+
+        #region # Checkings #
+
+        if (!Guid.TryParse(notification.ReferenceID, out userSessionGuidReference))
+        {
+          Log.Error(string.Format("LOOKUP_OPERATOR:: {0}:: ERROR _ Could not parse GUID from noification. notification.ReferenceID='{1}'", notification.ReferenceID, notification.ReferenceID));
+          return;
+        }
+
+        userSession = UserSession.CreateManager().Load(userSessionGuidReference);
+        if (userSession == null)
+        {
+          Log.Error(string.Format("LOOKUP_OPERATOR:: {0}:: ERROR _ Could not load UserSession. notification.ReferenceID='{1}'", notification.ReferenceID, notification.ReferenceID));
+          return;
+        }
+
+        List<ServiceOffer> serviceOffers = ServiceOffer.CreateManager().Load(userSession.Service);
+        if (serviceOffers == null)
+        {
+          Log.Error(string.Format("LOOKUP_OPERATOR:: {0}:: ERROR _ There is no ServiceOffers for service '{1}", notification.ReferenceID, userSession.Service.Name));
+          return;
+        }
+
+        serviceOffer = (from s in serviceOffers where s.IsDefault && s.IsActive select s).FirstOrDefault();
+        if (serviceOffer == null)
+        {
+          Log.Error(string.Format("LOOKUP_OPERATOR:: {0}:: ERROR _ There is no active ServiceOffers for service '{1}", notification.ReferenceID, userSession.Service.Name));
+          return;
+        }
+
+        if (!notification.Operator.OperatorID.HasValue)
+        {
+          Log.Error(string.Format("LOOKUP_OPERATOR:: {0}:: ERROR _ Cashflow didnt returned us OperatorID", notification.ReferenceID));
+          return;
+        }
+
+        mobileOperator = MobileOperator.CreateManager().Load(notification.Operator.OperatorID.Value, IDType.External);
+        if (mobileOperator == null)
+        {
+          Log.Error(string.Format("LOOKUP_OPERATOR:: {0}:: ERROR _ Could not load MobileOperator with ExternalID: ", notification.ReferenceID, notification.Operator.OperatorID.Value));
+          return;
+        }
+
+        #endregion
+
+        MobileSubscriberArguments arguments = new MobileSubscriberArguments()
+        {
+          Msisdn = notification.Operator.Msisdn, 
+          OperatorCode = notification.Operator.OperatorID.ToString()
+        };
+
+        #region # LookupMsisdn #
+
+        MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(CLog.UserSession);
+        mobileClient.AttachLogWriter(new CashflowLog(serviceOffer.Service));
+
+        UserHttpRequest userHttpRequest = new UserHttpRequest(-1, Guid.NewGuid(), userSession, null, string.Empty, DateTime.Now, DateTime.Now);
+        userHttpRequest.Insert();
+
+        LookupSession lookupSession = new LookupSession(-1,
+          Guid.NewGuid(),
+          LookupSessionStatus.Initialized,
+          userSession, // TODO
+          userHttpRequest, // TODO
+          null, //This GUID is Cashflow!
+          null,
+          DateTime.Now,
+          DateTime.Now);
+        lookupSession.Insert();
+
+        // PL Poland should not have this shit
+        if(serviceOffer.Service.FallbackCountry.ID != 169 && serviceOffer.PaymentConfiguration.PaymentProvider.ID != 22)
+        {
+          LookupMsisdnRequest lookupRequest = new LookupMsisdnRequest(RequestMode.Default,
+          userSession.Guid.ToString(),
+          serviceOffer.PaymentConfiguration.PaymentCredentials.Username,
+          serviceOffer.PaymentConfiguration.PaymentCredentials.Password,
+          serviceOffer.Service.Product.ExternalProductGuid,
+          serviceOffer.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+          serviceOffer.Service.FallbackCountry.TwoLetterIsoCode,
+          serviceOffer.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+          serviceOffer.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+          userSession.IPAddress, //ipAddress
+          lookupSession.Guid.ToString(), //lookupReferenceID
+          "", // redirectUrl
+          "", // notificationUrl
+          arguments.ToMessageArguments());
+          lookupRequest.ReferenceIntID = CLog.UserSessionID;
+
+          LookupMsisdnResponse lookupResponse = mobileClient.LookupMsisdn(lookupRequest);
+          if (lookupResponse.Status.Code == MessageStatusCode.Success)
+          {
+            lookupSession.LookupSessionStatus = LookupSessionStatus.Complete;
+            lookupSession.IdentificationSessionGuid = lookupResponse.IdentificationSessionID;
+            lookupSession.LookupUrl = lookupResponse.RedirectUrl;
+            lookupSession.Update();
+          }
+          else
+          {
+            CLog.Error(string.Format("LOOKUP_OPERATOR:: {0}:: ERROR_ Cashflow.Error.LookupMsisdnResponse (SubCode='{1}', Message='{2}'",
+                    notification.ReferenceID,
+                    lookupResponse.Status.SubCode.ToString(),
+                    lookupResponse.Status.Message));
+            return;
+          }
+        }
+        else
+        {
+          lookupSession.LookupSessionStatus = LookupSessionStatus.Complete;
+          lookupSession.Update();
+        }
+
+        #endregion
+        #region # QueryIdentification #
+
+        LookupSessionResult lookupSessionResult = null;
+
+        if(lookupSession.IdentificationSessionGuid.HasValue)
+        {
+          QueryIdentificationRequest queryRequest = new QueryIdentificationRequest(RequestMode.Default,
+          Guid.NewGuid().ToString(),
+          serviceOffer.PaymentConfiguration.PaymentCredentials.Username,
+          serviceOffer.PaymentConfiguration.PaymentCredentials.Password,
+          lookupSession.IdentificationSessionGuid.Value,
+          arguments.ToMessageArguments());
+
+          QueryIdentificationResponse queryResponse = mobileClient.QueryIdentification(queryRequest);
+
+          if (queryResponse.Status.Code == MessageStatusCode.Success)
+          {
+            //customer = Customer.CreateManager().Load(serviceOffer.Service, queryResponse.Msisdn, CustomerIdentifier.Msisdn).FirstOrDefault();
+            customer = Customer.TransactionLoad(serviceOffer.Service, queryResponse.Msisdn, CustomerIdentifier.Msisdn).FirstOrDefault();
+            if (customer == null)
+            {
+              customer = new Customer(-1,
+                                    Guid.NewGuid(),
+                                    CustomerStatus.Pending,
+                                    userSession.Service,
+                                    serviceOffer.Service.FallbackCountry,
+                                    mobileOperator,
+                                    null,
+                                    !queryResponse.IsEncrypted.Value ? queryResponse.Msisdn : null,
+                                    queryResponse.IsEncrypted.Value ? queryResponse.Msisdn : null,
+                                    queryResponse.IsEncrypted.Value ? string.Format("user{0}", Guid.NewGuid().ToString().Split('-')[4].Substring(0, 6)) : queryResponse.Msisdn,
+                                    null,
+                                    DateTime.Now,
+                                    DateTime.Now);
+              customer.Insert();
+              customer.SetUsernameAndPassword();
+            }
+
+            userSession.Customer = customer;
+            userSession.Update();
+
+            lookupSessionResult = new LookupSessionResult(-1,
+              lookupSession,
+              true,
+              true,
+              queryResponse.IdentificationResultID,
+              mobileOperator,
+              !queryResponse.IsEncrypted.HasValue || queryResponse.IsEncrypted.Value ? null : queryResponse.Msisdn,
+              queryResponse.IsEncrypted.HasValue && queryResponse.IsEncrypted.Value ? queryResponse.Msisdn : null,
+              DateTime.Now,
+              DateTime.Now);
+            lookupSessionResult.Insert();
+
+          }
+          else
+          {
+            CLog.Error(string.Format("LOOKUP_OPERATOR:: {0}:: ERROR_ Cashflow.Error.QueryIdentificationResponse (SubCode='{1}', Message='{2}'",
+                    notification.ReferenceID,
+                    queryResponse.Status.SubCode.ToString(),
+                    queryResponse.Status.Message));
+            return;
+          }
+        }
+        else
+        {
+          customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Active, userSession.Service, userSession.Service.FallbackCountry, userSession.MobileOperator, null, string.Empty, string.Empty, "", null, DateTime.Now, DateTime.Now);
+          customer.Insert();
+          customer.SetUsernameAndPassword();
+        }
+
+        #endregion
+        #region # InitiateSubscription #
+
+        if (customer == null && userSession.Customer != null)
+          customer = userSession.Customer;
+        
+        PaymentRequest paymentRequest = new PaymentRequest(-1,
+          Guid.NewGuid(),
+          PaymentType.Subscription,
+          PaymentRequestStatus.Initialized,
+          lookupSession,
+          customer,
+          userSession, // user session
+          serviceOffer,
+          serviceOffer.BusinessModelEntry,
+          null,
+          userHttpRequest, // userHttpRequest
+          string.Empty, // paymentRedirectUrl
+          DateTime.Now, DateTime.Now);
+        paymentRequest.Insert();
+
+        PaymentResult paymentResult = new PaymentResult(-1,
+                                                        paymentRequest,
+                                                        null,
+                                                        null,
+                                                        DateTime.Now.AddMinutes(2),
+                                                        DateTime.Now,
+                                                        DateTime.Now);
+        paymentResult.Insert();
+
+        InitiateSubscriptionRequest initiateSubscriptionRequest = new InitiateSubscriptionRequest(RequestMode.Default,
+          Guid.NewGuid().ToString(),
+          serviceOffer.PaymentConfiguration.PaymentCredentials.Username,
+          serviceOffer.PaymentConfiguration.PaymentCredentials.Password,
+          serviceOffer.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+          serviceOffer.Service.FallbackCountry.TwoLetterIsoCode,
+          serviceOffer.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+          serviceOffer.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+          customer.ExternalCustomerGuid,
+          customer.ExternalCustomerGuid.ToString(), // customerReference
+          Guid.NewGuid().ToString(), // subscripionRequestReferenceID
+          new string[] { }, // paymentModifiers,
+          userSession.IPAddress, // ipAddress
+          string.Format("http://{0}", serviceOffer.Service.Name), // redirectUrl
+          string.Format("http://{0}/error", serviceOffer.Service.Name), // errorUrl
+          "", // notificiationUrl
+          arguments.ToMessageArguments());
+        initiateSubscriptionRequest.ReferenceIntID = CLog.UserSession.ID;
+        
+        SubscriptionClient subscriptionClient = CashflowClientPaywallManager.GetSubscriptionClient(serviceOffer.Service);
+        subscriptionClient.AttachLogWriter(new CashflowLog(serviceOffer.Service));
+        
+        InitiateSubscriptionResponse initiateSubscriptionResponse = subscriptionClient.InitiateSubscription(initiateSubscriptionRequest,
+          new IdentificationResultArguments { IdentificationResultID = (lookupSessionResult != null ? lookupSessionResult.IdentificationResultGuid.Value : Guid.Empty) });
+
+        if (initiateSubscriptionResponse.Status.Code == MessageStatusCode.Success || 
+          initiateSubscriptionResponse.Status.Code == MessageStatusCode.Redirect)
+        {
+          paymentRequest.PaymentRedirectUrl = initiateSubscriptionResponse.RedirectUrl;
+          paymentRequest.ExternalPaymentRequestGuid = initiateSubscriptionResponse.SubscriptionRequestID;
+          paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Complete;
+          paymentRequest.Update();
+        }
+        else
+        {
+          paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Failure;
+          paymentRequest.Update();
+
+          CLog.Error(string.Format("LOOKUP_OPERATOR:: {0}:: ERROR_ Cashflow.Error.InitiateSubscriptionResponse (SubCode='{1}', Message='{2}'",
+                  notification.ReferenceID,
+                  initiateSubscriptionResponse.Status.SubCode.ToString(),
+                  initiateSubscriptionResponse.Status.Message));
+          return;
+        }
+
+        #endregion
+        #region # SetupSubscription #
+
+        SetupSubscriptionRequest setupSubscriptionRequest = new SetupSubscriptionRequest(RequestMode.Default,
+          Guid.NewGuid().ToString(),
+           serviceOffer.PaymentConfiguration.PaymentCredentials.Username,
+           serviceOffer.PaymentConfiguration.PaymentCredentials.Password,
+           paymentRequest.ExternalPaymentRequestGuid.Value,
+           paymentRequest.UserSession.Guid.ToString(),
+           null);
+
+        SetupSubscriptionResponse setupSubscriptionResponse = subscriptionClient.SetupSubscription(setupSubscriptionRequest);
+        if (setupSubscriptionResponse.Status.Code == MessageStatusCode.Success)
+        {
+          CLog.Info(string.Format("LOOKUP_OPERATOR:: {0}:: Success!! All proccess is done for UserSession:{1}",
+                 userSession.Guid));
+        }
+        else
+        {
+          CLog.Error(string.Format("LOOKUP_OPERATOR:: {0}:: ERROR_ Cashflow.Error.SetupSubscriptionResponse (SubCode='{1}', Message='{2}'",
+                  notification.ReferenceID,
+                  setupSubscriptionResponse.Status.SubCode.ToString(),
+                  setupSubscriptionResponse.Status.Message));
+          return;
+        }
+
+        #endregion
+        
+      }
+      catch(Exception e)
+      {
+        CLog.Error(string.Format("LOOKUP_OPERATOR:: {0}:: FATAL!! ", notification.ReferenceID), e);
+      }
+    }
+
+  }
+}

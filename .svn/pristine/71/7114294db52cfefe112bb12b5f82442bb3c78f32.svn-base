@@ -1,0 +1,321 @@
+﻿function TPayManager()
+{
+  this.paymentRequestBusy = false;      // in case that payment request process is still ongoing
+  this.tpay = null;
+  this.hasError = false;                // does tpay has error
+  this.userSessionID = '';              // MP sessionID
+  this.mobileOperatorID = '';           // MP mobileoperatorID
+  this.customerID = '';                 // MP customerID
+  this.tpaySessionID = '';              // TPay sessionID
+  this.tpayMsisdn = '';                 // TPay msisdn
+  this.subscriptionID = '';             // TPay subscriptionID (in case customer has one)
+  this.operatorCode = '';               // TPay operatorCode
+  this.subscriptionPlan = '';           // TPay subscfription plan (from service.storage)
+  this.catalogName = '';                // TPay catalog name (we will get one from service.storage when we have operator)
+  this.productSku = '';                 // TPay product sku (from service.storage)
+  this.hasSubscription = false;         // TPay in case customer has subscription on service
+  this.headerEnrichmentLink = '';       // TPay we will append to script after we have sessionID
+  this.viewName = '';                   // Info for paywall view name
+  this.isViewSupported = false;
+  this.isContentView = false;
+  this.language = '';
+  this.closeBtnText = 'Close';
+
+  // SUMMARY: constructor
+  this.init = function () {
+    var self = this;
+    self.tpay = new TPayWrapper();
+    if(this.language == 'ar')
+      this.closeBtnText = 'قريب';
+
+    self.send('CheckIfThereIsSubscription', { sid: self.userSessionID }, function (response) {
+      if (!response.status)
+        self.initialization();
+      else
+      {
+        self.closeLoader();
+        $('#__tpaySubscriptionWindowHolder').css('display', 'none');
+      }
+    });
+  }
+
+  this.initialization = function () {
+    var self = this;
+    self.closeLoader();
+
+    self.validateServiceConfiguration();
+    if (self.hasError)
+      return;
+
+    self.checkViewName();
+    if (!self.tpay.exists()) {
+      self.hasError = true;
+      console.error('TPAY: non HeaderEnrichment');
+      return;
+    }
+
+    if (self.viewName == 'Login.cshtml')
+      $('#__tpaySubscriptionWindowHolder').css('display', 'none');
+
+    self.tpaySessionID = self.tpay.getSessionID();
+    self.tpayMsisdn = self.tpay.getMsisnd();
+    self.operatorCode = self.tpay.getOperatorCode();
+
+    console.log('TPAY:: tpaySessionID=' + self.tpaySessionID);
+    console.log('TPAY:: tpayMsisnd=' + self.tpayMsisdn);
+    console.log('TPAY:: operatorCode=' + self.operatorCode);
+
+    this.getMobileOperatorID(); // with this we shold get catalogName also
+    self.prepareContentLinks();
+
+    self.tpay.hasSubscription(self.productSku, function (hasSub, subId) {
+      if (!hasSub) {
+
+        console.log('TPAY: no subscription');
+        self.hasSubscription = false;
+      }
+      else {
+        $('#__tpaySubscriptionWindowHolder').css('display', 'none');
+
+        if (self.iscon)
+          self.subscriptionID = subId;
+        self.hasSubscription = true;
+        console.log('TPAY: SubscriptionID=' + self.subscriptionID);
+      }
+    });
+  }
+
+  // SUMMARY: Validate that we have all data from service
+  this.validateServiceConfiguration = function () {
+    if(this.productSku == '' || this.subscriptionPlan == '')
+    {
+      this.hasError = true;
+      _visual.Alert("This service is not properly configured. Please contact system administrator", this.closeBtnText);
+    }
+  }
+
+  // SUMMARY: Get mobile operator based on self.operatorCode, also catalogName
+  this.getMobileOperatorID = function(){
+    var self = this;
+    if (self.hasError)
+      return;
+
+    // in case we have all informations we need
+    if (self.mobileOperatorID != -1)
+    {
+      if (self.catalogName == '')
+        self.getCatalogName(); // get catalog name
+      else
+        self.onSyncComplete(); // everything is there
+    }
+    
+    self.send('GetMobileOperatorByCode', { code: self.operatorCode }, function (response) {
+      if(!response.status)
+      {
+        self.onSyncComplete("Internal error, we could not identify your mobile operator");
+        self.hasError = true;
+        return;
+      }
+
+      self.mobileOperatorID = response.id;
+      self.catalogName = response.catalogName;
+
+      if (self.catalogName == '')
+      {
+        self.onSyncComplete('Internal error, we could not get catalog name for this service');
+        self.hasError = true;
+        return;
+      }
+
+      self.onSyncComplete();
+    });
+  }
+  
+  // SUMMARY: Get catalog name based on mobileoperatorID we allready have
+  this.getCatalogName = function(){
+    var self = this;
+    if (self.hasError)
+      return;
+
+    // in case that in this step we have not find mno id
+    if (self.mobileOperatorID == -1)
+    {
+      self.onSyncComplete("Internal error, we could not identify your mobile operator");
+      self.hasError = true;
+      return;
+    }
+    
+    self.send('GetCatalogNameByMobileOperatorID', { mno: self.mobileOperatorID }, function (response) {
+      self.catalogName = response.catalogName;
+
+      // in case that there is no catalog name for this mno
+      if(self.catalogName == '')
+      {
+        self.onSyncComplete('Internal error, we could not get catalog name for this service');
+        self.hasError = true;
+        return;
+      }
+
+      self.onSyncComplete();
+    });
+
+  }
+
+  // SUMMARY: on sync process ends on paywall side
+  this.onSyncComplete = function (errText) {
+    var self = this;
+    if(typeof errText !== 'undefined')
+    {
+      $('#_tpay_loader_text').text(errText);
+      return;
+    }
+
+    // in this step we should have all data we need
+    self.tpayMsisdn = TPay.HeaderEnrichment.msisdn();
+    self.send('CreateLookupData', { tpaySessionID: self.tpaySessionID, msisdn: self.tpayMsisdn }, function (response) {
+      $('#_tpay_loader').fadeOut(800);
+    });
+  }
+
+  // SUMMARY: Open loader before any ajax call
+  this.openLoader = function(txt)
+  {
+    if (typeof txt === 'undefined')
+      txt = 'Wait..';
+
+    $('#_tpay_loader_text').text(txt);
+    $('#_tpay_loader').fadeIn(400);
+  }
+
+  // SUMMARY: Close loader after async request
+  this.closeLoader = function () {
+    $('#_tpay_loader').fadeOut(500);
+  }
+
+  // SUMMARY: check view name 
+  this.checkViewName = function () {
+    var self = this;
+    self.viewName = $('meta[name=ViewName]').attr("content");
+    var supportedViews = ['Home', 'HomeAndroid', 'HomeAuction', 'HomeQuiz'];
+    var contentViews = ['ContentAndroid', 'ContentHtml5', 'ContentImage', 'ContentQuiz', 'Video'];
+
+    for (var i = 0; i < supportedViews.length; i++)
+      if (self.viewName == supportedViews[i] + '.cshtml') {
+        self.isViewSupported = true;
+        return;
+      }
+
+    for (var i = 0; i < contentViews.length; i++)
+      if (self.viewName == contentViews[i] + '.cshtml') {
+        self.isViewSupported = true;
+        self.isContentView = true;
+        return;
+      }
+
+    $('#_tpay_loader').remove();
+  }
+
+  // SUMMARY: prepare content links for payment reqeust
+  this.prepareContentLinks = function () {
+    var self = this;
+
+    $('.___clink').each(function () {
+      var link = $(this).attr('href');
+      $(this).attr('href', '');
+      $(this).attr('content-href', link);
+    });
+
+    $('.___clink').click(function (e) {
+      e.preventDefault();
+      self.paymentRequest($(this));
+    });
+  }
+
+  // SUMMARY: Request payment method
+  this.paymentRequest = function (elem) {
+    var self = this;
+    if (self.hasError)
+      return;
+
+    if (self.hasSubscription) {
+      window.location = elem.attr('content-href');
+      return;
+    }
+
+    if (self.paymentRequestBusy)
+      return;
+
+    self.openLoader('Preparing..');
+    self.paymentRequestBusy = true;
+    self.send('CheckIfSetupIsReady', { a: 0 }, function (response) {
+
+      self.closeLoader();
+
+      // check if we have every data we need for process
+      if(!response.status)
+      {
+        self.paymentRequestBusy = false;
+        var alertMessage = self.language == 'en' ? 'Payment request could not be done. Please refresh page' : 'تعذر إجراء طلب الدفع. يرجى تحديث الصفحة';
+        _visual.Alert(alertMessage, self.closeBtnText);
+        return;
+      }
+
+      // in case this is wifi flow
+      if (self.mobileOperatorID == -1)
+      {
+        var wifiFlowModal = $('#__tpay_wifiFlow');
+        if (wifiFlowModal.length == 0)
+        {
+          self.openLoader();
+          self.send('WifiSetupView', { a: 0 }, function (response) {
+            $('body').append(response);
+            self.closeLoader();
+            openWifiModal(elem.attr('content-href'));
+            wifiModalInit();
+          });
+          return;
+        }
+
+        self.paymentRequestBusy = false;
+        if (wifiFlowModal.attr('isvisible') == 'true')
+          closeWifiModal();
+        else
+          openWifiModal(elem.attr('content-href'));
+        
+        return;
+      }
+
+      self.tpay.confirm(self.subscriptionPlan, self.catalogName, self.productSku, function (result, refNo) {
+        if (result == true) {
+          self.tpayMsisdn = self.tpay.getMsisnd();
+          self.send('Setup', { refNo: refNo, msisdn: self.tpayMsisdn }, function (response) {
+            self.paymentRequestBusy = false;
+            if (response.status)
+              window.location = elem.attr('content-href');
+            else
+              _visual.Alert(response.message, 'دخول');
+          });
+        }
+        else {
+          self.send('ReportUnsuccessfulPaymentRequest', { refNo: refNo }, function (response) {
+            self.paymentRequestBusy = false;
+          });
+        }
+      });
+    });
+  }
+
+  // SUMMARY: General Ajax method
+  this.send = function(action, data, succ_func)
+  {
+    $.ajax({
+      url: '/TPay/' + action, data: data, method: 'POST',
+      success:function(response)
+      {
+        succ_func(response);
+      }
+    });
+  }
+
+
+}

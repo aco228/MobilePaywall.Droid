@@ -1,0 +1,554 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(AuctionContentDetail))] 
+  public partial class AuctionContentDetailManager : MobilePaywall.Data.Sql.SqlManagerBase<AuctionContentDetail>, IAuctionContentDetailManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override AuctionContentDetail LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							AuctionContentDetailTable.GetColumnNames("[acd]") + 
+							(this.Depth > 0 ? "," + AuctionContentTable.GetColumnNames("[acd_ac]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[acd_ac_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[acd_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[acd_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[acd_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[acd_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[acd_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[acd_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[acd_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[acd_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[acd_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[acd_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[acd_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[acd_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + LanguageTable.GetColumnNames("[acd_l]") : string.Empty) + 
+					" FROM [core].[AuctionContentDetail] AS [acd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AuctionContent] AS [acd_ac] ON [acd].[AuctionContentID] = [acd_ac].[AuctionContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [acd_ac_c] ON [acd_ac].[ContentID] = [acd_ac_c].[ContentID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [acd_s] ON [acd].[ServiceID] = [acd_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [acd_s_a] ON [acd_s].[ApplicationID] = [acd_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [acd_s_p] ON [acd_s].[ProductID] = [acd_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [acd_s_m] ON [acd_s].[MerchantID] = [acd_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [acd_s_st] ON [acd_s].[ServiceTypeID] = [acd_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [acd_s_ust] ON [acd_s].[UserSessionTypeID] = [acd_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [acd_s_c] ON [acd_s].[FallbackCountryID] = [acd_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [acd_s_l] ON [acd_s].[FallbackLanguageID] = [acd_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [acd_s_ar] ON [acd_s].[FallbackAgeRatingID] = [acd_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [acd_s_sc] ON [acd_s].[ServiceConfigurationID] = [acd_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [acd_s_bm] ON [acd_s].[BusinessModelID] = [acd_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [acd_s_t] ON [acd_s].[TemplateID] = [acd_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [acd_l] ON [acd].[LanguageID] = [acd_l].[LanguageID] ";
+				sqlCmdText += "WHERE [acd].[AuctionContentDetailID] = @AuctionContentDetailID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AuctionContentDetailID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "loadinternal", "notfound"), "AuctionContentDetail could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AuctionContentDetailTable acdTable = new AuctionContentDetailTable(query);
+				AuctionContentTable acd_acTable = (this.Depth > 0) ? new AuctionContentTable(query) : null;
+				ContentTable acd_ac_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				ServiceTable acd_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable acd_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable acd_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable acd_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable acd_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable acd_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable acd_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable acd_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable acd_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable acd_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable acd_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable acd_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				LanguageTable acd_lTable = (this.Depth > 0) ? new LanguageTable(query) : null;
+
+        
+				Content acd_ac_cObject = (this.Depth > 1) ? acd_ac_cTable.CreateInstance() : null;
+				AuctionContent acd_acObject = (this.Depth > 0) ? acd_acTable.CreateInstance(acd_ac_cObject) : null;
+				Application acd_s_aObject = (this.Depth > 1) ? acd_s_aTable.CreateInstance() : null;
+				Product acd_s_pObject = (this.Depth > 1) ? acd_s_pTable.CreateInstance() : null;
+				Merchant acd_s_mObject = (this.Depth > 1) ? acd_s_mTable.CreateInstance() : null;
+				ServiceType acd_s_stObject = (this.Depth > 1) ? acd_s_stTable.CreateInstance() : null;
+				UserSessionType acd_s_ustObject = (this.Depth > 1) ? acd_s_ustTable.CreateInstance() : null;
+				Country acd_s_cObject = (this.Depth > 1) ? acd_s_cTable.CreateInstance() : null;
+				Language acd_s_lObject = (this.Depth > 1) ? acd_s_lTable.CreateInstance() : null;
+				AgeRating acd_s_arObject = (this.Depth > 1) ? acd_s_arTable.CreateInstance() : null;
+				ServiceConfiguration acd_s_scObject = (this.Depth > 1) ? acd_s_scTable.CreateInstance() : null;
+				BusinessModel acd_s_bmObject = (this.Depth > 1) ? acd_s_bmTable.CreateInstance() : null;
+				Template acd_s_tObject = (this.Depth > 1) ? acd_s_tTable.CreateInstance() : null;
+				Service acd_sObject = (this.Depth > 0) ? acd_sTable.CreateInstance(acd_s_aObject, acd_s_pObject, acd_s_mObject, acd_s_stObject, acd_s_ustObject, acd_s_cObject, acd_s_lObject, acd_s_arObject, acd_s_scObject, acd_s_bmObject, acd_s_tObject) : null;
+				Language acd_lObject = (this.Depth > 0) ? acd_lTable.CreateInstance() : null;
+				AuctionContentDetail acdObject = acdTable.CreateInstance(acd_acObject, acd_sObject, acd_lObject);
+				sqlReader.Close();
+
+				return acdObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "loadinternal", "exception"), "AuctionContentDetail could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AuctionContentDetail", "Exception while loading AuctionContentDetail object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public AuctionContentDetail Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AuctionContentDetailTable.GetColumnNames("[acd]") + 
+							(this.Depth > 0 ? "," + AuctionContentTable.GetColumnNames("[acd_ac]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[acd_ac_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[acd_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[acd_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[acd_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[acd_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[acd_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[acd_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[acd_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[acd_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[acd_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[acd_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[acd_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[acd_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + LanguageTable.GetColumnNames("[acd_l]") : string.Empty) +  
+					" FROM [core].[AuctionContentDetail] AS [acd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AuctionContent] AS [acd_ac] ON [acd].[AuctionContentID] = [acd_ac].[AuctionContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [acd_ac_c] ON [acd_ac].[ContentID] = [acd_ac_c].[ContentID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [acd_s] ON [acd].[ServiceID] = [acd_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [acd_s_a] ON [acd_s].[ApplicationID] = [acd_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [acd_s_p] ON [acd_s].[ProductID] = [acd_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [acd_s_m] ON [acd_s].[MerchantID] = [acd_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [acd_s_st] ON [acd_s].[ServiceTypeID] = [acd_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [acd_s_ust] ON [acd_s].[UserSessionTypeID] = [acd_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [acd_s_c] ON [acd_s].[FallbackCountryID] = [acd_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [acd_s_l] ON [acd_s].[FallbackLanguageID] = [acd_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [acd_s_ar] ON [acd_s].[FallbackAgeRatingID] = [acd_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [acd_s_sc] ON [acd_s].[ServiceConfigurationID] = [acd_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [acd_s_bm] ON [acd_s].[BusinessModelID] = [acd_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [acd_s_t] ON [acd_s].[TemplateID] = [acd_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [acd_l] ON [acd].[LanguageID] = [acd_l].[LanguageID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "customload", "notfound"), "AuctionContentDetail could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AuctionContentDetailTable acdTable = new AuctionContentDetailTable(query);
+				AuctionContentTable acd_acTable = (this.Depth > 0) ? new AuctionContentTable(query) : null;
+				ContentTable acd_ac_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				ServiceTable acd_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable acd_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable acd_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable acd_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable acd_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable acd_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable acd_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable acd_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable acd_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable acd_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable acd_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable acd_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				LanguageTable acd_lTable = (this.Depth > 0) ? new LanguageTable(query) : null;
+
+        
+				Content acd_ac_cObject = (this.Depth > 1) ? acd_ac_cTable.CreateInstance() : null;
+				AuctionContent acd_acObject = (this.Depth > 0) ? acd_acTable.CreateInstance(acd_ac_cObject) : null;
+				Application acd_s_aObject = (this.Depth > 1) ? acd_s_aTable.CreateInstance() : null;
+				Product acd_s_pObject = (this.Depth > 1) ? acd_s_pTable.CreateInstance() : null;
+				Merchant acd_s_mObject = (this.Depth > 1) ? acd_s_mTable.CreateInstance() : null;
+				ServiceType acd_s_stObject = (this.Depth > 1) ? acd_s_stTable.CreateInstance() : null;
+				UserSessionType acd_s_ustObject = (this.Depth > 1) ? acd_s_ustTable.CreateInstance() : null;
+				Country acd_s_cObject = (this.Depth > 1) ? acd_s_cTable.CreateInstance() : null;
+				Language acd_s_lObject = (this.Depth > 1) ? acd_s_lTable.CreateInstance() : null;
+				AgeRating acd_s_arObject = (this.Depth > 1) ? acd_s_arTable.CreateInstance() : null;
+				ServiceConfiguration acd_s_scObject = (this.Depth > 1) ? acd_s_scTable.CreateInstance() : null;
+				BusinessModel acd_s_bmObject = (this.Depth > 1) ? acd_s_bmTable.CreateInstance() : null;
+				Template acd_s_tObject = (this.Depth > 1) ? acd_s_tTable.CreateInstance() : null;
+				Service acd_sObject = (this.Depth > 0) ? acd_sTable.CreateInstance(acd_s_aObject, acd_s_pObject, acd_s_mObject, acd_s_stObject, acd_s_ustObject, acd_s_cObject, acd_s_lObject, acd_s_arObject, acd_s_scObject, acd_s_bmObject, acd_s_tObject) : null;
+				Language acd_lObject = (this.Depth > 0) ? acd_lTable.CreateInstance() : null;
+				AuctionContentDetail acdObject = acdTable.CreateInstance(acd_acObject, acd_sObject, acd_lObject);
+				sqlReader.Close();
+
+				return acdObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "customload", "exception"), "AuctionContentDetail could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AuctionContentDetail", "Exception while loading (custom/single) AuctionContentDetail object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<AuctionContentDetail> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AuctionContentDetailTable.GetColumnNames("[acd]") + 
+							(this.Depth > 0 ? "," + AuctionContentTable.GetColumnNames("[acd_ac]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[acd_ac_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[acd_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[acd_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[acd_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[acd_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[acd_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[acd_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[acd_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[acd_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[acd_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[acd_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[acd_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[acd_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + LanguageTable.GetColumnNames("[acd_l]") : string.Empty) +  
+					" FROM [core].[AuctionContentDetail] AS [acd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AuctionContent] AS [acd_ac] ON [acd].[AuctionContentID] = [acd_ac].[AuctionContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [acd_ac_c] ON [acd_ac].[ContentID] = [acd_ac_c].[ContentID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [acd_s] ON [acd].[ServiceID] = [acd_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [acd_s_a] ON [acd_s].[ApplicationID] = [acd_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [acd_s_p] ON [acd_s].[ProductID] = [acd_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [acd_s_m] ON [acd_s].[MerchantID] = [acd_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [acd_s_st] ON [acd_s].[ServiceTypeID] = [acd_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [acd_s_ust] ON [acd_s].[UserSessionTypeID] = [acd_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [acd_s_c] ON [acd_s].[FallbackCountryID] = [acd_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [acd_s_l] ON [acd_s].[FallbackLanguageID] = [acd_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [acd_s_ar] ON [acd_s].[FallbackAgeRatingID] = [acd_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [acd_s_sc] ON [acd_s].[ServiceConfigurationID] = [acd_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [acd_s_bm] ON [acd_s].[BusinessModelID] = [acd_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [acd_s_t] ON [acd_s].[TemplateID] = [acd_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [acd_l] ON [acd].[LanguageID] = [acd_l].[LanguageID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "customloadmany", "notfound"), "AuctionContentDetail list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<AuctionContentDetail>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AuctionContentDetailTable acdTable = new AuctionContentDetailTable(query);
+				AuctionContentTable acd_acTable = (this.Depth > 0) ? new AuctionContentTable(query) : null;
+				ContentTable acd_ac_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				ServiceTable acd_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable acd_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable acd_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable acd_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable acd_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable acd_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable acd_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable acd_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable acd_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable acd_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable acd_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable acd_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				LanguageTable acd_lTable = (this.Depth > 0) ? new LanguageTable(query) : null;
+
+        List<AuctionContentDetail> result = new List<AuctionContentDetail>();
+        do
+        {
+          
+					Content acd_ac_cObject = (this.Depth > 1) ? acd_ac_cTable.CreateInstance() : null;
+					AuctionContent acd_acObject = (this.Depth > 0) ? acd_acTable.CreateInstance(acd_ac_cObject) : null;
+					Application acd_s_aObject = (this.Depth > 1) ? acd_s_aTable.CreateInstance() : null;
+					Product acd_s_pObject = (this.Depth > 1) ? acd_s_pTable.CreateInstance() : null;
+					Merchant acd_s_mObject = (this.Depth > 1) ? acd_s_mTable.CreateInstance() : null;
+					ServiceType acd_s_stObject = (this.Depth > 1) ? acd_s_stTable.CreateInstance() : null;
+					UserSessionType acd_s_ustObject = (this.Depth > 1) ? acd_s_ustTable.CreateInstance() : null;
+					Country acd_s_cObject = (this.Depth > 1) ? acd_s_cTable.CreateInstance() : null;
+					Language acd_s_lObject = (this.Depth > 1) ? acd_s_lTable.CreateInstance() : null;
+					AgeRating acd_s_arObject = (this.Depth > 1) ? acd_s_arTable.CreateInstance() : null;
+					ServiceConfiguration acd_s_scObject = (this.Depth > 1) ? acd_s_scTable.CreateInstance() : null;
+					BusinessModel acd_s_bmObject = (this.Depth > 1) ? acd_s_bmTable.CreateInstance() : null;
+					Template acd_s_tObject = (this.Depth > 1) ? acd_s_tTable.CreateInstance() : null;
+					Service acd_sObject = (this.Depth > 0) ? acd_sTable.CreateInstance(acd_s_aObject, acd_s_pObject, acd_s_mObject, acd_s_stObject, acd_s_ustObject, acd_s_cObject, acd_s_lObject, acd_s_arObject, acd_s_scObject, acd_s_bmObject, acd_s_tObject) : null;
+					Language acd_lObject = (this.Depth > 0) ? acd_lTable.CreateInstance() : null;
+					AuctionContentDetail acdObject = (this.Depth > -1) ? acdTable.CreateInstance(acd_acObject, acd_sObject, acd_lObject) : null;
+					result.Add(acdObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "customloadmany", "exception"), "AuctionContentDetail list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AuctionContentDetail", "Exception while loading (custom/many) AuctionContentDetail object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, AuctionContentDetail data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[AuctionContentDetail] ([AuctionContentID],[ServiceID],[LanguageID],[Title],[Description],[Rating],[HtmlTitle],[MetaDescription],[MetaKeywords]) VALUES(@AuctionContentID,@ServiceID,@LanguageID,@Title,@Description,@Rating,@HtmlTitle,@MetaDescription,@MetaKeywords); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@AuctionContentID", data.AuctionContent.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service == null ? DBNull.Value : (object)data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@LanguageID", data.Language == null ? DBNull.Value : (object)data.Language.ID);
+				sqlCmd.Parameters.AddWithValue("@Title", data.Title).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@Rating", data.Rating).SqlDbType = SqlDbType.Decimal;
+				sqlCmd.Parameters.AddWithValue("@HtmlTitle", data.HtmlTitle).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@MetaDescription", !string.IsNullOrEmpty(data.MetaDescription) ? (object)data.MetaDescription : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@MetaKeywords", !string.IsNullOrEmpty(data.MetaKeywords) ? (object)data.MetaKeywords : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "insert", "noprimarykey"), "AuctionContentDetail could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "AuctionContentDetail", "Exception while inserting AuctionContentDetail object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "insert", "exception"), "AuctionContentDetail could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "AuctionContentDetail", "Exception while inserting AuctionContentDetail object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, AuctionContentDetail data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[AuctionContentDetail] SET " +
+												"[AuctionContentID] = @AuctionContentID, " + 
+												"[ServiceID] = @ServiceID, " + 
+												"[LanguageID] = @LanguageID, " + 
+												"[Title] = @Title, " + 
+												"[Description] = @Description, " + 
+												"[Rating] = @Rating, " + 
+												"[HtmlTitle] = @HtmlTitle, " + 
+												"[MetaDescription] = @MetaDescription, " + 
+												"[MetaKeywords] = @MetaKeywords, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [AuctionContentDetailID] = @AuctionContentDetailID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@AuctionContentID", data.AuctionContent.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service == null ? DBNull.Value : (object)data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@LanguageID", data.Language == null ? DBNull.Value : (object)data.Language.ID);
+				sqlCmd.Parameters.AddWithValue("@Title", data.Title).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@Rating", data.Rating).SqlDbType = SqlDbType.Decimal;
+				sqlCmd.Parameters.AddWithValue("@HtmlTitle", data.HtmlTitle).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@MetaDescription", !string.IsNullOrEmpty(data.MetaDescription) ? (object)data.MetaDescription : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@MetaKeywords", !string.IsNullOrEmpty(data.MetaKeywords) ? (object)data.MetaKeywords : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@AuctionContentDetailID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "update", "norecord"), "AuctionContentDetail could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "AuctionContentDetail", "Exception while updating AuctionContentDetail object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "update", "morerecords"), "AuctionContentDetail was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "AuctionContentDetail", "Exception while updating AuctionContentDetail object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "update", "exception"), "AuctionContentDetail could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "AuctionContentDetail", "Exception while updating AuctionContentDetail object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, AuctionContentDetail data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[AuctionContentDetail] WHERE AuctionContentDetailID = @AuctionContentDetailID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AuctionContentDetailID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "delete", "norecord"), "AuctionContentDetail could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "AuctionContentDetail", "Exception while deleting AuctionContentDetail object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "delete", "exception"), "AuctionContentDetail could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "AuctionContentDetail", "Exception while deleting AuctionContentDetail object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

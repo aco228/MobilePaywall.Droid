@@ -1,0 +1,253 @@
+﻿using MobilePaywall.Data;
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Migrator
+{
+  public class PaywallItemEntry
+  {
+    private List<IDataObject> _objects = null;
+    private Service _service = null;
+    private MobileOperator _mobileOperator = null;
+    private Customer _customer = null;
+    private UserSessionType _userSessionType = null;
+    private Domain _domain = null;
+    private UserSession _userSession = null;
+    private UserHttpRequest _userHttpRequest = null;
+    private LookupSession _lookupSession = null;
+    private LookupSessionResult _lookupSessionResult = null;
+    private PaymentConfiguration _paymentConfiguration = null;
+    private ServiceOffer _serviceOffer = null;
+    private BusinessModelEntry _businessModelEntry = null;
+    private PaymentRequest _paymentRequest = null;
+    private Payment _payment = null;
+    private Transaction _transaction = null;
+    private PaymentContentAccessPolicyMap _paymentContentAccessPolicyMap = null;
+
+    public List<IDataObject> Objects {get{return this._objects;} set{this._objects = value;}}
+    public UserSession UserSession { get { return this._userSession; } set { this._userSession = value; } }
+    public UserHttpRequest UserHttpRequest { get { return this._userHttpRequest; } set { this._userHttpRequest = value; } }
+    public LookupSession LookupSession { get { return this._lookupSession; } set { this._lookupSession = value; } }
+    public LookupSessionResult LookupSessionResult { get { return this._lookupSessionResult; } set { this._lookupSessionResult = value; } }
+    public PaymentRequest PaymentRequest { get { return this._paymentRequest; } set { this._paymentRequest = value; } }
+    public Payment Payment { get { return this._payment; } set { this._payment = value; } }
+    public Transaction Transaction { get { return this._transaction; } set { this._transaction = value; } }
+    public PaymentContentAccessPolicyMap PaymentContentAccessPolicyMap { get { return this._paymentContentAccessPolicyMap; } set { this._paymentContentAccessPolicyMap = value; } }
+
+    private BehaviorModel _behaviorModel = null;
+    private CashflowItem _cashflowItem = null;
+
+    public BehaviorModel BehaviorModel { get { return this._behaviorModel; } set { this._behaviorModel = value; } }
+    public CashflowItem CashflowItem { get { return this._cashflowItem; } set { this._cashflowItem = value; } }
+
+    public PaywallItemEntry(BehaviorModel behaviorModel, Service service, CashflowItem cashflowItem)
+    {
+      this._behaviorModel = behaviorModel;
+      this._service = service;
+      this._cashflowItem = cashflowItem;
+      this.Initialize();
+    }
+
+    public void Initialize()
+    {
+      this._objects = new List<IDataObject>();
+      IMobileOperatorManager moManager = MobileOperator.CreateManager();
+      this._mobileOperator = moManager.Load(this._cashflowItem.MobileSubscriber.MobileOperator.ID, IDType.External);
+      if(this._mobileOperator == null)
+        return;
+
+      ICustomerManager cManager = Customer.CreateManager();
+      this._customer = 
+        new Customer(-1, 
+                     Guid.NewGuid(), 
+                     CustomerStatus.Active, 
+                     this._service, 
+                     this._service.FallbackCountry, 
+                     this._mobileOperator, 
+                     this._cashflowItem.MobileCustomer.Customer.Guid, 
+                     this._cashflowItem.MobileSubscriber.Msisdn, 
+                     this._cashflowItem.MobileSubscriber.EncryptedMsisdn, 
+                     null, 
+                     MobileMafiaCustomer.RetrivePassword(this._cashflowItem.MobileCustomer.Customer.Guid), 
+                     DateTime.Now, 
+                     DateTime.Now);
+
+      this._objects.Add(this._customer);
+
+      IUserSessionTypeManager ustManager = UserSessionType.CreateManager();
+      this._userSessionType = ustManager.Load(1);
+      if (this._userSessionType == null)
+        return;
+      
+      IDomainManager dManager = Domain.CreateManager();
+      this._domain = dManager.Load(this._service).FirstOrDefault();
+      if (this._domain == null)
+        return;
+
+      //INSERT
+      this._userSession =
+        new UserSession(-1,
+          Guid.NewGuid(),
+          this._userSessionType,
+          this._service,
+          this._domain,
+          this._customer,
+          this._service.FallbackCountry,
+          this._service.FallbackLanguage,
+          this._mobileOperator,
+          null, /* trackingID */
+          null, /* fingerprint */
+          false, /* has verifiedAge */
+          false, /* is welcome shown */
+          this._cashflowItem.Subscription.SubscriptionRequest.IPAddress,
+          IPAddressType.IPv4,
+          null, /* user agent */
+          null, /* entranceUrl */
+          null, /* refferer */
+          DateTime.MinValue, /* validUntil */
+          DateTime.Now, DateTime.Now);
+
+      this._objects.Add(this._userSession);
+
+      //INSERT
+      this._userHttpRequest =
+        new UserHttpRequest(-1,
+                            Guid.NewGuid(),
+                            this._userSession,
+                            null,
+                            "/",
+                            DateTime.Now,
+                            DateTime.Now);
+
+      this._objects.Add(this._userHttpRequest);
+
+      //INSERT
+      this._lookupSession =
+        new LookupSession(-1,
+                          Guid.NewGuid(),
+                          LookupSessionStatus.Complete,
+                          this._userSession,
+                          this._userHttpRequest,
+                          this._cashflowItem.SubscriptionRequestIdentificationResultMap.IdentificationResult.IdentificationSession.Guid,
+                          "",
+                          DateTime.Now,
+                          DateTime.Now);
+
+      this._objects.Add(this._lookupSession);
+
+      //INSERT
+      this._lookupSessionResult =
+        new LookupSessionResult(-1,
+                                this._lookupSession,
+                                true,
+                                true,
+                                this._cashflowItem.SubscriptionRequestIdentificationResultMap.IdentificationResult.Guid,
+                                this._mobileOperator,
+                                this._customer.Msisdn,
+                                this._customer.EncryptedMsisdn,
+                                DateTime.Now,
+                                DateTime.Now);
+
+      this._objects.Add(this._lookupSessionResult);
+
+      IServiceOfferManager soManager = ServiceOffer.CreateManager();
+      this._serviceOffer = soManager.Load(this._behaviorModel);
+      if (this._serviceOffer == null)
+        return;
+
+      IBusinessModelEntryManager bmeManager = BusinessModelEntry.CreateManager();
+      this._businessModelEntry = bmeManager.Load(this._customer.Country, null).FirstOrDefault();
+      if (this._businessModelEntry == null)
+        return;
+
+      //INSERT
+      this._paymentRequest =
+        new PaymentRequest(-1,
+                           Guid.NewGuid(),
+                           PaymentType.Subscription,
+                           PaymentRequestStatus.Complete,
+                           this._lookupSession,
+                           this._customer,
+                           this._userSession,
+                           this._serviceOffer,
+                           this._businessModelEntry,
+                           this._cashflowItem.Subscription.SubscriptionRequest.Guid,
+                           this._userHttpRequest,
+                           "",
+                           DateTime.Now,
+                           DateTime.Now);
+
+      this._objects.Add(this._paymentRequest);
+
+      //INSERT
+      this._payment =
+        new Payment(-1,
+                    Guid.NewGuid(),
+                    PaymentType.Subscription,
+                    this._cashflowItem.Subscription.Guid,
+                    PaymentStatus.Successful,
+                    this._paymentRequest,
+                    this._customer,
+                    this._serviceOffer,
+                    this._businessModelEntry,
+                    DateTime.Now,
+                    DateTime.Now);
+
+      this._objects.Add(this._payment);
+
+      //INSERT
+      this._transaction =
+        new Transaction(-1,
+                        Guid.NewGuid(),
+                        this._payment,
+                        this._cashflowItem.Transaction.TransactionGroup.Guid,
+                        this._cashflowItem.Transaction.Guid,
+                        TransactionStatus.Executed,
+                        TransactionType.Debit,
+                        DateTime.Now,
+                        DateTime.Now);
+
+      this._objects.Add(this._transaction);
+
+      //INSERT
+      this._paymentContentAccessPolicyMap =
+        new PaymentContentAccessPolicyMap(-1, 
+                                          this._payment, 
+                                          null, 
+                                          this._serviceOffer.ContentAccessPolicy, 
+                                          this._transaction, 
+                                          true, 
+                                          false,
+                                          this._cashflowItem.Transaction.Created,
+                                          this._cashflowItem.Transaction.Created.AddDays(7), 
+                                          DateTime.Now, 
+                                          DateTime.Now);
+
+      this._objects.Add(this._paymentContentAccessPolicyMap);
+    }
+
+    public void Insert() 
+    {
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        try
+        {
+          connection.Transaction.Begin();
+          foreach (IDataObject @object in this._objects)
+            @object.Insert(connection);
+          //Console.WriteLine("not inserted");
+          connection.Transaction.Commit();
+        }
+        catch (Exception ex)
+        {
+          connection.Transaction.Rollback();
+        }
+      }
+    }
+  }
+}

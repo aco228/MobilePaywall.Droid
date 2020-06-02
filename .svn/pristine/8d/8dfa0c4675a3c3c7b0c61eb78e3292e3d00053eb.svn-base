@@ -1,0 +1,122 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class ImageFormatManager : IImageFormatManager
+  {
+
+		public List<ImageFormat> Load(ImageFormatType imageFormatType)
+		{
+			using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+				return this.Load(connection, imageFormatType);
+		}
+
+		public List<ImageFormat> Load(IConnectionInfo connection, ImageFormatType imageFormatType)
+		{
+			ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+			if (sqlConnection != null)
+				return this.Load(sqlConnection, imageFormatType);
+			using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+				return this.Load(sqlConnection, imageFormatType);
+		}
+
+		public List<ImageFormat> Load(ISqlConnectionInfo connection, ImageFormatType imageFormatType)
+		{
+			SqlQueryParameters parameters = new SqlQueryParameters();
+			parameters.Where = "[if].ImageFormatTypeID = @ImageFormatTypeID";
+			parameters.Arguments.Add("ImageFormatTypeID", (int) imageFormatType);
+			return this.LoadMany(connection, parameters);
+		}
+
+
+		public List<ImageFormat> Load(string mimeType)
+		{
+			using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+				return this.Load(connection, mimeType);
+		}
+
+		public List<ImageFormat> Load(IConnectionInfo connection, string mimeType)
+		{
+			ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+			if (sqlConnection != null)
+				return this.Load(sqlConnection, mimeType);
+			using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+				return this.Load(sqlConnection, mimeType);
+		}
+
+		public List<ImageFormat> Load(ISqlConnectionInfo connection, string mimeType)
+		{
+			SqlQueryParameters parameters = new SqlQueryParameters();
+			parameters.Where = "[if].MimeType = @MimeType";
+			parameters.Arguments.Add("MimeType", mimeType);
+			return this.LoadMany(connection, parameters);
+		}
+
+
+
+		//public ImageFormat LoadByExtension(string extension)
+		//{
+		//	using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+		//		return this.LoadByExtension(connection, extension);
+		//}
+
+		//public ImageFormat LoadByExtension(IConnectionInfo connection, string extension)
+		//{
+		//	ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+		//	if (sqlConnection != null)
+		//		return this.LoadByExtension(sqlConnection, extension);
+		//	using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+		//		return this.LoadByExtension(sqlConnection, extension);
+		//}
+
+		//public ImageFormat LoadByExtension(ISqlConnectionInfo connection, string extension)
+		//{
+		//	SqlQueryParameters parameters = new SqlQueryParameters();
+		//	parameters.Where = "[if].Extension = @Extension";
+		//	parameters.Arguments.Add("Extension", extension);
+		//	return this.Load(connection, parameters);
+		//}
+
+
+		public T Load<T>(string value, ImageFormatIdentifier identifier) 
+		{
+			using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+				return this.Load<T>(connection, value, identifier);
+		}
+
+		public T Load<T>(IConnectionInfo connection, string value, ImageFormatIdentifier identifier)
+		{
+			ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+			if (sqlConnection != null)
+				return this.Load<T>(sqlConnection, value, identifier);
+			using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+				return this.Load<T>(sqlConnection, value, identifier);
+		}
+
+		public T Load<T>(ISqlConnectionInfo connection, string value, ImageFormatIdentifier identifier)
+		{
+			if (identifier == ImageFormatIdentifier.Extension && value.Equals(".jpeg"))
+				value = ".jpg";
+
+			SqlQueryParameters parameters = new SqlQueryParameters();
+			parameters.Where = string.Format("[if].{0} = @Value", identifier.ToString());
+			parameters.Arguments.Add("Value", value);
+			if (typeof(T).Equals(typeof(List<ImageFormat>)))
+				return (T)Convert.ChangeType(this.LoadMany(connection, parameters), typeof(T));
+			else
+				return (T)Convert.ChangeType(this.Load(connection, parameters), typeof(T));
+		}
+
+  }
+}
+

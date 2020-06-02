@@ -1,0 +1,458 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ServiceContentStorageMap))] 
+  public partial class ServiceContentStorageMapManager : MobilePaywall.Data.Sql.SqlManagerBase<ServiceContentStorageMap>, IServiceContentStorageMapManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ServiceContentStorageMap LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ServiceContentStorageMapTable.GetColumnNames("[scsm]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[scsm_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[scsm_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[scsm_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[scsm_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[scsm_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[scsm_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[scsm_s_bm]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentStorageTable.GetColumnNames("[scsm_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTypeTable.GetColumnNames("[scsm_cs_cst]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[scsm_cs_i]") : string.Empty) + 
+					" FROM [core].[ServiceContentStorageMap] AS [scsm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [scsm_s] ON [scsm].[ServiceID] = [scsm_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [scsm_s_a] ON [scsm_s].[ApplicationID] = [scsm_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [scsm_s_p] ON [scsm_s].[ProductID] = [scsm_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [scsm_s_m] ON [scsm_s].[MerchantID] = [scsm_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [scsm_s_st] ON [scsm_s].[ServiceTypeID] = [scsm_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [scsm_s_sc] ON [scsm_s].[ServiceConfigurationID] = [scsm_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [scsm_s_bm] ON [scsm_s].[BusinessModelID] = [scsm_s_bm].[BusinessModelID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorage] AS [scsm_cs] ON [scsm].[ContentStorageID] = [scsm_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorageType] AS [scsm_cs_cst] ON [scsm_cs].[ContentStorageTypeID] = [scsm_cs_cst].[ContentStorageTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [scsm_cs_i] ON [scsm_cs].[InstanceID] = [scsm_cs_i].[InstanceID] ";
+				sqlCmdText += "WHERE [scsm].[ServiceContentStorageMapID] = @ServiceContentStorageMapID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ServiceContentStorageMapID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scsm", "loadinternal", "notfound"), "ServiceContentStorageMap could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ServiceContentStorageMapTable scsmTable = new ServiceContentStorageMapTable(query);
+				ServiceTable scsm_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable scsm_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable scsm_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable scsm_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable scsm_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				ServiceConfigurationTable scsm_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable scsm_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				ContentStorageTable scsm_csTable = (this.Depth > 0) ? new ContentStorageTable(query) : null;
+				ContentStorageTypeTable scsm_cs_cstTable = (this.Depth > 1) ? new ContentStorageTypeTable(query) : null;
+				InstanceTable scsm_cs_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+
+        
+				Application scsm_s_aObject = (this.Depth > 1) ? scsm_s_aTable.CreateInstance() : null;
+				Product scsm_s_pObject = (this.Depth > 1) ? scsm_s_pTable.CreateInstance() : null;
+				Merchant scsm_s_mObject = (this.Depth > 1) ? scsm_s_mTable.CreateInstance() : null;
+				ServiceType scsm_s_stObject = (this.Depth > 1) ? scsm_s_stTable.CreateInstance() : null;
+				ServiceConfiguration scsm_s_scObject = (this.Depth > 1) ? scsm_s_scTable.CreateInstance() : null;
+				BusinessModel scsm_s_bmObject = (this.Depth > 1) ? scsm_s_bmTable.CreateInstance() : null;
+				Service scsm_sObject = (this.Depth > 0) ? scsm_sTable.CreateInstance(scsm_s_aObject, scsm_s_pObject, scsm_s_mObject, scsm_s_stObject, scsm_s_scObject, scsm_s_bmObject) : null;
+				ContentStorageType scsm_cs_cstObject = (this.Depth > 1) ? scsm_cs_cstTable.CreateInstance() : null;
+				Instance scsm_cs_iObject = (this.Depth > 1) ? scsm_cs_iTable.CreateInstance() : null;
+				ContentStorage scsm_csObject = (this.Depth > 0) ? scsm_csTable.CreateInstance(scsm_cs_cstObject, scsm_cs_iObject) : null;
+				ServiceContentStorageMap scsmObject = scsmTable.CreateInstance(scsm_sObject, scsm_csObject);
+				sqlReader.Close();
+
+				return scsmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scsm", "loadinternal", "exception"), "ServiceContentStorageMap could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ServiceContentStorageMap", "Exception while loading ServiceContentStorageMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ServiceContentStorageMap Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ServiceContentStorageMapTable.GetColumnNames("[scsm]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[scsm_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[scsm_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[scsm_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[scsm_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[scsm_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[scsm_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[scsm_s_bm]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentStorageTable.GetColumnNames("[scsm_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTypeTable.GetColumnNames("[scsm_cs_cst]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[scsm_cs_i]") : string.Empty) +  
+					" FROM [core].[ServiceContentStorageMap] AS [scsm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [scsm_s] ON [scsm].[ServiceID] = [scsm_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [scsm_s_a] ON [scsm_s].[ApplicationID] = [scsm_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [scsm_s_p] ON [scsm_s].[ProductID] = [scsm_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [scsm_s_m] ON [scsm_s].[MerchantID] = [scsm_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [scsm_s_st] ON [scsm_s].[ServiceTypeID] = [scsm_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [scsm_s_sc] ON [scsm_s].[ServiceConfigurationID] = [scsm_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [scsm_s_bm] ON [scsm_s].[BusinessModelID] = [scsm_s_bm].[BusinessModelID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorage] AS [scsm_cs] ON [scsm].[ContentStorageID] = [scsm_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorageType] AS [scsm_cs_cst] ON [scsm_cs].[ContentStorageTypeID] = [scsm_cs_cst].[ContentStorageTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [scsm_cs_i] ON [scsm_cs].[InstanceID] = [scsm_cs_i].[InstanceID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scsm", "customload", "notfound"), "ServiceContentStorageMap could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ServiceContentStorageMapTable scsmTable = new ServiceContentStorageMapTable(query);
+				ServiceTable scsm_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable scsm_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable scsm_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable scsm_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable scsm_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				ServiceConfigurationTable scsm_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable scsm_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				ContentStorageTable scsm_csTable = (this.Depth > 0) ? new ContentStorageTable(query) : null;
+				ContentStorageTypeTable scsm_cs_cstTable = (this.Depth > 1) ? new ContentStorageTypeTable(query) : null;
+				InstanceTable scsm_cs_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+
+        
+				Application scsm_s_aObject = (this.Depth > 1) ? scsm_s_aTable.CreateInstance() : null;
+				Product scsm_s_pObject = (this.Depth > 1) ? scsm_s_pTable.CreateInstance() : null;
+				Merchant scsm_s_mObject = (this.Depth > 1) ? scsm_s_mTable.CreateInstance() : null;
+				ServiceType scsm_s_stObject = (this.Depth > 1) ? scsm_s_stTable.CreateInstance() : null;
+				ServiceConfiguration scsm_s_scObject = (this.Depth > 1) ? scsm_s_scTable.CreateInstance() : null;
+				BusinessModel scsm_s_bmObject = (this.Depth > 1) ? scsm_s_bmTable.CreateInstance() : null;
+				Service scsm_sObject = (this.Depth > 0) ? scsm_sTable.CreateInstance(scsm_s_aObject, scsm_s_pObject, scsm_s_mObject, scsm_s_stObject, scsm_s_scObject, scsm_s_bmObject) : null;
+				ContentStorageType scsm_cs_cstObject = (this.Depth > 1) ? scsm_cs_cstTable.CreateInstance() : null;
+				Instance scsm_cs_iObject = (this.Depth > 1) ? scsm_cs_iTable.CreateInstance() : null;
+				ContentStorage scsm_csObject = (this.Depth > 0) ? scsm_csTable.CreateInstance(scsm_cs_cstObject, scsm_cs_iObject) : null;
+				ServiceContentStorageMap scsmObject = scsmTable.CreateInstance(scsm_sObject, scsm_csObject);
+				sqlReader.Close();
+
+				return scsmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scsm", "customload", "exception"), "ServiceContentStorageMap could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ServiceContentStorageMap", "Exception while loading (custom/single) ServiceContentStorageMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ServiceContentStorageMap> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ServiceContentStorageMapTable.GetColumnNames("[scsm]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[scsm_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[scsm_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[scsm_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[scsm_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[scsm_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[scsm_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[scsm_s_bm]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentStorageTable.GetColumnNames("[scsm_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTypeTable.GetColumnNames("[scsm_cs_cst]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[scsm_cs_i]") : string.Empty) +  
+					" FROM [core].[ServiceContentStorageMap] AS [scsm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [scsm_s] ON [scsm].[ServiceID] = [scsm_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [scsm_s_a] ON [scsm_s].[ApplicationID] = [scsm_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [scsm_s_p] ON [scsm_s].[ProductID] = [scsm_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [scsm_s_m] ON [scsm_s].[MerchantID] = [scsm_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [scsm_s_st] ON [scsm_s].[ServiceTypeID] = [scsm_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [scsm_s_sc] ON [scsm_s].[ServiceConfigurationID] = [scsm_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [scsm_s_bm] ON [scsm_s].[BusinessModelID] = [scsm_s_bm].[BusinessModelID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorage] AS [scsm_cs] ON [scsm].[ContentStorageID] = [scsm_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorageType] AS [scsm_cs_cst] ON [scsm_cs].[ContentStorageTypeID] = [scsm_cs_cst].[ContentStorageTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [scsm_cs_i] ON [scsm_cs].[InstanceID] = [scsm_cs_i].[InstanceID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scsm", "customloadmany", "notfound"), "ServiceContentStorageMap list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ServiceContentStorageMap>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ServiceContentStorageMapTable scsmTable = new ServiceContentStorageMapTable(query);
+				ServiceTable scsm_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable scsm_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable scsm_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable scsm_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable scsm_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				ServiceConfigurationTable scsm_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable scsm_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				ContentStorageTable scsm_csTable = (this.Depth > 0) ? new ContentStorageTable(query) : null;
+				ContentStorageTypeTable scsm_cs_cstTable = (this.Depth > 1) ? new ContentStorageTypeTable(query) : null;
+				InstanceTable scsm_cs_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+
+        List<ServiceContentStorageMap> result = new List<ServiceContentStorageMap>();
+        do
+        {
+          
+					Application scsm_s_aObject = (this.Depth > 1) ? scsm_s_aTable.CreateInstance() : null;
+					Product scsm_s_pObject = (this.Depth > 1) ? scsm_s_pTable.CreateInstance() : null;
+					Merchant scsm_s_mObject = (this.Depth > 1) ? scsm_s_mTable.CreateInstance() : null;
+					ServiceType scsm_s_stObject = (this.Depth > 1) ? scsm_s_stTable.CreateInstance() : null;
+					ServiceConfiguration scsm_s_scObject = (this.Depth > 1) ? scsm_s_scTable.CreateInstance() : null;
+					BusinessModel scsm_s_bmObject = (this.Depth > 1) ? scsm_s_bmTable.CreateInstance() : null;
+					Service scsm_sObject = (this.Depth > 0) ? scsm_sTable.CreateInstance(scsm_s_aObject, scsm_s_pObject, scsm_s_mObject, scsm_s_stObject, scsm_s_scObject, scsm_s_bmObject) : null;
+					ContentStorageType scsm_cs_cstObject = (this.Depth > 1) ? scsm_cs_cstTable.CreateInstance() : null;
+					Instance scsm_cs_iObject = (this.Depth > 1) ? scsm_cs_iTable.CreateInstance() : null;
+					ContentStorage scsm_csObject = (this.Depth > 0) ? scsm_csTable.CreateInstance(scsm_cs_cstObject, scsm_cs_iObject) : null;
+					ServiceContentStorageMap scsmObject = (this.Depth > -1) ? scsmTable.CreateInstance(scsm_sObject, scsm_csObject) : null;
+					result.Add(scsmObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scsm", "customloadmany", "exception"), "ServiceContentStorageMap list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ServiceContentStorageMap", "Exception while loading (custom/many) ServiceContentStorageMap object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ServiceContentStorageMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ServiceContentStorageMap] ([ServiceID],[ContentStorageID]) VALUES(@ServiceID,@ContentStorageID); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentStorageID", data.ContentStorage.ID);
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scsm", "insert", "noprimarykey"), "ServiceContentStorageMap could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ServiceContentStorageMap", "Exception while inserting ServiceContentStorageMap object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scsm", "insert", "exception"), "ServiceContentStorageMap could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ServiceContentStorageMap", "Exception while inserting ServiceContentStorageMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ServiceContentStorageMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ServiceContentStorageMap] SET " +
+												"[ServiceID] = @ServiceID, " + 
+												"[ContentStorageID] = @ContentStorageID, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ServiceContentStorageMapID] = @ServiceContentStorageMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentStorageID", data.ContentStorage.ID);
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ServiceContentStorageMapID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scsm", "update", "norecord"), "ServiceContentStorageMap could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ServiceContentStorageMap", "Exception while updating ServiceContentStorageMap object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scsm", "update", "morerecords"), "ServiceContentStorageMap was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ServiceContentStorageMap", "Exception while updating ServiceContentStorageMap object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scsm", "update", "exception"), "ServiceContentStorageMap could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ServiceContentStorageMap", "Exception while updating ServiceContentStorageMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ServiceContentStorageMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ServiceContentStorageMap] WHERE ServiceContentStorageMapID = @ServiceContentStorageMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ServiceContentStorageMapID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scsm", "delete", "norecord"), "ServiceContentStorageMap could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ServiceContentStorageMap", "Exception while deleting ServiceContentStorageMap object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scsm", "delete", "exception"), "ServiceContentStorageMap could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ServiceContentStorageMap", "Exception while deleting ServiceContentStorageMap object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

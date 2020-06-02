@@ -1,0 +1,173 @@
+﻿
+function VideoScreenshoot(videoID, destinationId, row, column) {
+
+    this.videoID = videoID;															// ID of MobileMafia video clip	
+    this.destinationID = destinationId;												// Destination DIV where we will return result
+    this.returnHtml = "";															// HTML that we will return
+
+    // Video information
+    if (row != undefined) this.rows = row; else this.rows = 2;						// Rows for DIV result
+    if (column != undefined) this.columns = column; else this.columns = 2;			// Columns for DIV result
+    this.video = null;																// Video object
+    this.videoDuration = -1;
+    this.videoW = 0; this.videoH = 0;												// Width and Height of video
+    this.segments = this.rows * this.columns;										// Segments to take
+    this.singleSegmentDuration = 0;													// Diference beetween one cutsceen and another
+
+    /*
+		===================================================================================================================================================
+		INIT
+	*/
+    this.init = function () {
+        // Create temporaly object for running app
+        $('body').append('<div id="VideoScreenshootTempObject"></div>');
+
+        // Adding config elements in temp object
+        this.createTempVideo();
+        this.createReturnHtml();
+        var self = this;
+
+        // Creating event for waiting video to be loaded
+        this.video.addEventListener('loadedmetadata', function () {
+            self.videoDuration = self.video.duration;
+            self.singleSegmentDuration = self.videoDuration / (self.segments + 1);
+            self.videoW = this.videoWidth;
+            self.videoH = this.videoHeight;
+
+            self.render();
+        });
+
+        // Returning result
+        $('#' + this.destinationID).html(this.returnHtml);
+    }
+
+    this.createID = function (pre) {
+        // create id for box... 
+        if (pre === undefined) pre = ""; else pre += '_';
+        var text = "";
+        var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        for (var i = 0; i < 15; i++) text += possible.charAt(Math.floor(Math.random() * possible.length));
+        return pre + text;
+    }
+
+
+    /*
+		===================================================================================================================================================
+		PREPARATION
+	*/
+    this.createTempVideo = function () {
+
+        var html = '<video id="video_' + this.videoID + '" style="overflow: hidden; position: relative; width:100%; height:100%;" muted>' +
+                      '<source src="/stream/v/33/'+ this.videoID +'" type="video/mp4"/>' +
+                  '</video>';
+
+        $('#VideoScreenshootTempObject').append(html);
+        this.video = document.getElementById('video_' + this.videoID);
+        this.video.load();
+
+    }
+
+    this.createReturnHtml = function () {
+        this.returnHtml = '<div class="screenshootContainer"><div class="screenshootContainerIn">';
+        var w = 100 / this.rows; var h = 100 / this.columns;
+
+        var pozicija = 0;
+        for (var i = 0; i < this.rows; i++) {
+            for (var y = 0; y < this.columns; y++) {
+
+                this.returnHtml += '<div id="scrshtBox_' + pozicija + '" class="scrshtBox" style="height:' + h + '%; width:' + w + '%;"' +
+    						//'background-image:url(http://assets3.parliament.uk/iv/main-large//ImageVault/Images/id_7382/scope_0/ImageVaultHandler.aspx.jpg);"'+
+    						'>' +
+    						'<div class="scrshtTxt" id="scrshtTxt_' + pozicija + '">...</div>' +
+    						'<div class="scrshtLoad" id="scrshtLoad_' + pozicija + '"></div>' +
+    						'<canvas id="scrshtCvs_' + pozicija + '" class="scrshtCvs" style="display:none"></canvas>' +
+    					 '</div>';
+
+                pozicija++;
+            }
+        }
+
+        this.returnHtml += "</div></div>";
+    }
+
+
+    /*
+		===================================================================================================================================================
+		SCREENSHOOT TAKER
+	*/
+
+    this.segmentsLoaded = 0;
+
+    this.render = function () {
+        var self = this;
+        this.segmentsLoaded = 0;
+
+        //alert($('.scrshtCvs').width() + " " +  $('.scrshtCvs').height());
+        var size = this.getCanvasDimensions();
+
+        self.video.addEventListener('canplay', function () {
+            if (self.segmentsLoaded == self.segments) { self.finish(); return; }
+
+            //console.log(self.video.currentTime + ' ' + self.segmentsLoaded);
+            self.video.pause();
+
+            $('#scrshtTxt_' + self.segmentsLoaded).text(self.getPrintTime());
+            var canvas = document.getElementById('scrshtCvs_' + self.segmentsLoaded);
+            canvas.width = size.bw; canvas.height = size.bh;
+            var ctx = canvas.getContext('2d');
+            ctx.drawImage(this, size.x, 0, size.vw, size.vh);
+
+            $('#scrshtCvs_' + self.segmentsLoaded).fadeIn(250);
+            $('#scrshtLoad_' + self.segmentsLoaded).fadeOut(250, function () { $(this).remove(); });
+
+            self.segmentsLoaded += 1;
+            self.video.currentTime += self.singleSegmentDuration;
+
+        });
+
+        this.video.currentTime = this.singleSegmentDuration;
+    }
+
+    this.getCanvasDimensions = function () {
+        // Canavs sizes
+        var bw = $('.scrshtBox').width();
+        var bh = $('.scrshtBox').height();
+
+        // Videos sizes
+        var vw = this.videoW;
+        var vh = this.videoH;
+
+        var scaleW = bw / vw;
+        var scaleH = bh / vh;
+        var scale = scaleH; if (scaleH < scaleW) scale = scaleW;
+
+        var nw = vw * scale;
+        var nh = vh * scale;
+
+        var x = 0;
+        if (nw > bw) x = 0 - ((nw / 2) - (bw / 2));
+
+        //console.log('X: ' + x + ' nw:'+nw + ' bw:'+bw);
+
+        return { vw: nw, vh: nh, bw: bw, bh: bh, x: x };
+    }
+
+    this.getPrintTime = function () {
+
+        var m = Math.floor(this.video.currentTime / 60)
+        var s = Math.floor(this.video.currentTime) - (m * 60);
+
+        if (s < 10) return '' + m + ':0' + s;
+        else return '' + m + ':' + s;
+
+    }
+
+    this.finish = function () {
+        //
+        this.video.removeEventListener('canplay');
+        $('#VideoScreenshootTempObject').remove();
+        this.delete;
+    }
+
+    this.init();
+}

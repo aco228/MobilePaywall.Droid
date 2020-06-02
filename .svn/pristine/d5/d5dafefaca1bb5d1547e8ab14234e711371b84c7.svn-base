@@ -1,0 +1,40 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using System.Text.RegularExpressions;
+
+namespace MobilePaywall.Data 
+{
+  public partial interface ICountryManager
+  {
+    List<Country> Load();
+    List<Country> Load(IConnectionInfo connection);
+
+    Country Load(string value, CountryIdentifier identifier);
+    Country Load(IConnectionInfo connection, string value, CountryIdentifier identifier);
+    
+  }
+
+  public partial class Country
+  {
+    public string FixNumber(string msisdn)
+    {
+      msisdn = Regex.Replace(msisdn, "[^0-9]", "");
+      if (string.IsNullOrEmpty(msisdn))
+        return msisdn;
+
+      if (msisdn.StartsWith("00"))
+        msisdn = msisdn.Substring(2);
+      if (msisdn[0] == '0')
+        msisdn = msisdn.Substring(1);
+      if ( this._callingCode.HasValue && !msisdn.StartsWith(this._callingCode.Value.ToString()))
+        msisdn = this._callingCode + msisdn;
+      return msisdn;
+    }
+
+  }
+}
+

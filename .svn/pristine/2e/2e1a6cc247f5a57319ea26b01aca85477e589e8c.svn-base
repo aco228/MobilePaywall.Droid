@@ -1,0 +1,96 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Data.Direct.MobilePaywall;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web.Models
+{
+  public class TemplateContentModel : PaywallViewModelBase
+  {
+    private List<Content> _contents = null;
+    private List<IContent> _icontents = null;
+    private bool _hasError = false;
+    private string _errorMessage = string.Empty;
+    private List<ContentCategoryMap> _contentCategoryMap = null;
+
+
+    public List<IContent> Icontents { get { return this._icontents; } }
+    public List<Content> Contents { get { return this._contents; } }
+    public List<ContentCategoryMap> ContentCategoryMaps { get { return this._contentCategoryMap; } }
+    public string ErrorMessage { get { return this._errorMessage; } }
+    public bool HasError { get { return this._hasError; } }
+
+    public TemplateContentModel(PaywallHttpContext context, string contentGroupID, string categoryID)
+      : base(context)
+    {
+      this.CheckParsing(contentGroupID, categoryID);
+      if(this._hasError)
+        return; 
+    }
+
+    public void CheckParsing(string contentGroupID, string categoryID)
+    {
+      int _contentGroupID = -1;
+      if (!Int32.TryParse(contentGroupID, out _contentGroupID))
+      {
+        this._hasError = true;
+        this._errorMessage = "Could not parse contentGroupID";
+        return;
+      }
+
+      ContentGroup contentGroup = ContentGroup.CreateManager().Load(_contentGroupID);
+
+      if (contentGroup == null)
+      {
+        this._hasError = true;
+        this._errorMessage = "ContentGroup not found!";
+        return;
+      }
+      
+      this._contents = Data.Content.CreateManager().Load(contentGroup);
+      this._icontents = new List<IContent>();
+      foreach (Content content in _contents)
+      {
+        this._icontents.Add(content.Instantiate());
+      }
+
+      int _categoryID = -1;
+      if (!Int32.TryParse(categoryID, out _categoryID))
+      {
+        this._hasError = true;
+        this._errorMessage = "CategoryID could not be parsed!";
+      }
+
+      Category category = Category.CreateManager().Load(_categoryID);
+      if (category == null)
+      {
+        this._hasError = true;
+        this._errorMessage = "Category not found!";
+      }
+      this._contentCategoryMap = ContentCategoryMap.CreateManager().Load(category,contentGroup);
+    }
+
+    public bool IsContentEnabled(int id)
+    {
+      foreach(ContentCategoryMap contentCategoryMap in _contentCategoryMap)
+      {
+        if(contentCategoryMap.Content.ID==id)
+        {
+          if(contentCategoryMap.IsEnabled)
+          { 
+            return true;
+          }
+          else
+          {
+            return false;
+          }
+        }
+      }
+      return false;
+    }
+  }
+}

@@ -1,0 +1,97 @@
+﻿using System;
+using System.Web.SessionState;
+using System.Text.RegularExpressions;
+
+using Senti.Diagnostics.Log;
+
+using log4net;
+
+namespace MobilePaywall.CustomerCare
+{
+	public class PaywallSessionIDManager : ISessionIDManager
+	{
+		#region #logging#
+		private static ILog _log = null;
+
+		protected static ILog Log
+		{
+			get
+			{
+				if (PaywallSessionIDManager._log == null)
+					PaywallSessionIDManager._log = LogManager.GetLogger(typeof(PaywallSessionIDManager));
+				return PaywallSessionIDManager._log;
+			}
+		}
+		#endregion
+
+		private PaywallSessionGuidManager _manager = new PaywallSessionGuidManager();
+
+		public PaywallSessionIDManager()
+		{
+
+		}
+
+		public string GetSessionID(System.Web.HttpContext context)
+		{
+			string sessionID = this._manager.GetSessionID(context);
+			if (sessionID != null)
+				return sessionID;
+      
+			Regex sessionRegex = new Regex(MobilePaywall.Constants.SessionID + MobilePaywall.Constants.RegexGuid, RegexOptions.None);
+			Match sessionMatch = sessionRegex.Match(context.Request.RawUrl);
+			if (!sessionMatch.Success)
+			{
+        PLog.Error("Session not found in raw url: " + context.Request.RawUrl);
+				return null;
+			}
+			sessionID = sessionMatch.Groups[1].Value;
+
+			return sessionID;
+		}
+
+		public bool Validate(string id)
+		{
+			return this._manager.Validate(id);
+		}
+
+		public string CreateSessionID(System.Web.HttpContext context)
+		{
+			return this._manager.CreateSessionID(context);
+		}
+
+		public void Initialize()
+		{
+			this._manager.Initialize();
+		}
+
+		public bool InitializeRequest(System.Web.HttpContext context, bool suppressAutoDetectRedirect, out bool supportSessionIDReissue)
+		{
+			return this._manager.InitializeRequest(context, suppressAutoDetectRedirect, out supportSessionIDReissue);
+		}
+
+		public void RemoveSessionID(System.Web.HttpContext context)
+		{
+			this._manager.RemoveSessionID(context);
+		}
+
+		public void SaveSessionID(System.Web.HttpContext context, string id, out bool redirected, out bool cookieAdded)
+		{
+			this._manager.SaveSessionID(context, id, out redirected, out cookieAdded);
+		}
+
+
+		private class PaywallSessionGuidManager : SessionIDManager
+		{
+			public override string CreateSessionID(System.Web.HttpContext context)
+			{
+				return Guid.NewGuid().ToString().Replace("-", string.Empty);
+			}
+
+			public override bool Validate(string id)
+			{
+				Guid tmp = Guid.Empty;
+				return Guid.TryParseExact(id, "N", out tmp);
+			}
+		}
+	}
+}

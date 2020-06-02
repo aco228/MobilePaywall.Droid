@@ -1,0 +1,73 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using MobilePaywall.Data;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IVendorManager : IDataManager<Vendor> 
+  {
+	
+
+  }
+
+  public partial class Vendor : MobilePaywallObject<IVendorManager> 
+  {
+		private VendorType _vendorType;
+		private string _name = String.Empty;
+		private string _description = String.Empty;
+		
+
+		public VendorType VendorType 
+		{
+			get
+			{
+				if (this._vendorType != null &&
+						this._vendorType.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._vendorType = VendorType.CreateManager().LazyLoad(this.ConnectionContext, this._vendorType.ID) as VendorType;
+					else
+						this._vendorType = VendorType.CreateManager().LazyLoad(this._vendorType.ID) as VendorType;
+				return this._vendorType;
+			}
+			set { _vendorType = value; }
+		}
+
+		public string Name{ get {return this._name; } set { this._name = value;} }
+		public string Description{ get {return this._description; } set { this._description = value;} }
+		
+
+    public override bool IsInsertable { get { return true;} }
+
+    public override bool IsDeletable { get { return false;} }
+
+    public override bool IsUpdatable { get { return true;} }
+
+    public Vendor()
+    { 
+    }
+
+    public Vendor(int id): base(id, DateTime.Now, DateTime.Now, true)
+    {
+    }
+
+    public Vendor(int id,  VendorType vendorType, string name, string description, DateTime updated, DateTime created): base(id, updated, created, false)
+    {
+			this._vendorType = vendorType;
+			this._name = name;
+			this._description = description;
+			
+    }
+
+    public override object Clone(bool deepClone)
+    {
+      return new Vendor(-1,  this.VendorType,this.Name,this.Description, DateTime.Now, DateTime.Now);
+    }
+  }
+}
+

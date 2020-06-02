@@ -1,0 +1,357 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+using System.IO;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+	[DataManager(typeof(GeoDatabaseDownloadHistory))]
+	public partial class GeoDatabaseDownloadHistoryManager : MobilePaywall.Data.Sql.SqlManagerBase<GeoDatabaseDownloadHistory>, IGeoDatabaseDownloadHistoryManager
+	{
+		public override DatabaseType Type
+		{
+			get { return DatabaseType.MobilePaywall; }
+		}
+
+		protected override GeoDatabaseDownloadHistory LoadInternal(ISqlConnectionInfo connection, int id)
+		{
+			IDatabase database = connection.Database;
+			if (database == null)
+				throw new ArgumentNullException("database", "Error initializing database connection.");
+			string sqlCmdText = string.Empty;
+			try
+			{
+				sqlCmdText = "SELECT " +
+							GeoDatabaseDownloadHistoryTable.GetColumnNames("[gddh]") +
+					" FROM [core].[GeoDatabaseDownloadHistory] AS [gddh] ";
+				sqlCmdText += "WHERE [gddh].[GeoDatabaseDownloadHistoryID] = @GeoDatabaseDownloadHistoryID;";
+
+				SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+				sqlCmd.Parameters.AddWithValue("@GeoDatabaseDownloadHistoryID", id);
+				SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+				if (!sqlReader.HasRows || !sqlReader.Read())
+				{
+					IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("gddh", "loadinternal", "notfound"), "GeoDatabaseDownloadHistory could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+					if (this.Logger.IsWarnEnabled)
+						this.Logger.Warn(builder.ToString());
+					sqlReader.Close();
+					return null;
+				}
+
+				SqlQuery query = new SqlQuery(sqlReader);
+
+				GeoDatabaseDownloadHistoryTable gddhTable = new GeoDatabaseDownloadHistoryTable(query);
+
+
+				GeoDatabaseDownloadHistory gddhObject = gddhTable.CreateInstance();
+				sqlReader.Close();
+
+				return gddhObject;
+
+			}
+			catch (Exception ex)
+			{
+				database.HandleException(ex);
+				IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("gddh", "loadinternal", "exception"), "GeoDatabaseDownloadHistory could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+				if (this.Logger.IsErrorEnabled)
+					this.Logger.Error(builder.ToString(), ex);
+				throw new DataOperationException(DataOperation.Load, "GeoDatabaseDownloadHistory", "Exception while loading GeoDatabaseDownloadHistory object from database. See inner exception for details.", ex);
+			}
+		}
+
+		public GeoDatabaseDownloadHistory Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+		{
+			IDatabase database = connection.Database;
+			if (database == null)
+				throw new ArgumentNullException("database", "Error initializing database connection.");
+			if (parameters == null)
+				throw new ArgumentNullException("parameters");
+			string sqlCmdText = string.Empty;
+			try
+			{
+				sqlCmdText = "SELECT {0} " +
+							GeoDatabaseDownloadHistoryTable.GetColumnNames("[gddh]") +
+					" FROM [core].[GeoDatabaseDownloadHistory] AS [gddh] ";
+
+
+				parameters.Top = 1;
+				sqlCmdText = parameters.BuildQuery(sqlCmdText);
+				SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+				foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+					sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+				SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+				if (!sqlReader.HasRows || !sqlReader.Read())
+				{
+					IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("gddh", "customload", "notfound"), "GeoDatabaseDownloadHistory could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+					if (this.Logger.IsDebugEnabled)
+						this.Logger.Debug(builder.ToString());
+					sqlReader.Close();
+					return null;
+				}
+
+				SqlQuery query = new SqlQuery(sqlReader);
+
+				GeoDatabaseDownloadHistoryTable gddhTable = new GeoDatabaseDownloadHistoryTable(query);
+
+
+				GeoDatabaseDownloadHistory gddhObject = gddhTable.CreateInstance();
+				sqlReader.Close();
+
+				return gddhObject;
+
+			}
+			catch (Exception ex)
+			{
+				database.HandleException(ex);
+				IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("gddh", "customload", "exception"), "GeoDatabaseDownloadHistory could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+				if (this.Logger.IsErrorEnabled)
+					this.Logger.Error(builder.ToString(), ex);
+				throw new DataOperationException(DataOperation.Load, "GeoDatabaseDownloadHistory", "Exception while loading (custom/single) GeoDatabaseDownloadHistory object from database. See inner exception for details.", ex);
+			}
+		}
+
+		public List<GeoDatabaseDownloadHistory> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+		{
+			IDatabase database = connection.Database;
+			if (database == null)
+				throw new ArgumentNullException("database", "Error initializing database connection.");
+			if (parameters == null)
+				throw new ArgumentNullException("parameters");
+			string sqlCmdText = string.Empty;
+			try
+			{
+				sqlCmdText = "SELECT {0} " +
+							GeoDatabaseDownloadHistoryTable.GetColumnNames("[gddh]") +
+					" FROM [core].[GeoDatabaseDownloadHistory] AS [gddh] ";
+
+
+				sqlCmdText = parameters.BuildQuery(sqlCmdText);
+				SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+				foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+					sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+				SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+				if (!sqlReader.HasRows || !sqlReader.Read())
+				{
+					IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("gddh", "customloadmany", "notfound"), "GeoDatabaseDownloadHistory list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+					if (this.Logger.IsDebugEnabled)
+						this.Logger.Debug(builder.ToString());
+					sqlReader.Close();
+					return new List<GeoDatabaseDownloadHistory>();
+				}
+
+				SqlQuery query = new SqlQuery(sqlReader);
+
+				GeoDatabaseDownloadHistoryTable gddhTable = new GeoDatabaseDownloadHistoryTable(query);
+
+				List<GeoDatabaseDownloadHistory> result = new List<GeoDatabaseDownloadHistory>();
+				do
+				{
+
+					GeoDatabaseDownloadHistory gddhObject = (this.Depth > -1) ? gddhTable.CreateInstance() : null;
+					result.Add(gddhObject);
+
+				} while (sqlReader.Read());
+				sqlReader.Close();
+
+				return result;
+			}
+			catch (Exception ex)
+			{
+				database.HandleException(ex);
+				IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("gddh", "customloadmany", "exception"), "GeoDatabaseDownloadHistory list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+				if (this.Logger.IsErrorEnabled)
+					this.Logger.Error(builder.ToString(), ex);
+				throw new DataOperationException(DataOperation.Load, "GeoDatabaseDownloadHistory", "Exception while loading (custom/many) GeoDatabaseDownloadHistory object from database. See inner exception for details.", ex);
+			}
+		}
+
+		public override int? Insert(ISqlConnectionInfo connection, GeoDatabaseDownloadHistory data)
+		{
+			IDatabase database = connection.Database;
+			if (database == null)
+				throw new ArgumentNullException("database", "Error initializing database connection.");
+			if (data == null)
+				throw new ArgumentNullException("data");
+			string sqlCmdText = string.Empty;
+			try
+			{
+				sqlCmdText = "INSERT INTO [core].[GeoDatabaseDownloadHistory] ([MD5Hash],[Data],[GeoDatabaseDownloadHistoryStatusID]) VALUES(@MD5Hash,@Data,@GeoDatabaseDownloadHistoryStatusID); SELECT SCOPE_IDENTITY();";
+				SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+
+				sqlCmd.Parameters.AddWithValue("@MD5Hash", data.MD5Hash).SqlDbType = SqlDbType.NVarChar;
+				byte[] byteData;
+				if (data.DataFilePath == null) byteData = data.Data;
+				else byteData = new byte[] { };
+				sqlCmd.Parameters.AddWithValue("@Data", byteData).SqlDbType = SqlDbType.VarBinary;
+				sqlCmd.Parameters.AddWithValue("@GeoDatabaseDownloadHistoryStatusID", (int)data.GeoDatabaseDownloadHistoryStatus);
+
+				object idObj = sqlCmd.ExecuteScalar();
+				if (idObj == null || DBNull.Value.Equals(idObj))
+				{
+					IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("gddh", "insert", "noprimarykey"), "GeoDatabaseDownloadHistory could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+					if (this.Logger.IsErrorEnabled)
+						this.Logger.Error(builder.ToString());
+					throw new DataOperationException(DataOperation.Insert, "GeoDatabaseDownloadHistory", "Exception while inserting GeoDatabaseDownloadHistory object in database.");
+				}
+
+
+				int intId = (int)((decimal)idObj);
+
+				if (!String.IsNullOrEmpty(data.DataFilePath))
+				{
+					string updateQuery = @"UPDATE [core].[GeoDatabaseDownloadHistory] SET Data.WRITE(@Data, @Offset, @Length) WHERE GeoDatabaseDownloadHistoryID = @GeoDatabaseDownloadHistoryID;";
+					SqlCommand cmdUpdate = database.Add(updateQuery) as SqlCommand;
+					SqlParameter idParameter = new SqlParameter("@GeoDatabaseDownloadHistoryID", intId);
+					SqlParameter dataParameter = new SqlParameter("@Data", SqlDbType.VarBinary);
+					SqlParameter offsetParameter = new SqlParameter("@Offset", SqlDbType.BigInt);
+					SqlParameter lengthParameter = new SqlParameter("@Length", SqlDbType.BigInt);
+					cmdUpdate.Parameters.Add(idParameter);
+					cmdUpdate.Parameters.Add(dataParameter);
+					cmdUpdate.Parameters.Add(offsetParameter);
+					cmdUpdate.Parameters.Add(lengthParameter);
+
+					using (FileStream fs = new FileStream(data.DataFilePath, FileMode.Open, FileAccess.Read))
+					{
+						byte[] buffer = new byte[2090400];
+						int read = 0;
+						int offset = 0;
+
+						if (buffer.Length > fs.Length)
+							buffer = new byte[fs.Length];
+
+						while ((read = fs.Read(buffer, 0, buffer.Length)) > 0)
+						{
+							dataParameter.Value = buffer;
+							offsetParameter.Value = offset;
+							lengthParameter.Value = read;
+
+							cmdUpdate.ExecuteNonQuery();
+
+							if (buffer.Length > fs.Length - offset)
+								buffer = new byte[fs.Length];
+
+							offset += read;
+						}
+					}
+				}
+				return intId;
+
+			}
+			catch (Exception ex)
+			{
+				database.HandleException(ex);
+				IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("gddh", "insert", "exception"), "GeoDatabaseDownloadHistory could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+				if (this.Logger.IsErrorEnabled)
+					this.Logger.Error(builder.ToString(), ex);
+				throw new DataOperationException(DataOperation.Insert, "GeoDatabaseDownloadHistory", "Exception while inserting GeoDatabaseDownloadHistory object in database. See inner exception for details.", ex);
+			}
+		}
+
+		public override bool Update(ISqlConnectionInfo connection, GeoDatabaseDownloadHistory data)
+		{
+			IDatabase database = connection.Database;
+			if (database == null)
+				throw new ArgumentNullException("database", "Error initializing database connection.");
+			if (data == null)
+				throw new ArgumentNullException("data");
+			string sqlCmdText = string.Empty;
+			try
+			{
+				data.Updated = DateTime.Now;
+				sqlCmdText = "UPDATE [core].[GeoDatabaseDownloadHistory] SET " +
+												"[MD5Hash] = @MD5Hash, " +
+												"[Data] = @Data, " +
+												"[GeoDatabaseDownloadHistoryStatusID] = @GeoDatabaseDownloadHistoryStatusID, " +
+												"[Updated] = GETDATE() " +
+											"WHERE [GeoDatabaseDownloadHistoryID] = @GeoDatabaseDownloadHistoryID;";
+				SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+
+				sqlCmd.Parameters.AddWithValue("@MD5Hash", data.MD5Hash).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Data", data.Data).SqlDbType = SqlDbType.VarBinary;
+				sqlCmd.Parameters.AddWithValue("@GeoDatabaseDownloadHistoryStatusID", (int)data.GeoDatabaseDownloadHistoryStatus);
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@GeoDatabaseDownloadHistoryID", data.ID);
+
+				int rowCount = sqlCmd.ExecuteNonQuery();
+				if (rowCount < 1)
+				{
+					IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("gddh", "update", "norecord"), "GeoDatabaseDownloadHistory could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+					if (this.Logger.IsErrorEnabled)
+						this.Logger.Error(builder.ToString());
+					throw new DataOperationException(DataOperation.Update, "GeoDatabaseDownloadHistory", "Exception while updating GeoDatabaseDownloadHistory object in database. No record found for this id.");
+				}
+				else if (rowCount > 1)
+				{
+					IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("gddh", "update", "morerecords"), "GeoDatabaseDownloadHistory was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+					if (this.Logger.IsFatalEnabled)
+						this.Logger.Fatal(builder.ToString());
+					throw new DataOperationException(DataOperation.Update, "GeoDatabaseDownloadHistory", "Exception while updating GeoDatabaseDownloadHistory object in database. More than one record found for this statement (update statement where clause broken?!).");
+				}
+				return true;
+			}
+			catch (Exception ex)
+			{
+				database.HandleException(ex);
+				IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("gddh", "update", "exception"), "GeoDatabaseDownloadHistory could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+				if (this.Logger.IsErrorEnabled)
+					this.Logger.Error(builder.ToString(), ex);
+				throw new DataOperationException(DataOperation.Update, "GeoDatabaseDownloadHistory", "Exception while updating GeoDatabaseDownloadHistory object in database. See inner exception for details.", ex);
+			}
+		}
+
+		public override bool Delete(ISqlConnectionInfo connection, GeoDatabaseDownloadHistory data)
+		{
+			IDatabase database = connection.Database;
+			if (database == null)
+				throw new ArgumentNullException("database", "Error initializing database connection.");
+			if (data == null)
+				throw new ArgumentNullException("data");
+			string sqlCmdText = string.Empty;
+			try
+			{
+				sqlCmdText = "DELETE FROM [core].[GeoDatabaseDownloadHistory] WHERE GeoDatabaseDownloadHistoryID = @GeoDatabaseDownloadHistoryID;";
+				SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+				sqlCmd.Parameters.AddWithValue("@GeoDatabaseDownloadHistoryID", data.ID);
+
+				int success = sqlCmd.ExecuteNonQuery();
+
+				if (success == -1)
+				{
+					IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("gddh", "delete", "norecord"), "GeoDatabaseDownloadHistory could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+					if (this.Logger.IsErrorEnabled)
+						this.Logger.Error(builder.ToString());
+					throw new DataOperationException(DataOperation.Delete, "GeoDatabaseDownloadHistory", "Exception while deleting GeoDatabaseDownloadHistory object from database. No such record found.");
+				}
+
+				return true;
+			}
+			catch (Exception ex)
+			{
+				database.HandleException(ex);
+				IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("gddh", "delete", "exception"), "GeoDatabaseDownloadHistory could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+				if (this.Logger.IsErrorEnabled)
+					this.Logger.Error(builder.ToString(), ex);
+				throw new DataOperationException(DataOperation.Delete, "GeoDatabaseDownloadHistory", "Exception while deleting GeoDatabaseDownloadHistory object from database. See inner exception for details.", ex);
+			}
+		}
+	}
+}
+

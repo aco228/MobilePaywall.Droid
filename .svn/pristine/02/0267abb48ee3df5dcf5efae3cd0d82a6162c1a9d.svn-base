@@ -1,0 +1,66 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class QuizResultManager : IQuizResultManager
+  {
+
+    public List<QuizResult> Load()
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection);
+    }
+
+    public List<QuizResult> Load(IConnectionInfo connection)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection);
+    }
+
+    public List<QuizResult> Load(ISqlConnectionInfo connection)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      return this.LoadMany(connection, parameters);
+    }
+
+
+    public QuizResult Load(QuizContent quizContent, Language language, string weight)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, quizContent, language, weight);
+    }
+
+    public QuizResult Load(IConnectionInfo connection, QuizContent quizContent, Language language, string weight)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, quizContent, language, weight);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, quizContent, language, weight);
+    }
+
+    public QuizResult Load(ISqlConnectionInfo connection, QuizContent quizContent, Language language, string weight)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[qr].QuizContentID=@QuizContentID AND [qr].LanguageID=@LanguageID AND (@weight BETWEEN [qr].FromWeight AND [qr].ToWeight)";
+      parameters.Arguments.Add("QuizContentID", quizContent.ID);
+      parameters.Arguments.Add("LanguageID", language.ID);
+      parameters.Arguments.Add("weight", weight);
+      return this.Load(connection, parameters);
+    }
+  }
+}
+

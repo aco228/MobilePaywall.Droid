@@ -1,0 +1,90 @@
+﻿using MobilePaywall.Web.Filters;
+using MobilePaywall.Web.Models;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Web;
+using System.Web.Hosting;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers
+{
+  [ContextValidation(Required = false)]
+  [AgeVerification(Required = false)]
+  [Authentication(Required = false)]
+	public class HelpdeskController : PaywallController
+	{
+		// GET: Helpdesk
+		public ActionResult Index()
+		{
+			PaywallViewModelBase model = new PaywallViewModelBase(this.PaywallContext);
+			return View("Helpdesk", model);
+		}
+
+    public ActionResult Rucktrittsrecht()
+    {
+      PaywallViewModelBase model = new PaywallViewModelBase(this.PaywallContext);
+      return View("Rucktrittsrecht", model);
+    }
+
+    public ActionResult ATFaq()
+    {
+      PaywallViewModelBase model = new PaywallViewModelBase(this.PaywallContext);
+      return View("Faq", model);
+    }
+
+    public ActionResult Widerrufsformular(string name = "")
+    {
+      FileInfo info = new FileInfo(HostingEnvironment.MapPath(string.Format("~/Content/_Specific/{0}/Widerrufsformular/{1}/{2}.docx", 
+        this.PaywallContext.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.ToLower(),
+        this.PaywallContext.Service.PaymentProvider.Name,
+        this.PaywallContext.Service.ServiceData.Merchant.Name)));
+
+      if (!info.Exists)
+        return Redirect("/error");
+
+      byte[] fileBytes = GetFile(info.FullName);
+      return File(fileBytes, System.Net.Mime.MediaTypeNames.Application.Octet, "Widerrufsformular.docx");
+    }
+
+    public ActionResult Nutzungsbedingungen()
+    {
+      PaywallViewModelBase model = new PaywallViewModelBase(this.PaywallContext);
+      return View("Nutzungsbedingungen", model);
+    }
+
+    public ActionResult NutzungsbedingungenFile()
+    {
+      string type = "";
+
+      FileInfo fileInfo = new FileInfo(HostingEnvironment.MapPath(string.Format("~/Content/_Specific/at/{0}/Nutzungsbedingungen.docx",
+        this.PaywallContext.Service.ServiceData.ID)));
+      type = ".docx";
+
+      if (!fileInfo.Exists)
+      {
+        fileInfo = new FileInfo(HostingEnvironment.MapPath(string.Format("~/Content/_Specific/at/{0}/Nutzungsbedingungen.pdf",
+          this.PaywallContext.Service.ServiceData.ID)));
+        type = ".pdf";
+      }
+
+      if(!fileInfo.Exists)
+        return Redirect("/error");
+
+      byte[] fileBytes = GetFile(fileInfo.FullName);
+      return File(fileBytes, System.Net.Mime.MediaTypeNames.Application.Octet, "Nutzungsbedingungen" + type);
+    }
+
+    private byte[] GetFile(string s)
+    {
+      System.IO.FileStream fs = System.IO.File.OpenRead(s);
+      byte[] data = new byte[fs.Length];
+      int br = fs.Read(data, 0, data.Length);
+      if (br != fs.Length)
+        throw new System.IO.IOException(s);
+      return data;
+    }
+
+	}
+}

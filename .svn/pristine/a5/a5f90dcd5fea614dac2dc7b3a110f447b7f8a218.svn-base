@@ -1,0 +1,118 @@
+﻿function QuizManager()
+{
+  this.waitText = "";
+  this.avalibleQuestions = [];
+  this.totalWeight = 0;
+  this.corectAnswers = 0;
+  this.currentQuestion = 0;
+  this.timerInterval = null;
+  this.quizContentID = -1;
+  this.numberOfQuestions = 0;
+  this.init = function()
+  {
+    this.waitText = $('#quizQuestionWait').text();
+    $('#quizQuestionWait').text(' ');
+
+    this.onSubmitClick();
+    this.onAnswerClick();
+    this.timer();
+  }
+
+  this.load = function()
+  {
+    // quizQuestionData
+    // quizQuestionWait
+
+    var self = this;
+    $('#quizQuestionData').attr('id', 'quizQuestionDataOLD');
+    $('#quizQuestionDataOLD').css({ 'opacity': '0', 'margin-left': '150px' });
+    $('#quizQuestionWait').css({ 'opacity': '1' });
+    $('#quizQuestionWait').text(this.waitText);
+    setTimeout(function () { $('#quizQuestionDataOLD').remove(); }, 400);
+    var isLastQuestion = this.currentQuestion == this.avalibleQuestions.length ? "1" : "0";
+
+    $.ajax({
+      url: '/QuizApi/Load',
+      data: { quizContentID: self.quizContentID,questionID: self.avalibleQuestions[self.currentQuestion], weight: self.totalWeight, isLastQuestion: isLastQuestion },
+      method: 'POST',
+      success:function(response)
+      {
+        self.currentQuestion++;
+
+        if (isLastQuestion == "1") {
+          clearInterval(self.timerInterval);
+          var percent = Math.floor((self.corectAnswers / self.avalibleQuestions.length) * 100);
+
+          response = response.replace('[PERCENT]', percent);
+          response = response.replace('[TIMER]', $('#quizTimer').text());
+        }
+        else
+          self.numberOfQuestions++;
+
+        $('#contentVideos').append(response);
+        $('#quizQuestionWait').css({ 'opacity': '0', 'margin-left': '-150px!important' });
+        
+        setTimeout(function () {
+          $('#quizQuestionData').css({ 'opacity': "1", 'margin-left': "" });
+        }, 400);
+      }
+    });
+  }
+
+  this.onAnswerClick = function()
+  {
+    var self = this;
+    $('body').on('click', '.quizAnswer', function () {
+
+      if (typeof $(this).attr('weight') !== 'undefined')
+        self.totalWeight += parseInt($(this).attr('weight'));
+
+      $('.quizAnswerClicked').each(function () { $(this).removeClass('quizAnswerClicked'); });
+      $('.quizSubmitNotActive').each(function () { $(this).removeClass('quizSubmitNotActive'); });
+      $(this).addClass('quizAnswerClicked');
+    });
+  }
+
+  this.onSubmitClick = function()
+  {
+    var self = this;
+    $('body').on('click', '#controlLoadMore', function () {
+
+      if ($(this).hasClass('quizSubmitNotActive'))
+        return;
+
+      if ($(this).hasClass('isLoading'))
+        return;
+
+      $('.quizAnswer[weight=100]').addClass('quizAnswerCorect');
+      if ($('.quizAnswerClicked').attr('weight') == '100')
+        self.corectAnswers++;
+      else
+        $('.quizAnswerClicked').addClass('quizAnswerWrong');
+
+      $(this).addClass("isLoading");
+      setTimeout(function () { self.load(); }, 350);
+    });
+  }
+
+  this.timer = function()
+  {
+    var minutes = 0;
+    var seconds = 0;
+    this.timerInterval = setInterval(function () {
+
+      seconds++;
+      if(seconds == 60)
+      {
+        minutes++;
+        seconds = 0;
+      }
+
+      var txtMinutes = minutes < 10 ? '0' + minutes : minutes;
+      var txtSeconds = seconds < 10 ? '0' + seconds : seconds;
+      $('#quizTimer').html(txtMinutes + ":" + txtSeconds);
+    }, 1000);
+  }
+
+  this.init();
+}

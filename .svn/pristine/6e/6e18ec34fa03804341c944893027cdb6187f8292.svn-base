@@ -1,0 +1,360 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+
+using Cashflow.Client;
+
+using Trckd.Client.Configuration;
+
+using log4net;
+using System.Configuration;
+using MobilePaywall.Data;
+using MobilePaywall.Service.Callback.Log;
+using Senti.Diagnostics.Log;
+using Trckd.Message;
+using Trckd.Service.Soap12.Track;
+using System.ServiceModel;
+using MobilePaywall.Web;
+using System.Threading;
+using System.Net;
+using System.IO;
+using System.Text;
+
+namespace MobilePaywall.Service.Handlers
+{
+  public class TrckdNewNotificationHandler : NotificationHandlerBase
+  {
+    protected static ILog _log = null;
+
+    private TrckdConfigurationSection _trckdConfiguration = null;
+    private static readonly object NotificationLockObject = new object();
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (TrckdNewNotificationHandler._log == null)
+          TrckdNewNotificationHandler._log = LogManager.GetLogger(typeof(TrckdNewNotificationHandler));
+        return TrckdNewNotificationHandler._log;
+      }
+    }
+
+    public TrckdConfigurationSection TrckdConfiguration
+    {
+      get
+      {
+        if (this._trckdConfiguration == null)
+          this._trckdConfiguration = (TrckdConfigurationSection)ConfigurationManager.GetSection("trckd");
+        return this._trckdConfiguration;
+      }
+    }
+
+    protected override void ProcessQueryIdentificationNotification(Cashflow.Message.Mobile.QueryIdentificationNotification notification)
+    {
+      base.ProcessQueryIdentificationNotification(notification);
+    }
+
+    protected override void ProcessSetupSubscription(Cashflow.Message.SetupSubscriptionNotification notification)
+    {
+      base.ProcessSetupSubscription(notification);
+    }
+
+    protected override void ProcessExecutePurchase(Cashflow.Message.ExecutePurchaseNotification notification)
+    {
+      base.ProcessExecutePurchase(notification);
+    }
+
+    protected override void ProcessChargeSubscription(Cashflow.Message.ChargeSubscriptionNotification notification)
+    {
+      CallbackLog CLog = new CallbackLog(notification, Log);
+
+      base.ProcessChargeSubscription(notification);
+      Log.Debug(" :--------------------------------------------------------------------------: ");
+
+      if (notification == null || notification.Status.Code != Cashflow.Message.MessageStatusCode.Success || notification.Transaction.Status != Cashflow.Message.Data.TransactionStatus.Executed)
+        return;
+
+      UserSession originalUserSession = null;
+      bool isFirstPayment = notification.Period.PeriodNumber == 1 ? true : false;
+
+      if (CLog.UserSessionID == -1)
+      {
+        Payment originalpayment = Payment.CreateManager().Load(notification.Subscription.SubscriptionID, GuidType.External);
+        if (originalpayment != null)
+          originalUserSession = originalpayment.PaymentRequest.UserSession;
+      }
+      else
+        originalUserSession = CLog.UserSession;
+
+      if(originalUserSession == null)
+      {
+        CLog.Fatal("Charge.. Could not load UserSession " + notification.Transaction.TransactionID);
+        return;
+      }
+			
+			if (isFirstPayment && Callback.Code.Undercover.UndercoverAgent.ContinueWithReport(originalUserSession.EntranceUrl, originalUserSession).DontSendConversionToBananaclicks == true)
+			{
+				CLog.Fatal("------------------------------->>> UNDERCOVER TRANSACTION: " + notification.Transaction.TransactionID);
+				return;
+			}
+
+			try
+      {
+        //Data.IPaymentManager pManager = Data.Payment.CreateManager(2);
+        //Data.Payment payment = pManager.Load(notification.Subscription.SubscriptionID, GuidType.External);
+        //if (payment == null)
+        //{
+        //  CLog.Error(new LogMessageBuilder(new LogErrorCode("trckd", "charge.subscription", "payment"),
+        //     "Payment was not loaded.",
+        //     notification.Status, notification.Subscription, notification.Transaction));
+        //  return;
+        //}
+
+        try
+        {
+          Guid? fingerprintID = originalUserSession.FingerprintID;
+          if (!fingerprintID.HasValue)
+          {
+            CLog.Error(new LogMessageBuilder(new LogErrorCode("trckd", "charge.subscription", "fingerprint"),
+               "Fingerprint was not found.",
+               notification.Status, notification.Subscription));
+            return;
+          }
+
+          Guid? containerSet = null; // Guid.Parse("80AC5421-E72D-4E79-9B37-E0CE37247456");
+          
+          if (originalUserSession.Service.Product.TrckdGuid.HasValue)
+            containerSet = originalUserSession.Service.Product.TrckdGuid.Value;
+
+          ContainerType containerType = ContainerType.Fallback;
+
+          Guid? goalID = isFirstPayment ?
+                             this.TrckdConfiguration.GetGoalID("Billing") : // it is a new subscription and the action is "Subscription"
+                             this.TrckdConfiguration.GetGoalID("Rebilling"); // that subscription existed already and the action is "Subsequent Payment"
+
+          if (!TemplateServiceInfo.CreateManager().Load(originalUserSession.Service).TrckdEnabled)
+            return;
+          
+          #region # Update TemplateServiceCap #
+
+          if (isFirstPayment)
+          {
+            Thread t = new Thread(() => {
+
+              MobileOperator customerMobileOperator = originalUserSession.Customer != null && originalUserSession.Customer.MobileOperator != null ? originalUserSession.Customer.MobileOperator : null;
+              List<TemplateServiceCap> caps = PaywallCapManager.GetAllCaps(originalUserSession.Service);
+              foreach (TemplateServiceCap tsc in caps)
+                tsc.UpdateCapValueOnNewTransaction();
+              
+              HttpWebRequest request = (HttpWebRequest)WebRequest.Create("http://ol.app.mobilepaywall.com/cap/call");
+              request.Method = "POST";
+              request.ContentType = "application/x-www-form-urlencoded";
+              string postData = "id=" + originalUserSession.Service.ID;
+              byte[] bytes = Encoding.UTF8.GetBytes(postData);
+              request.ContentLength = bytes.Length;
+
+              Stream requestStream = request.GetRequestStream();
+              requestStream.Write(bytes, 0, bytes.Length);
+
+              WebResponse response = request.GetResponse();
+              Stream stream = response.GetResponseStream();
+              StreamReader reader = new StreamReader(stream);
+
+              var result = reader.ReadToEnd();
+              stream.Dispose();
+              reader.Dispose();
+
+            });
+            t.Start();
+          }
+
+          #endregion
+
+          lock (NotificationLockObject)
+          {
+            using (TrackClient client = new TrackClient(new BasicHttpBinding(), new EndpointAddress("http://api1.trckd.me/track.svc/soap11")))
+            //using (TrackClient client = new TrackClient())
+            {
+              try
+              {
+
+                //new System.Threading.Thread(() => {
+
+                DateTime startTime = DateTime.Now;
+
+                GoalArguments goalArguments = new GoalArguments();
+
+                #region # set goalArguments #
+
+                if (originalUserSession.Customer != null && !string.IsNullOrEmpty(originalUserSession.Customer.Msisdn))
+                  goalArguments.Parameter1 = originalUserSession.Customer.Msisdn;
+                goalArguments.Parameter2 = notification.Subscription.Amount.Value.ToString();
+                goalArguments.Parameter2 = notification.Subscription.Amount.Currency;
+                if(originalUserSession.Customer != null)
+                {
+                  string keyword = originalUserSession.Customer.Storage.GetString("keyword");
+                  string shortcode = originalUserSession.Customer.Storage.GetString("shortcode");
+                  if (!string.IsNullOrEmpty(keyword))
+                    goalArguments.Parameter4 = keyword;
+                  if (!string.IsNullOrEmpty(shortcode))
+                    goalArguments.Parameter5 = shortcode;
+                }
+
+                #endregion
+                
+                ReportGoalRequest request = new ReportGoalRequest(RequestMode.Synchronous,
+                  "123456",
+                  "user",
+                  "password",
+                  goalID.Value,
+                  fingerprintID.Value,
+                  containerSet,
+                  containerType,
+                  goalArguments.ToMessageArguments());
+                  ReportGoalResponse response = client.ReportGoal(request);
+
+                  if (response.Status.Code != MessageStatusCode.Success)
+                    CLog.Error("trck.charge.subscription:: Is not success");
+                  else
+                    CLog.Debug("trck.charge.subscription:: Done");
+
+                  CLog.Debug(" : TRCKD TIME --------------------------------------------------------------------------: " + ((DateTime.Now - startTime).Seconds.ToString()));
+
+                //}).Start();
+                
+              }
+              catch (Exception trckdException)
+              {
+                CLog.Fatal(new LogMessageBuilder(new LogErrorCode("trckd", "charge.subscription", "exception"),
+                 "Trckd Exception occured while processing ChargeSubscription Notification.",
+                 notification.Status, notification.Subscription, notification.Transaction), trckdException);
+                return;
+              }
+            }
+          }
+        }
+        catch (Exception ex)
+        {
+          CLog.Fatal(new LogMessageBuilder(new LogErrorCode("trckd", "charge.subscription", "exception"),
+           "Exception occured.",
+           notification.Status, notification.Subscription, notification.Transaction), ex);
+          return;
+        }
+      }
+      catch (Exception ex)
+      {
+        CLog.Fatal("Exception", ex);
+      }
+    }
+
+    protected override void ProcessChargePurchase(Cashflow.Message.ChargePurchaseNotification notification)
+    {
+      CallbackLog CLog = new CallbackLog(notification, Log); //dje se cuva ovo? koje> to je objekat
+      base.ProcessChargePurchase(notification);
+
+      if (notification == null || notification.Status.Code != Cashflow.Message.MessageStatusCode.Success || notification.Transaction.Status != Cashflow.Message.Data.TransactionStatus.Executed)
+        return;
+
+      UserSession originalUserSession = null;
+
+      if (CLog.UserSessionID == -1)
+      {
+        Payment originalpayment = Payment.CreateManager().Load(notification.Purchase.PurchaseID, GuidType.External);
+        if (originalpayment != null)
+          originalUserSession = originalpayment.PaymentRequest.UserSession;
+      }
+      else
+        originalUserSession = CLog.UserSession;
+
+      if (originalUserSession == null)
+      {
+        Log.Fatal("Charge.. Could not load UserSession " + notification.Transaction.TransactionID);
+        return;
+      }
+
+      try
+      {
+        try
+        {
+          Guid? fingerprintID = originalUserSession.FingerprintID;
+          if (!fingerprintID.HasValue)
+          {
+            CLog.Error(new LogMessageBuilder(new LogErrorCode("trckd", "charge.purchase", "fingerprint"),
+               "Fingerprint was not found.",
+               notification.Status, notification.Purchase));
+            return;
+          }
+
+          Guid? containerSet = null; // Guid.Parse("80AC5421-E72D-4E79-9B37-E0CE37247456");
+          ContainerType containerType = ContainerType.Fallback;
+          
+          if (originalUserSession.Service.Product.TrckdGuid.HasValue)
+            containerSet = originalUserSession.Service.Product.TrckdGuid.Value;
+
+          Guid? goalID = this.TrckdConfiguration.GetGoalID("Billing"); // aj probaj
+
+          if (!TemplateServiceInfo.CreateManager().Load(originalUserSession.Service).TrckdEnabled) //je li ovo enabled? jeste, provjerio sam
+            return;
+
+          CLog.Debug("::::::::::::::::::::::::::::::::::::::::::::: before goal > " + fingerprintID.ToString());
+
+          lock (NotificationLockObject)
+          {
+            using (TrackClient client = new TrackClient(new BasicHttpBinding(), new EndpointAddress("http://api1.trckd.me/track.svc/soap11")))
+            //using (TrackClient client = new TrackClient())
+            {
+              try
+              {
+                ReportGoalRequest request = new ReportGoalRequest(RequestMode.Synchronous,
+                                                                  "123456",
+                                                                  "user",
+                                                                  "password",
+                                                                  goalID.Value,
+                                                                  fingerprintID.Value,
+                                                                  containerSet,
+                                                                  containerType,
+                                                                  null);
+                ReportGoalResponse response = client.ReportGoal(request);
+
+                if (response.Status.Code != MessageStatusCode.Success)
+                  CLog.Error("trck.charge.purchase:: Is not success");
+                else
+                  CLog.Debug("trck.charge.purchase:: Done");
+
+              }
+              catch (Exception trckdException)
+              {
+                Log.Fatal(new LogMessageBuilder(new LogErrorCode("trckd", "charge.purchase", "exception"),
+                 "Trckd Exception occured while processing ChargePurchase Notification.",
+                 notification.Status, notification.Purchase, notification.Transaction), trckdException);
+                return;
+              }
+            }
+          }
+        }
+        catch (Exception ex)
+        {
+          Log.Fatal(new LogMessageBuilder(new LogErrorCode("trckd", "charge.purchase", "exception"),
+           "Exception occured.",
+           notification.Status, notification.Purchase, notification.Transaction), ex);
+          return;
+        }
+      }
+      catch (Exception ex)
+      {
+        Log.Fatal("Exception", ex);
+      }
+    }
+
+    protected override void ProcessCancelSubscription(Cashflow.Message.CancelSubscriptionNotification notification)
+    {
+      base.ProcessCancelSubscription(notification);
+    }
+
+    protected override void ProcessRefundTransaction(Cashflow.Message.RefundTransactionNotification notification)
+    {
+      base.ProcessRefundTransaction(notification);
+    }
+  }
+}

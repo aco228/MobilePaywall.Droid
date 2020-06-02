@@ -1,0 +1,85 @@
+using MobilePaywall.Direct;
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+
+
+namespace MobilePaywall.Data
+{
+  public partial interface ITemplateServiceInfoManager
+  {
+    TemplateServiceInfo Load(Service service);
+    TemplateServiceInfo Load(IConnectionInfo connection, Service service);
+
+  }
+
+  public partial class TemplateServiceInfo
+  {
+
+    public void InsertWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void UpdateWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+
+    public string DynamicPrice()
+    {
+      if (string.IsNullOrEmpty(this._price))
+        return string.Empty;
+      string[] split = this._price.Split('|');
+      return split[0].Trim();
+    }
+
+    public string DynamicPrice(MobileOperator mno)
+    {
+      string[] split = this._price.Split('|');
+      string defaultPrice = split[0];
+
+      if (mno == null || split.Length == 1)
+        return defaultPrice;
+
+      string[] data = split[1].Trim().Split(',');
+      foreach(string dataPart in data)
+      {
+        string[] mnoData = dataPart.Trim().Split('=');
+        if (mnoData.Length != 2)
+          continue;
+
+        string mnoCompare = mnoData[0].Trim();
+        string mnoPrice = mnoData[1].Trim();
+
+        if (mnoCompare == string.Format("[{0}]", mno.ID))
+          return mnoPrice;
+      }
+
+      return defaultPrice;
+    }
+
+    // SUMMARY: Prevent duplicates on multiple servers
+    public override bool Insert()
+    {
+      int? _tsi = MobilePaywallDirect.Instance.LoadInt("SELECT TemplateServiceInfoID FROM MobilePaywall.core.TemplateServiceInfo WHERE ServiceID=" + this._service.ID);
+      if(_tsi.HasValue)
+      {
+        TemplateServiceInfo tsi = TemplateServiceInfo.CreateManager().Load(_tsi.Value);
+        if(tsi != null)
+        {
+          this.ID = tsi.ID;
+          this.TemplateServiceType = tsi.TemplateServiceType;
+          this.Progress = tsi.Progress;
+          this.Color = tsi.Color;
+          this.Contact = tsi.Contact;
+          this.Price = tsi.Price;
+          this.TrckdEnabled = tsi.TrckdEnabled;
+          this.IsPremiumSms = tsi.IsPremiumSms;
+          this.Updated = tsi.Updated;
+          this.Created = tsi.Created;
+          return false;
+        }
+      }
+      return base.Insert();
+    }
+
+  }
+}
+

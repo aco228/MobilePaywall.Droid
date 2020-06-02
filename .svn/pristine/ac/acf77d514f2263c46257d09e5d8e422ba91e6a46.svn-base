@@ -1,0 +1,355 @@
+﻿using Cashflow.Message.Mobile;
+using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.MobilePaywallDirect;
+using MobilePaywall.Web.Filters;
+using MobilePaywall.Web.Localization;
+using Senti.Localization;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers
+{
+  public class LandingPageController : Controller
+  {
+    #region #logging#
+
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (LandingPageController._log == null)
+          LandingPageController._log = LogManager.GetLogger(typeof(LandingPageController));
+        return LandingPageController._log;
+      }
+    }
+
+    #endregion #logging#
+
+    // SUMMARY: Get appended sessionID and return
+    public ActionResult Get()
+    {
+      string returnUrl = Request["returnUrl"];
+      char continueChar = returnUrl.Contains('?') ? '&' : '?';
+
+      //PaywallHttpContext.Current.Session.SessionData.EntranceUrl = returnUrl;
+      PaywallHttpContext.Current.Session.SessionData.Referrer = Request.UrlReferrer != null ? Request.UrlReferrer.ToString() : null;
+      PaywallHttpContext.Current.Session.SessionData.Update();
+
+      returnUrl += 
+        continueChar + "sessionID=" + PaywallHttpContext.Current.Session.SessionData.Guid + 
+        "&sessionIntID=" + PaywallHttpContext.Current.Session.SessionData.ID + 
+        "&lang=" + PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode;
+
+      if (PaywallHttpContext.Current.Session.SessionData.MobileOperator != null)
+        returnUrl += "&mno=" + PaywallHttpContext.Current.Session.SessionData.MobileOperator.ID;
+
+      #region # Greece wind #
+
+      if (PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("GR"))
+      {
+        string windMsisdn = string.Empty;
+        foreach (string key in Request.Headers.AllKeys)
+          if (key.ToLower().Contains("msisdn"))
+            windMsisdn = Request.Headers[key];
+
+        if (Request["msisdnParam"] != null)
+        {
+          PaywallHttpContext.Current.Session.Storage.PutBool(GreeceUserSession.CustomerStorageKeys.IsMsisdnLPHandled.ToString(), true);
+          windMsisdn = Request["msisdnParam"].ToString();
+        }
+
+        if(!string.IsNullOrEmpty(windMsisdn))
+          PaywallHttpContext.Current.Session.Storage.PutString(GreeceUserSession.CustomerStorageKeys.WindMsisdn.ToString(), windMsisdn);
+        
+        if (!string.IsNullOrEmpty(windMsisdn))
+          returnUrl += "&wind=true";
+      }
+
+      #endregion
+      
+      return this.Redirect(returnUrl);
+    }
+    
+    public ActionResult Lookup()
+    {
+      string returnUrl = Request["returnUrl"] != null ? Request["returnUrl"].ToString() : "";
+      char continueChar = returnUrl.Contains('?') ? '&' : '?';
+
+      PaywallHttpContext.Current.Session.SessionData.Referrer = returnUrl;
+      PaywallHttpContext.Current.Session.SessionData.Update();
+      ServiceOffer so = PaywallHttpContext.Current.Service.DefaultServiceOffer;
+
+      #region  # Lookup request #
+
+      if (Request["fromLookupRequest"] == null && PaywallHttpContext.Current.Session.SessionData.MobileOperator == null)
+      {
+        PaywallHttpContext.Current.Session.SessionData.Referrer = Request.UrlReferrer != null ? Request.UrlReferrer.ToString() : null;
+        PaywallHttpContext.Current.Session.SessionData.Update();
+                
+        LookupMsisdnRequest lookupRequest = new LookupMsisdnRequest(Cashflow.Message.RequestMode.Synchronous,
+          PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+          so.PaymentConfiguration.PaymentCredentials.Username,
+          so.PaymentConfiguration.PaymentCredentials.Password,
+          so.Service.Product.ExternalProductGuid,
+          so.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+          so.Service.FallbackCountry.TwoLetterIsoCode,
+          so.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+          so.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+          PaywallHttpContext.Current.Session.SessionData.IPAddress,
+          PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+          "http://" + PaywallHttpContext.Current.Service.ServiceData.Name + Request.RawUrl + "&fromLookupRequest=true", // redirectUrl
+          "", // notificationUrl
+          null);
+        lookupRequest.ReferenceIntID = PaywallHttpContext.Current.Session.SessionData.ID;
+        LookupMsisdnResponse lookupResponse =  CashflowClientPaywallManager.GetMobileExtensionClient(PaywallHttpContext.Current.Service).LookupMsisdn(lookupRequest);
+        
+        UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), PaywallHttpContext.Current.Session.SessionData, null, Request.RawUrl, DateTime.Now, DateTime.Now); uhr.Insert();
+        LookupSession ls = new LookupSession(-1, Guid.NewGuid(), LookupSessionStatus.Initialized, PaywallHttpContext.Current.Session.SessionData, uhr, lookupResponse.IdentificationSessionID, lookupResponse.RedirectUrl, DateTime.Now, DateTime.Now); ls.Insert();
+
+        if ((lookupResponse.Status.Code == Cashflow.Message.MessageStatusCode.Success || lookupResponse.Status.Code == Cashflow.Message.MessageStatusCode.Redirect) && !string.IsNullOrEmpty(lookupResponse.RedirectUrl))
+          return this.Redirect(lookupResponse.RedirectUrl);
+      }
+
+      #endregion
+      #region # Query request #
+
+      else if (Request["fromLookupRequest"] != null)
+      {
+
+        LookupSession ls = null;
+				PaywallDirect db = PaywallDirect.Instance;
+        int? lsID = db.LoadInt(string.Format("SELECT TOP 1 LookupSessionID FROM MobilePaywall.core.LookupSession WHERE UserSessionID={0} ORDER BY LookupSessionID DESC",
+          PaywallHttpContext.Current.Session.SessionData.ID));
+        if (lsID.HasValue)
+          ls = LookupSession.CreateManager().Load(lsID.Value);
+
+        if (ls != null)
+        {
+          QueryIdentificationRequest queryRequest = new QueryIdentificationRequest(Cashflow.Message.RequestMode.Synchronous,
+            PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+            so.PaymentConfiguration.PaymentCredentials.Username,
+            so.PaymentConfiguration.PaymentCredentials.Password,
+            ls.IdentificationSessionGuid.Value, null);
+          queryRequest.ReferenceIntID = PaywallHttpContext.Current.Session.SessionData.ID;
+
+          LookupSessionResult result = new LookupSessionResult(-1, ls, false, true, null, null, string.Empty, string.Empty, DateTime.Now, DateTime.Now);
+
+          QueryIdentificationResponse queryResponse = CashflowClientPaywallManager.GetMobileExtensionClient(PaywallHttpContext.Current.Service).QueryIdentification(queryRequest);
+          if(queryResponse.Status.Code == Cashflow.Message.MessageStatusCode.Success)
+          {
+            MobileOperator mno = null;
+            Customer customer = null;
+
+            if (queryResponse.Operator.HasValue)
+            {
+              int? mnoID = db.LoadInt("SELECT MobileOperatorID FROM MobilePaywall.core.MobileOperator WHERE ExternalMobileOperatorID=" + queryResponse.Operator.Value);
+              if(mnoID.HasValue)
+                mno = MobileOperator.CreateManager().Load(mnoID.Value);
+
+              if (mno != null)
+              {
+                PaywallHttpContext.Current.Session.SessionData.MobileOperator = mno;
+                PaywallHttpContext.Current.Session.SessionData.Update();
+              }
+            }
+            if(!string.IsNullOrEmpty(queryResponse.Msisdn))
+            {
+              int? customerExists = db.LoadInt(string.Format(@"SELECT TOP 1 c.CustomerID FROM MobilePaywall.core.Customer AS c
+                LEFT OUTER JOIN MobilePaywall.core.Service AS s ON c.ServiceID=s.ServiceID
+                LEFT OUTER JOIN MobilePaywall.core.Payment AS p ON p.CustomerID=c.CustomerID
+                WHERE s.ServiceID={0} AND p.PaymentID IS NOT NULL AND p.PaymentStatusID=3 AND c.Msisdn='{1}'
+                ORDER BY c.CustomerID DESC;", PaywallHttpContext.Current.Service.ServiceData.ID, queryResponse.Msisdn));
+
+              if(customerExists.HasValue)
+              {
+                Customer customerData = Customer.CreateManager().Load(customerExists.Value);
+                PaywallHttpContext.Current.Session.SessionData.Customer = customerData;
+                PaywallHttpContext.Current.Session.SessionData.Update();
+
+                return this.Redirect("/login");
+              }
+              
+              customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Active, PaywallHttpContext.Current.Service.ServiceData, PaywallHttpContext.Current.Service.ServiceData.FallbackCountry,
+                PaywallHttpContext.Current.Session.SessionData.MobileOperator, null,
+                (queryResponse.IsEncrypted.Value ? string.Empty : queryResponse.Msisdn),
+                (queryResponse.IsEncrypted.Value ? queryResponse.Msisdn : string.Empty),
+                Guid.NewGuid().ToString(),
+                null, DateTime.Now, DateTime.Now);
+              customer.Insert();
+              customer.SetUsernameAndPassword();
+              PaywallHttpContext.Current.Session.SessionData.Customer = customer;
+              PaywallHttpContext.Current.Session.SessionData.Update();
+            }
+
+            result.IsSuccessful = true;
+            result.MobileOperator = mno;
+            result.Msisdn = (customer != null ? customer.Msisdn : "");
+            result.EncryptedMsisdn = (customer != null ? customer.EncryptedMsisdn: "");
+            result.IdentificationResultGuid = queryResponse.IdentificationResultID;
+
+            (new OLCacher()).Synchronize(PaywallHttpContext.Current.Session.SessionData);
+          }
+
+          result.Insert();
+        }
+      }
+
+      #endregion
+
+      returnUrl +=
+        continueChar + "sessionID=" + PaywallHttpContext.Current.Session.SessionData.Guid +
+        "&sessionIntID=" + PaywallHttpContext.Current.Session.SessionData.ID +
+        "&lang=" + PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode;
+
+      if (PaywallHttpContext.Current.Session.SessionData.MobileOperator != null)
+        returnUrl += "&mno=" + PaywallHttpContext.Current.Session.SessionData.MobileOperator.ID;
+      
+      
+      return this.Redirect(returnUrl);
+    }
+              
+    // SUMMARY: Get translation from service in json
+    public ActionResult GetTranslation()
+    {
+      string group = Request["group"];
+      string groupKey = Request["groupKey"];
+
+      if(string.IsNullOrEmpty(group) || string.IsNullOrEmpty(groupKey))
+        return this.Json(new { text = "" }, JsonRequestBehavior.AllowGet);
+
+      if (Translations.Web.GetGroup(group) == null || Translations.Web.GetGroup(group).GetValue(groupKey) == null)
+        return this.Json(new { text = "" }, JsonRequestBehavior.AllowGet);
+
+      return this.Json(new { text = Translations.Web.GetGroup(group).GetValue(groupKey) }, JsonRequestBehavior.AllowGet);
+    }
+
+    // SUMMARY: (test, not working)
+    public ActionResult ReadNth()
+    {
+      string paymentUrl = Request["paymentRedirect"];
+      if (string.IsNullOrEmpty(paymentUrl))
+      {
+        Log.Error("LANDING_ERROR:: Payment URL is not defined in get param: ");
+        return this.Content("");
+      }
+
+      string pxid = Request["pxid"];
+      if (string.IsNullOrEmpty(pxid))
+      {
+        Log.Error("LANDING_ERROR:: Pxid is not set in GET param for url: " + paymentUrl);
+        return this.Content("");
+      }
+
+      #region  # read from NTH #
+      WebRequest wsRequest = WebRequest.Create(paymentUrl);
+      wsRequest.Method = "GET";
+      WebResponse wsResponse = wsRequest.GetResponse();
+      StreamReader sReader = new StreamReader(wsResponse.GetResponseStream());
+      string response = sReader.ReadToEnd();
+      wsResponse.Close();
+      sReader.Close();
+
+      Regex linkParser = new Regex(@"\b(?:https?://|www\.)\S+\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+      string token = string.Empty;
+      string url = string.Empty;
+      string report = "";
+      foreach (Match m in linkParser.Matches(response))
+        if (m.Value.Contains("accept"))
+        {
+          Log.Debug("LANDING_HACK:: Accept URL found." + m.Value);
+          url = m.Value;
+          break;
+        }
+      #endregion
+
+      if (string.IsNullOrEmpty(url))
+      {
+        Log.Error("LANDING_ERRRO:: Could not load data from paymentLInk: " + paymentUrl + ", and pxid=" + pxid);
+        return this.Content("");
+      }
+
+      string final = url.Replace('&', '|');
+      WebRequest wssRequest = WebRequest.Create(string.Format("http://pornamatertube.mobi/report.php?clickid={0}&accepturl={1}", pxid, url));
+      wssRequest.Method = "GET";
+      WebResponse wssResponse = wssRequest.GetResponse();
+      StreamReader ssReader = new StreamReader(wssResponse.GetResponseStream());
+
+      wssResponse.Close();
+      ssReader.Close();
+      return this.Content("");
+    }
+
+    // SUMMARY: Get direct link to content (payment page)
+    public ActionResult Content()
+    {
+      ServiceContentGroupMap groupMap = ServiceContentGroupMap.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData).FirstOrDefault();
+      int contentID = Data.Content.CreateManager().Load(groupMap.ContentGroup).FirstOrDefault().ID;
+      return Redirect(PaywallHttpContext.AppendSessionID("/content/" + contentID));
+    }
+      
+    // SUMMARY: Android request from android application
+    public ActionResult AndroidRequest(string sid)
+    {
+      int androidClientSessionID = -1;
+      if (!Int32.TryParse(sid, out androidClientSessionID))
+        return this.Content("err_parse");
+
+      AndroidClientSession acs = AndroidClientSession.CreateManager().Load(androidClientSessionID);
+      if (acs == null)
+        return this.Content("err_noAcs");
+
+      // update android referrer with session referrer (important for trackign)
+      if(!string.IsNullOrEmpty(acs.Referrer) && !PaywallHttpContext.Current.Session.SessionData.Referrer.Equals(acs.Referrer))
+      {
+        PaywallHttpContext.Current.Session.SessionData.Referrer = acs.Referrer;
+        PaywallHttpContext.Current.Session.SessionData.Update();
+      }
+
+      OLCache olCache = OLCache.CreateManager().Load(PaywallHttpContext.Current.Session.SessionData);
+      AndroidClientSessionOLCacheMap map = AndroidClientSessionOLCacheMap.CreateManager().Load(acs, olCache);
+      if(map == null)
+      {
+        map = new AndroidClientSessionOLCacheMap(-1, acs, olCache, DateTime.Now, DateTime.Now);
+        map.Insert();
+      }
+
+      return this.Content();
+    }
+
+    #region # External Iframe offers #
+
+    public ActionResult Offer()
+    {
+      return this.View("~/Views/_Shared/OverlayRedirection.cshtml");
+    }
+
+    #endregion
+    
+
+    // SUMMARY: Update iframe url from OverlayRedirection.cshtml
+    public ActionResult UpdateUrlRequest()
+    {
+      string url = Request["url"] != null ? Request["url"].ToString() : string.Empty;
+
+      if (string.IsNullOrEmpty(url))
+        return this.Json(new { status = false }, JsonRequestBehavior.AllowGet);
+
+      if(url.ToLower().Contains(string.Format("{0}/landingpage/offer", PaywallHttpContext.Current.Service.ServiceData.Name)))
+        return this.Json(new { status = true }, JsonRequestBehavior.AllowGet);
+
+      PaywallHttpContext.Current.Session.Storage.PutString("url", url);
+      return this.Json(new { status = true }, JsonRequestBehavior.AllowGet);
+    }
+   
+  }
+}

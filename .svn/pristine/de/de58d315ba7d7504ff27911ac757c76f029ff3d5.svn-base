@@ -1,0 +1,183 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+
+using Cashflow.Client;
+using Cashflow.Message;
+
+using MobilePaywall.Data;
+using WebGrease;
+using log4net;
+using Senti.Diagnostics.Log;
+using MobilePaywall.Service.Callback.Log;
+using MobilePaywall.Service.Callback;
+using MobilePaywall.Direct;
+
+namespace MobilePaywall.Service.Handlers
+{
+  public class MembershipNotificationHandler : NotificationHandlerBase
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (MembershipNotificationHandler._log == null)
+          MembershipNotificationHandler._log = log4net.LogManager.GetLogger(typeof(MembershipNotificationHandler));
+        return MembershipNotificationHandler._log;
+      }
+    }
+
+    #endregion
+
+    ///Serve for extending membership and it is executed second in the flow after ProcessChargeNotification from PaymentNotificationHandler.
+    protected override void ProcessChargeSubscription(ChargeSubscriptionNotification notification)
+    {
+      base.ProcessChargeSubscription(notification);
+      CallbackLog CLog = new CallbackLog(notification, Log);
+
+      try
+      {
+
+        Data.IPaymentManager pManager = Data.Payment.CreateManager(2);
+        Data.Payment payment = pManager.Load(notification.Subscription.SubscriptionID, GuidType.External);
+        IBehaviorModelManager bmManager = BehaviorModel.CreateManager();
+        BehaviorModel behaviorModel = bmManager.Load(notification.Subscription.Model.ModelID);
+        if (payment == null)
+        {
+          if (behaviorModel == null)
+          {
+            CLog.Debug(new LogMessageBuilder(new LogErrorCode("membership", "charge", "payment"),
+             "Payment is probably from MobileMafia. We do not have specified model registered in our database.",
+             notification.Status, notification.Subscription, notification.Transaction, notification.Subscription.Model));
+            return;
+          }
+
+          CLog.Error(new LogMessageBuilder(new LogErrorCode("membership", "charge", "payment"),
+             "Payment was not loaded.",
+             notification.Status, notification.Subscription, notification.Transaction));
+          return;
+        }
+
+        if (WebApiApplication.SpecificHandlerManager.TryToRunSpecificImplementation(CLog))
+          return;
+
+        Data.ITransactionManager tManager = Data.Transaction.CreateManager();
+        Data.Transaction transaction = tManager.Load(notification.Transaction.TransactionID, GuidType.External);
+        if (transaction == null)
+        {
+          CLog.Warn(new LogMessageBuilder(new LogErrorCode("webtrack", "charge", "transaction"),
+             "Transaction was not loaded.",
+             notification.Status, notification.Subscription, notification.Transaction, payment));
+          return;
+        }
+
+        IPaymentRequestManager prManager = PaymentRequest.CreateManager(2);
+        PaymentRequest paymentRequest = prManager.Load(payment.PaymentRequest.ID);
+
+        //QUESTION: If subscription is not charged first time when it is created than second time or third time when it will be next charging? (retry policy)
+        IPaymentContentAccessPolicyMapManager pcapmManager = PaymentContentAccessPolicyMap.CreateManager();
+        PaymentContentAccessPolicyMap pcapm = pcapmManager.Load(payment, transaction);
+
+        if (pcapm == null)
+        {
+          pcapm = new PaymentContentAccessPolicyMap(-1,
+            payment,
+            paymentRequest.UserHttpRequest.Content,
+            paymentRequest.ServiceOffer.ContentAccessPolicy,
+            transaction,
+            notification.Status.Code == MessageStatusCode.Success ? true : false,
+            false,
+            DateTime.Now,
+            DateTime.Now.AddSeconds(notification.Subscription.IntervalInSeconds),
+            DateTime.Now, DateTime.Now);
+          pcapm.Insert();
+        }
+      }
+      catch (Exception e)
+      {
+        CLog.Fatal(new LogMessageBuilder(new LogErrorCode("mpcshandler", "charge", "general"),
+          "Exception occur."));
+      }
+    }
+
+    protected override void ProcessChargePurchase(ChargePurchaseNotification notification)
+    {
+      base.ProcessChargePurchase(notification);
+      CallbackLog CLog = new CallbackLog(notification, Log);
+
+      try
+      {
+        Data.Payment payment = Data.Payment.CreateManager(2).Load(notification.Purchase.PurchaseID, GuidType.External);
+        BehaviorModel behaviorModel = BehaviorModel.CreateManager().Load(notification.Purchase.Model.ModelID);
+
+        if (payment == null)
+        {
+          if (behaviorModel == null)
+          {
+            CLog.Debug(new LogMessageBuilder(new LogErrorCode("membership", "charge", "payment"), "Payment is probably from MobileMafia. We do not have specified model registered in our database.", 
+              notification.Status, notification.Purchase, notification.Transaction, notification.Purchase.Model));
+            return;
+          }
+          CLog.Error(new LogMessageBuilder(new LogErrorCode("membership", "charge", "payment"), "Payment was not loaded.", notification.Status, notification.Purchase, notification.Transaction));
+          return;
+        }
+        
+        Data.Transaction transaction = Data.Transaction.CreateManager().Load(notification.Transaction.TransactionID, GuidType.External);
+        if (transaction == null)
+        {
+          CLog.Warn(new LogMessageBuilder(new LogErrorCode("membership", "charge", "transaction"), "Transaction was not loaded.",
+             notification.Status, notification.Purchase, notification.Transaction, payment));
+          return;
+        }
+        
+        PaymentRequest paymentRequest = payment.PaymentRequest;
+
+        try
+        {
+          MobilePaywallDirect db = MobilePaywallDirect.Instance;
+          int? paymentContentAccessPolicyMap = db.LoadInt(string.Format("SELECT * FROM MobilePaywall.core.PaymentContentAccessPolicyMap WHERE PaymentID={0} AND TransactionID={1}",
+            payment.ID, transaction.ID));
+
+          if (!paymentContentAccessPolicyMap.HasValue)
+          {
+            int intervalInSeconds = 0;
+            if(!payment.ServiceOffer.ContentAccessPolicy.IntervalInSeconds.HasValue)
+            {
+              intervalInSeconds = 604800; // 7 days
+              CLog.Error("ContentAccessPolicy.IntervalInSeconds for service  {0} is not set! Please fix this. Added default 7day period!");
+            }
+            else
+              intervalInSeconds = payment.ServiceOffer.ContentAccessPolicy.IntervalInSeconds.Value;
+            
+            PaymentContentAccessPolicyMap pcapm = new PaymentContentAccessPolicyMap(-1,
+              payment, paymentRequest.UserHttpRequest.Content, paymentRequest.ServiceOffer.ContentAccessPolicy,
+              transaction, notification.Status.Code == MessageStatusCode.Success ? true : false, false, 
+              DateTime.Now, DateTime.Now.AddSeconds(intervalInSeconds), DateTime.Now, DateTime.Now);
+            pcapm.Insert();
+
+            CLog.Debug(new LogMessageBuilder(new LogErrorCode("membership", "charge", "purchase"),
+              "PaymentContentAccessPolicy is created with ID: " + pcapm.ID));
+          }
+
+        }
+        catch (Exception ex)
+        {
+          CLog.Warn(new LogMessageBuilder(new LogErrorCode("webtrack", "charge", "paymentcontentaccesspolicymap"),
+             "PaymentContentAccessPolicyMap not created. Please check! Probably ContentAccessPolicy.IntervalInSeconds is not set... ",
+             ex, ex.Message, ex.InnerException.Message,
+             notification.Status, notification.Purchase, notification.Transaction, payment));
+          return;
+        }
+      }
+      catch (Exception e)
+      {
+        CLog.Fatal(new LogMessageBuilder(new LogErrorCode("mpcphandler", "charge", "general"),
+          "Exception occur."), e);
+      }
+    }
+  }
+}

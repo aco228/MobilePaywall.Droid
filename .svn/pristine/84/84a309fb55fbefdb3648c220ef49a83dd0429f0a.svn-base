@@ -1,0 +1,641 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(Payment))] 
+  public partial class PaymentManager : MobilePaywall.Data.Sql.SqlManagerBase<Payment>, IPaymentManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override Payment LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							PaymentTable.GetColumnNames("[p]") + 
+							(this.Depth > 0 ? "," + PaymentRequestTable.GetColumnNames("[p_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LookupSessionTable.GetColumnNames("[p_pr_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[p_pr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTable.GetColumnNames("[p_pr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[p_pr_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[p_pr_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserHttpRequestTable.GetColumnNames("[p_pr_uhr]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CustomerTable.GetColumnNames("[p_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[p_c_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[p_c_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[p_c_mo]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceOfferTable.GetColumnNames("[p_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[p_so_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[p_so_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentConfigurationTable.GetColumnNames("[p_so_pc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentAccessPolicyTable.GetColumnNames("[p_so_cap]") : string.Empty) + 
+							(this.Depth > 0 ? "," + BusinessModelEntryTable.GetColumnNames("[p_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[p_bme_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[p_bme_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[p_bme_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTypeTable.GetColumnNames("[p_bme_bmt]") : string.Empty) + 
+					" FROM [core].[Payment] AS [p] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [p_pr] ON [p].[PaymentRequestID] = [p_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[LookupSession] AS [p_pr_ls] ON [p_pr].[LookupSessionID] = [p_pr_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [p_pr_c] ON [p_pr].[CustomerID] = [p_pr_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [p_pr_us] ON [p_pr].[UserSessionID] = [p_pr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [p_pr_so] ON [p_pr].[ServiceOfferID] = [p_pr_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [p_pr_bme] ON [p_pr].[BusinessModelEntryID] = [p_pr_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [p_pr_uhr] ON [p_pr].[UserHttpRequestID] = [p_pr_uhr].[UserHttpRequestID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [p_c] ON [p].[CustomerID] = [p_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [p_c_s] ON [p_c].[ServiceID] = [p_c_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [p_c_c] ON [p_c].[CountryID] = [p_c_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [p_c_mo] ON [p_c].[MobileOperatorID] = [p_c_mo].[MobileOperatorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [p_so] ON [p].[ServiceOfferID] = [p_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [p_so_s] ON [p_so].[ServiceID] = [p_so_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [p_so_bme] ON [p_so].[BusinessModelEntryID] = [p_so_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentConfiguration] AS [p_so_pc] ON [p_so].[PaymentConfigurationID] = [p_so_pc].[PaymentConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentAccessPolicy] AS [p_so_cap] ON [p_so].[ContentAccessPolicyID] = [p_so_cap].[ContentAccessPolicyID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [p_bme] ON [p].[BusinessModelEntryID] = [p_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [p_bme_bm] ON [p_bme].[BusinessModelID] = [p_bme_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [p_bme_c] ON [p_bme].[CountryID] = [p_bme_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [p_bme_mo] ON [p_bme].[MobileOperatorID] = [p_bme_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelType] AS [p_bme_bmt] ON [p_bme].[BusinessModelTypeID] = [p_bme_bmt].[BusinessModelTypeID] ";
+				sqlCmdText += "WHERE [p].[PaymentID] = @PaymentID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@PaymentID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("p", "loadinternal", "notfound"), "Payment could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				PaymentTable pTable = new PaymentTable(query);
+				PaymentRequestTable p_prTable = (this.Depth > 0) ? new PaymentRequestTable(query) : null;
+				LookupSessionTable p_pr_lsTable = (this.Depth > 1) ? new LookupSessionTable(query) : null;
+				CustomerTable p_pr_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				UserSessionTable p_pr_usTable = (this.Depth > 1) ? new UserSessionTable(query) : null;
+				ServiceOfferTable p_pr_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable p_pr_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				UserHttpRequestTable p_pr_uhrTable = (this.Depth > 1) ? new UserHttpRequestTable(query) : null;
+				CustomerTable p_cTable = (this.Depth > 0) ? new CustomerTable(query) : null;
+				ServiceTable p_c_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				CountryTable p_c_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable p_c_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				ServiceOfferTable p_soTable = (this.Depth > 0) ? new ServiceOfferTable(query) : null;
+				ServiceTable p_so_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				BusinessModelEntryTable p_so_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				PaymentConfigurationTable p_so_pcTable = (this.Depth > 1) ? new PaymentConfigurationTable(query) : null;
+				ContentAccessPolicyTable p_so_capTable = (this.Depth > 1) ? new ContentAccessPolicyTable(query) : null;
+				BusinessModelEntryTable p_bmeTable = (this.Depth > 0) ? new BusinessModelEntryTable(query) : null;
+				BusinessModelTable p_bme_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				CountryTable p_bme_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable p_bme_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				BusinessModelTypeTable p_bme_bmtTable = (this.Depth > 1) ? new BusinessModelTypeTable(query) : null;
+
+        
+				LookupSession p_pr_lsObject = (this.Depth > 1) ? p_pr_lsTable.CreateInstance() : null;
+				Customer p_pr_cObject = (this.Depth > 1) ? p_pr_cTable.CreateInstance() : null;
+				UserSession p_pr_usObject = (this.Depth > 1) ? p_pr_usTable.CreateInstance() : null;
+				ServiceOffer p_pr_soObject = (this.Depth > 1) ? p_pr_soTable.CreateInstance() : null;
+				BusinessModelEntry p_pr_bmeObject = (this.Depth > 1) ? p_pr_bmeTable.CreateInstance() : null;
+				UserHttpRequest p_pr_uhrObject = (this.Depth > 1) ? p_pr_uhrTable.CreateInstance() : null;
+				PaymentRequest p_prObject = (this.Depth > 0) ? p_prTable.CreateInstance(p_pr_lsObject, p_pr_cObject, p_pr_usObject, p_pr_soObject, p_pr_bmeObject, p_pr_uhrObject) : null;
+				Service p_c_sObject = (this.Depth > 1) ? p_c_sTable.CreateInstance() : null;
+				Country p_c_cObject = (this.Depth > 1) ? p_c_cTable.CreateInstance() : null;
+				MobileOperator p_c_moObject = (this.Depth > 1) ? p_c_moTable.CreateInstance() : null;
+				Customer p_cObject = (this.Depth > 0) ? p_cTable.CreateInstance(p_c_sObject, p_c_cObject, p_c_moObject) : null;
+				Service p_so_sObject = (this.Depth > 1) ? p_so_sTable.CreateInstance() : null;
+				BusinessModelEntry p_so_bmeObject = (this.Depth > 1) ? p_so_bmeTable.CreateInstance() : null;
+				PaymentConfiguration p_so_pcObject = (this.Depth > 1) ? p_so_pcTable.CreateInstance() : null;
+				ContentAccessPolicy p_so_capObject = (this.Depth > 1) ? p_so_capTable.CreateInstance() : null;
+				ServiceOffer p_soObject = (this.Depth > 0) ? p_soTable.CreateInstance(p_so_sObject, p_so_bmeObject, p_so_pcObject, p_so_capObject) : null;
+				BusinessModel p_bme_bmObject = (this.Depth > 1) ? p_bme_bmTable.CreateInstance() : null;
+				Country p_bme_cObject = (this.Depth > 1) ? p_bme_cTable.CreateInstance() : null;
+				MobileOperator p_bme_moObject = (this.Depth > 1) ? p_bme_moTable.CreateInstance() : null;
+				BusinessModelType p_bme_bmtObject = (this.Depth > 1) ? p_bme_bmtTable.CreateInstance() : null;
+				BusinessModelEntry p_bmeObject = (this.Depth > 0) ? p_bmeTable.CreateInstance(p_bme_bmObject, p_bme_cObject, p_bme_moObject, p_bme_bmtObject) : null;
+				Payment pObject = pTable.CreateInstance(p_prObject, p_cObject, p_soObject, p_bmeObject);
+				sqlReader.Close();
+
+				return pObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("p", "loadinternal", "exception"), "Payment could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Payment", "Exception while loading Payment object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public Payment Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							PaymentTable.GetColumnNames("[p]") + 
+							(this.Depth > 0 ? "," + PaymentRequestTable.GetColumnNames("[p_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LookupSessionTable.GetColumnNames("[p_pr_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[p_pr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTable.GetColumnNames("[p_pr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[p_pr_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[p_pr_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserHttpRequestTable.GetColumnNames("[p_pr_uhr]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CustomerTable.GetColumnNames("[p_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[p_c_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[p_c_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[p_c_mo]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceOfferTable.GetColumnNames("[p_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[p_so_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[p_so_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentConfigurationTable.GetColumnNames("[p_so_pc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentAccessPolicyTable.GetColumnNames("[p_so_cap]") : string.Empty) + 
+							(this.Depth > 0 ? "," + BusinessModelEntryTable.GetColumnNames("[p_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[p_bme_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[p_bme_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[p_bme_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTypeTable.GetColumnNames("[p_bme_bmt]") : string.Empty) +  
+					" FROM [core].[Payment] AS [p] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [p_pr] ON [p].[PaymentRequestID] = [p_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[LookupSession] AS [p_pr_ls] ON [p_pr].[LookupSessionID] = [p_pr_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [p_pr_c] ON [p_pr].[CustomerID] = [p_pr_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [p_pr_us] ON [p_pr].[UserSessionID] = [p_pr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [p_pr_so] ON [p_pr].[ServiceOfferID] = [p_pr_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [p_pr_bme] ON [p_pr].[BusinessModelEntryID] = [p_pr_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [p_pr_uhr] ON [p_pr].[UserHttpRequestID] = [p_pr_uhr].[UserHttpRequestID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [p_c] ON [p].[CustomerID] = [p_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [p_c_s] ON [p_c].[ServiceID] = [p_c_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [p_c_c] ON [p_c].[CountryID] = [p_c_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [p_c_mo] ON [p_c].[MobileOperatorID] = [p_c_mo].[MobileOperatorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [p_so] ON [p].[ServiceOfferID] = [p_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [p_so_s] ON [p_so].[ServiceID] = [p_so_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [p_so_bme] ON [p_so].[BusinessModelEntryID] = [p_so_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentConfiguration] AS [p_so_pc] ON [p_so].[PaymentConfigurationID] = [p_so_pc].[PaymentConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentAccessPolicy] AS [p_so_cap] ON [p_so].[ContentAccessPolicyID] = [p_so_cap].[ContentAccessPolicyID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [p_bme] ON [p].[BusinessModelEntryID] = [p_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [p_bme_bm] ON [p_bme].[BusinessModelID] = [p_bme_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [p_bme_c] ON [p_bme].[CountryID] = [p_bme_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [p_bme_mo] ON [p_bme].[MobileOperatorID] = [p_bme_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelType] AS [p_bme_bmt] ON [p_bme].[BusinessModelTypeID] = [p_bme_bmt].[BusinessModelTypeID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("p", "customload", "notfound"), "Payment could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				PaymentTable pTable = new PaymentTable(query);
+				PaymentRequestTable p_prTable = (this.Depth > 0) ? new PaymentRequestTable(query) : null;
+				LookupSessionTable p_pr_lsTable = (this.Depth > 1) ? new LookupSessionTable(query) : null;
+				CustomerTable p_pr_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				UserSessionTable p_pr_usTable = (this.Depth > 1) ? new UserSessionTable(query) : null;
+				ServiceOfferTable p_pr_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable p_pr_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				UserHttpRequestTable p_pr_uhrTable = (this.Depth > 1) ? new UserHttpRequestTable(query) : null;
+				CustomerTable p_cTable = (this.Depth > 0) ? new CustomerTable(query) : null;
+				ServiceTable p_c_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				CountryTable p_c_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable p_c_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				ServiceOfferTable p_soTable = (this.Depth > 0) ? new ServiceOfferTable(query) : null;
+				ServiceTable p_so_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				BusinessModelEntryTable p_so_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				PaymentConfigurationTable p_so_pcTable = (this.Depth > 1) ? new PaymentConfigurationTable(query) : null;
+				ContentAccessPolicyTable p_so_capTable = (this.Depth > 1) ? new ContentAccessPolicyTable(query) : null;
+				BusinessModelEntryTable p_bmeTable = (this.Depth > 0) ? new BusinessModelEntryTable(query) : null;
+				BusinessModelTable p_bme_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				CountryTable p_bme_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable p_bme_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				BusinessModelTypeTable p_bme_bmtTable = (this.Depth > 1) ? new BusinessModelTypeTable(query) : null;
+
+        
+				LookupSession p_pr_lsObject = (this.Depth > 1) ? p_pr_lsTable.CreateInstance() : null;
+				Customer p_pr_cObject = (this.Depth > 1) ? p_pr_cTable.CreateInstance() : null;
+				UserSession p_pr_usObject = (this.Depth > 1) ? p_pr_usTable.CreateInstance() : null;
+				ServiceOffer p_pr_soObject = (this.Depth > 1) ? p_pr_soTable.CreateInstance() : null;
+				BusinessModelEntry p_pr_bmeObject = (this.Depth > 1) ? p_pr_bmeTable.CreateInstance() : null;
+				UserHttpRequest p_pr_uhrObject = (this.Depth > 1) ? p_pr_uhrTable.CreateInstance() : null;
+				PaymentRequest p_prObject = (this.Depth > 0) ? p_prTable.CreateInstance(p_pr_lsObject, p_pr_cObject, p_pr_usObject, p_pr_soObject, p_pr_bmeObject, p_pr_uhrObject) : null;
+				Service p_c_sObject = (this.Depth > 1) ? p_c_sTable.CreateInstance() : null;
+				Country p_c_cObject = (this.Depth > 1) ? p_c_cTable.CreateInstance() : null;
+				MobileOperator p_c_moObject = (this.Depth > 1) ? p_c_moTable.CreateInstance() : null;
+				Customer p_cObject = (this.Depth > 0) ? p_cTable.CreateInstance(p_c_sObject, p_c_cObject, p_c_moObject) : null;
+				Service p_so_sObject = (this.Depth > 1) ? p_so_sTable.CreateInstance() : null;
+				BusinessModelEntry p_so_bmeObject = (this.Depth > 1) ? p_so_bmeTable.CreateInstance() : null;
+				PaymentConfiguration p_so_pcObject = (this.Depth > 1) ? p_so_pcTable.CreateInstance() : null;
+				ContentAccessPolicy p_so_capObject = (this.Depth > 1) ? p_so_capTable.CreateInstance() : null;
+				ServiceOffer p_soObject = (this.Depth > 0) ? p_soTable.CreateInstance(p_so_sObject, p_so_bmeObject, p_so_pcObject, p_so_capObject) : null;
+				BusinessModel p_bme_bmObject = (this.Depth > 1) ? p_bme_bmTable.CreateInstance() : null;
+				Country p_bme_cObject = (this.Depth > 1) ? p_bme_cTable.CreateInstance() : null;
+				MobileOperator p_bme_moObject = (this.Depth > 1) ? p_bme_moTable.CreateInstance() : null;
+				BusinessModelType p_bme_bmtObject = (this.Depth > 1) ? p_bme_bmtTable.CreateInstance() : null;
+				BusinessModelEntry p_bmeObject = (this.Depth > 0) ? p_bmeTable.CreateInstance(p_bme_bmObject, p_bme_cObject, p_bme_moObject, p_bme_bmtObject) : null;
+				Payment pObject = pTable.CreateInstance(p_prObject, p_cObject, p_soObject, p_bmeObject);
+				sqlReader.Close();
+
+				return pObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("p", "customload", "exception"), "Payment could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Payment", "Exception while loading (custom/single) Payment object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<Payment> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							PaymentTable.GetColumnNames("[p]") + 
+							(this.Depth > 0 ? "," + PaymentRequestTable.GetColumnNames("[p_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LookupSessionTable.GetColumnNames("[p_pr_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[p_pr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTable.GetColumnNames("[p_pr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[p_pr_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[p_pr_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserHttpRequestTable.GetColumnNames("[p_pr_uhr]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CustomerTable.GetColumnNames("[p_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[p_c_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[p_c_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[p_c_mo]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceOfferTable.GetColumnNames("[p_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[p_so_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[p_so_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentConfigurationTable.GetColumnNames("[p_so_pc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentAccessPolicyTable.GetColumnNames("[p_so_cap]") : string.Empty) + 
+							(this.Depth > 0 ? "," + BusinessModelEntryTable.GetColumnNames("[p_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[p_bme_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[p_bme_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[p_bme_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTypeTable.GetColumnNames("[p_bme_bmt]") : string.Empty) +  
+					" FROM [core].[Payment] AS [p] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [p_pr] ON [p].[PaymentRequestID] = [p_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[LookupSession] AS [p_pr_ls] ON [p_pr].[LookupSessionID] = [p_pr_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [p_pr_c] ON [p_pr].[CustomerID] = [p_pr_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [p_pr_us] ON [p_pr].[UserSessionID] = [p_pr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [p_pr_so] ON [p_pr].[ServiceOfferID] = [p_pr_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [p_pr_bme] ON [p_pr].[BusinessModelEntryID] = [p_pr_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [p_pr_uhr] ON [p_pr].[UserHttpRequestID] = [p_pr_uhr].[UserHttpRequestID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [p_c] ON [p].[CustomerID] = [p_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [p_c_s] ON [p_c].[ServiceID] = [p_c_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [p_c_c] ON [p_c].[CountryID] = [p_c_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [p_c_mo] ON [p_c].[MobileOperatorID] = [p_c_mo].[MobileOperatorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [p_so] ON [p].[ServiceOfferID] = [p_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [p_so_s] ON [p_so].[ServiceID] = [p_so_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [p_so_bme] ON [p_so].[BusinessModelEntryID] = [p_so_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentConfiguration] AS [p_so_pc] ON [p_so].[PaymentConfigurationID] = [p_so_pc].[PaymentConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentAccessPolicy] AS [p_so_cap] ON [p_so].[ContentAccessPolicyID] = [p_so_cap].[ContentAccessPolicyID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [p_bme] ON [p].[BusinessModelEntryID] = [p_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [p_bme_bm] ON [p_bme].[BusinessModelID] = [p_bme_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [p_bme_c] ON [p_bme].[CountryID] = [p_bme_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [p_bme_mo] ON [p_bme].[MobileOperatorID] = [p_bme_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelType] AS [p_bme_bmt] ON [p_bme].[BusinessModelTypeID] = [p_bme_bmt].[BusinessModelTypeID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("p", "customloadmany", "notfound"), "Payment list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<Payment>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				PaymentTable pTable = new PaymentTable(query);
+				PaymentRequestTable p_prTable = (this.Depth > 0) ? new PaymentRequestTable(query) : null;
+				LookupSessionTable p_pr_lsTable = (this.Depth > 1) ? new LookupSessionTable(query) : null;
+				CustomerTable p_pr_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				UserSessionTable p_pr_usTable = (this.Depth > 1) ? new UserSessionTable(query) : null;
+				ServiceOfferTable p_pr_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable p_pr_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				UserHttpRequestTable p_pr_uhrTable = (this.Depth > 1) ? new UserHttpRequestTable(query) : null;
+				CustomerTable p_cTable = (this.Depth > 0) ? new CustomerTable(query) : null;
+				ServiceTable p_c_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				CountryTable p_c_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable p_c_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				ServiceOfferTable p_soTable = (this.Depth > 0) ? new ServiceOfferTable(query) : null;
+				ServiceTable p_so_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				BusinessModelEntryTable p_so_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				PaymentConfigurationTable p_so_pcTable = (this.Depth > 1) ? new PaymentConfigurationTable(query) : null;
+				ContentAccessPolicyTable p_so_capTable = (this.Depth > 1) ? new ContentAccessPolicyTable(query) : null;
+				BusinessModelEntryTable p_bmeTable = (this.Depth > 0) ? new BusinessModelEntryTable(query) : null;
+				BusinessModelTable p_bme_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				CountryTable p_bme_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable p_bme_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				BusinessModelTypeTable p_bme_bmtTable = (this.Depth > 1) ? new BusinessModelTypeTable(query) : null;
+
+        List<Payment> result = new List<Payment>();
+        do
+        {
+          
+					LookupSession p_pr_lsObject = (this.Depth > 1) ? p_pr_lsTable.CreateInstance() : null;
+					Customer p_pr_cObject = (this.Depth > 1) ? p_pr_cTable.CreateInstance() : null;
+					UserSession p_pr_usObject = (this.Depth > 1) ? p_pr_usTable.CreateInstance() : null;
+					ServiceOffer p_pr_soObject = (this.Depth > 1) ? p_pr_soTable.CreateInstance() : null;
+					BusinessModelEntry p_pr_bmeObject = (this.Depth > 1) ? p_pr_bmeTable.CreateInstance() : null;
+					UserHttpRequest p_pr_uhrObject = (this.Depth > 1) ? p_pr_uhrTable.CreateInstance() : null;
+					PaymentRequest p_prObject = (this.Depth > 0) ? p_prTable.CreateInstance(p_pr_lsObject, p_pr_cObject, p_pr_usObject, p_pr_soObject, p_pr_bmeObject, p_pr_uhrObject) : null;
+					Service p_c_sObject = (this.Depth > 1) ? p_c_sTable.CreateInstance() : null;
+					Country p_c_cObject = (this.Depth > 1) ? p_c_cTable.CreateInstance() : null;
+					MobileOperator p_c_moObject = (this.Depth > 1) ? p_c_moTable.CreateInstance() : null;
+					Customer p_cObject = (this.Depth > 0) ? p_cTable.CreateInstance(p_c_sObject, p_c_cObject, p_c_moObject) : null;
+					Service p_so_sObject = (this.Depth > 1) ? p_so_sTable.CreateInstance() : null;
+					BusinessModelEntry p_so_bmeObject = (this.Depth > 1) ? p_so_bmeTable.CreateInstance() : null;
+					PaymentConfiguration p_so_pcObject = (this.Depth > 1) ? p_so_pcTable.CreateInstance() : null;
+					ContentAccessPolicy p_so_capObject = (this.Depth > 1) ? p_so_capTable.CreateInstance() : null;
+					ServiceOffer p_soObject = (this.Depth > 0) ? p_soTable.CreateInstance(p_so_sObject, p_so_bmeObject, p_so_pcObject, p_so_capObject) : null;
+					BusinessModel p_bme_bmObject = (this.Depth > 1) ? p_bme_bmTable.CreateInstance() : null;
+					Country p_bme_cObject = (this.Depth > 1) ? p_bme_cTable.CreateInstance() : null;
+					MobileOperator p_bme_moObject = (this.Depth > 1) ? p_bme_moTable.CreateInstance() : null;
+					BusinessModelType p_bme_bmtObject = (this.Depth > 1) ? p_bme_bmtTable.CreateInstance() : null;
+					BusinessModelEntry p_bmeObject = (this.Depth > 0) ? p_bmeTable.CreateInstance(p_bme_bmObject, p_bme_cObject, p_bme_moObject, p_bme_bmtObject) : null;
+					Payment pObject = (this.Depth > -1) ? pTable.CreateInstance(p_prObject, p_cObject, p_soObject, p_bmeObject) : null;
+					result.Add(pObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("p", "customloadmany", "exception"), "Payment list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Payment", "Exception while loading (custom/many) Payment object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, Payment data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[Payment] ([PaymentGuid],[PaymentTypeID],[ExternalPaymentGuid],[PaymentStatusID],[PaymentRequestID],[CustomerID],[ServiceOfferID],[BusinessModelEntryID]) VALUES(@PaymentGuid,@PaymentTypeID,@ExternalPaymentGuid,@PaymentStatusID,@PaymentRequestID,@CustomerID,@ServiceOfferID,@BusinessModelEntryID); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@PaymentGuid", data.Guid);
+				sqlCmd.Parameters.AddWithValue("@PaymentTypeID", (int)data.PaymentType);
+				sqlCmd.Parameters.AddWithValue("@ExternalPaymentGuid", data.ExternalPaymentGuid.HasValue ? (object)data.ExternalPaymentGuid : DBNull.Value);
+				sqlCmd.Parameters.AddWithValue("@PaymentStatusID", (int)data.PaymentStatus);
+				sqlCmd.Parameters.AddWithValue("@PaymentRequestID", data.PaymentRequest.ID);
+				sqlCmd.Parameters.AddWithValue("@CustomerID", data.Customer.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceOfferID", data.ServiceOffer.ID);
+				sqlCmd.Parameters.AddWithValue("@BusinessModelEntryID", data.BusinessModelEntry.ID);
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("p", "insert", "noprimarykey"), "Payment could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "Payment", "Exception while inserting Payment object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("p", "insert", "exception"), "Payment could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "Payment", "Exception while inserting Payment object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, Payment data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[Payment] SET " +
+												"[PaymentGuid] = @PaymentGuid, " + 
+												"[PaymentTypeID] = @PaymentTypeID, " + 
+												"[ExternalPaymentGuid] = @ExternalPaymentGuid, " + 
+												"[PaymentStatusID] = @PaymentStatusID, " + 
+												"[PaymentRequestID] = @PaymentRequestID, " + 
+												"[CustomerID] = @CustomerID, " + 
+												"[ServiceOfferID] = @ServiceOfferID, " + 
+												"[BusinessModelEntryID] = @BusinessModelEntryID, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [PaymentID] = @PaymentID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@PaymentGuid", data.Guid);
+				sqlCmd.Parameters.AddWithValue("@PaymentTypeID", (int)data.PaymentType);
+				sqlCmd.Parameters.AddWithValue("@ExternalPaymentGuid", data.ExternalPaymentGuid.HasValue ? (object)data.ExternalPaymentGuid : DBNull.Value);
+				sqlCmd.Parameters.AddWithValue("@PaymentStatusID", (int)data.PaymentStatus);
+				sqlCmd.Parameters.AddWithValue("@PaymentRequestID", data.PaymentRequest.ID);
+				sqlCmd.Parameters.AddWithValue("@CustomerID", data.Customer.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceOfferID", data.ServiceOffer.ID);
+				sqlCmd.Parameters.AddWithValue("@BusinessModelEntryID", data.BusinessModelEntry.ID);
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@PaymentID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("p", "update", "norecord"), "Payment could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "Payment", "Exception while updating Payment object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("p", "update", "morerecords"), "Payment was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "Payment", "Exception while updating Payment object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("p", "update", "exception"), "Payment could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "Payment", "Exception while updating Payment object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, Payment data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[Payment] WHERE PaymentID = @PaymentID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@PaymentID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("p", "delete", "norecord"), "Payment could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "Payment", "Exception while deleting Payment object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("p", "delete", "exception"), "Payment could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "Payment", "Exception while deleting Payment object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

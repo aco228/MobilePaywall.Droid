@@ -1,0 +1,108 @@
+﻿var LockCustom = function () {
+
+  var handleLock = function (originalUrl, username) {
+    var spin = Ladda.create(document.querySelector('#btnSubmit'));
+
+    if ($('#btnSubmit').attr('inuse') == 'true')
+      return;
+
+    $('.lock-form').validate({
+      errorElement: 'span', //default input error message container
+      errorClass: 'help-block', // default input error message class
+      focusInvalid: true, // focus the last invalid input
+      rules: {
+        password: {
+          required: true
+        }
+      },
+
+      messages: {
+        password: {
+          required: "Password is required."
+        }
+      },
+
+      invalidHandler: function (event, validator) { //display error alert on form submit   
+        $('.alert-danger.empty', $('.lock-form')).show();
+      },
+
+      highlight: function (element) { // hightlight error inputs
+        $(element)
+            .closest('.form-group').addClass('has-error'); // set error class to the control group
+      },
+
+      success: function (label) {
+        label.closest('.form-group').removeClass('has-error');
+        label.remove();
+      },
+
+      errorPlacement: function (error, element) {
+        error.insertAfter(element.closest('.input-group'));
+      },
+
+      submitHandler: function (form) {
+        spin.start();
+        var password = $('#inputPassword').val();
+
+        $.ajax({
+          url: '/login/lockin',
+          method: 'POST',
+          data: {
+            password: password,
+            username: username
+          },
+          success: function (response) {
+            if (response.status) {
+              if (originalUrl != '') {
+                hideError();
+                window.location = originalUrl;
+              }
+              else
+                window.location = response.redirect;
+            }
+            else {
+              spin.stop();
+              showError(response.message);
+            }
+          }
+        });
+      }
+    });
+
+    $('.lock-form input').keypress(function (e) {
+      if (e.which == 13) {
+        if ($('.lock-form').validate().form()) {
+          $('.lock-form').submit();
+        }
+        return false;
+      }
+    });
+  }
+
+  function showError(msg) {
+    $('#error_msg').html(msg);
+    $('.alert.alert-danger').show();
+  }
+
+  function hideError() {
+    $('.alert.alert-danger').hide();
+  }
+
+  return {
+    //main function to initiate the module
+    init: function (originalUrl, username) {
+
+      $.backstretch([
+         "/Content/metronic/pages/media/bg/1.jpg",
+         "/Content/metronic/pages/media/bg/2.jpg",
+         "/Content/metronic/pages/media/bg/3.jpg",
+         "/Content/metronic/pages/media/bg/4.jpg"
+      ], {
+        fade: 1000,
+        duration: 8000
+      });
+
+      handleLock(originalUrl, username);
+    }
+  };
+}();

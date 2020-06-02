@@ -1,0 +1,75 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Web.Log;
+using Senti.Diagnostics.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers
+{
+  public class ImageController : PaywallRestrictedAccessController
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (ImageController._log == null)
+          ImageController._log = LogManager.GetLogger(typeof(ImageController));
+        return ImageController._log;
+      }
+    }
+    #endregion
+
+    // SUMMARY: here we are expecting ImageContentData.ID
+    public ActionResult Download(int id)
+    {
+      ImageContentData data = ImageContentData.CreateManager().Load(id);
+      if(data == null)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "imagecontroller", "download"), "ImageContentData could not be loaded", id, this.Request.UserAgent));
+        return null;
+      }
+
+      IContent content = new Image(data.ImageContent);
+      if(!content.IsDownloadable)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "imagecontroller", "download"), "ImageContent is not downloadable! Please check. ImageContentID=" + id, data, data.ImageContent, content, this.Request.UserAgent));
+        return null;
+      }
+
+
+      string fileName = string.Format("{0}{1}", data.ImageContent.Title, data.VideoCodec.Extension);
+      HttpContext.Response.ContentType = data.VideoCodec.MimeType;
+      return File(data.Data, data.VideoCodec.MimeType, fileName);
+    }
+
+    public override IContent GetRequestedContent()
+    {
+      object imageContentID = null;
+      if (!this.RouteData.Values.TryGetValue("id", out imageContentID) ||
+          imageContentID == null)
+      {
+        // problem here...
+        throw new ArgumentException("Invalid argument supplied for contentID parameter.", "contentID");
+      }
+
+      int _imageContentID = Int32.Parse(imageContentID.ToString());
+      ImageContent content = ImageContent.CreateManager().Load(_imageContentID);
+      if(content == null)
+      {
+        Log.Error("ImageController:: Could not load image with ID:" + _imageContentID);
+        return null;
+      }
+
+      return content.Content.Instantiate();
+    }
+  }
+}

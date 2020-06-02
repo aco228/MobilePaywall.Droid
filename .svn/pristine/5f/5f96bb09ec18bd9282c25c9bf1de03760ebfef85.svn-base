@@ -1,0 +1,106 @@
+﻿using log4net;
+using MobilePaywall.Direct;
+using MobilePaywall.Implementation.PaywallLog;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall
+{
+  public static class PLog
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    public static ILog Log4Net
+    {
+      get
+      {
+        if (PLog._log == null)
+          PLog._log = LogManager.GetLogger(typeof(PLog));
+        return PLog._log;
+      }
+    }
+    #endregion
+
+
+    public static PLogImplementationBase Implementation = null;
+
+    public enum PLogType
+    {
+      Debug = 1,
+      Info = 2,
+      Error = 3,
+      Fatal = 4
+    }
+
+    /*
+      +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=
+      MAIN FUNCTIONS
+      +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=
+    */
+
+    public static void Debug(string text) { Debug(string.Empty, text); }
+    public static void Debug(string key, string text) { Log(PLogType.Debug, key, text, string.Empty); }
+
+    public static void Info(string text) { Info(string.Empty, text); }
+    public static void Info(string key, string text) { Log(PLogType.Info, key, text, string.Empty); }
+
+    public static void Error(string text) { Error(string.Empty, text); }
+    public static void Error(string key, string text) { Log(PLogType.Error, key, text, string.Empty); }
+
+    public static void Fatal(string text, string exception) { Fatal(string.Empty, text, exception); }
+    public static void Fatal(string key, string text, string exception) { Log(PLogType.Fatal, key, text, exception); }
+    
+
+    public static void Log(PLogType type, string key, string text, string exception)
+    {
+      if (Implementation == null)
+      {
+        Log4Net.Debug(".===================: PLOG implementation is null");
+        return;
+      }
+
+      PLogPipe pipe = new PLogPipe(key, text, exception);
+      pipe.Type = type;
+
+      Log4Net.Debug(".===================: PLOG factory started");
+      Task.Factory.StartNew(() => Implementation.AddLog(pipe));
+    }
+    
+
+    /*
+      +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=
+      DERIVATIONS
+      +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=
+    */
+
+    public static void DerivatedLog(PLogType type, int? userSessionID, int? serviceID, int? applicationID, string key, string text, string exception = "")
+    {
+      if (Implementation == null)
+        return;
+      
+      PLogPipe pipe = new PLogPipe(string.Empty, text, exception);
+      pipe.ServiceID = serviceID;
+      pipe.UserSessionID = userSessionID;
+      pipe.ApplicationID = applicationID;
+
+      Task.Factory.StartNew(() => Implementation.AddLog(pipe));
+    }
+
+    public static void UpdateContextAfterPaymentRequest(int userSessionID)
+    {
+      Task.Factory.StartNew(() =>
+      {
+        MobilePaywallLogDirect db = MobilePaywallLogDirect.Instance;
+        db.Execute(string.Format("UPDATE MobilePaywallLog.log.PaywallLogContext SET HasPaymentRequest=1 WHERE UserSessionID={0}", userSessionID));
+      });
+    }
+
+
+  }
+}

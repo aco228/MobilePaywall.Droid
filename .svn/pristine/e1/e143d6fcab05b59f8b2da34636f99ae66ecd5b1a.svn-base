@@ -1,0 +1,560 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(FilterBypass))] 
+  public partial class FilterBypassManager : MobilePaywall.Data.Sql.SqlManagerBase<FilterBypass>, IFilterBypassManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override FilterBypass LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							FilterBypassTable.GetColumnNames("[fb]") + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[fb_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[fb_c_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CurrencyTable.GetColumnNames("[fb_c_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentProviderTable.GetColumnNames("[fb_pp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[fb_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[fb_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[fb_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[fb_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[fb_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[fb_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[fb_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[fb_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[fb_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[fb_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[fb_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[fb_s_t]") : string.Empty) + 
+					" FROM [core].[FilterBypass] AS [fb] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [fb_c] ON [fb].[CountryID] = [fb_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [fb_c_l] ON [fb_c].[LanguageID] = [fb_c_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Currency] AS [fb_c_c] ON [fb_c].[CurrencyID] = [fb_c_c].[CurrencyID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentProvider] AS [fb_pp] ON [fb].[PaymentProviderID] = [fb_pp].[PaymentProviderID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [fb_s] ON [fb].[ServiceID] = [fb_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [fb_s_a] ON [fb_s].[ApplicationID] = [fb_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [fb_s_p] ON [fb_s].[ProductID] = [fb_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [fb_s_m] ON [fb_s].[MerchantID] = [fb_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [fb_s_st] ON [fb_s].[ServiceTypeID] = [fb_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [fb_s_ust] ON [fb_s].[UserSessionTypeID] = [fb_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [fb_s_c] ON [fb_s].[FallbackCountryID] = [fb_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [fb_s_l] ON [fb_s].[FallbackLanguageID] = [fb_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [fb_s_ar] ON [fb_s].[FallbackAgeRatingID] = [fb_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [fb_s_sc] ON [fb_s].[ServiceConfigurationID] = [fb_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [fb_s_bm] ON [fb_s].[BusinessModelID] = [fb_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [fb_s_t] ON [fb_s].[TemplateID] = [fb_s_t].[TemplateID] ";
+				sqlCmdText += "WHERE [fb].[FilterBypassID] = @FilterBypassID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@FilterBypassID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fb", "loadinternal", "notfound"), "FilterBypass could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				FilterBypassTable fbTable = new FilterBypassTable(query);
+				CountryTable fb_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable fb_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				CurrencyTable fb_c_cTable = (this.Depth > 1) ? new CurrencyTable(query) : null;
+				PaymentProviderTable fb_ppTable = (this.Depth > 0) ? new PaymentProviderTable(query) : null;
+				ServiceTable fb_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable fb_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable fb_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable fb_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable fb_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable fb_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable fb_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable fb_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable fb_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable fb_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable fb_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable fb_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        
+				Language fb_c_lObject = (this.Depth > 1) ? fb_c_lTable.CreateInstance() : null;
+				Currency fb_c_cObject = (this.Depth > 1) ? fb_c_cTable.CreateInstance() : null;
+				Country fb_cObject = (this.Depth > 0) ? fb_cTable.CreateInstance(fb_c_lObject, fb_c_cObject) : null;
+				PaymentProvider fb_ppObject = (this.Depth > 0) ? fb_ppTable.CreateInstance() : null;
+				Application fb_s_aObject = (this.Depth > 1) ? fb_s_aTable.CreateInstance() : null;
+				Product fb_s_pObject = (this.Depth > 1) ? fb_s_pTable.CreateInstance() : null;
+				Merchant fb_s_mObject = (this.Depth > 1) ? fb_s_mTable.CreateInstance() : null;
+				ServiceType fb_s_stObject = (this.Depth > 1) ? fb_s_stTable.CreateInstance() : null;
+				UserSessionType fb_s_ustObject = (this.Depth > 1) ? fb_s_ustTable.CreateInstance() : null;
+				Country fb_s_cObject = (this.Depth > 1) ? fb_s_cTable.CreateInstance() : null;
+				Language fb_s_lObject = (this.Depth > 1) ? fb_s_lTable.CreateInstance() : null;
+				AgeRating fb_s_arObject = (this.Depth > 1) ? fb_s_arTable.CreateInstance() : null;
+				ServiceConfiguration fb_s_scObject = (this.Depth > 1) ? fb_s_scTable.CreateInstance() : null;
+				BusinessModel fb_s_bmObject = (this.Depth > 1) ? fb_s_bmTable.CreateInstance() : null;
+				Template fb_s_tObject = (this.Depth > 1) ? fb_s_tTable.CreateInstance() : null;
+				Service fb_sObject = (this.Depth > 0) ? fb_sTable.CreateInstance(fb_s_aObject, fb_s_pObject, fb_s_mObject, fb_s_stObject, fb_s_ustObject, fb_s_cObject, fb_s_lObject, fb_s_arObject, fb_s_scObject, fb_s_bmObject, fb_s_tObject) : null;
+				FilterBypass fbObject = fbTable.CreateInstance(fb_cObject, fb_ppObject, fb_sObject);
+				sqlReader.Close();
+
+				return fbObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fb", "loadinternal", "exception"), "FilterBypass could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "FilterBypass", "Exception while loading FilterBypass object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public FilterBypass Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							FilterBypassTable.GetColumnNames("[fb]") + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[fb_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[fb_c_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CurrencyTable.GetColumnNames("[fb_c_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentProviderTable.GetColumnNames("[fb_pp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[fb_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[fb_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[fb_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[fb_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[fb_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[fb_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[fb_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[fb_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[fb_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[fb_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[fb_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[fb_s_t]") : string.Empty) +  
+					" FROM [core].[FilterBypass] AS [fb] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [fb_c] ON [fb].[CountryID] = [fb_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [fb_c_l] ON [fb_c].[LanguageID] = [fb_c_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Currency] AS [fb_c_c] ON [fb_c].[CurrencyID] = [fb_c_c].[CurrencyID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentProvider] AS [fb_pp] ON [fb].[PaymentProviderID] = [fb_pp].[PaymentProviderID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [fb_s] ON [fb].[ServiceID] = [fb_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [fb_s_a] ON [fb_s].[ApplicationID] = [fb_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [fb_s_p] ON [fb_s].[ProductID] = [fb_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [fb_s_m] ON [fb_s].[MerchantID] = [fb_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [fb_s_st] ON [fb_s].[ServiceTypeID] = [fb_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [fb_s_ust] ON [fb_s].[UserSessionTypeID] = [fb_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [fb_s_c] ON [fb_s].[FallbackCountryID] = [fb_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [fb_s_l] ON [fb_s].[FallbackLanguageID] = [fb_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [fb_s_ar] ON [fb_s].[FallbackAgeRatingID] = [fb_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [fb_s_sc] ON [fb_s].[ServiceConfigurationID] = [fb_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [fb_s_bm] ON [fb_s].[BusinessModelID] = [fb_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [fb_s_t] ON [fb_s].[TemplateID] = [fb_s_t].[TemplateID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fb", "customload", "notfound"), "FilterBypass could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				FilterBypassTable fbTable = new FilterBypassTable(query);
+				CountryTable fb_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable fb_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				CurrencyTable fb_c_cTable = (this.Depth > 1) ? new CurrencyTable(query) : null;
+				PaymentProviderTable fb_ppTable = (this.Depth > 0) ? new PaymentProviderTable(query) : null;
+				ServiceTable fb_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable fb_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable fb_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable fb_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable fb_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable fb_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable fb_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable fb_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable fb_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable fb_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable fb_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable fb_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        
+				Language fb_c_lObject = (this.Depth > 1) ? fb_c_lTable.CreateInstance() : null;
+				Currency fb_c_cObject = (this.Depth > 1) ? fb_c_cTable.CreateInstance() : null;
+				Country fb_cObject = (this.Depth > 0) ? fb_cTable.CreateInstance(fb_c_lObject, fb_c_cObject) : null;
+				PaymentProvider fb_ppObject = (this.Depth > 0) ? fb_ppTable.CreateInstance() : null;
+				Application fb_s_aObject = (this.Depth > 1) ? fb_s_aTable.CreateInstance() : null;
+				Product fb_s_pObject = (this.Depth > 1) ? fb_s_pTable.CreateInstance() : null;
+				Merchant fb_s_mObject = (this.Depth > 1) ? fb_s_mTable.CreateInstance() : null;
+				ServiceType fb_s_stObject = (this.Depth > 1) ? fb_s_stTable.CreateInstance() : null;
+				UserSessionType fb_s_ustObject = (this.Depth > 1) ? fb_s_ustTable.CreateInstance() : null;
+				Country fb_s_cObject = (this.Depth > 1) ? fb_s_cTable.CreateInstance() : null;
+				Language fb_s_lObject = (this.Depth > 1) ? fb_s_lTable.CreateInstance() : null;
+				AgeRating fb_s_arObject = (this.Depth > 1) ? fb_s_arTable.CreateInstance() : null;
+				ServiceConfiguration fb_s_scObject = (this.Depth > 1) ? fb_s_scTable.CreateInstance() : null;
+				BusinessModel fb_s_bmObject = (this.Depth > 1) ? fb_s_bmTable.CreateInstance() : null;
+				Template fb_s_tObject = (this.Depth > 1) ? fb_s_tTable.CreateInstance() : null;
+				Service fb_sObject = (this.Depth > 0) ? fb_sTable.CreateInstance(fb_s_aObject, fb_s_pObject, fb_s_mObject, fb_s_stObject, fb_s_ustObject, fb_s_cObject, fb_s_lObject, fb_s_arObject, fb_s_scObject, fb_s_bmObject, fb_s_tObject) : null;
+				FilterBypass fbObject = fbTable.CreateInstance(fb_cObject, fb_ppObject, fb_sObject);
+				sqlReader.Close();
+
+				return fbObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fb", "customload", "exception"), "FilterBypass could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "FilterBypass", "Exception while loading (custom/single) FilterBypass object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<FilterBypass> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							FilterBypassTable.GetColumnNames("[fb]") + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[fb_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[fb_c_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CurrencyTable.GetColumnNames("[fb_c_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentProviderTable.GetColumnNames("[fb_pp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[fb_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[fb_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[fb_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[fb_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[fb_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[fb_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[fb_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[fb_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[fb_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[fb_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[fb_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[fb_s_t]") : string.Empty) +  
+					" FROM [core].[FilterBypass] AS [fb] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [fb_c] ON [fb].[CountryID] = [fb_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [fb_c_l] ON [fb_c].[LanguageID] = [fb_c_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Currency] AS [fb_c_c] ON [fb_c].[CurrencyID] = [fb_c_c].[CurrencyID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentProvider] AS [fb_pp] ON [fb].[PaymentProviderID] = [fb_pp].[PaymentProviderID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [fb_s] ON [fb].[ServiceID] = [fb_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [fb_s_a] ON [fb_s].[ApplicationID] = [fb_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [fb_s_p] ON [fb_s].[ProductID] = [fb_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [fb_s_m] ON [fb_s].[MerchantID] = [fb_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [fb_s_st] ON [fb_s].[ServiceTypeID] = [fb_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [fb_s_ust] ON [fb_s].[UserSessionTypeID] = [fb_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [fb_s_c] ON [fb_s].[FallbackCountryID] = [fb_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [fb_s_l] ON [fb_s].[FallbackLanguageID] = [fb_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [fb_s_ar] ON [fb_s].[FallbackAgeRatingID] = [fb_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [fb_s_sc] ON [fb_s].[ServiceConfigurationID] = [fb_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [fb_s_bm] ON [fb_s].[BusinessModelID] = [fb_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [fb_s_t] ON [fb_s].[TemplateID] = [fb_s_t].[TemplateID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fb", "customloadmany", "notfound"), "FilterBypass list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<FilterBypass>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				FilterBypassTable fbTable = new FilterBypassTable(query);
+				CountryTable fb_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable fb_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				CurrencyTable fb_c_cTable = (this.Depth > 1) ? new CurrencyTable(query) : null;
+				PaymentProviderTable fb_ppTable = (this.Depth > 0) ? new PaymentProviderTable(query) : null;
+				ServiceTable fb_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable fb_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable fb_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable fb_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable fb_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable fb_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable fb_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable fb_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable fb_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable fb_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable fb_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable fb_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        List<FilterBypass> result = new List<FilterBypass>();
+        do
+        {
+          
+					Language fb_c_lObject = (this.Depth > 1) ? fb_c_lTable.CreateInstance() : null;
+					Currency fb_c_cObject = (this.Depth > 1) ? fb_c_cTable.CreateInstance() : null;
+					Country fb_cObject = (this.Depth > 0) ? fb_cTable.CreateInstance(fb_c_lObject, fb_c_cObject) : null;
+					PaymentProvider fb_ppObject = (this.Depth > 0) ? fb_ppTable.CreateInstance() : null;
+					Application fb_s_aObject = (this.Depth > 1) ? fb_s_aTable.CreateInstance() : null;
+					Product fb_s_pObject = (this.Depth > 1) ? fb_s_pTable.CreateInstance() : null;
+					Merchant fb_s_mObject = (this.Depth > 1) ? fb_s_mTable.CreateInstance() : null;
+					ServiceType fb_s_stObject = (this.Depth > 1) ? fb_s_stTable.CreateInstance() : null;
+					UserSessionType fb_s_ustObject = (this.Depth > 1) ? fb_s_ustTable.CreateInstance() : null;
+					Country fb_s_cObject = (this.Depth > 1) ? fb_s_cTable.CreateInstance() : null;
+					Language fb_s_lObject = (this.Depth > 1) ? fb_s_lTable.CreateInstance() : null;
+					AgeRating fb_s_arObject = (this.Depth > 1) ? fb_s_arTable.CreateInstance() : null;
+					ServiceConfiguration fb_s_scObject = (this.Depth > 1) ? fb_s_scTable.CreateInstance() : null;
+					BusinessModel fb_s_bmObject = (this.Depth > 1) ? fb_s_bmTable.CreateInstance() : null;
+					Template fb_s_tObject = (this.Depth > 1) ? fb_s_tTable.CreateInstance() : null;
+					Service fb_sObject = (this.Depth > 0) ? fb_sTable.CreateInstance(fb_s_aObject, fb_s_pObject, fb_s_mObject, fb_s_stObject, fb_s_ustObject, fb_s_cObject, fb_s_lObject, fb_s_arObject, fb_s_scObject, fb_s_bmObject, fb_s_tObject) : null;
+					FilterBypass fbObject = (this.Depth > -1) ? fbTable.CreateInstance(fb_cObject, fb_ppObject, fb_sObject) : null;
+					result.Add(fbObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fb", "customloadmany", "exception"), "FilterBypass list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "FilterBypass", "Exception while loading (custom/many) FilterBypass object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, FilterBypass data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[FilterBypass] ([FilterBypassTypeID],[CountryID],[PaymentProviderID],[ServiceID],[Enabled],[Description]) VALUES(@FilterBypassTypeID,@CountryID,@PaymentProviderID,@ServiceID,@Enabled,@Description); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@FilterBypassTypeID", (int)data.FilterBypassType);
+				sqlCmd.Parameters.AddWithValue("@CountryID", data.Country == null ? DBNull.Value : (object)data.Country.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentProviderID", data.PaymentProvider == null ? DBNull.Value : (object)data.PaymentProvider.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service == null ? DBNull.Value : (object)data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@Enabled", data.Enabled).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fb", "insert", "noprimarykey"), "FilterBypass could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "FilterBypass", "Exception while inserting FilterBypass object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fb", "insert", "exception"), "FilterBypass could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "FilterBypass", "Exception while inserting FilterBypass object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, FilterBypass data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[FilterBypass] SET " +
+												"[FilterBypassTypeID] = @FilterBypassTypeID, " + 
+												"[CountryID] = @CountryID, " + 
+												"[PaymentProviderID] = @PaymentProviderID, " + 
+												"[ServiceID] = @ServiceID, " + 
+												"[Enabled] = @Enabled, " + 
+												"[Description] = @Description, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [FilterBypassID] = @FilterBypassID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@FilterBypassTypeID", (int)data.FilterBypassType);
+				sqlCmd.Parameters.AddWithValue("@CountryID", data.Country == null ? DBNull.Value : (object)data.Country.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentProviderID", data.PaymentProvider == null ? DBNull.Value : (object)data.PaymentProvider.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service == null ? DBNull.Value : (object)data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@Enabled", data.Enabled).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@FilterBypassID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fb", "update", "norecord"), "FilterBypass could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "FilterBypass", "Exception while updating FilterBypass object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fb", "update", "morerecords"), "FilterBypass was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "FilterBypass", "Exception while updating FilterBypass object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fb", "update", "exception"), "FilterBypass could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "FilterBypass", "Exception while updating FilterBypass object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, FilterBypass data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[FilterBypass] WHERE FilterBypassID = @FilterBypassID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@FilterBypassID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fb", "delete", "norecord"), "FilterBypass could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "FilterBypass", "Exception while deleting FilterBypass object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fb", "delete", "exception"), "FilterBypass could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "FilterBypass", "Exception while deleting FilterBypass object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

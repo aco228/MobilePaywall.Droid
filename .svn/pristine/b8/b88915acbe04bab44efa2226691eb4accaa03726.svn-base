@@ -1,0 +1,386 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(AndroidContent))] 
+  public partial class AndroidContentManager : MobilePaywall.Data.Sql.SqlManagerBase<AndroidContent>, IAndroidContentManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override AndroidContent LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							AndroidContentTable.GetColumnNames("[ac]") + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[ac_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[ac_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[ac_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[ac_c_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[ac_c_ar]") : string.Empty) + 
+					" FROM [core].[AndroidContent] AS [ac] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [ac_c] ON [ac].[ContentID] = [ac_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroup] AS [ac_c_cg] ON [ac_c].[ContentGroupID] = [ac_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentType] AS [ac_c_ct] ON [ac_c].[ContentTypeID] = [ac_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorage] AS [ac_c_cs] ON [ac_c].[ContentStorageID] = [ac_c_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [ac_c_ar] ON [ac_c].[AgeRatingID] = [ac_c_ar].[AgeRatingID] ";
+				sqlCmdText += "WHERE [ac].[AndroidContentID] = @AndroidContentID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AndroidContentID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ac", "loadinternal", "notfound"), "AndroidContent could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AndroidContentTable acTable = new AndroidContentTable(query);
+				ContentTable ac_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable ac_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable ac_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable ac_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+				AgeRatingTable ac_c_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+
+        
+				ContentGroup ac_c_cgObject = (this.Depth > 1) ? ac_c_cgTable.CreateInstance() : null;
+				ContentType ac_c_ctObject = (this.Depth > 1) ? ac_c_ctTable.CreateInstance() : null;
+				ContentStorage ac_c_csObject = (this.Depth > 1) ? ac_c_csTable.CreateInstance() : null;
+				AgeRating ac_c_arObject = (this.Depth > 1) ? ac_c_arTable.CreateInstance() : null;
+				Content ac_cObject = (this.Depth > 0) ? ac_cTable.CreateInstance(ac_c_cgObject, ac_c_ctObject, ac_c_csObject, ac_c_arObject) : null;
+				AndroidContent acObject = acTable.CreateInstance(ac_cObject);
+				sqlReader.Close();
+
+				return acObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ac", "loadinternal", "exception"), "AndroidContent could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AndroidContent", "Exception while loading AndroidContent object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public AndroidContent Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AndroidContentTable.GetColumnNames("[ac]") + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[ac_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[ac_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[ac_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[ac_c_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[ac_c_ar]") : string.Empty) +  
+					" FROM [core].[AndroidContent] AS [ac] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [ac_c] ON [ac].[ContentID] = [ac_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroup] AS [ac_c_cg] ON [ac_c].[ContentGroupID] = [ac_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentType] AS [ac_c_ct] ON [ac_c].[ContentTypeID] = [ac_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorage] AS [ac_c_cs] ON [ac_c].[ContentStorageID] = [ac_c_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [ac_c_ar] ON [ac_c].[AgeRatingID] = [ac_c_ar].[AgeRatingID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ac", "customload", "notfound"), "AndroidContent could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AndroidContentTable acTable = new AndroidContentTable(query);
+				ContentTable ac_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable ac_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable ac_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable ac_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+				AgeRatingTable ac_c_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+
+        
+				ContentGroup ac_c_cgObject = (this.Depth > 1) ? ac_c_cgTable.CreateInstance() : null;
+				ContentType ac_c_ctObject = (this.Depth > 1) ? ac_c_ctTable.CreateInstance() : null;
+				ContentStorage ac_c_csObject = (this.Depth > 1) ? ac_c_csTable.CreateInstance() : null;
+				AgeRating ac_c_arObject = (this.Depth > 1) ? ac_c_arTable.CreateInstance() : null;
+				Content ac_cObject = (this.Depth > 0) ? ac_cTable.CreateInstance(ac_c_cgObject, ac_c_ctObject, ac_c_csObject, ac_c_arObject) : null;
+				AndroidContent acObject = acTable.CreateInstance(ac_cObject);
+				sqlReader.Close();
+
+				return acObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ac", "customload", "exception"), "AndroidContent could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AndroidContent", "Exception while loading (custom/single) AndroidContent object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<AndroidContent> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AndroidContentTable.GetColumnNames("[ac]") + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[ac_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[ac_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[ac_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[ac_c_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[ac_c_ar]") : string.Empty) +  
+					" FROM [core].[AndroidContent] AS [ac] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [ac_c] ON [ac].[ContentID] = [ac_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroup] AS [ac_c_cg] ON [ac_c].[ContentGroupID] = [ac_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentType] AS [ac_c_ct] ON [ac_c].[ContentTypeID] = [ac_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorage] AS [ac_c_cs] ON [ac_c].[ContentStorageID] = [ac_c_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [ac_c_ar] ON [ac_c].[AgeRatingID] = [ac_c_ar].[AgeRatingID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ac", "customloadmany", "notfound"), "AndroidContent list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<AndroidContent>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AndroidContentTable acTable = new AndroidContentTable(query);
+				ContentTable ac_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable ac_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable ac_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable ac_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+				AgeRatingTable ac_c_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+
+        List<AndroidContent> result = new List<AndroidContent>();
+        do
+        {
+          
+					ContentGroup ac_c_cgObject = (this.Depth > 1) ? ac_c_cgTable.CreateInstance() : null;
+					ContentType ac_c_ctObject = (this.Depth > 1) ? ac_c_ctTable.CreateInstance() : null;
+					ContentStorage ac_c_csObject = (this.Depth > 1) ? ac_c_csTable.CreateInstance() : null;
+					AgeRating ac_c_arObject = (this.Depth > 1) ? ac_c_arTable.CreateInstance() : null;
+					Content ac_cObject = (this.Depth > 0) ? ac_cTable.CreateInstance(ac_c_cgObject, ac_c_ctObject, ac_c_csObject, ac_c_arObject) : null;
+					AndroidContent acObject = (this.Depth > -1) ? acTable.CreateInstance(ac_cObject) : null;
+					result.Add(acObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ac", "customloadmany", "exception"), "AndroidContent list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AndroidContent", "Exception while loading (custom/many) AndroidContent object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, AndroidContent data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[AndroidContent] ([ContentID],[Title],[Description]) VALUES(@ContentID,@Title,@Description); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ContentID", data.Content.ID);
+				sqlCmd.Parameters.AddWithValue("@Title", data.Title).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NText;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ac", "insert", "noprimarykey"), "AndroidContent could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "AndroidContent", "Exception while inserting AndroidContent object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ac", "insert", "exception"), "AndroidContent could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "AndroidContent", "Exception while inserting AndroidContent object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, AndroidContent data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[AndroidContent] SET " +
+												"[ContentID] = @ContentID, " + 
+												"[Title] = @Title, " + 
+												"[Description] = @Description, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [AndroidContentID] = @AndroidContentID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ContentID", data.Content.ID);
+				sqlCmd.Parameters.AddWithValue("@Title", data.Title).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@AndroidContentID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ac", "update", "norecord"), "AndroidContent could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "AndroidContent", "Exception while updating AndroidContent object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ac", "update", "morerecords"), "AndroidContent was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "AndroidContent", "Exception while updating AndroidContent object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ac", "update", "exception"), "AndroidContent could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "AndroidContent", "Exception while updating AndroidContent object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, AndroidContent data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[AndroidContent] WHERE AndroidContentID = @AndroidContentID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AndroidContentID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ac", "delete", "norecord"), "AndroidContent could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "AndroidContent", "Exception while deleting AndroidContent object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ac", "delete", "exception"), "AndroidContent could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "AndroidContent", "Exception while deleting AndroidContent object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

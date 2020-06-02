@@ -1,0 +1,100 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class TemplateServiceCapManager : ITemplateServiceCapManager
+  {
+
+
+    public List<TemplateServiceCap> Load()
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection);
+    }
+
+    public List<TemplateServiceCap> Load(IConnectionInfo connection)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection);
+    }
+
+    public List<TemplateServiceCap> Load(ISqlConnectionInfo connection)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      return this.LoadMany(connection, parameters);
+    }
+
+    public List<TemplateServiceCap> Load(Service service)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, service);
+    }
+
+    public List<TemplateServiceCap> Load(IConnectionInfo connection, Service service)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, service);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, service);
+    }
+
+    public List<TemplateServiceCap> Load(ISqlConnectionInfo connection, Service service)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[tsc].ServiceID = @ServiceID";
+
+      parameters.Arguments.Add("ServiceID", service.ID);
+      // return this.Load(connection, parameters);
+      return this.LoadMany(connection, parameters);
+    }
+
+
+
+
+
+    public TemplateServiceCap Load(Service service, MobileOperator mno)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, service, mno);
+    }
+
+    public TemplateServiceCap Load(IConnectionInfo connection, Service service, MobileOperator mno)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, service, mno);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, service, mno);
+    }
+
+    public TemplateServiceCap Load(ISqlConnectionInfo connection, Service service, MobileOperator mno)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      if (mno == null)
+        parameters.Where = string.Format("[tsc].ServiceID=" + service.ID + " AND [tsc].MobileOperatorID IS NULL");
+      else
+        parameters.Where = string.Format(("[tsc].ServiceID=" + service.ID + " AND [tsc].MobileOperatorID=" + mno.ID));
+
+      //parameters.OrderBy = "[tsc].MobileOperatorID DESC";
+      return this.Load(connection, parameters);
+    }
+
+
+
+  }
+}
+

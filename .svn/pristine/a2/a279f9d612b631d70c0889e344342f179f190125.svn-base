@@ -1,0 +1,396 @@
+﻿@model MobilePaywall.CustomerCare.Models.ClientEditModel
+@{
+  string title = Model.Client == null ? "Add new client" : "Edit client <b>" + Model.Client.Username + "</b>";
+  string username = Model.Client == null ? string.Empty : Model.Client.Username;
+  string email = Model.Client == null ? string.Empty : Model.Client.MailAddress;
+  string type = Model.Client == null ? string.Empty : Model.Client.ClientType.ID.ToString();
+  string status = Model.Client == null ? string.Empty : Model.Client.ClientStatus.ToString();
+}
+
+@Scripts.Render("~/Script/ClientEdit")
+
+@*
+  ===========================================================================================================================
+  EDIT INSERT CLIENT
+
+*@
+<section class="col-lg-7 connectedSortable">
+
+  <div class="box box-primary">
+
+    <div class="box-header">
+      <i class="ion ion-edit"></i>
+      <h3 class="box-title">@Html.Raw(title)</h3>
+      <div class="box-tools pull-right">
+        <button class="btn btn-box-tool" data-widget="collapse"><i class="fa fa-minus"></i></button>
+      </div>
+    </div><!-- /.box-header -->
+
+    <!-- form start -->
+    <div class="box-body">
+      <div class="form-group">
+        <label for="exampleInputEmail1">Username</label>
+        <input type="text" class="form-control" id="inputUsername" placeholder="Enter username" value="@username">
+      </div>
+
+      <div class="form-group">
+        <label for="exampleInputEmail1">Email</label>
+        <input type="email" class="form-control" id="inputEmail" placeholder="Enter email" value="@email">
+      </div>
+
+      <div class="form-group">
+        <label for="exampleInputPassword1">New Password</label>
+        <input type="password" class="form-control" id="inputNewPassword" placeholder="Enter new password">
+      </div>
+
+      <div class="form-group">
+        <label for="exampleInputPassword1">Repeat password</label>
+        <input type="password" class="form-control" id="inputRepeatPassword" placeholder="Repeat entered password">
+      </div>
+
+      <div class="form-group">
+        <label for="exampleInputPassword1">Type</label>
+        <select class="form-control" id="inputType" initial="@type">
+          @{
+            foreach (MobilePaywall.Data.ClientType clientType in Model.ClienTypes)
+            {
+              <option value="@clientType.ID">@clientType.Name</option>
+            }
+          }
+        </select>
+      </div>
+
+
+      <div class="form-group">
+        <label for="exampleInputPassword1">Status</label>
+        <select class="form-control" id="inputStatus" initial="@status">
+          @{
+            foreach (MobilePaywall.Data.ClientStatus clientStatus in Enum.GetValues(typeof(MobilePaywall.Data.ClientStatus)))
+            {
+              <option value="@clientStatus">@clientStatus.ToString()</option>
+            }
+          }
+        </select>
+      </div>
+
+
+      <div class="box-footer">
+        <button type="submit" class="btn btn-primary" id="customerSubmit">Submit</button>
+        <button type="submit" class="btn btn-primary" id="customerClose">Close</button>
+      </div>
+    </div>
+  </div>
+
+  @*<div class="box box-danger">
+    <div class="box-header">
+      <h3 class="box-title">Save</h3>
+    </div>
+    <div class="box-body">
+      <div class="box-footer">
+        <button type="submit" class="btn btn-primary" id="customerSubmit">Submit</button>
+        <button type="submit" class="btn btn-primary" id="customerClose">Close</button>
+      </div>
+    </div>
+  </div>*@
+
+</section>
+
+@*
+  ===========================================================================================================================
+  COMPONENTS
+*@
+
+@{
+  if (Model.Client != null)
+  {
+    <section class="col-lg-5 connectedSortable">
+
+      <div class="box box-solid collapsed-box">
+
+        <div class="box-header">
+          <i class="ion ion-server"></i>
+          <h3 class="box-title">Components</h3>
+          <div class="box-tools pull-right">
+            @*<span class="label label-danger">8 New Members</span>*@
+
+            @*<span data-toggle="tooltip" title="" class="badge bg-red" data-original-title="Loading...">
+              <i class="fa fa-refresh fa-spin"></i>
+            </span>*@
+
+            <button class="btn btn-box-tool" data-widget="collapse"><i class="fa fa-plus"></i></button>
+          </div>
+        </div><!-- /.box-header -->
+        <!-- form start -->
+        <div class="box-body" id="inputComponents">
+          @{
+            foreach (MobilePaywall.Data.Component component in Model.Components)
+            {
+              <label class="inputComponent" style="cursor:hand; cursor:pointer;" componentid="@component.ID">
+                <input type="checkbox" class="inputComponentCheckbox" style="pointer-events:none" @Model.HasComponentAccess(component) />
+                @component.Name
+              </label> <br />
+            }
+          }
+        </div>
+
+      </div>
+
+
+      
+    </section>
+  }
+}
+
+@*
+  ===========================================================================================================================
+  CLIENT ACCESS POLICY
+
+*@
+<section class="col-lg-12 connectedSortable">
+
+@{
+  if (Model.Client != null)
+  {
+    <div class="box box-solid collapsed-box">
+
+      <div class="box-header">
+        <i class="ion ion-edit"></i>
+        <h3 class="box-title">Access Policy</h3>
+        <div class="box-tools pull-right">
+          <button class="btn btn-box-tool" data-widget="collapse"><i class="fa fa-plus"></i></button>
+        </div>
+      </div><!-- /.box-header -->
+      <!-- form start -->
+      <div class="box-body">
+        <div id="accessPolicyHeader">
+        </div>
+        <div id="acessPolicyBody">
+          <table id="example2" class="table table-bordered table-hover dataTable" role="grid" aria-describedby="example2_info">
+            <thead>
+              <tr role="row">
+                <th class="sorting_asc" tabindex="0" aria-controls="example2" rowspan="1" colspan="1" aria-sort="ascending" aria-label="Rendering engine: activate to sort column descending">Instance</th>
+                <th class="sorting" tabindex="0" aria-controls="example2" rowspan="1" colspan="1" aria-label="Browser: activate to sort column ascending">Application</th>
+                <th class="sorting" tabindex="0" aria-controls="example2" rowspan="1" colspan="1" aria-label="Platform(s): activate to sort column ascending">Merchant</th>
+                <th class="sorting" tabindex="0" aria-controls="example2" rowspan="1" colspan="1" aria-label="Engine version: activate to sort column ascending">Product</th>
+                <th class="sorting" tabindex="0" aria-controls="example2" rowspan="1" colspan="1" aria-label="CSS grade: activate to sort column ascending">Service</th>
+                <th class="sorting" tabindex="0" aria-controls="example2" rowspan="1" colspan="1" aria-label="CSS grade: activate to sort column ascending">Allowed</th>
+                <th class="sorting" tabindex="0" aria-controls="example2" rowspan="1" colspan="1" aria-label="CSS grade: activate to sort column ascending">Action</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyAccessPolicy" clientid="@Model.Client.ID">
+
+              @{
+                foreach (MobilePaywall.Data.ClientAccessPolicy accessPolicy in Model.AccessPolicy)
+                {
+                  string instanceID = accessPolicy.Instance != null ? accessPolicy.Instance.ID.ToString() : string.Empty;
+                  string applicationID = accessPolicy.Application != null ? accessPolicy.Application.ID.ToString() : string.Empty;
+                  string merchantID = accessPolicy.Merchant != null ? accessPolicy.Merchant.ID.ToString() : string.Empty;
+                  string productID = accessPolicy.Product != null ? accessPolicy.Product.ID.ToString() : string.Empty;
+                  string serviceID = accessPolicy.Service != null ? accessPolicy.Service.ID.ToString() : string.Empty;
+
+                  <tr role="row" class="odd accessPolicyRow">
+                    <td>
+                      <select class="selectAccessPolicy form-control selectAccessPolicy_Instance" initial_selection="@instanceID">
+                        <option></option>
+                        @{
+                  foreach (MobilePaywall.Data.Instance instance in MobilePaywall.CustomerCare.Models.ClientEditModel.Instances)
+                  {
+                    <option value="@instance.ID">@instance.Name</option>
+                  }
+            }
+          </select>
+        </td>
+        <td>
+          <select class="selectAccessPolicy form-control selectAccessPolicy_Application" initial_selection="@applicationID">
+            <option></option>
+            @{
+              foreach (MobilePaywall.Data.Application application in MobilePaywall.CustomerCare.Models.ClientEditModel.Applications)
+              {
+                <option value="@application.ID">@application.Name</option>
+              }
+            }
+          </select>
+        </td>
+        <td>
+          <select class="selectAccessPolicy form-control selectAccessPolicy_Merchant" initial_selection="@merchantID">
+            <option></option>
+            @{
+              foreach (MobilePaywall.Data.Merchant merchant in MobilePaywall.CustomerCare.Models.ClientEditModel.Merchants)
+              {
+                <option value="@merchant.ID">@merchant.Name</option>
+              }
+            }
+          </select>
+
+
+
+        </td>
+        <td>
+          <select class="selectAccessPolicy form-control selectAccessPolicy_Product" initial_selection="@productID">
+            <option></option>
+            @{
+              foreach (MobilePaywall.Data.Product product in MobilePaywall.CustomerCare.Models.ClientEditModel.Products)
+              {
+                <option value="@product.ID">@product.Name</option>
+              }
+            }
+          </select>
+
+
+
+        </td>
+        <td>
+          <select class="selectAccessPolicy form-control selectAccessPolicy_Service" initial_selection="@serviceID">
+            <option></option>
+            @{
+              foreach (MobilePaywall.Data.Service service in MobilePaywall.CustomerCare.Models.ClientEditModel.Services)
+              {
+                <option value="@service.ID">@service.Name</option>
+              }
+            }
+          </select>
+
+
+
+        </td>
+        <td class="tdAccess">
+          @{
+            string isChecked = (accessPolicy.AccessMode == MobilePaywall.Data.AccessMode.Allowed) ? "checked" : string.Empty;
+          }
+          <input type="checkbox" class="minimal" @isChecked />
+        </td>
+        <td>
+          <button class="submitAccessPolicy btn btn-block btn-default" accesspolicyid="@accessPolicy.ID">Update</button>
+        </td>
+      </tr>
+    }
+              }
+
+              @* also will be used as template for adding new row after insertion *@
+              <tr role="row" class="odd accessPolicyRow emptyRow">
+                <td>
+                  <select class="selectAccessPolicy form-control selectAccessPolicy_Instance">
+                    <option></option>
+                    @{
+                      foreach (MobilePaywall.Data.Instance instance in MobilePaywall.CustomerCare.Models.ClientEditModel.Instances)
+                      {
+                        <option value="@instance.ID">@instance.Name</option>
+                      }
+                    }
+                  </select>
+
+                </td>
+                <td>
+                  <select class="selectAccessPolicy form-control selectAccessPolicy_Application">
+                    <option></option>
+                    @{
+                      foreach (MobilePaywall.Data.Application application in MobilePaywall.CustomerCare.Models.ClientEditModel.Applications)
+                      {
+                        <option value="@application.ID">@application.Name</option>
+                      }
+                    }
+                  </select>
+
+                </td>
+                <td>
+                  <select class="selectAccessPolicy form-control selectAccessPolicy_Merchant">
+                    <option></option>
+                    @{
+                      foreach (MobilePaywall.Data.Merchant merchant in MobilePaywall.CustomerCare.Models.ClientEditModel.Merchants)
+                      {
+                        <option value="@merchant.ID">@merchant.Name</option>
+                      }
+                    }
+                  </select>
+
+                </td>
+                <td>
+                  <select class="selectAccessPolicy form-control selectAccessPolicy_Product">
+                    <option></option>
+                    @{
+                      foreach (MobilePaywall.Data.Product product in MobilePaywall.CustomerCare.Models.ClientEditModel.Products)
+                      {
+                        <option value="@product.ID">@product.Name</option>
+                      }
+                    }
+                  </select>
+
+                </td>
+                <td>
+                  <select class="selectAccessPolicy form-control selectAccessPolicy_Service">
+                    <option></option>
+                    @{
+                      foreach (MobilePaywall.Data.Service service in MobilePaywall.CustomerCare.Models.ClientEditModel.Services)
+                      {
+                        <option value="@service.ID">@service.Name</option>
+                      }
+                    }
+                  </select>
+
+                </td>
+                <td class="tdAccess">
+                  <input type="checkbox" class="minimal" />
+                </td>
+                <td>
+                  <button class="submitAccessPolicy btn btn-block btn-default" accesspolicyid="-1">Insert</button>
+                </td>
+              </tr>
+
+
+
+              @*
+                  tempplate
+                  <tr role="row" class="even">
+                  <td class="sorting_1">Gecko</td>
+                  <td>Firefox 1.5</td>
+                  <td>Win 98+ / OSX.2+</td>
+                  <td>1.8</td>
+                  <td>A</td>
+                  <td>
+                    <input type="checkbox" class="minimal" />
+                  </td>
+                  <td>
+                    <button>Update</button>
+                  </td>
+                </tr>*@
+
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+  }
+}
+
+</section>
+<div style="clear:both"></div>
+
+  <script>
+    var _clientEdit = null;
+    var _accessPolicyManager = null;
+
+    $(document).ready(function () {
+      _clientEdit = new ClientEdit();
+      _accessPolicyManager = new AccessPolicyManager();
+
+    });
+
+    //iCheck for checkbox and radio inputs
+    $('input[type="checkbox"].minimal, input[type="radio"].minimal').iCheck({
+      checkboxClass: 'icheckbox_minimal-blue',
+      radioClass: 'iradio_minimal-blue'
+    });
+    //Red color scheme for iCheck
+    $('input[type="checkbox"].minimal-red, input[type="radio"].minimal-red').iCheck({
+      checkboxClass: 'icheckbox_minimal-red',
+      radioClass: 'iradio_minimal-red'
+    });
+    //Flat red color scheme for iCheck
+    $('input[type="checkbox"].flat-red, input[type="radio"].flat-red').iCheck({
+      checkboxClass: 'icheckbox_flat-green',
+      radioClass: 'iradio_flat-green'
+    });
+
+  </script>

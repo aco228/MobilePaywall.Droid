@@ -1,0 +1,572 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(LookupManagerConfiguration))] 
+  public partial class LookupManagerConfigurationManager : MobilePaywall.Data.Sql.SqlManagerBase<LookupManagerConfiguration>, ILookupManagerConfigurationManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override LookupManagerConfiguration LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							LookupManagerConfigurationTable.GetColumnNames("[lmc]") + 
+							(this.Depth > 0 ? "," + LookupManagerTypeTable.GetColumnNames("[lmc_lmt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[lmc_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[lmc_c_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CurrencyTable.GetColumnNames("[lmc_c_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentProviderTable.GetColumnNames("[lmc_pp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[lmc_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[lmc_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[lmc_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[lmc_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[lmc_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[lmc_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[lmc_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[lmc_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[lmc_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[lmc_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[lmc_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[lmc_s_t]") : string.Empty) + 
+					" FROM [core].[LookupManagerConfiguration] AS [lmc] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[LookupManagerType] AS [lmc_lmt] ON [lmc].[LookupManagerTypeID] = [lmc_lmt].[LookupManagerTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [lmc_c] ON [lmc].[CountryID] = [lmc_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [lmc_c_l] ON [lmc_c].[LanguageID] = [lmc_c_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Currency] AS [lmc_c_c] ON [lmc_c].[CurrencyID] = [lmc_c_c].[CurrencyID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentProvider] AS [lmc_pp] ON [lmc].[PaymentProviderID] = [lmc_pp].[PaymentProviderID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [lmc_s] ON [lmc].[ServiceID] = [lmc_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [lmc_s_a] ON [lmc_s].[ApplicationID] = [lmc_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [lmc_s_p] ON [lmc_s].[ProductID] = [lmc_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [lmc_s_m] ON [lmc_s].[MerchantID] = [lmc_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [lmc_s_st] ON [lmc_s].[ServiceTypeID] = [lmc_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [lmc_s_ust] ON [lmc_s].[UserSessionTypeID] = [lmc_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [lmc_s_c] ON [lmc_s].[FallbackCountryID] = [lmc_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [lmc_s_l] ON [lmc_s].[FallbackLanguageID] = [lmc_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [lmc_s_ar] ON [lmc_s].[FallbackAgeRatingID] = [lmc_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [lmc_s_sc] ON [lmc_s].[ServiceConfigurationID] = [lmc_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [lmc_s_bm] ON [lmc_s].[BusinessModelID] = [lmc_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [lmc_s_t] ON [lmc_s].[TemplateID] = [lmc_s_t].[TemplateID] ";
+				sqlCmdText += "WHERE [lmc].[LookupManagerConfigurationID] = @LookupManagerConfigurationID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@LookupManagerConfigurationID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("lmc", "loadinternal", "notfound"), "LookupManagerConfiguration could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				LookupManagerConfigurationTable lmcTable = new LookupManagerConfigurationTable(query);
+				LookupManagerTypeTable lmc_lmtTable = (this.Depth > 0) ? new LookupManagerTypeTable(query) : null;
+				CountryTable lmc_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable lmc_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				CurrencyTable lmc_c_cTable = (this.Depth > 1) ? new CurrencyTable(query) : null;
+				PaymentProviderTable lmc_ppTable = (this.Depth > 0) ? new PaymentProviderTable(query) : null;
+				ServiceTable lmc_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable lmc_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable lmc_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable lmc_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable lmc_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable lmc_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable lmc_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable lmc_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable lmc_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable lmc_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable lmc_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable lmc_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        
+				LookupManagerType lmc_lmtObject = (this.Depth > 0) ? lmc_lmtTable.CreateInstance() : null;
+				Language lmc_c_lObject = (this.Depth > 1) ? lmc_c_lTable.CreateInstance() : null;
+				Currency lmc_c_cObject = (this.Depth > 1) ? lmc_c_cTable.CreateInstance() : null;
+				Country lmc_cObject = (this.Depth > 0) ? lmc_cTable.CreateInstance(lmc_c_lObject, lmc_c_cObject) : null;
+				PaymentProvider lmc_ppObject = (this.Depth > 0) ? lmc_ppTable.CreateInstance() : null;
+				Application lmc_s_aObject = (this.Depth > 1) ? lmc_s_aTable.CreateInstance() : null;
+				Product lmc_s_pObject = (this.Depth > 1) ? lmc_s_pTable.CreateInstance() : null;
+				Merchant lmc_s_mObject = (this.Depth > 1) ? lmc_s_mTable.CreateInstance() : null;
+				ServiceType lmc_s_stObject = (this.Depth > 1) ? lmc_s_stTable.CreateInstance() : null;
+				UserSessionType lmc_s_ustObject = (this.Depth > 1) ? lmc_s_ustTable.CreateInstance() : null;
+				Country lmc_s_cObject = (this.Depth > 1) ? lmc_s_cTable.CreateInstance() : null;
+				Language lmc_s_lObject = (this.Depth > 1) ? lmc_s_lTable.CreateInstance() : null;
+				AgeRating lmc_s_arObject = (this.Depth > 1) ? lmc_s_arTable.CreateInstance() : null;
+				ServiceConfiguration lmc_s_scObject = (this.Depth > 1) ? lmc_s_scTable.CreateInstance() : null;
+				BusinessModel lmc_s_bmObject = (this.Depth > 1) ? lmc_s_bmTable.CreateInstance() : null;
+				Template lmc_s_tObject = (this.Depth > 1) ? lmc_s_tTable.CreateInstance() : null;
+				Service lmc_sObject = (this.Depth > 0) ? lmc_sTable.CreateInstance(lmc_s_aObject, lmc_s_pObject, lmc_s_mObject, lmc_s_stObject, lmc_s_ustObject, lmc_s_cObject, lmc_s_lObject, lmc_s_arObject, lmc_s_scObject, lmc_s_bmObject, lmc_s_tObject) : null;
+				LookupManagerConfiguration lmcObject = lmcTable.CreateInstance(lmc_lmtObject, lmc_cObject, lmc_ppObject, lmc_sObject);
+				sqlReader.Close();
+
+				return lmcObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("lmc", "loadinternal", "exception"), "LookupManagerConfiguration could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "LookupManagerConfiguration", "Exception while loading LookupManagerConfiguration object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public LookupManagerConfiguration Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							LookupManagerConfigurationTable.GetColumnNames("[lmc]") + 
+							(this.Depth > 0 ? "," + LookupManagerTypeTable.GetColumnNames("[lmc_lmt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[lmc_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[lmc_c_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CurrencyTable.GetColumnNames("[lmc_c_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentProviderTable.GetColumnNames("[lmc_pp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[lmc_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[lmc_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[lmc_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[lmc_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[lmc_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[lmc_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[lmc_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[lmc_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[lmc_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[lmc_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[lmc_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[lmc_s_t]") : string.Empty) +  
+					" FROM [core].[LookupManagerConfiguration] AS [lmc] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[LookupManagerType] AS [lmc_lmt] ON [lmc].[LookupManagerTypeID] = [lmc_lmt].[LookupManagerTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [lmc_c] ON [lmc].[CountryID] = [lmc_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [lmc_c_l] ON [lmc_c].[LanguageID] = [lmc_c_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Currency] AS [lmc_c_c] ON [lmc_c].[CurrencyID] = [lmc_c_c].[CurrencyID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentProvider] AS [lmc_pp] ON [lmc].[PaymentProviderID] = [lmc_pp].[PaymentProviderID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [lmc_s] ON [lmc].[ServiceID] = [lmc_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [lmc_s_a] ON [lmc_s].[ApplicationID] = [lmc_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [lmc_s_p] ON [lmc_s].[ProductID] = [lmc_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [lmc_s_m] ON [lmc_s].[MerchantID] = [lmc_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [lmc_s_st] ON [lmc_s].[ServiceTypeID] = [lmc_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [lmc_s_ust] ON [lmc_s].[UserSessionTypeID] = [lmc_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [lmc_s_c] ON [lmc_s].[FallbackCountryID] = [lmc_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [lmc_s_l] ON [lmc_s].[FallbackLanguageID] = [lmc_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [lmc_s_ar] ON [lmc_s].[FallbackAgeRatingID] = [lmc_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [lmc_s_sc] ON [lmc_s].[ServiceConfigurationID] = [lmc_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [lmc_s_bm] ON [lmc_s].[BusinessModelID] = [lmc_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [lmc_s_t] ON [lmc_s].[TemplateID] = [lmc_s_t].[TemplateID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("lmc", "customload", "notfound"), "LookupManagerConfiguration could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				LookupManagerConfigurationTable lmcTable = new LookupManagerConfigurationTable(query);
+				LookupManagerTypeTable lmc_lmtTable = (this.Depth > 0) ? new LookupManagerTypeTable(query) : null;
+				CountryTable lmc_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable lmc_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				CurrencyTable lmc_c_cTable = (this.Depth > 1) ? new CurrencyTable(query) : null;
+				PaymentProviderTable lmc_ppTable = (this.Depth > 0) ? new PaymentProviderTable(query) : null;
+				ServiceTable lmc_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable lmc_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable lmc_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable lmc_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable lmc_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable lmc_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable lmc_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable lmc_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable lmc_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable lmc_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable lmc_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable lmc_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        
+				LookupManagerType lmc_lmtObject = (this.Depth > 0) ? lmc_lmtTable.CreateInstance() : null;
+				Language lmc_c_lObject = (this.Depth > 1) ? lmc_c_lTable.CreateInstance() : null;
+				Currency lmc_c_cObject = (this.Depth > 1) ? lmc_c_cTable.CreateInstance() : null;
+				Country lmc_cObject = (this.Depth > 0) ? lmc_cTable.CreateInstance(lmc_c_lObject, lmc_c_cObject) : null;
+				PaymentProvider lmc_ppObject = (this.Depth > 0) ? lmc_ppTable.CreateInstance() : null;
+				Application lmc_s_aObject = (this.Depth > 1) ? lmc_s_aTable.CreateInstance() : null;
+				Product lmc_s_pObject = (this.Depth > 1) ? lmc_s_pTable.CreateInstance() : null;
+				Merchant lmc_s_mObject = (this.Depth > 1) ? lmc_s_mTable.CreateInstance() : null;
+				ServiceType lmc_s_stObject = (this.Depth > 1) ? lmc_s_stTable.CreateInstance() : null;
+				UserSessionType lmc_s_ustObject = (this.Depth > 1) ? lmc_s_ustTable.CreateInstance() : null;
+				Country lmc_s_cObject = (this.Depth > 1) ? lmc_s_cTable.CreateInstance() : null;
+				Language lmc_s_lObject = (this.Depth > 1) ? lmc_s_lTable.CreateInstance() : null;
+				AgeRating lmc_s_arObject = (this.Depth > 1) ? lmc_s_arTable.CreateInstance() : null;
+				ServiceConfiguration lmc_s_scObject = (this.Depth > 1) ? lmc_s_scTable.CreateInstance() : null;
+				BusinessModel lmc_s_bmObject = (this.Depth > 1) ? lmc_s_bmTable.CreateInstance() : null;
+				Template lmc_s_tObject = (this.Depth > 1) ? lmc_s_tTable.CreateInstance() : null;
+				Service lmc_sObject = (this.Depth > 0) ? lmc_sTable.CreateInstance(lmc_s_aObject, lmc_s_pObject, lmc_s_mObject, lmc_s_stObject, lmc_s_ustObject, lmc_s_cObject, lmc_s_lObject, lmc_s_arObject, lmc_s_scObject, lmc_s_bmObject, lmc_s_tObject) : null;
+				LookupManagerConfiguration lmcObject = lmcTable.CreateInstance(lmc_lmtObject, lmc_cObject, lmc_ppObject, lmc_sObject);
+				sqlReader.Close();
+
+				return lmcObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("lmc", "customload", "exception"), "LookupManagerConfiguration could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "LookupManagerConfiguration", "Exception while loading (custom/single) LookupManagerConfiguration object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<LookupManagerConfiguration> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							LookupManagerConfigurationTable.GetColumnNames("[lmc]") + 
+							(this.Depth > 0 ? "," + LookupManagerTypeTable.GetColumnNames("[lmc_lmt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[lmc_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[lmc_c_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CurrencyTable.GetColumnNames("[lmc_c_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentProviderTable.GetColumnNames("[lmc_pp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[lmc_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[lmc_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[lmc_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[lmc_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[lmc_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[lmc_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[lmc_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[lmc_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[lmc_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[lmc_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[lmc_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[lmc_s_t]") : string.Empty) +  
+					" FROM [core].[LookupManagerConfiguration] AS [lmc] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[LookupManagerType] AS [lmc_lmt] ON [lmc].[LookupManagerTypeID] = [lmc_lmt].[LookupManagerTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [lmc_c] ON [lmc].[CountryID] = [lmc_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [lmc_c_l] ON [lmc_c].[LanguageID] = [lmc_c_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Currency] AS [lmc_c_c] ON [lmc_c].[CurrencyID] = [lmc_c_c].[CurrencyID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentProvider] AS [lmc_pp] ON [lmc].[PaymentProviderID] = [lmc_pp].[PaymentProviderID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [lmc_s] ON [lmc].[ServiceID] = [lmc_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [lmc_s_a] ON [lmc_s].[ApplicationID] = [lmc_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [lmc_s_p] ON [lmc_s].[ProductID] = [lmc_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [lmc_s_m] ON [lmc_s].[MerchantID] = [lmc_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [lmc_s_st] ON [lmc_s].[ServiceTypeID] = [lmc_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [lmc_s_ust] ON [lmc_s].[UserSessionTypeID] = [lmc_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [lmc_s_c] ON [lmc_s].[FallbackCountryID] = [lmc_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [lmc_s_l] ON [lmc_s].[FallbackLanguageID] = [lmc_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [lmc_s_ar] ON [lmc_s].[FallbackAgeRatingID] = [lmc_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [lmc_s_sc] ON [lmc_s].[ServiceConfigurationID] = [lmc_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [lmc_s_bm] ON [lmc_s].[BusinessModelID] = [lmc_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [lmc_s_t] ON [lmc_s].[TemplateID] = [lmc_s_t].[TemplateID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("lmc", "customloadmany", "notfound"), "LookupManagerConfiguration list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<LookupManagerConfiguration>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				LookupManagerConfigurationTable lmcTable = new LookupManagerConfigurationTable(query);
+				LookupManagerTypeTable lmc_lmtTable = (this.Depth > 0) ? new LookupManagerTypeTable(query) : null;
+				CountryTable lmc_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable lmc_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				CurrencyTable lmc_c_cTable = (this.Depth > 1) ? new CurrencyTable(query) : null;
+				PaymentProviderTable lmc_ppTable = (this.Depth > 0) ? new PaymentProviderTable(query) : null;
+				ServiceTable lmc_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable lmc_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable lmc_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable lmc_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable lmc_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable lmc_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable lmc_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable lmc_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable lmc_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable lmc_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable lmc_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable lmc_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        List<LookupManagerConfiguration> result = new List<LookupManagerConfiguration>();
+        do
+        {
+          
+					LookupManagerType lmc_lmtObject = (this.Depth > 0) ? lmc_lmtTable.CreateInstance() : null;
+					Language lmc_c_lObject = (this.Depth > 1) ? lmc_c_lTable.CreateInstance() : null;
+					Currency lmc_c_cObject = (this.Depth > 1) ? lmc_c_cTable.CreateInstance() : null;
+					Country lmc_cObject = (this.Depth > 0) ? lmc_cTable.CreateInstance(lmc_c_lObject, lmc_c_cObject) : null;
+					PaymentProvider lmc_ppObject = (this.Depth > 0) ? lmc_ppTable.CreateInstance() : null;
+					Application lmc_s_aObject = (this.Depth > 1) ? lmc_s_aTable.CreateInstance() : null;
+					Product lmc_s_pObject = (this.Depth > 1) ? lmc_s_pTable.CreateInstance() : null;
+					Merchant lmc_s_mObject = (this.Depth > 1) ? lmc_s_mTable.CreateInstance() : null;
+					ServiceType lmc_s_stObject = (this.Depth > 1) ? lmc_s_stTable.CreateInstance() : null;
+					UserSessionType lmc_s_ustObject = (this.Depth > 1) ? lmc_s_ustTable.CreateInstance() : null;
+					Country lmc_s_cObject = (this.Depth > 1) ? lmc_s_cTable.CreateInstance() : null;
+					Language lmc_s_lObject = (this.Depth > 1) ? lmc_s_lTable.CreateInstance() : null;
+					AgeRating lmc_s_arObject = (this.Depth > 1) ? lmc_s_arTable.CreateInstance() : null;
+					ServiceConfiguration lmc_s_scObject = (this.Depth > 1) ? lmc_s_scTable.CreateInstance() : null;
+					BusinessModel lmc_s_bmObject = (this.Depth > 1) ? lmc_s_bmTable.CreateInstance() : null;
+					Template lmc_s_tObject = (this.Depth > 1) ? lmc_s_tTable.CreateInstance() : null;
+					Service lmc_sObject = (this.Depth > 0) ? lmc_sTable.CreateInstance(lmc_s_aObject, lmc_s_pObject, lmc_s_mObject, lmc_s_stObject, lmc_s_ustObject, lmc_s_cObject, lmc_s_lObject, lmc_s_arObject, lmc_s_scObject, lmc_s_bmObject, lmc_s_tObject) : null;
+					LookupManagerConfiguration lmcObject = (this.Depth > -1) ? lmcTable.CreateInstance(lmc_lmtObject, lmc_cObject, lmc_ppObject, lmc_sObject) : null;
+					result.Add(lmcObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("lmc", "customloadmany", "exception"), "LookupManagerConfiguration list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "LookupManagerConfiguration", "Exception while loading (custom/many) LookupManagerConfiguration object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, LookupManagerConfiguration data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[LookupManagerConfiguration] ([LookupManagerTypeID],[CountryID],[PaymentProviderID],[ServiceID],[Description]) VALUES(@LookupManagerTypeID,@CountryID,@PaymentProviderID,@ServiceID,@Description); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@LookupManagerTypeID", data.LookupManagerType.ID);
+				sqlCmd.Parameters.AddWithValue("@CountryID", data.Country.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentProviderID", data.PaymentProvider == null ? DBNull.Value : (object)data.PaymentProvider.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service == null ? DBNull.Value : (object)data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NText;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("lmc", "insert", "noprimarykey"), "LookupManagerConfiguration could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "LookupManagerConfiguration", "Exception while inserting LookupManagerConfiguration object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("lmc", "insert", "exception"), "LookupManagerConfiguration could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "LookupManagerConfiguration", "Exception while inserting LookupManagerConfiguration object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, LookupManagerConfiguration data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[LookupManagerConfiguration] SET " +
+												"[LookupManagerTypeID] = @LookupManagerTypeID, " + 
+												"[CountryID] = @CountryID, " + 
+												"[PaymentProviderID] = @PaymentProviderID, " + 
+												"[ServiceID] = @ServiceID, " + 
+												"[Description] = @Description, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [LookupManagerConfigurationID] = @LookupManagerConfigurationID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@LookupManagerTypeID", data.LookupManagerType.ID);
+				sqlCmd.Parameters.AddWithValue("@CountryID", data.Country.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentProviderID", data.PaymentProvider == null ? DBNull.Value : (object)data.PaymentProvider.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service == null ? DBNull.Value : (object)data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@LookupManagerConfigurationID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("lmc", "update", "norecord"), "LookupManagerConfiguration could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "LookupManagerConfiguration", "Exception while updating LookupManagerConfiguration object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("lmc", "update", "morerecords"), "LookupManagerConfiguration was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "LookupManagerConfiguration", "Exception while updating LookupManagerConfiguration object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("lmc", "update", "exception"), "LookupManagerConfiguration could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "LookupManagerConfiguration", "Exception while updating LookupManagerConfiguration object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, LookupManagerConfiguration data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[LookupManagerConfiguration] WHERE LookupManagerConfigurationID = @LookupManagerConfigurationID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@LookupManagerConfigurationID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("lmc", "delete", "norecord"), "LookupManagerConfiguration could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "LookupManagerConfiguration", "Exception while deleting LookupManagerConfiguration object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("lmc", "delete", "exception"), "LookupManagerConfiguration could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "LookupManagerConfiguration", "Exception while deleting LookupManagerConfiguration object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

@@ -1,0 +1,75 @@
+﻿using Microsoft.Win32;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+
+namespace MobilePaywall.Importer
+{
+	/// <summary>
+	/// Interaction logic for MainWindow.xaml
+	/// </summary>
+	public partial class MainWindow : Window
+	{
+		public MainWindow()
+		{
+			InitializeComponent();
+		}
+
+		private void Window_Loaded(object sender, RoutedEventArgs e)
+		{
+			
+		}
+
+
+		private void ImportLocationButton_Click(object sender, RoutedEventArgs e)
+		{
+			OpenFileDialog openDialog = new OpenFileDialog();
+			openDialog.Filter = "CSV file (*.csv)|*.csv";
+			openDialog.Title = "Select master CSV file";
+
+			if (openDialog.ShowDialog() == true)
+			{
+				List<ImportRow> rows = LoadFile(openDialog.FileName);
+				ValidateWindow validateWindow = new ValidateWindow(rows);
+				validateWindow.CSVPath = openDialog.FileName;
+				validateWindow.Show();
+				this.Close();
+			}
+
+
+		}
+
+    public static string CsvFirstLine = string.Empty;
+
+		private List<ImportRow> LoadFile(string filePath)
+		{
+			string[] lines = File.ReadAllLines(filePath);
+			List<ImportRow> rows = new List<ImportRow>();
+
+			for (int i = 0; i < lines.Length; i++)
+			{
+        if (i == 0)
+        {
+          MainWindow.CsvFirstLine = lines[i];
+          continue;
+        }
+
+				rows.Add(new ImportRow(lines[i], i));
+			}
+			return rows;
+		}
+
+	}
+}

@@ -1,0 +1,54 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Implementation.PaywallLog;
+using MobilePaywall.Web;
+using Senti.Security;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Tests
+{
+  class Program
+  {
+    static void Main(string[] args)
+    {
+      MobilePaywall.Data.Sql.Database dummy = null;
+      Senti.Data.DataLayerRuntime r = new Senti.Data.DataLayerRuntime();
+      PLog.Implementation = new PLogTestImplementation();
+      string password = "e90f";
+
+      
+
+      List<Customer> customers = Customer.CreateManager().Load(Service.CreateManager().Load(239), "306982914665", CustomerIdentifier.Msisdn);
+      foreach(var customer in customers)
+      {
+        if (customer.Service.ID != 239)
+        {
+          Console.WriteLine("ServiceID = " + customer.Service.ID);
+          continue;
+        }
+
+        int SALT_LENGTH = 8;
+        byte[] salt = new byte[SALT_LENGTH];
+        for (int i = 0; i < SALT_LENGTH;
+          salt[i] = customer.EncryptedPassword[customer.EncryptedPassword.Length - SALT_LENGTH + i++]) ;
+        byte[] encryptedUnckeckedPassword = PasswordEncryption.Create(password, salt).EncryptedPasswordAndSalt;
+
+        if (!encryptedUnckeckedPassword.SequenceEqual(customer.EncryptedPassword))
+        {
+          string storedPassword = customer.Storage.GetString("password");
+          if (storedPassword.Equals(password))
+            Console.WriteLine("RIGT FROM STORAGE = Wrong password on customer " + customer.ID);
+          else
+            Console.WriteLine("Wrong password on customer " + customer.ID);
+        }
+        else
+          Console.WriteLine("Right password " + customer.ID);
+      }
+
+      Console.ReadKey();
+    }
+  }
+}

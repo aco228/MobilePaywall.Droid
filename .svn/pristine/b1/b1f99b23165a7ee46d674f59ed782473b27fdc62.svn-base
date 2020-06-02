@@ -1,0 +1,94 @@
+﻿jQuery(document).ready(function () {
+  //Metronic.init();
+  loadTasks();
+
+  $('#tasks_table_container').on('click', '.cancel-task, .accept-task, .decline-task', function () {
+    var id = $(this).data('task-id');
+    var action = $(this).data('action');
+    bootbox.confirm("Are you sure you want to " + action + " this task?", function (result) {
+      if (result == true) {
+        resolveTask(id, action);
+      }
+    });    
+  });
+});
+
+function loadTasks() {
+  Metronic.blockUI({
+    target: '.page-content',
+    animate: true
+  });
+
+  $.ajax({
+    url: '/task/render/page',
+    cache: false,
+    method: 'POST',
+    success: function (response) {
+      $('#tasks_table_container').html(response);
+      TableAdvanced.init();
+      Metronic.unblockUI('.page-content');
+    },
+    error: function () {
+      $('.portlet-body').html('Some error occurred. Please refresh page.');
+      Metronic.unblockUI('.page-content');
+    }
+  });
+}
+
+function resolveTask(id, action) {
+  Metronic.blockUI({
+    target: '.page-content',
+    animate: true
+  });
+  
+  $.ajax({
+    url: 'task/resolve',
+    cache: false,
+    method: 'POST',
+    data: {
+      id: id,
+      action: action
+    },
+    success: function (response) {
+      loadTasks();
+    },
+    error: function () {
+      $('.portlet-body').html('Some error occurred. Please refresh page.');
+      Metronic.unblockUI('.page-content');
+    }
+  })  
+}
+
+
+var TableAdvanced = function () {
+  var initTable = function () {
+    var table = $('#tasks_table');
+
+    var oTable = table.dataTable({
+      "order": [
+          [7, 'desc']
+      ],
+
+      "lengthMenu": [
+          [5, 10, 15, 20, -1],
+          [5, 10, 15, 20, "All"] // change per page values here
+      ],
+      // set the initial value
+      "pageLength": 15,
+
+      "dom": "<'row' <'col-md-12'T>><'row'<'col-md-6 col-sm-12'l><'col-md-6 col-sm-12'f>r><'table-scrollable't><'row'<'col-md-5 col-sm-12'i><'col-md-7 col-sm-12'p>>", // horizontal scrollable datatable
+    });
+
+    var tableWrapper = $('#tasks_table_wrapper'); // datatable creates the table wrapper by adding with id {your_table_jd}_wrapper
+
+    tableWrapper.find('.dataTables_length select').select2(); // initialize select2 dropdown
+  }
+
+  return {
+    //main function to initiate the module
+    init: function () {
+      initTable();
+    }
+  };
+
+}();

@@ -1,0 +1,638 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(Timeline))] 
+  public partial class TimelineManager : MobilePaywall.Data.Sql.SqlManagerBase<Timeline>, ITimelineManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override Timeline LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							TimelineTable.GetColumnNames("[t]") + 
+							(this.Depth > 0 ? "," + InstanceTable.GetColumnNames("[t_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ApplicationTable.GetColumnNames("[t_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[t_a_i]") : string.Empty) + 
+							(this.Depth > 1 ? "," + RuntimeTypeTable.GetColumnNames("[t_a_rt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MerchantTable.GetColumnNames("[t_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[t_m_i]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[t_m_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[t_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[t_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[t_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[t_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[t_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[t_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[t_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[t_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[t_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[t_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[t_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[t_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ClientTable.GetColumnNames("[t_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ClientTypeTable.GetColumnNames("[t_c_ct]") : string.Empty) + 
+					" FROM [merchant].[Timeline] AS [t] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Instance] AS [t_i] ON [t].[InstanceID] = [t_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [t_a] ON [t].[ApplicationID] = [t_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Instance] AS [t_a_i] ON [t_a].[InstanceID] = [t_a_i].[InstanceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[RuntimeType] AS [t_a_rt] ON [t_a].[RuntimeTypeID] = [t_a_rt].[RuntimeTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [t_m] ON [t].[MerchantID] = [t_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Instance] AS [t_m_i] ON [t_m].[InstanceID] = [t_m_i].[InstanceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [t_m_t] ON [t_m].[TemplateID] = [t_m_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [t_s] ON [t].[ServiceID] = [t_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [t_s_a] ON [t_s].[ApplicationID] = [t_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [t_s_p] ON [t_s].[ProductID] = [t_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [t_s_m] ON [t_s].[MerchantID] = [t_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [t_s_st] ON [t_s].[ServiceTypeID] = [t_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [t_s_ust] ON [t_s].[UserSessionTypeID] = [t_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [t_s_c] ON [t_s].[FallbackCountryID] = [t_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [t_s_l] ON [t_s].[FallbackLanguageID] = [t_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [t_s_ar] ON [t_s].[FallbackAgeRatingID] = [t_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [t_s_sc] ON [t_s].[ServiceConfigurationID] = [t_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [t_s_bm] ON [t_s].[BusinessModelID] = [t_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [t_s_t] ON [t_s].[TemplateID] = [t_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Client] AS [t_c] ON [t].[ClientID] = [t_c].[ClientID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ClientType] AS [t_c_ct] ON [t_c].[ClientTypeID] = [t_c_ct].[ClientTypeID] ";
+				sqlCmdText += "WHERE [t].[TimelineID] = @TimelineID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@TimelineID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("t", "loadinternal", "notfound"), "Timeline could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				TimelineTable tTable = new TimelineTable(query);
+				InstanceTable t_iTable = (this.Depth > 0) ? new InstanceTable(query) : null;
+				ApplicationTable t_aTable = (this.Depth > 0) ? new ApplicationTable(query) : null;
+				InstanceTable t_a_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				RuntimeTypeTable t_a_rtTable = (this.Depth > 1) ? new RuntimeTypeTable(query) : null;
+				MerchantTable t_mTable = (this.Depth > 0) ? new MerchantTable(query) : null;
+				InstanceTable t_m_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				TemplateTable t_m_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				ServiceTable t_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable t_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable t_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable t_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable t_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable t_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable t_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable t_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable t_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable t_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable t_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable t_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				ClientTable t_cTable = (this.Depth > 0) ? new ClientTable(query) : null;
+				ClientTypeTable t_c_ctTable = (this.Depth > 1) ? new ClientTypeTable(query) : null;
+
+        
+				Instance t_iObject = (this.Depth > 0) ? t_iTable.CreateInstance() : null;
+				Instance t_a_iObject = (this.Depth > 1) ? t_a_iTable.CreateInstance() : null;
+				RuntimeType t_a_rtObject = (this.Depth > 1) ? t_a_rtTable.CreateInstance() : null;
+				Application t_aObject = (this.Depth > 0) ? t_aTable.CreateInstance(t_a_iObject, t_a_rtObject) : null;
+				Instance t_m_iObject = (this.Depth > 1) ? t_m_iTable.CreateInstance() : null;
+				Template t_m_tObject = (this.Depth > 1) ? t_m_tTable.CreateInstance() : null;
+				Merchant t_mObject = (this.Depth > 0) ? t_mTable.CreateInstance(t_m_iObject, t_m_tObject) : null;
+				Application t_s_aObject = (this.Depth > 1) ? t_s_aTable.CreateInstance() : null;
+				Product t_s_pObject = (this.Depth > 1) ? t_s_pTable.CreateInstance() : null;
+				Merchant t_s_mObject = (this.Depth > 1) ? t_s_mTable.CreateInstance() : null;
+				ServiceType t_s_stObject = (this.Depth > 1) ? t_s_stTable.CreateInstance() : null;
+				UserSessionType t_s_ustObject = (this.Depth > 1) ? t_s_ustTable.CreateInstance() : null;
+				Country t_s_cObject = (this.Depth > 1) ? t_s_cTable.CreateInstance() : null;
+				Language t_s_lObject = (this.Depth > 1) ? t_s_lTable.CreateInstance() : null;
+				AgeRating t_s_arObject = (this.Depth > 1) ? t_s_arTable.CreateInstance() : null;
+				ServiceConfiguration t_s_scObject = (this.Depth > 1) ? t_s_scTable.CreateInstance() : null;
+				BusinessModel t_s_bmObject = (this.Depth > 1) ? t_s_bmTable.CreateInstance() : null;
+				Template t_s_tObject = (this.Depth > 1) ? t_s_tTable.CreateInstance() : null;
+				Service t_sObject = (this.Depth > 0) ? t_sTable.CreateInstance(t_s_aObject, t_s_pObject, t_s_mObject, t_s_stObject, t_s_ustObject, t_s_cObject, t_s_lObject, t_s_arObject, t_s_scObject, t_s_bmObject, t_s_tObject) : null;
+				ClientType t_c_ctObject = (this.Depth > 1) ? t_c_ctTable.CreateInstance() : null;
+				Client t_cObject = (this.Depth > 0) ? t_cTable.CreateInstance(t_c_ctObject) : null;
+				Timeline tObject = tTable.CreateInstance(t_iObject, t_aObject, t_mObject, t_sObject, t_cObject);
+				sqlReader.Close();
+
+				return tObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("t", "loadinternal", "exception"), "Timeline could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Timeline", "Exception while loading Timeline object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public Timeline Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							TimelineTable.GetColumnNames("[t]") + 
+							(this.Depth > 0 ? "," + InstanceTable.GetColumnNames("[t_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ApplicationTable.GetColumnNames("[t_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[t_a_i]") : string.Empty) + 
+							(this.Depth > 1 ? "," + RuntimeTypeTable.GetColumnNames("[t_a_rt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MerchantTable.GetColumnNames("[t_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[t_m_i]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[t_m_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[t_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[t_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[t_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[t_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[t_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[t_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[t_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[t_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[t_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[t_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[t_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[t_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ClientTable.GetColumnNames("[t_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ClientTypeTable.GetColumnNames("[t_c_ct]") : string.Empty) +  
+					" FROM [merchant].[Timeline] AS [t] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Instance] AS [t_i] ON [t].[InstanceID] = [t_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [t_a] ON [t].[ApplicationID] = [t_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Instance] AS [t_a_i] ON [t_a].[InstanceID] = [t_a_i].[InstanceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[RuntimeType] AS [t_a_rt] ON [t_a].[RuntimeTypeID] = [t_a_rt].[RuntimeTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [t_m] ON [t].[MerchantID] = [t_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Instance] AS [t_m_i] ON [t_m].[InstanceID] = [t_m_i].[InstanceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [t_m_t] ON [t_m].[TemplateID] = [t_m_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [t_s] ON [t].[ServiceID] = [t_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [t_s_a] ON [t_s].[ApplicationID] = [t_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [t_s_p] ON [t_s].[ProductID] = [t_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [t_s_m] ON [t_s].[MerchantID] = [t_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [t_s_st] ON [t_s].[ServiceTypeID] = [t_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [t_s_ust] ON [t_s].[UserSessionTypeID] = [t_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [t_s_c] ON [t_s].[FallbackCountryID] = [t_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [t_s_l] ON [t_s].[FallbackLanguageID] = [t_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [t_s_ar] ON [t_s].[FallbackAgeRatingID] = [t_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [t_s_sc] ON [t_s].[ServiceConfigurationID] = [t_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [t_s_bm] ON [t_s].[BusinessModelID] = [t_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [t_s_t] ON [t_s].[TemplateID] = [t_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Client] AS [t_c] ON [t].[ClientID] = [t_c].[ClientID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ClientType] AS [t_c_ct] ON [t_c].[ClientTypeID] = [t_c_ct].[ClientTypeID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("t", "customload", "notfound"), "Timeline could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				TimelineTable tTable = new TimelineTable(query);
+				InstanceTable t_iTable = (this.Depth > 0) ? new InstanceTable(query) : null;
+				ApplicationTable t_aTable = (this.Depth > 0) ? new ApplicationTable(query) : null;
+				InstanceTable t_a_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				RuntimeTypeTable t_a_rtTable = (this.Depth > 1) ? new RuntimeTypeTable(query) : null;
+				MerchantTable t_mTable = (this.Depth > 0) ? new MerchantTable(query) : null;
+				InstanceTable t_m_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				TemplateTable t_m_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				ServiceTable t_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable t_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable t_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable t_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable t_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable t_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable t_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable t_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable t_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable t_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable t_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable t_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				ClientTable t_cTable = (this.Depth > 0) ? new ClientTable(query) : null;
+				ClientTypeTable t_c_ctTable = (this.Depth > 1) ? new ClientTypeTable(query) : null;
+
+        
+				Instance t_iObject = (this.Depth > 0) ? t_iTable.CreateInstance() : null;
+				Instance t_a_iObject = (this.Depth > 1) ? t_a_iTable.CreateInstance() : null;
+				RuntimeType t_a_rtObject = (this.Depth > 1) ? t_a_rtTable.CreateInstance() : null;
+				Application t_aObject = (this.Depth > 0) ? t_aTable.CreateInstance(t_a_iObject, t_a_rtObject) : null;
+				Instance t_m_iObject = (this.Depth > 1) ? t_m_iTable.CreateInstance() : null;
+				Template t_m_tObject = (this.Depth > 1) ? t_m_tTable.CreateInstance() : null;
+				Merchant t_mObject = (this.Depth > 0) ? t_mTable.CreateInstance(t_m_iObject, t_m_tObject) : null;
+				Application t_s_aObject = (this.Depth > 1) ? t_s_aTable.CreateInstance() : null;
+				Product t_s_pObject = (this.Depth > 1) ? t_s_pTable.CreateInstance() : null;
+				Merchant t_s_mObject = (this.Depth > 1) ? t_s_mTable.CreateInstance() : null;
+				ServiceType t_s_stObject = (this.Depth > 1) ? t_s_stTable.CreateInstance() : null;
+				UserSessionType t_s_ustObject = (this.Depth > 1) ? t_s_ustTable.CreateInstance() : null;
+				Country t_s_cObject = (this.Depth > 1) ? t_s_cTable.CreateInstance() : null;
+				Language t_s_lObject = (this.Depth > 1) ? t_s_lTable.CreateInstance() : null;
+				AgeRating t_s_arObject = (this.Depth > 1) ? t_s_arTable.CreateInstance() : null;
+				ServiceConfiguration t_s_scObject = (this.Depth > 1) ? t_s_scTable.CreateInstance() : null;
+				BusinessModel t_s_bmObject = (this.Depth > 1) ? t_s_bmTable.CreateInstance() : null;
+				Template t_s_tObject = (this.Depth > 1) ? t_s_tTable.CreateInstance() : null;
+				Service t_sObject = (this.Depth > 0) ? t_sTable.CreateInstance(t_s_aObject, t_s_pObject, t_s_mObject, t_s_stObject, t_s_ustObject, t_s_cObject, t_s_lObject, t_s_arObject, t_s_scObject, t_s_bmObject, t_s_tObject) : null;
+				ClientType t_c_ctObject = (this.Depth > 1) ? t_c_ctTable.CreateInstance() : null;
+				Client t_cObject = (this.Depth > 0) ? t_cTable.CreateInstance(t_c_ctObject) : null;
+				Timeline tObject = tTable.CreateInstance(t_iObject, t_aObject, t_mObject, t_sObject, t_cObject);
+				sqlReader.Close();
+
+				return tObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("t", "customload", "exception"), "Timeline could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Timeline", "Exception while loading (custom/single) Timeline object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<Timeline> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							TimelineTable.GetColumnNames("[t]") + 
+							(this.Depth > 0 ? "," + InstanceTable.GetColumnNames("[t_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ApplicationTable.GetColumnNames("[t_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[t_a_i]") : string.Empty) + 
+							(this.Depth > 1 ? "," + RuntimeTypeTable.GetColumnNames("[t_a_rt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MerchantTable.GetColumnNames("[t_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[t_m_i]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[t_m_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[t_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[t_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[t_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[t_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[t_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[t_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[t_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[t_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[t_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[t_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[t_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[t_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ClientTable.GetColumnNames("[t_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ClientTypeTable.GetColumnNames("[t_c_ct]") : string.Empty) +  
+					" FROM [merchant].[Timeline] AS [t] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Instance] AS [t_i] ON [t].[InstanceID] = [t_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [t_a] ON [t].[ApplicationID] = [t_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Instance] AS [t_a_i] ON [t_a].[InstanceID] = [t_a_i].[InstanceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[RuntimeType] AS [t_a_rt] ON [t_a].[RuntimeTypeID] = [t_a_rt].[RuntimeTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [t_m] ON [t].[MerchantID] = [t_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Instance] AS [t_m_i] ON [t_m].[InstanceID] = [t_m_i].[InstanceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [t_m_t] ON [t_m].[TemplateID] = [t_m_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [t_s] ON [t].[ServiceID] = [t_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [t_s_a] ON [t_s].[ApplicationID] = [t_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [t_s_p] ON [t_s].[ProductID] = [t_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [t_s_m] ON [t_s].[MerchantID] = [t_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [t_s_st] ON [t_s].[ServiceTypeID] = [t_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [t_s_ust] ON [t_s].[UserSessionTypeID] = [t_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [t_s_c] ON [t_s].[FallbackCountryID] = [t_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [t_s_l] ON [t_s].[FallbackLanguageID] = [t_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [t_s_ar] ON [t_s].[FallbackAgeRatingID] = [t_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [t_s_sc] ON [t_s].[ServiceConfigurationID] = [t_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [t_s_bm] ON [t_s].[BusinessModelID] = [t_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [t_s_t] ON [t_s].[TemplateID] = [t_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Client] AS [t_c] ON [t].[ClientID] = [t_c].[ClientID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ClientType] AS [t_c_ct] ON [t_c].[ClientTypeID] = [t_c_ct].[ClientTypeID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("t", "customloadmany", "notfound"), "Timeline list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<Timeline>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				TimelineTable tTable = new TimelineTable(query);
+				InstanceTable t_iTable = (this.Depth > 0) ? new InstanceTable(query) : null;
+				ApplicationTable t_aTable = (this.Depth > 0) ? new ApplicationTable(query) : null;
+				InstanceTable t_a_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				RuntimeTypeTable t_a_rtTable = (this.Depth > 1) ? new RuntimeTypeTable(query) : null;
+				MerchantTable t_mTable = (this.Depth > 0) ? new MerchantTable(query) : null;
+				InstanceTable t_m_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				TemplateTable t_m_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				ServiceTable t_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable t_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable t_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable t_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable t_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable t_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable t_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable t_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable t_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable t_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable t_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable t_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				ClientTable t_cTable = (this.Depth > 0) ? new ClientTable(query) : null;
+				ClientTypeTable t_c_ctTable = (this.Depth > 1) ? new ClientTypeTable(query) : null;
+
+        List<Timeline> result = new List<Timeline>();
+        do
+        {
+          
+					Instance t_iObject = (this.Depth > 0) ? t_iTable.CreateInstance() : null;
+					Instance t_a_iObject = (this.Depth > 1) ? t_a_iTable.CreateInstance() : null;
+					RuntimeType t_a_rtObject = (this.Depth > 1) ? t_a_rtTable.CreateInstance() : null;
+					Application t_aObject = (this.Depth > 0) ? t_aTable.CreateInstance(t_a_iObject, t_a_rtObject) : null;
+					Instance t_m_iObject = (this.Depth > 1) ? t_m_iTable.CreateInstance() : null;
+					Template t_m_tObject = (this.Depth > 1) ? t_m_tTable.CreateInstance() : null;
+					Merchant t_mObject = (this.Depth > 0) ? t_mTable.CreateInstance(t_m_iObject, t_m_tObject) : null;
+					Application t_s_aObject = (this.Depth > 1) ? t_s_aTable.CreateInstance() : null;
+					Product t_s_pObject = (this.Depth > 1) ? t_s_pTable.CreateInstance() : null;
+					Merchant t_s_mObject = (this.Depth > 1) ? t_s_mTable.CreateInstance() : null;
+					ServiceType t_s_stObject = (this.Depth > 1) ? t_s_stTable.CreateInstance() : null;
+					UserSessionType t_s_ustObject = (this.Depth > 1) ? t_s_ustTable.CreateInstance() : null;
+					Country t_s_cObject = (this.Depth > 1) ? t_s_cTable.CreateInstance() : null;
+					Language t_s_lObject = (this.Depth > 1) ? t_s_lTable.CreateInstance() : null;
+					AgeRating t_s_arObject = (this.Depth > 1) ? t_s_arTable.CreateInstance() : null;
+					ServiceConfiguration t_s_scObject = (this.Depth > 1) ? t_s_scTable.CreateInstance() : null;
+					BusinessModel t_s_bmObject = (this.Depth > 1) ? t_s_bmTable.CreateInstance() : null;
+					Template t_s_tObject = (this.Depth > 1) ? t_s_tTable.CreateInstance() : null;
+					Service t_sObject = (this.Depth > 0) ? t_sTable.CreateInstance(t_s_aObject, t_s_pObject, t_s_mObject, t_s_stObject, t_s_ustObject, t_s_cObject, t_s_lObject, t_s_arObject, t_s_scObject, t_s_bmObject, t_s_tObject) : null;
+					ClientType t_c_ctObject = (this.Depth > 1) ? t_c_ctTable.CreateInstance() : null;
+					Client t_cObject = (this.Depth > 0) ? t_cTable.CreateInstance(t_c_ctObject) : null;
+					Timeline tObject = (this.Depth > -1) ? tTable.CreateInstance(t_iObject, t_aObject, t_mObject, t_sObject, t_cObject) : null;
+					result.Add(tObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("t", "customloadmany", "exception"), "Timeline list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Timeline", "Exception while loading (custom/many) Timeline object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, Timeline data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [merchant].[Timeline] ([TimelineTypeID],[InstanceID],[ApplicationID],[MerchantID],[ServiceID],[ClientID],[Text]) VALUES(@TimelineTypeID,@InstanceID,@ApplicationID,@MerchantID,@ServiceID,@ClientID,@Text); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@TimelineTypeID", (int)data.TimelineType);
+				sqlCmd.Parameters.AddWithValue("@InstanceID", data.Instance == null ? DBNull.Value : (object)data.Instance.ID);
+				sqlCmd.Parameters.AddWithValue("@ApplicationID", data.Application == null ? DBNull.Value : (object)data.Application.ID);
+				sqlCmd.Parameters.AddWithValue("@MerchantID", data.Merchant == null ? DBNull.Value : (object)data.Merchant.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service == null ? DBNull.Value : (object)data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@ClientID", data.Client.ID);
+				sqlCmd.Parameters.AddWithValue("@Text", !string.IsNullOrEmpty(data.Text) ? (object)data.Text : DBNull.Value).SqlDbType = SqlDbType.NText;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("t", "insert", "noprimarykey"), "Timeline could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "Timeline", "Exception while inserting Timeline object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("t", "insert", "exception"), "Timeline could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "Timeline", "Exception while inserting Timeline object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, Timeline data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [merchant].[Timeline] SET " +
+												"[TimelineTypeID] = @TimelineTypeID, " + 
+												"[InstanceID] = @InstanceID, " + 
+												"[ApplicationID] = @ApplicationID, " + 
+												"[MerchantID] = @MerchantID, " + 
+												"[ServiceID] = @ServiceID, " + 
+												"[ClientID] = @ClientID, " + 
+												"[Text] = @Text, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [TimelineID] = @TimelineID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@TimelineTypeID", (int)data.TimelineType);
+				sqlCmd.Parameters.AddWithValue("@InstanceID", data.Instance == null ? DBNull.Value : (object)data.Instance.ID);
+				sqlCmd.Parameters.AddWithValue("@ApplicationID", data.Application == null ? DBNull.Value : (object)data.Application.ID);
+				sqlCmd.Parameters.AddWithValue("@MerchantID", data.Merchant == null ? DBNull.Value : (object)data.Merchant.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service == null ? DBNull.Value : (object)data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@ClientID", data.Client.ID);
+				sqlCmd.Parameters.AddWithValue("@Text", !string.IsNullOrEmpty(data.Text) ? (object)data.Text : DBNull.Value).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@TimelineID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("t", "update", "norecord"), "Timeline could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "Timeline", "Exception while updating Timeline object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("t", "update", "morerecords"), "Timeline was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "Timeline", "Exception while updating Timeline object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("t", "update", "exception"), "Timeline could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "Timeline", "Exception while updating Timeline object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, Timeline data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [merchant].[Timeline] WHERE TimelineID = @TimelineID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@TimelineID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("t", "delete", "norecord"), "Timeline could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "Timeline", "Exception while deleting Timeline object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("t", "delete", "exception"), "Timeline could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "Timeline", "Exception while deleting Timeline object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

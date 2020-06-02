@@ -1,0 +1,104 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.MobilePaywallDirect
+{
+  public abstract class DirectDatabaseBase : IDirectDatabase
+  {
+    protected string _databaseName = string.Empty;
+    protected int _timeout = -1;
+
+    protected bool _error = false;
+    protected bool _connected = false;
+    protected string _connectionString = string.Empty;
+    protected string _lastErrorMessage = string.Empty;
+
+    public virtual string Date(DateTime date)
+    {
+      return date.ToString("yyyy-MM-dd HH:mm:ss");
+    }
+
+    public virtual bool IsConnected 
+    { 
+      get { return this._connected; } 
+    }
+
+    protected abstract void SetConnectionString(string connectionString);
+    protected abstract bool Connect();
+    protected abstract bool Disconnect();
+    protected abstract string ComposeCommand(string command);
+
+    public abstract void SetTimeout(int timeout);
+    public abstract DataTable Load(string command);
+    public abstract int? Execute(string command);
+    public abstract bool Execute(List<string> commands);
+
+    public virtual int? LoadInt(string command)
+    {
+      int result = -1;
+      if (Int32.TryParse(this.LoadString(command), out result))
+        return result;
+      return null;
+    }
+    
+    public virtual List<int> LoadArrayInt(string command)
+    {
+      List<int> result = new List<int>();
+      DataTable table = this.Load(command);
+      if (table == null || table.Rows.Count == 0)
+        return result;
+
+      foreach(DataRow row in table.Rows)
+      {
+        int p;
+        if (Int32.TryParse(row[0].ToString(), out p))
+          result.Add(p);
+      }
+
+      return result;
+    }
+
+    public virtual bool? LoadBool(string command)
+    {
+      string result = this.LoadString(command);
+      if (string.IsNullOrEmpty(result))
+        return null;
+      return result.ToLower().Equals("1") || result.ToLower().Equals("true");
+    }
+
+    public virtual Guid? LoadGuid(string command)
+    {
+      Guid result;
+      if (Guid.TryParse(this.LoadString(command), out result))
+        return result;
+      return null;
+    }
+
+    public virtual DateTime? LoadDateTime(string command)
+    {
+      DateTime result;
+      if (DateTime.TryParse(this.LoadString(command), out result))
+        return result;
+      return null;
+    }
+
+    public virtual string LoadString(string command)
+    {
+      DataTable table = this.Load(command);
+      if (table == null || table.Rows.Count == 0)
+        return string.Empty;
+      return table.Rows[0][0].ToString();
+    }
+
+    public virtual DirectContainer LoadContainer(string command)
+    {
+      DataTable table = this.Load(command);
+      return new DirectContainer(table);
+    }
+
+  }
+}

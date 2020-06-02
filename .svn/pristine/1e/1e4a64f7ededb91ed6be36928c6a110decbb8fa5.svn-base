@@ -1,0 +1,70 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using MobilePaywall.Data;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IAuctionCreditPolicyManager : IDataManager<AuctionCreditPolicy> 
+  {
+	
+
+  }
+
+  public partial class AuctionCreditPolicy : MobilePaywallObject<IAuctionCreditPolicyManager> 
+  {
+		private ServiceOffer _serviceOffer;
+		private int _amount = -1;
+		
+
+		public ServiceOffer ServiceOffer 
+		{
+			get
+			{
+				if (this._serviceOffer != null &&
+						this._serviceOffer.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._serviceOffer = ServiceOffer.CreateManager().LazyLoad(this.ConnectionContext, this._serviceOffer.ID) as ServiceOffer;
+					else
+						this._serviceOffer = ServiceOffer.CreateManager().LazyLoad(this._serviceOffer.ID) as ServiceOffer;
+				return this._serviceOffer;
+			}
+			set { _serviceOffer = value; }
+		}
+
+		public int Amount{ get {return this._amount; } set { this._amount = value;} }
+		
+
+    public override bool IsInsertable { get { return true;} }
+
+    public override bool IsDeletable { get { return false;} }
+
+    public override bool IsUpdatable { get { return true;} }
+
+    public AuctionCreditPolicy()
+    { 
+    }
+
+    public AuctionCreditPolicy(int id): base(id, DateTime.Now, DateTime.Now, true)
+    {
+    }
+
+    public AuctionCreditPolicy(int id,  ServiceOffer serviceOffer, int amount, DateTime updated, DateTime created): base(id, updated, created, false)
+    {
+			this._serviceOffer = serviceOffer;
+			this._amount = amount;
+			
+    }
+
+    public override object Clone(bool deepClone)
+    {
+      return new AuctionCreditPolicy(-1,  this.ServiceOffer,this.Amount, DateTime.Now, DateTime.Now);
+    }
+  }
+}
+

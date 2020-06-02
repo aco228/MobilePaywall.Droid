@@ -1,0 +1,215 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using MobilePaywall.Data;
+using Cashflow.Client;
+using Cashflow.Message.Mobile;
+using Cashflow.Message;
+using System.Text.RegularExpressions;
+using Senti.Diagnostics.Log;
+using MobilePaywall.MobilePaywallDirect;
+
+namespace MobilePaywall.Implementation.Payment.Specific.GR
+{
+  public class GreekAmazeLookupManager : LookupManagerBase
+  {
+    public GreekAmazeLookupManager(IUserSession session) : base(session)
+    {
+    }
+
+    public override LookupSession InitiateLookupSession(string requestRawUrl, UserHttpRequest originalRequest)
+    {
+      if (originalRequest == null)
+      {
+        originalRequest = new UserHttpRequest(-1,
+          Guid.NewGuid(),
+          this.Session.SessionData,
+          null, //Content is not available at this point.
+          requestRawUrl,
+          DateTime.Now,
+          DateTime.Now);
+        originalRequest.Insert();
+      }
+
+      LookupSession lookupSession = new LookupSession(-1,
+        Guid.NewGuid(),
+        LookupSessionStatus.Initialized,
+        this.Session.SessionData,
+        originalRequest,
+        null, //This GUID is Cashflow!
+        null,
+        DateTime.Now,
+        DateTime.Now);
+      lookupSession.Insert();
+
+      string lookupSessionPath = MobilePaywall.Constants.LookupID + "/" + lookupSession.Guid.ToString().Replace("-", "");
+      bool removeQuery = this.Session.Service.PaymentProvider.ID == 2 ? true : false;
+      requestRawUrl = UrlManager.PrepareRedirectUrl(requestRawUrl, lookupSessionPath, removeQuery);
+
+      MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(this.Session.Service.ServiceData);
+      mobileClient.AttachLogWriter(new CashflowLog(this.Session.Service.ServiceData));
+
+      ServiceOffer so = this.Session.Service.DefaultServiceOffer;
+
+      LookupMsisdnRequest lookupRequest = new LookupMsisdnRequest(RequestMode.Default,
+        this.Session.SessionData.Guid.ToString(),
+        so.PaymentConfiguration.PaymentCredentials.Username,
+        so.PaymentConfiguration.PaymentCredentials.Password,
+        this.Session.Service.ServiceData.Product.ExternalProductGuid,
+        so.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+        this.Session.GetUserSessionCountry().TwoLetterIsoCode,
+        so.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+        so.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+        this.Session.SessionData.IPAddress,
+        lookupSession.Guid.ToString(),
+        requestRawUrl,
+        null, null);
+      lookupRequest.ReferenceIntID = lookupSession.UserSession.ID;
+
+      LookupMsisdnResponse lookupResponse = mobileClient.LookupMsisdn(lookupRequest);
+      
+      switch (lookupResponse.Status.Code)
+      {
+        case MessageStatusCode.Redirect:
+        case MessageStatusCode.Success:
+          lookupSession.LookupSessionStatus = LookupSessionStatus.Complete;
+          lookupSession.IdentificationSessionGuid = lookupResponse.IdentificationSessionID;
+          lookupSession.LookupUrl = lookupResponse.RedirectUrl;
+          lookupSession.Update();
+          return lookupSession;
+        case MessageStatusCode.Failure:
+          return null;
+        case MessageStatusCode.Pending:
+          // TODO: Show Pending page and poll DB for update!
+          lookupSession.LookupSessionStatus = LookupSessionStatus.Pending;
+          lookupSession.Update();
+          return lookupSession;
+        default:
+          return null;
+      }
+    }
+
+    public override bool IsLookupCallback(string requestRawUrl)
+    {
+      return base.IsLookupCallback(requestRawUrl);
+    }
+
+    public override LookupSessionResult ProcessLookupCallbackResult(string url)
+    {
+
+      LookupSession lookupSession = LookupSession.CreateManager().Load(this.Session.SessionData);
+      UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), this.Session.SessionData, null, url, DateTime.Now, DateTime.Now);
+      uhr.Insert();
+
+      LookupSessionResult lookupSessionResult = null;
+
+      if(lookupSession == null)
+      {
+        lookupSession = new LookupSession(-1, Guid.NewGuid(), LookupSessionStatus.Initialized, this.Session.SessionData, uhr, null, "-nil", DateTime.Now, DateTime.Now);
+        lookupSession.Insert();
+      }
+
+      if(!lookupSession.IdentificationSessionGuid.HasValue)
+      {
+        lookupSessionResult = new LookupSessionResult(-1, lookupSession, true, true, null, null, string.Empty, string.Empty, DateTime.Now, DateTime.Now);
+        lookupSessionResult.Insert();
+
+        return lookupSessionResult;
+      }
+
+      ServiceOffer so = this.Session.Service.DefaultServiceOffer;
+
+      MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(this.Session.Service.ServiceData);
+      mobileClient.AttachLogWriter(new CashflowLog(this.Session.Service.ServiceData));
+
+      QueryIdentificationRequest queryRequest = new QueryIdentificationRequest(RequestMode.Default,
+        this.Session.SessionData.Guid.ToString(),
+        so.PaymentConfiguration.PaymentCredentials.Username,
+        so.PaymentConfiguration.PaymentCredentials.Password,
+        lookupSession.IdentificationSessionGuid.Value,
+        null);
+
+      queryRequest.ReferenceIntID = lookupSession.UserSession.ID;
+      QueryIdentificationResponse queryResponse = mobileClient.QueryIdentification(queryRequest, new ProviderReturnedArguments() { UrlParameters = url });
+
+      if(queryResponse.Status.Code == MessageStatusCode.Success || queryResponse.Status.Code == MessageStatusCode.Redirect)
+      {
+        Country country = this.Session.GetUserSessionCountry();
+        MobileOperator mobileOperator = null;
+        if (queryResponse.Operator.HasValue)
+        {
+          mobileOperator = MobileOperator.CreateManager().Load(queryResponse.Operator.Value, IDType.External);
+          this.Session.SessionData.MobileOperator = mobileOperator;
+          this.Session.SessionData.Update();
+        }
+
+        ICustomerUtil cUtil = new WebCustomerUtil();
+        Customer customer = cUtil.Find(this.Session.Service, queryResponse.Msisdn, CustomerStatus.Unknown);
+
+        if (customer == null)
+        {
+          customer = new Customer(-1,
+            Guid.NewGuid(),
+            CustomerStatus.Pending,
+            this.Session.Service.ServiceData,
+            country,
+            mobileOperator,
+            null,
+            !queryResponse.IsEncrypted.Value ? queryResponse.Msisdn : null,
+            queryResponse.IsEncrypted.Value ? queryResponse.Msisdn : null,
+            queryResponse.IsEncrypted.Value ? string.Format("user{0}", Guid.NewGuid().ToString().Split('-')[4].Substring(0, 6)) : queryResponse.Msisdn,
+            null,
+            DateTime.Now, DateTime.Now);
+          customer.Insert();
+          customer.SetUsernameAndPassword();
+        }
+        
+        if (customer != null)
+        {
+          this.Session.SessionData.Customer = customer;
+          this.Session.SessionData.Update();
+        }
+
+        int? resultID = PaywallDirect.Instance.LoadInt(string.Format(@"SELECT LookupSessionResultID FROM MobilePaywall.core.LookupSessionResult WHERE LookupSessionID={0};", lookupSession.ID));
+        if (resultID.HasValue)
+          lookupSessionResult = LookupSessionResult.CreateManager().Load(resultID.Value);
+        else
+        {
+          lookupSessionResult = new LookupSessionResult(-1,
+            lookupSession,
+            true,
+            true,
+            queryResponse.IdentificationResultID,
+            mobileOperator,
+            !queryResponse.IsEncrypted.HasValue || queryResponse.IsEncrypted.Value ? null : queryResponse.Msisdn,
+            queryResponse.IsEncrypted.HasValue && queryResponse.IsEncrypted.Value ? queryResponse.Msisdn : null,
+            DateTime.Now, DateTime.Now);
+          lookupSessionResult.Insert();
+        }
+      }
+      else
+      {
+        int? resultID = PaywallDirect.Instance.LoadInt(string.Format(@"SELECT LookupSessionResultID FROM MobilePaywall.core.LookupSessionResult WHERE LookupSessionID={0};", lookupSession.ID));
+        if (resultID.HasValue)
+          lookupSessionResult = LookupSessionResult.CreateManager().Load(resultID.Value);
+        else
+        {
+          lookupSessionResult = new LookupSessionResult(-1, lookupSession, false, true, null, null, null, null, DateTime.Now, DateTime.Now);
+          lookupSessionResult.Insert();
+        }
+      }
+      
+      return lookupSessionResult;
+    }
+
+    public override LookupSessionResult TryGetLookupSessionResult()
+    {
+      return base.TryGetLookupSessionResult();
+    }
+    
+
+
+  }
+}

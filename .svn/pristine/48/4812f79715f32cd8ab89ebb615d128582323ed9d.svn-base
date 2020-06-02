@@ -1,0 +1,482 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(SetupSubscriptionCallback))] 
+  public partial class SetupSubscriptionCallbackManager : MobilePaywall.Data.Sql.SqlManagerBase<SetupSubscriptionCallback>, ISetupSubscriptionCallbackManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override SetupSubscriptionCallback LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							SetupSubscriptionCallbackTable.GetColumnNames("[ssc]") + 
+							(this.Depth > 0 ? "," + PaymentRequestTable.GetColumnNames("[ssc_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LookupSessionTable.GetColumnNames("[ssc_pr_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[ssc_pr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[ssc_pr_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[ssc_pr_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserHttpRequestTable.GetColumnNames("[ssc_pr_uhr]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentTable.GetColumnNames("[ssc_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentRequestTable.GetColumnNames("[ssc_p_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[ssc_p_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[ssc_p_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[ssc_p_bme]") : string.Empty) + 
+					" FROM [async].[SetupSubscriptionCallback] AS [ssc] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [ssc_pr] ON [ssc].[PaymentRequestID] = [ssc_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[LookupSession] AS [ssc_pr_ls] ON [ssc_pr].[LookupSessionID] = [ssc_pr_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [ssc_pr_c] ON [ssc_pr].[CustomerID] = [ssc_pr_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [ssc_pr_so] ON [ssc_pr].[ServiceOfferID] = [ssc_pr_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [ssc_pr_bme] ON [ssc_pr].[BusinessModelEntryID] = [ssc_pr_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [ssc_pr_uhr] ON [ssc_pr].[UserHttpRequestID] = [ssc_pr_uhr].[UserHttpRequestID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Payment] AS [ssc_p] ON [ssc].[PaymentID] = [ssc_p].[PaymentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentRequest] AS [ssc_p_pr] ON [ssc_p].[PaymentRequestID] = [ssc_p_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [ssc_p_c] ON [ssc_p].[CustomerID] = [ssc_p_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceOffer] AS [ssc_p_so] ON [ssc_p].[ServiceOfferID] = [ssc_p_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModelEntry] AS [ssc_p_bme] ON [ssc_p].[BusinessModelEntryID] = [ssc_p_bme].[BusinessModelEntryID] ";
+				sqlCmdText += "WHERE [ssc].[SetupSubscriptionCallbackID] = @SetupSubscriptionCallbackID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@SetupSubscriptionCallbackID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ssc", "loadinternal", "notfound"), "SetupSubscriptionCallback could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				SetupSubscriptionCallbackTable sscTable = new SetupSubscriptionCallbackTable(query);
+				PaymentRequestTable ssc_prTable = (this.Depth > 0) ? new PaymentRequestTable(query) : null;
+				LookupSessionTable ssc_pr_lsTable = (this.Depth > 1) ? new LookupSessionTable(query) : null;
+				CustomerTable ssc_pr_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				ServiceOfferTable ssc_pr_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable ssc_pr_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				UserHttpRequestTable ssc_pr_uhrTable = (this.Depth > 1) ? new UserHttpRequestTable(query) : null;
+				PaymentTable ssc_pTable = (this.Depth > 0) ? new PaymentTable(query) : null;
+				PaymentRequestTable ssc_p_prTable = (this.Depth > 1) ? new PaymentRequestTable(query) : null;
+				CustomerTable ssc_p_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				ServiceOfferTable ssc_p_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable ssc_p_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+
+        
+				LookupSession ssc_pr_lsObject = (this.Depth > 1) ? ssc_pr_lsTable.CreateInstance() : null;
+				Customer ssc_pr_cObject = (this.Depth > 1) ? ssc_pr_cTable.CreateInstance() : null;
+				ServiceOffer ssc_pr_soObject = (this.Depth > 1) ? ssc_pr_soTable.CreateInstance() : null;
+				BusinessModelEntry ssc_pr_bmeObject = (this.Depth > 1) ? ssc_pr_bmeTable.CreateInstance() : null;
+				UserHttpRequest ssc_pr_uhrObject = (this.Depth > 1) ? ssc_pr_uhrTable.CreateInstance() : null;
+				PaymentRequest ssc_prObject = (this.Depth > 0) ? ssc_prTable.CreateInstance(ssc_pr_lsObject, ssc_pr_cObject, ssc_pr_soObject, ssc_pr_bmeObject, ssc_pr_uhrObject) : null;
+				PaymentRequest ssc_p_prObject = (this.Depth > 1) ? ssc_p_prTable.CreateInstance() : null;
+				Customer ssc_p_cObject = (this.Depth > 1) ? ssc_p_cTable.CreateInstance() : null;
+				ServiceOffer ssc_p_soObject = (this.Depth > 1) ? ssc_p_soTable.CreateInstance() : null;
+				BusinessModelEntry ssc_p_bmeObject = (this.Depth > 1) ? ssc_p_bmeTable.CreateInstance() : null;
+				Payment ssc_pObject = (this.Depth > 0) ? ssc_pTable.CreateInstance(ssc_p_prObject, ssc_p_cObject, ssc_p_soObject, ssc_p_bmeObject) : null;
+				SetupSubscriptionCallback sscObject = sscTable.CreateInstance(ssc_prObject, ssc_pObject);
+				sqlReader.Close();
+
+				return sscObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ssc", "loadinternal", "exception"), "SetupSubscriptionCallback could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "SetupSubscriptionCallback", "Exception while loading SetupSubscriptionCallback object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public SetupSubscriptionCallback Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							SetupSubscriptionCallbackTable.GetColumnNames("[ssc]") + 
+							(this.Depth > 0 ? "," + PaymentRequestTable.GetColumnNames("[ssc_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LookupSessionTable.GetColumnNames("[ssc_pr_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[ssc_pr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[ssc_pr_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[ssc_pr_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserHttpRequestTable.GetColumnNames("[ssc_pr_uhr]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentTable.GetColumnNames("[ssc_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentRequestTable.GetColumnNames("[ssc_p_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[ssc_p_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[ssc_p_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[ssc_p_bme]") : string.Empty) +  
+					" FROM [async].[SetupSubscriptionCallback] AS [ssc] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [ssc_pr] ON [ssc].[PaymentRequestID] = [ssc_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[LookupSession] AS [ssc_pr_ls] ON [ssc_pr].[LookupSessionID] = [ssc_pr_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [ssc_pr_c] ON [ssc_pr].[CustomerID] = [ssc_pr_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [ssc_pr_so] ON [ssc_pr].[ServiceOfferID] = [ssc_pr_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [ssc_pr_bme] ON [ssc_pr].[BusinessModelEntryID] = [ssc_pr_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [ssc_pr_uhr] ON [ssc_pr].[UserHttpRequestID] = [ssc_pr_uhr].[UserHttpRequestID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Payment] AS [ssc_p] ON [ssc].[PaymentID] = [ssc_p].[PaymentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentRequest] AS [ssc_p_pr] ON [ssc_p].[PaymentRequestID] = [ssc_p_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [ssc_p_c] ON [ssc_p].[CustomerID] = [ssc_p_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceOffer] AS [ssc_p_so] ON [ssc_p].[ServiceOfferID] = [ssc_p_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModelEntry] AS [ssc_p_bme] ON [ssc_p].[BusinessModelEntryID] = [ssc_p_bme].[BusinessModelEntryID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ssc", "customload", "notfound"), "SetupSubscriptionCallback could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				SetupSubscriptionCallbackTable sscTable = new SetupSubscriptionCallbackTable(query);
+				PaymentRequestTable ssc_prTable = (this.Depth > 0) ? new PaymentRequestTable(query) : null;
+				LookupSessionTable ssc_pr_lsTable = (this.Depth > 1) ? new LookupSessionTable(query) : null;
+				CustomerTable ssc_pr_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				ServiceOfferTable ssc_pr_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable ssc_pr_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				UserHttpRequestTable ssc_pr_uhrTable = (this.Depth > 1) ? new UserHttpRequestTable(query) : null;
+				PaymentTable ssc_pTable = (this.Depth > 0) ? new PaymentTable(query) : null;
+				PaymentRequestTable ssc_p_prTable = (this.Depth > 1) ? new PaymentRequestTable(query) : null;
+				CustomerTable ssc_p_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				ServiceOfferTable ssc_p_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable ssc_p_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+
+        
+				LookupSession ssc_pr_lsObject = (this.Depth > 1) ? ssc_pr_lsTable.CreateInstance() : null;
+				Customer ssc_pr_cObject = (this.Depth > 1) ? ssc_pr_cTable.CreateInstance() : null;
+				ServiceOffer ssc_pr_soObject = (this.Depth > 1) ? ssc_pr_soTable.CreateInstance() : null;
+				BusinessModelEntry ssc_pr_bmeObject = (this.Depth > 1) ? ssc_pr_bmeTable.CreateInstance() : null;
+				UserHttpRequest ssc_pr_uhrObject = (this.Depth > 1) ? ssc_pr_uhrTable.CreateInstance() : null;
+				PaymentRequest ssc_prObject = (this.Depth > 0) ? ssc_prTable.CreateInstance(ssc_pr_lsObject, ssc_pr_cObject, ssc_pr_soObject, ssc_pr_bmeObject, ssc_pr_uhrObject) : null;
+				PaymentRequest ssc_p_prObject = (this.Depth > 1) ? ssc_p_prTable.CreateInstance() : null;
+				Customer ssc_p_cObject = (this.Depth > 1) ? ssc_p_cTable.CreateInstance() : null;
+				ServiceOffer ssc_p_soObject = (this.Depth > 1) ? ssc_p_soTable.CreateInstance() : null;
+				BusinessModelEntry ssc_p_bmeObject = (this.Depth > 1) ? ssc_p_bmeTable.CreateInstance() : null;
+				Payment ssc_pObject = (this.Depth > 0) ? ssc_pTable.CreateInstance(ssc_p_prObject, ssc_p_cObject, ssc_p_soObject, ssc_p_bmeObject) : null;
+				SetupSubscriptionCallback sscObject = sscTable.CreateInstance(ssc_prObject, ssc_pObject);
+				sqlReader.Close();
+
+				return sscObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ssc", "customload", "exception"), "SetupSubscriptionCallback could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "SetupSubscriptionCallback", "Exception while loading (custom/single) SetupSubscriptionCallback object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<SetupSubscriptionCallback> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							SetupSubscriptionCallbackTable.GetColumnNames("[ssc]") + 
+							(this.Depth > 0 ? "," + PaymentRequestTable.GetColumnNames("[ssc_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LookupSessionTable.GetColumnNames("[ssc_pr_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[ssc_pr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[ssc_pr_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[ssc_pr_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserHttpRequestTable.GetColumnNames("[ssc_pr_uhr]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentTable.GetColumnNames("[ssc_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentRequestTable.GetColumnNames("[ssc_p_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[ssc_p_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[ssc_p_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[ssc_p_bme]") : string.Empty) +  
+					" FROM [async].[SetupSubscriptionCallback] AS [ssc] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [ssc_pr] ON [ssc].[PaymentRequestID] = [ssc_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[LookupSession] AS [ssc_pr_ls] ON [ssc_pr].[LookupSessionID] = [ssc_pr_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [ssc_pr_c] ON [ssc_pr].[CustomerID] = [ssc_pr_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [ssc_pr_so] ON [ssc_pr].[ServiceOfferID] = [ssc_pr_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [ssc_pr_bme] ON [ssc_pr].[BusinessModelEntryID] = [ssc_pr_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [ssc_pr_uhr] ON [ssc_pr].[UserHttpRequestID] = [ssc_pr_uhr].[UserHttpRequestID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Payment] AS [ssc_p] ON [ssc].[PaymentID] = [ssc_p].[PaymentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentRequest] AS [ssc_p_pr] ON [ssc_p].[PaymentRequestID] = [ssc_p_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [ssc_p_c] ON [ssc_p].[CustomerID] = [ssc_p_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceOffer] AS [ssc_p_so] ON [ssc_p].[ServiceOfferID] = [ssc_p_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModelEntry] AS [ssc_p_bme] ON [ssc_p].[BusinessModelEntryID] = [ssc_p_bme].[BusinessModelEntryID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ssc", "customloadmany", "notfound"), "SetupSubscriptionCallback list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<SetupSubscriptionCallback>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				SetupSubscriptionCallbackTable sscTable = new SetupSubscriptionCallbackTable(query);
+				PaymentRequestTable ssc_prTable = (this.Depth > 0) ? new PaymentRequestTable(query) : null;
+				LookupSessionTable ssc_pr_lsTable = (this.Depth > 1) ? new LookupSessionTable(query) : null;
+				CustomerTable ssc_pr_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				ServiceOfferTable ssc_pr_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable ssc_pr_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				UserHttpRequestTable ssc_pr_uhrTable = (this.Depth > 1) ? new UserHttpRequestTable(query) : null;
+				PaymentTable ssc_pTable = (this.Depth > 0) ? new PaymentTable(query) : null;
+				PaymentRequestTable ssc_p_prTable = (this.Depth > 1) ? new PaymentRequestTable(query) : null;
+				CustomerTable ssc_p_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				ServiceOfferTable ssc_p_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable ssc_p_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+
+        List<SetupSubscriptionCallback> result = new List<SetupSubscriptionCallback>();
+        do
+        {
+          
+					LookupSession ssc_pr_lsObject = (this.Depth > 1) ? ssc_pr_lsTable.CreateInstance() : null;
+					Customer ssc_pr_cObject = (this.Depth > 1) ? ssc_pr_cTable.CreateInstance() : null;
+					ServiceOffer ssc_pr_soObject = (this.Depth > 1) ? ssc_pr_soTable.CreateInstance() : null;
+					BusinessModelEntry ssc_pr_bmeObject = (this.Depth > 1) ? ssc_pr_bmeTable.CreateInstance() : null;
+					UserHttpRequest ssc_pr_uhrObject = (this.Depth > 1) ? ssc_pr_uhrTable.CreateInstance() : null;
+					PaymentRequest ssc_prObject = (this.Depth > 0) ? ssc_prTable.CreateInstance(ssc_pr_lsObject, ssc_pr_cObject, ssc_pr_soObject, ssc_pr_bmeObject, ssc_pr_uhrObject) : null;
+					PaymentRequest ssc_p_prObject = (this.Depth > 1) ? ssc_p_prTable.CreateInstance() : null;
+					Customer ssc_p_cObject = (this.Depth > 1) ? ssc_p_cTable.CreateInstance() : null;
+					ServiceOffer ssc_p_soObject = (this.Depth > 1) ? ssc_p_soTable.CreateInstance() : null;
+					BusinessModelEntry ssc_p_bmeObject = (this.Depth > 1) ? ssc_p_bmeTable.CreateInstance() : null;
+					Payment ssc_pObject = (this.Depth > 0) ? ssc_pTable.CreateInstance(ssc_p_prObject, ssc_p_cObject, ssc_p_soObject, ssc_p_bmeObject) : null;
+					SetupSubscriptionCallback sscObject = (this.Depth > -1) ? sscTable.CreateInstance(ssc_prObject, ssc_pObject) : null;
+					result.Add(sscObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ssc", "customloadmany", "exception"), "SetupSubscriptionCallback list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "SetupSubscriptionCallback", "Exception while loading (custom/many) SetupSubscriptionCallback object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, SetupSubscriptionCallback data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [async].[SetupSubscriptionCallback] ([SetupSubscriptionCallbackGuid],[PaymentRequestID],[PaymentID],[IsCompleted],[ValidTo]) VALUES(@SetupSubscriptionCallbackGuid,@PaymentRequestID,@PaymentID,@IsCompleted,@ValidTo); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@SetupSubscriptionCallbackGuid", data.Guid);
+				sqlCmd.Parameters.AddWithValue("@PaymentRequestID", data.PaymentRequest.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentID", data.Payment == null ? DBNull.Value : (object)data.Payment.ID);
+				sqlCmd.Parameters.AddWithValue("@IsCompleted", data.IsCompleted).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@ValidTo", data.ValidTo).SqlDbType = SqlDbType.DateTime2;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ssc", "insert", "noprimarykey"), "SetupSubscriptionCallback could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "SetupSubscriptionCallback", "Exception while inserting SetupSubscriptionCallback object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ssc", "insert", "exception"), "SetupSubscriptionCallback could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "SetupSubscriptionCallback", "Exception while inserting SetupSubscriptionCallback object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, SetupSubscriptionCallback data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [async].[SetupSubscriptionCallback] SET " +
+												"[SetupSubscriptionCallbackGuid] = @SetupSubscriptionCallbackGuid, " + 
+												"[PaymentRequestID] = @PaymentRequestID, " + 
+												"[PaymentID] = @PaymentID, " + 
+												"[IsCompleted] = @IsCompleted, " + 
+												"[ValidTo] = @ValidTo, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [SetupSubscriptionCallbackID] = @SetupSubscriptionCallbackID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@SetupSubscriptionCallbackGuid", data.Guid);
+				sqlCmd.Parameters.AddWithValue("@PaymentRequestID", data.PaymentRequest.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentID", data.Payment == null ? DBNull.Value : (object)data.Payment.ID);
+				sqlCmd.Parameters.AddWithValue("@IsCompleted", data.IsCompleted).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@ValidTo", data.ValidTo).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@SetupSubscriptionCallbackID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ssc", "update", "norecord"), "SetupSubscriptionCallback could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "SetupSubscriptionCallback", "Exception while updating SetupSubscriptionCallback object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ssc", "update", "morerecords"), "SetupSubscriptionCallback was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "SetupSubscriptionCallback", "Exception while updating SetupSubscriptionCallback object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ssc", "update", "exception"), "SetupSubscriptionCallback could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "SetupSubscriptionCallback", "Exception while updating SetupSubscriptionCallback object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, SetupSubscriptionCallback data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [async].[SetupSubscriptionCallback] WHERE SetupSubscriptionCallbackID = @SetupSubscriptionCallbackID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@SetupSubscriptionCallbackID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ssc", "delete", "norecord"), "SetupSubscriptionCallback could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "SetupSubscriptionCallback", "Exception while deleting SetupSubscriptionCallback object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ssc", "delete", "exception"), "SetupSubscriptionCallback could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "SetupSubscriptionCallback", "Exception while deleting SetupSubscriptionCallback object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

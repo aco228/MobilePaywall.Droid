@@ -1,0 +1,91 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using Senti.Diagnostics.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Implementation.Cache
+{
+  public class WebCacheNonEndlessScroller : CacheBase
+  {
+
+    #region #log#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (WebCacheNonEndlessScroller._log == null)
+          WebCacheNonEndlessScroller._log = LogManager.GetLogger(typeof(WebCacheNonEndlessScroller));
+        return WebCacheNonEndlessScroller._log;
+      }
+    }
+    #endregion
+
+    public WebCacheNonEndlessScroller()
+      : base()
+    { }
+
+    public WebCacheNonEndlessScroller(Data.Application app)
+      :base(app)
+    { }
+
+    public override List<IContent> FilterContent(Data.Service service, Data.ServiceConfigurationEntry configuration, Data.Category category, int? page, int? items)
+    {
+      List<IContent> temporary = new List<IContent>();
+
+      if (!this.ServiceContentMap.ContainsKey(service.ID))
+      {
+        Log.Error(new LogMessageBuilder(new LogErrorCode("paywall.core", "contentcache", "getcontent"), " -- CACHE -- Service Content map does not exists  "));
+        return null;
+      }
+
+      AgeRating ageRating = configuration != null ? configuration.AgeRating : service.FallbackAgeRating;
+      AgeRatingSelectionMode selectionMode = configuration != null ? configuration.AgeRatingSelectionMode : service.FallbackAgeRatingSelectionMode;
+
+      Dictionary<int, IContent> current = this.ServiceContentMap[service.ID];
+      if (category == null)
+        temporary.AddRange(current.Values);
+      else
+        temporary.AddRange((from v in current.Values
+                            where v.Categories.Contains(category)
+                            select v).ToList());
+
+
+      if (temporary == null || temporary.Count == 0)
+      {
+        Log.Error(new LogMessageBuilder(new LogErrorCode("paywall.core", "contentcache", "getcontent"), " -- CACHE -- Temporary content are NULL or there are none "));
+        return null;
+      }
+
+      if (!page.HasValue)
+        page = 0;
+
+      if (!items.HasValue)
+        items = 0;
+
+      int skip = page.Value * items.Value;
+
+      if (skip >= temporary.Count)
+        return null;
+
+      skip = skip % temporary.Count;
+
+      int limit = skip + items.Value;
+      if (temporary.Count < limit)
+        items = temporary.Count - skip;
+
+      List<IContent> filtered = new List<IContent>();
+      filtered = temporary.Skip(skip).Take(items.Value).ToList();
+
+      Log.Debug(new LogMessageBuilder(new LogErrorCode("paywall.core", "contentcache", "getcontent"), " -- CACHE -- Filtrer "));
+      return filtered;
+    }
+
+
+  }
+}

@@ -1,0 +1,60 @@
+﻿@model MobilePaywall.Web.Models.ContentProxyModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+
+  List<MobileOperator> mobileOperatos = MobileOperator.CreateManager().Load(Country.CreateManager().Load("UK", CountryIdentifier.TwoLetterIsoCode));
+  mobileOperatos = (from m in mobileOperatos where m.ExternalMobileOperatorID.HasValue && !m.Name.Contains("UNKNOWN") select m).ToList();
+}
+
+@Styles.Render("~/Style/Black/Login")
+@Scripts.Render("~/Script/SendNumber")
+
+<style>
+  #input_mobileOperator { width: 100%; color: darkgrey; background: #2a2a2a; padding: 10px 10px; }
+</style>
+
+<div id="login_section">
+  <div class="header">@Translations.Web.Login.Header</div>
+
+  <div class="section_body" id="loginForm">
+    <div class="form_section">
+      <div class="form_label">Select your mobile operator<span class="login_asterix">*</span></div>
+      <select id="input_mobileOperator">
+        @foreach (MobileOperator m in mobileOperatos)
+        {
+          <option value="@m.ID">@m.Name</option>
+        }
+      </select>
+    </div>
+    <div class="form_section">
+      <div class="form_label">Insert your phone number<span class="login_asterix">*</span></div>
+      <input id="input_number" type="text" name="name" value="" placeholder="@Translations.Web.Login.PlcUsername" />
+    </div>
+    <div class="submitBtn" id="loginSubmit" inuse="false">
+      @Translations.Web.Login.Button
+      <div class="ajax_response"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+
+  var _sendNumberManager = null;
+  $(document).ready(function () {
+    _sendNumberManager = new SendNumberManager();
+
+    _sendNumberManager.url = 'configure';
+    _sendNumberManager.buttonElem = $('#loginSubmit');
+    _sendNumberManager.numberElem = $('#input_number');
+    _sendNumberManager.mobileOperatorElem = $('#input_mobileOperator');
+    _sendNumberManager.waitText = '@Translations.Web.Pending.PleaseWait';
+    _sendNumberManager.contentUrl = '@Model.Content.GetAccessUrl()';
+    _sendNumberManager.onSuccess = function()
+    {
+      window.location = '@Model.AppendSessionID(Model.Content)';
+    }
+
+    _sendNumberManager.init();
+  });
+
+</script>

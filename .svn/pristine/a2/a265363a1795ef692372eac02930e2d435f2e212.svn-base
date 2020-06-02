@@ -1,0 +1,66 @@
+﻿using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web.Models.Specific._Template
+{
+  public class TemplateEditContentModel : PaywallViewModelBase
+  {
+    private bool _hasError = false;
+    private string _errorMessage = string.Empty;
+    private Data.Content _content = null;
+    private IContent _icontent= null;
+    private List<Data.ContentThumbnail> _thumbnails = null;
+    private List<MobilePaywall.ContentInformations> _allcontents = null;
+
+    public IContent IContent { get { return this._icontent; } }
+    public Content Content { get { return this._content; } }
+    public List<Data.ContentThumbnail> Thumbnails { get { return this._thumbnails; } }
+    public List<MobilePaywall.ContentInformations> AllContents { get { return this._allcontents; } }
+    public string ErrorMessage { get { return this._errorMessage; } }
+    public bool HasError { get { return this._hasError; } }
+    public bool IsHtml5Contnet { get { return this._content.ContentType.ID == 7; } }
+
+     
+    public TemplateEditContentModel(PaywallHttpContext context, string contentID) : base(context)
+    {
+      this.CheckParsing(contentID);
+      if(this._hasError)
+        return;
+      this._thumbnails = ContentThumbnail.CreateManager().Load<List<ContentThumbnail>>(this._content);
+      this._allcontents = _icontent.GetAllContentDetail();
+    }
+
+    public void CheckParsing(string contentID)
+    {
+      int _contentID = -1;
+      if (!Int32.TryParse(contentID, out _contentID))
+      {
+        this._hasError = true;
+        this._errorMessage = "Could not parse contentID";
+        return;
+      }
+
+      this._content = Data.Content.CreateManager().Load(_contentID);
+
+
+      if (this._content == null)
+      {
+        this._hasError = true;
+        this._errorMessage = "Content not found!";
+        return;
+      }
+
+      this._icontent =  this._content.Instantiate();
+      if (this._icontent == null)
+      {
+        this._hasError = true;
+        this._errorMessage = "Couldn't instantiate IContent! ";
+      }
+    }
+    
+  }
+}

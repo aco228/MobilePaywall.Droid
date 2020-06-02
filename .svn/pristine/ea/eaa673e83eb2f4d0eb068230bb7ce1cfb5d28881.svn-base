@@ -1,0 +1,54 @@
+﻿using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.Serialization;
+using System.Web;
+
+namespace MobilePaywall.Service.Models
+{
+  public class ServiceModel
+  {
+    private List<ServiceModelEntry> _entries = null;
+
+    public List<ServiceModelEntry> Entries { get { return this._entries; } set { this._entries = value; } }
+    
+    public ServiceModel()
+    {
+      this.LoadEntries();
+    }
+
+    private void LoadEntries()
+    {
+      IServiceManager sManager = Data.Service.CreateManager();
+      SortedDictionary<string, List<Data.Service>> merchantServiceMap = new SortedDictionary<string, List<Data.Service>>();
+      foreach (Data.Service s in sManager.Load())
+        if (merchantServiceMap.ContainsKey(s.Merchant.Name))
+          merchantServiceMap[s.Merchant.Name].Add(s);
+        else
+          merchantServiceMap.Add(s.Merchant.Name, new List<Data.Service>() { s });
+
+      this._entries = new List<ServiceModelEntry>();
+      foreach (KeyValuePair<string, List<Data.Service>> kv in merchantServiceMap)
+        this._entries.Add(new ServiceModelEntry(kv.Key, kv.Value));
+    }
+  }
+
+  [DataContract]
+  public class ServiceModelEntry
+  {
+    [DataMember]
+    private string _merchant = string.Empty;
+    [DataMember]
+    private List<Data.Service> _services = null;
+    
+    public string Merchant { get { return this._merchant; } set { this._merchant = value; } }
+    public List<Data.Service> Services { get { return this._services; } set { this._services = value; } }
+
+    public ServiceModelEntry(string merchant, List<Data.Service> services)
+    {
+      this._merchant = merchant;
+      this._services = services;
+    }
+  }
+}

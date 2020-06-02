@@ -1,0 +1,312 @@
+﻿@model MobilePaywall.Web.Models.Specific.TPay.TPayWifiFlowModel
+
+<style>
+  .modal a.close-modal{
+    right: 4px !important;
+    top:4px !important;
+
+  }
+  .blocker{
+    z-index: 99999 !important;
+  }
+  #__tpay_wifiFlow{
+      position:fixed; top:0; width:100%; height:100%;
+      background-color:rgba(0,0,0,.2);
+      z-index:9999;
+      padding:10px;
+      opacity:0;
+      transition:.5s all;
+      color: #313131!important;
+  }
+  #__tpay__wifiFlow_inside_1, #__tpay__wifiFlow_inside_2{
+      position:absolute;
+      top: 10%; width:95%; left:2.5%;
+      background-color:white;
+      padding:15px;
+  }
+  #__tpay__wifiFlow_inside_2{ display:none; }
+  #__tpay__wifiFlow_head { font-weight:bold; margin-bottom:15px;}
+  #__tpay_wifiFlow_btnClose{}
+  #__tpay_wifiFlow_selectMNO{}
+  #__tpay_wifiFlow_inputMsisnd{}
+  #__tpay_wifiFlow_inputMsisnd{}
+  #__tpay_wifiFlow_btnConfirm{}
+
+  #__tpay_wifiFlow table{width:100%; }
+  #__tpay_wifiFlow table td{ padding:1px; color: #313131!important; }
+
+  #__tpay_wifiFlow select{ width:80%; padding:5px; color: #313131!important; }
+  #__tpay_wifiFlow input[type=text], #__tpay_wifiFlow input[type=number]{ width:80%; padding:5px; color: #313131!important;}
+  #__tpay_wifiFlow button{  cursor:hand; cursor:pointer; width:80%; padding:5px; margin-top:15px; }
+  #_tpay_wifiFlow_disclaimer {}
+  #__tpay_wifiFlow_loginRedirect{ cursor:hand; cursor:pointer; }
+
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-modal/0.9.1/jquery.modal.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/jquery-modal/0.9.1/jquery.modal.min.css" />
+
+<div id="__tpay_wifiFlow" isvisible="true">
+  <div id="__tpay__wifiFlow_inside_1">
+    <div id="__tpay__wifiFlow_head">
+      Please enter your mobile data:
+    </div>
+    <table>
+      <tr>
+        <td>Mobile Carrier</td>
+        <td>
+          <select id="__tpay_wifiFlow_selectMNO">
+            @foreach (MobileOperator mno in Model.MobileOperators)
+            {
+              <option id="@mno.ID">@mno.Name</option>
+            }
+          </select>
+        </td>
+      </tr>
+      <tr>
+        <td>Phone number</td>
+        <td>        
+          <input type="number" value="" placeholder="+2XXXXXXXXXXXXX" id="__tpay_wifiFlow_inputMsisnd" />
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <button class="__tpay_wifiFlow_btnClose">Close</button>
+        </td>
+        <td>
+          <button id="__tpay_wifiFlow_btnInitialConfirm">Subscribe</button>
+        </td>
+      </tr>
+    </table>
+    <div id="_tpay_wifiFlow_disclaimer">
+      You will subscribe in @PaywallHttpContext.Current.Service.ServiceData.Name for @PaywallHttpContext.Current.Service.Storage.GetString("Service_Price") @PaywallHttpContext.Current.Service.Storage.GetString("Currency") daily. To cancel your subscription, 
+      
+      @for(int i = 0; i < Model.MobileOperators.Count; i++)
+      {
+        MobileOperator mno = Model.MobileOperators.ElementAt(i);
+        <span> for @mno.Name subscribers please send '@PaywallHttpContext.Current.Service.Storage.GetString("Keyword")' to @PaywallHttpContext.Current.Service.Storage.GetString("Shortcode_" + mno.Name) @Html.Raw(i != Model.MobileOperators.Count -1 ? "," : "") </span>
+      } 
+
+      To cancel from the site please go to <a href="@Model.AppendSessionID("/payments")">/payments</a> and click on Unsubscribe. For any inquires please contact us on @Html.Raw(string.Format("support@{0}",PaywallHttpContext.Current.Service.ServiceData.Name)) <br/>
+       If you allready have account, please click <a id="__tpay_wifiFlow_loginRedirect">here</a>.
+
+    </div>
+  </div>
+  <div id="__tpay__wifiFlow_inside_2">
+    <div id="__tpay__wifiFlow_head">
+      Please enter your pin:
+    </div>
+    <table>
+      <tr>
+        <td>Enter pin</td>
+        <td>
+          <input type="number" style="width:138%" value="" placeholder="" maxlength = "6" oninput="javascript: if (this.value.length > this.maxLength) this.value = this.value.slice(0, this.maxLength);" id="__tpay_wifiFlow_pin" />
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <button class="__tpay_wifiFlow_btnClose">Close</button>
+        </td>
+        <td>
+          <button id="__tpay_wifiFlow_btnPinConfirm">Subscribe</button>
+        </td>
+        <td>
+          <button id="__tpay_wifiFlow_btnPinResend">Resend pin</button> 
+        </td>
+      </tr>
+    </table>
+    <div id="pin_tpay_wifiFlow_disclaimer">
+      You will subscribe in @PaywallHttpContext.Current.Service.ServiceData.Name for @PaywallHttpContext.Current.Service.Storage.GetString("Service_Price") @PaywallHttpContext.Current.Service.Storage.GetString("Currency") daily. To cancel your subscription,
+
+      @for (int i = 0; i < Model.MobileOperators.Count; i++)
+      {
+        MobileOperator mno = Model.MobileOperators.ElementAt(i);
+        <span> for @mno.Name subscribers please send '@PaywallHttpContext.Current.Service.Storage.GetString("Keyword")' to @PaywallHttpContext.Current.Service.Storage.GetString("Shortcode_" + mno.Name) @Html.Raw(i != Model.MobileOperators.Count - 1 ? "," : "") </span>
+      }
+
+      To cancel from the site please go to <a href="@Model.AppendSessionID("/payments")">/payments</a> and click on Unsubscribe. For any inquires please contact us on @Html.Raw(string.Format("support@{0}", PaywallHttpContext.Current.Service.ServiceData.Name)) <br />
+      If you allready have account, please click <a id="__tpay_wifiFlow_loginRedirect">here</a>.
+
+    </div>
+  </div>
+</div>
+
+<div id="modalSubscribed" class="modal">
+  <p>
+    You are already subscribed. To get username and password
+    <a href="#" id="resendCredentials">click here</a> <br /> and login <a href="/login">click here</a>
+  </p>
+</div>
+
+
+<script>
+
+  function wifiModalInit() {
+    $('body').on('click', '.__tpay_wifiFlow_btnClose', function () {
+      var wifiFlowModal = $('#__tpay_wifiFlow');
+      wifiFlowModal.attr('isvisible', 'false');
+      wifiFlowModal.css('opacity', '0');
+      wifiFlowModal.css('pointer-events', 'none');
+      _tpayManager.paymentRequestBusy = false;
+    });
+    
+    $('body').on('click', '#__tpay_wifiFlow_loginRedirect', function () {
+      var wifiFlowModal = $('#__tpay_wifiFlow');
+      wifiFlowModal.attr('isvisible', 'false');
+      wifiFlowModal.css('opacity', '0');
+      wifiFlowModal.css('pointer-events', 'none');
+      _tpayManager.paymentRequestBusy = false;
+      window.location = "/login";
+    });
+
+
+
+    @*
+      Step1.
+        Customer enters msisdn and mobile operator, we create payment request and send Initiate to cashflow
+    *@
+
+    $('body').on('click', '#__tpay_wifiFlow_btnInitialConfirm', function () {
+      if ($(this).attr('inuse') == 'true')
+        return;
+
+      var mno = $('#__tpay_wifiFlow_selectMNO option:selected').attr('id');
+      var msisdn = $('#__tpay_wifiFlow_inputMsisnd').val();
+      var pin = $('#__tpay_wifiFlow_pin').val();
+
+      if (msisdn == '') {
+        _visual.Alert('Please enter you phone number');
+        return;
+      }
+
+      var btn = $(this);
+      var otext = btn.text();
+      btn.attr('inuse', 'true');
+      btn.text('Wait..');
+
+      _tpayManager.send('WifiSetup', { msisdn: msisdn, mno: mno }, function (response) {
+        btn.attr('inuse', 'false');
+        btn.text(otext);
+
+        if (!response.status) {
+          if (response.subscribed) {
+            $('#modalSubscribed').modal();
+            return;
+          }
+          _visual.Alert(response.message);
+          return;
+        }
+
+        $('#__tpay_wifiFlow').attr('guid', response.guid);
+        $('#__tpay__wifiFlow_inside_1').css('display', 'none');
+        $('#__tpay__wifiFlow_inside_2').css('display', 'block');
+      });
+    });
+
+
+    @*
+      Step2.1
+        Customer enters pin. We send Setup to cashflow
+    *@
+
+    $('body').on('click', '#__tpay_wifiFlow_btnPinConfirm', function () {
+      var guid = $('#__tpay_wifiFlow').attr('guid');
+      var pin = $('#__tpay_wifiFlow_pin').val();
+
+      if (pin == '') {
+        _visual.Alert('Please enter PIN');
+        return;
+      }
+
+      var btn = $(this);
+      var otext = btn.text();
+      btn.attr('inuse', 'true');
+      btn.text('Wait..');
+
+      _tpayManager.send('WifiSetupPin', { pin: pin, guid: guid }, function (response) {
+        btn.text(otext);
+
+        if (response.status) {
+          _visual.Alert("You are successfully subscribed!", 'Close', function () {
+            window.location = $('#__tpay_wifiFlow').attr('content-href');
+          });
+          return;
+        }
+        else
+          btn.attr('inuse', 'false');
+
+        _visual.Alert(response.message);
+      });
+    });
+
+    @*
+      Step2.1
+        We send new Initiate with ResendPinArguments arguments, if they pass we send another Setup
+    *@
+    $('body').on('click', '#resendCredentials', function () {
+      var mno = $('#__tpay_wifiFlow_selectMNO option:selected').attr('id');
+      var msisdn = $('#__tpay_wifiFlow_inputMsisnd').val();
+
+      _tpayManager.send('ResendCredentials', { msisdn: msisdn, mno: mno } , function (response) {
+        _visual.Alert(response.message);
+      });
+    });
+
+    $('body').on('click', '#__tpay_wifiFlow_btnPinResend', function () {
+      console.log("Resend");
+      if ($(this).attr('inuse') == 'true')
+        return;
+      var guid = $('#__tpay_wifiFlow').attr('guid');
+      var mno = $('#__tpay_wifiFlow_selectMNO option:selected').attr('id');
+      var msisdn = $('#__tpay_wifiFlow_inputMsisnd').val();
+      var pin = $('#__tpay_wifiFlow_pin').val();
+
+      if (msisdn == '') {
+        _visual.Alert('Please enter you phone number');
+        return;
+      }
+
+      var btn = $(this);
+      var otext = btn.text();
+      btn.attr('inuse', 'true');
+      btn.text('Wait..');
+
+      _tpayManager.send('WifiSetupPinResend', { guid: guid, msisdn: msisdn, mno: mno }, function (response) {
+        btn.attr('inuse', 'false');
+        btn.text(otext);
+
+        if (response.status) {
+          _visual.Alert(response.message);
+          return;
+        } else {
+          _visual.Alert(response.message);
+          return;
+        }
+
+        //$('#__tpay_wifiFlow').attr('guid', response.guid);
+        //$('#__tpay__wifiFlow_inside_1').css('display', 'none');
+        //$('#__tpay__wifiFlow_inside_2').css('display', 'block');
+      });
+    });
+  }
+
+  function openWifiModal(href) {
+    console.log('open wifi modal');
+    var wifiFlowModal = $('#__tpay_wifiFlow');
+    wifiFlowModal.attr('isvisible', 'true');
+    wifiFlowModal.css('opacity', '1');
+    wifiFlowModal.css('pointer-events', 'initial');
+    $('#__tpay__wifiFlow_inside_2').css('display', 'none');
+    $('#__tpay__wifiFlow_inside_1').css('display', 'block');
+    wifiFlowModal.attr('content-href', href);
+  }
+
+  function closeWifiModal() {
+    console.log('close wifi modal');
+    var wifiFlowModal = $('#__tpay_wifiFlow');
+    wifiFlowModal.attr('isvisible', 'false');
+    wifiFlowModal.css('opacity', '0');
+    wifiFlowModal.css('pointer-events', 'none');
+  }
+
+</script>

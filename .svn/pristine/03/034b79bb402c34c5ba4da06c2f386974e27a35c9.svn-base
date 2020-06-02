@@ -1,0 +1,569 @@
+﻿var ServiceTaskFormWizard = function () {
+
+  return {
+    //main function to initiate the module
+    init: function (role, configureAccess, taskAction) {
+
+      var componentAccess = configureAccess == "True" ? true : false;
+
+      if (!jQuery().bootstrapWizard) {
+        return;
+      }
+
+      //function format(state) {
+      //  if (!state.id) return state.text; // optgroup
+      //  return "<img class='flag' src='/Images/metronic/global/flags/" + state.id.toLowerCase() + ".png'/>&nbsp;&nbsp;" + state.text;
+      //}
+
+      //$("#merchant_template").select2({
+      //  placeholder: "Template",
+      //  allowClear: true,
+      //  escapeMarkup: function (m) {
+      //    return m;
+      //  }
+      //});
+
+
+      $(".form-control.select2").select2({
+        placeholder: "Select",
+        allowClear: true,
+        escapeMarkup: function (m) {
+          return m;
+        }
+      });
+
+      jQuery.validator.addMethod("notEqual", function (value, element, param) {
+        return this.optional(element) || value.toLowerCase() != param.toLowerCase();
+      }, "Please choose a different value");
+
+
+      jQuery.validator.addMethod("checkDomain", function (value, element, param) {
+        var result = true;
+        $('.domain').not(element).each(function () {
+          if ($(this).val() == value)
+            result = false;
+        });
+        return this.optional(element) || result;
+      }, "You already entered this domain");
+      
+
+      jQuery.validator.addMethod("checkCountryBlock", function (value, element, param) {
+        var result = true;
+        $('.sce-country').not(element).each(function () {
+          if ($(this).val() == value)
+            result = false;
+        });
+        return this.optional(element) || result;
+      }, 'You already selected country');
+
+      
+      jQuery.validator.addMethod('checkMobileOperatorSpecific', function (value, element, param) {
+        var result = true;
+        $(element).parents('.country-block').find('.sce-operator').not(element).each(function () {
+          if ($(this).val() == value)
+            result = false;
+        });        
+        return this.optional(element) || result;
+      }, 'Entry for this mobile operator already exists');
+
+
+      jQuery.validator.addMethod('checkOffer', function (value, element, param) {
+        var result = true;
+        var offer = $(element).parents('.offer');        
+        var businessModel = offer.find('select.business-model').select2('val');
+        var businessModelEntry = offer.find('select.business-model-entry').select2('val');
+
+        $(element).parents('.configuration-body').find('.offer').not(offer).each(function () {
+          if ($(this).find('select.business-model').select2('val') == businessModel && $(this).find('select.business-model-entry').select2('val') == businessModelEntry)
+            result = false;
+        });        
+        return this.optional(element) || result;
+      }, 'Offer with this settings already exists');
+
+      jQuery.validator.addMethod('regexpr', function (value, element, regexpr) {
+        var result = regexpr.test(value) || value == '00000000-0000-0000-0000-000000000000';
+        return result;
+      }, 'Please enter valid GUID');
+
+      //jQuery.validator.addMethod('checkServiceLookupMethodMap', function (value, element, param) {
+      //  var result = true;
+      //  var map = $(element).parents('.lookup-method-map');
+      //  var paymentConfig = map.find('select.lookup-payment-config').select2('val');
+      //  var country = map.find('select.lookup-country').select2('val');
+      //  var method = map.find('select.lookup-method').select2('val');
+
+      //  $(element).parents('#tab4').find('.lookup-method-map').not(map).each(function () {
+      //    if ($(this).find('select.lookup-payment-config').select2('val') == paymentConfig && $(this).find('select.lookup-country').select2('val') == country && $(this).find('select.lookup-method').select2('val') == method)
+      //      result = false;
+      //  });
+      //  return this.optional(element) || result;
+      //}, 'This service lookup method map already exists');
+
+      var form = $('#configure_service_form');
+      var error = $('.alert-danger.global-error', form);
+      var success = $('.alert-success', form);
+      var merchantError = $('#merchant_error', form);
+      var nameError = $('#name_error', form);
+      var oldServiceName = $('#name').val();
+
+      form.validate({
+        doNotHideMessage: true, //this option enables to show the error/success messages on tab switch.
+        errorElement: 'span', //default input error message container
+        errorClass: 'help-block help-block-error', // default input error message class
+        focusInvalid: false, // do not focus the last invalid input
+
+        rules: {
+          //service
+          'TemporaryData.Service.Name': {
+            required: true,
+            remote: {
+              url: '/task/check-service-name',
+              method: 'POST',
+              data: {
+                serviceName: function () {
+                  return $('#name').val();
+                },
+                oldServiceName: function () {
+                  return oldServiceName;
+                }
+              }
+            }
+          },
+          'TemporaryData.Instance.InstanceID': {
+            required: (role == 'Administrator' && componentAccess) ? true : false
+          },
+          'TemporaryData.Service.ApplicationModel.ApplicationID': {
+            required: (role == 'Administrator' && componentAccess) ? true : false
+          },
+          'TemporaryData.Service.MerchantModel.MerchantID': {
+            required: true
+          },
+          'TemporaryData.Service.TemplateModel.TemplateID': {
+            required: (role == 'Administrator' && componentAccess) ? true : false
+          },
+          'TemporaryData.Service.ServiceStatus': {
+            required: (role == 'Administrator' && componentAccess) ? true : false
+          },
+          'TemporaryData.Service.ServiceTypeModel.ServiceTypeID': {
+            required: (role == 'Administrator' && componentAccess) ? true : false
+          },
+          'TemporaryData.Service.UserSessionTypeModel.UserSessionTypeID': {
+            required: (role == 'Administrator' && componentAccess) ? true : false
+          },
+          'TemporaryData.Service.ProductModel.ProductID': {
+            required: (role == 'Administrator' && componentAccess) ? true : false
+          },
+          'TemporaryData.ContentStorages': {
+            required: (role == 'Administrator' && componentAccess) ? true : false
+          },
+          'TemporaryData.ContentGroupType.Name': {
+            required: true
+          },
+          'TemporaryData.ContentGroups': {
+            required: true
+          },
+          'TemporaryData.Service.CountryModel.CountryID': {
+            required: true
+          },
+          'TemporaryData.Service.LanguageModel.LanguageID': {
+            required: true
+          },
+          'TemporaryData.Service.AgeRatingModel.AgeRatingID': {
+            required: (role == 'Administrator' && componentAccess) ? true : false
+          },
+          'TemporaryData.Service.AgeRatingSelectionMode': {
+            required: (role == 'Administrator' && componentAccess) ? true : false
+          },
+          'TemporaryData.Domains[0].DomainName': {
+            required: true,
+            remote: {
+              url: '/task/domaincheck',
+              method: 'POST',
+              data: {
+                domainName: function () {
+                  return $('#domain0').val();
+                },
+                serviceID: function () {
+                  return $('#service_id').val();
+                }
+              }
+            },
+            checkDomain: true
+          },
+          //service configuration
+          //'TemporaryData.ServiceConfigurationEntryMaps[0].CountryModel.CountryID': {
+          //  required: ((role == 'Administrator')) ? true : false,
+          //  checkCountryBlock: true
+          //},
+          //'TemporaryData.ServiceConfigurationEntryMaps[0].LookupMode': {
+          //  required: (role == 'Administrator') ? true : false,
+          //  notEqual: "Unknown"
+          //},
+          //'TemporaryData.ServiceConfigurationEntryMaps[0].ShortMessageProviderModel.ShortMessageProviderID': {
+          //  required: (role == 'Administrator') ? true : false
+          //},
+          //'TemporaryData.ServiceConfigurationEntryMaps[0].AgeVerificationMode': {
+          //  required: (role == 'Administrator') ? true : false,
+          //  notEqual: "Unknown"
+          //},
+          //'TemporaryData.ServiceConfigurationEntryMaps[0].ServiceConfigurationEntryModels[0].IsAgeVerificationRequired': {
+          //  required: (role == 'Administrator') ? true : false
+          //},
+          //'TemporaryData.ServiceConfigurationEntryMaps[0].ServiceConfigurationEntryModels[0].AgeRatingModel.AgeRatingID': {
+          //  required: (role == 'Administrator') ? true : false
+          //},
+          //'TemporaryData.ServiceConfigurationEntryMaps[0].ServiceConfigurationEntryModels[0].AgeRatingSelectionMode': {
+          //  required: (role == 'Administrator') ? true : false,
+          //  notEqual: "Unknown"
+          //},
+          //'TemporaryData.ServiceConfigurationEntryMaps[0].ServiceConfigurationEntryModels[0].IsWelcomePageRequired': {
+          //  required: (role == 'Administrator') ? true : false
+          //},
+          //'TemporaryData.ServiceConfigurationEntryMaps[0].ServiceConfigurationEntryModels[0].IsPaymentEnabled': {
+          //  required: (role == 'Administrator') ? true : false
+          //},
+          //payment configuration
+          'TemporaryData.PaymentConfigurationServiceOffersMaps[0].PaymentConfigurationModel.PaymentProviderModel.PaymentProviderID': {
+            required: true
+          },
+          'TemporaryData.PaymentConfigurationServiceOffersMaps[0].PaymentConfigurationModel.PaymentCredentialsModel.PaymentCredentialsID': {
+            required: (role == 'Administrator' && componentAccess) ? true : false
+          },
+          'TemporaryData.PaymentConfigurationServiceOffersMaps[0].PaymentConfigurationModel.PaymentInterfaceModel.PaymentInterfaceID': {
+            required: true
+          },
+          'TemporaryData.PaymentConfigurationServiceOffersMaps[0].PaymentConfigurationModel.PaymentType': {
+            required: (role == 'Administrator' && componentAccess) ? true : false,
+            notEqual: "Unknown"
+          },
+          'TemporaryData.PaymentConfigurationServiceOffersMaps[0].PaymentConfigurationModel.ProductModel.ProductID': {
+            required: (role == 'Administrator' && componentAccess) ? true : false
+          },
+          'TemporaryData.PaymentConfigurationServiceOffersMaps[0].PaymentConfigurationModel.BehaviorModelModel.Name': {
+            required: (role == 'Administrator' && componentAccess) ? true : false
+          },
+          'TemporaryData.PaymentConfigurationServiceOffersMaps[0].PaymentConfigurationModel.BehaviorModelModel.ExternalBehaviorModelGuid': {
+            required: (role == 'Administrator' && componentAccess) ? true : false,
+            regexpr: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+          },
+          'TemporaryData.PaymentConfigurationServiceOffersMaps[0].ServiceOffers[0].Name': {
+            required: true
+          },
+          'TemporaryData.PaymentConfigurationServiceOffersMaps[0].ServiceOffers[0].IsDefault': {
+            required: true
+          },
+          'TemporaryData.PaymentConfigurationServiceOffersMaps[0].ServiceOffers[0].IsActive': {
+            required: true
+          },
+          'TemporaryData.PaymentConfigurationServiceOffersMaps[0].ServiceOffers[0].ContentAccessPolicyModel.TemporarySetupAccessMode': {
+            required: (role == 'Administrator' && componentAccess) ? true : false,
+            notEqual: "Unknown"
+          },
+          'TemporaryData.PaymentConfigurationServiceOffersMaps[0].ServiceOffers[0].ContentAccessPolicyModel.TemporaryAccessInSeconds': {
+            required: (role == 'Administrator' && componentAccess) ? true : false
+          },
+          'TemporaryData.PaymentConfigurationServiceOffersMaps[0].ServiceOffers[0].ContentAccessPolicyModel.BusinessModelModel.BusinessModelID': {
+            required: true,
+            checkOffer: true
+          },
+          'TemporaryData.PaymentConfigurationServiceOffersMaps[0].ServiceOffers[0].ContentAccessPolicyModel.BusinessModelEntryModel.BusinessModelEntryID': {
+            required: true,
+            checkOffer: true
+          },
+          //identification configuration tab
+          'TemporaryData.ServiceLookupMethodMaps[0].PaymentConfigurationModel.Name': {
+            required: (role == 'Administrator' && componentAccess) ? true : false
+          },
+          'TemporaryData.ServiceLookupMethodMaps[0].CountryModel.CountryID': {
+            required: (role == 'Administrator' && componentAccess) ? true : false
+          },
+          'TemporaryData.ServiceLookupMethodMaps[0].LookupMethod': {
+            required: (role == 'Administrator' && componentAccess) ? true : false,
+            notEqual: "Unknown"
+          }
+        },
+
+        messages: { // custom messages for radio buttons and checkboxes
+          'TemporaryData.Service.Name': {
+            remote: "This service name already exists in database"
+          },
+          'TemporaryData.Domains[0].DomainName': {
+            remote: "This domain already exists in database"
+          },
+          'TemporaryData.PaymentConfigurationServiceOffersMaps[0].ServiceOffers[0].IsDefault': {
+            required: "Please select at least one option",
+            //minlength: jQuery.validator.format("Please select at least one option")
+          }
+        },
+
+        errorPlacement: function (error, element) { // render error placement for each input type
+          //if (element.attr("name") == "age_verification") { // for uniform radio buttons and checkboxes, insert the after the given container
+          //  error.insertAfter("#form_age_verification_error");
+          //} else
+          if (element.hasClass("radio-btn")) {
+            error.insertAfter(element.parents(".radio-list").find(".radio-list-error"));
+          } else {
+            error.insertAfter(element); // for other inputs, just perform default behavior
+          }
+        },
+
+        //invalidHandler: function (event, validator) { //display error alert on form submit   
+        //  success.hide();
+        //  error.show();
+        //  Metronic.scrollTo(error, -200);
+        //},
+
+        highlight: function (element) { // hightlight error inputs
+          $(element)
+              .closest('.form-group').removeClass('has-success').addClass('has-error'); // set error class to the control group
+        },
+
+        unhighlight: function (element) { // revert the change done by hightlight
+          $(element)
+              .closest('.form-group').removeClass('has-error'); // set error class to the control group
+        },
+
+        success: function (label) {
+          if (label.attr("for") == "age_verification" || label.attr("for") == "payment[]") { // for checkboxes and radio buttons, no need to show OK icon
+            label
+                .closest('.form-group').removeClass('has-error').addClass('has-success');
+            label.remove(); // remove error label here
+          } else { // display success icon for other inputs
+            label
+                .addClass('valid') // mark the current input as valid and display OK icon
+            .closest('.form-group').removeClass('has-error').addClass('has-success'); // set success class to the control group
+          }
+        },
+
+        submitHandler: function (form) {
+          success.show();
+          error.hide();
+          //add here some ajax code to submit your form or just call form.submit() if you want to submit the form without ajax
+          form.submit();
+        }
+      });
+
+
+      var validations = []; //keep track of individual validation for each tab 
+      var action;
+
+      var handleTitle = function (tab, navigation, index, action) {
+        var total = navigation.find('li').length;
+        var current = index + 1;
+        // set wizard title
+        $('.step-title', $('#configure_service_wizard')).text('Step ' + (index + 1) + ' of ' + total);
+        // set done steps
+        jQuery('li', $('#configure_service_wizard')).removeClass("done");
+        var li_list = navigation.find('li');
+        for (var i = 0; i < index; i++) {
+          jQuery(li_list[i]).addClass('done');
+        }
+        // mark steps that have errors
+        var clickedFrom = (action == 'next') ? (index - 1) : (action == 'prev') ? (index + 1) : index
+        if (validations[clickedFrom] == false && !jQuery(li_list[clickedFrom]).hasClass('has-errors')) {
+          jQuery(li_list[clickedFrom]).addClass('has-errors');
+        }
+        else if (validations[clickedFrom] == true && jQuery(li_list[clickedFrom]).hasClass('has-errors')) {
+          jQuery(li_list[clickedFrom]).removeClass('has-errors');
+        }
+
+        if (current == 1) {
+          $('#configure_service_wizard').find('.button-previous').hide();
+          $('#configure_service_wizard').find('.button-submit, #btnSendCheck').hide();
+        } else {
+          $('#configure_service_wizard').find('.button-previous').show();
+        }
+
+        if (current >= total) {
+          $('#configure_service_wizard').find('.button-next').hide();
+          $('#configure_service_wizard').find('.button-submit, #btnSendCheck').show();
+          //displayConfirm();
+        } else {
+          $('#configure_service_wizard').find('.button-next').show();
+          $('#configure_service_wizard').find('.button-submit, #btnSendCheck').hide();
+        }
+        Metronic.scrollTo($('.step-title'));
+      }
+
+      var checkIfEnabled = function (navigation, index) {
+        var tabLink = navigation.find('li:nth-child(' + (index + 1) + ') a.step');
+        if (jQuery(tabLink).hasClass('disabled-link'))
+          return false;
+      }
+
+      var enableLink = function (navigation, index) {
+        var tabLink = navigation.find('li:nth-child(' + (index + 1) + ') a.step');
+        jQuery(tabLink).removeClass('disabled-link');
+      }
+
+      var showMessages = function (navigation, index) {
+        var li_list = navigation.find('li');
+        if (jQuery(li_list[index]).hasClass('has-errors'))
+          form.valid();
+      }
+
+      var checkMerchant = function () {
+        var nameValidation = $('#merchant_name').valid();
+        var addressValidation = $('#merchant_address').valid();
+        var emailValidation = $('#merchant_email').valid();
+        var instanceValidation = $('#merchant_instance').valid();
+        if (!nameValidation || !addressValidation || !emailValidation || !instanceValidation) {
+          merchantError.show();
+          Metronic.scrollTo(merchantError, -200);
+          return false;
+        }
+        merchantError.hide();
+      }
+
+      var checkName = function () {
+        var nameValidation = $('#name').valid();
+        if (!nameValidation) {
+          nameError.show();
+          Metronic.scrollTo(nameError, -200);
+          return false;
+        }
+        nameError.hide();
+      }
+
+      //var checkCountryBlocks = function () {
+      //  var countryValidation = $('select.sce-country').valid();
+      //  if (!countryValidation) {
+      //    return false;
+      //  }
+      //}
+
+      $('#tab2').on('change', 'select.sce-country', function () { $(this).valid(); });
+      $('#tab2').on('change', 'select.sce-operator', function () { $(this).valid(); });
+
+      // default form wizard
+      $('#configure_service_wizard').bootstrapWizard({
+        'nextSelector': '.button-next',
+        'previousSelector': '.button-previous',
+        onTabClick: function (tab, navigation, index, clickedIndex) {
+          if (checkIfEnabled(navigation, clickedIndex) == false) {
+            return false;
+          }
+
+          if (index == 0) {
+            if (checkMerchant() == false) {
+              return false;
+            }
+            if (checkName() == false) {
+              return false;
+            }
+          }
+
+          //if (index == 1) {
+          //  if (checkCountryBlocks() == false) {
+          //    return false;
+          //  }
+          //}          
+
+          action = 'click';
+          success.hide();
+          error.hide();
+
+          validations[index] = form.valid(); //index is from the tab we were before clicking
+          handleTitle(tab, navigation, clickedIndex, action);
+        },
+        onNext: function (tab, navigation, index) {
+          var currentTab = index - 1;
+          if (currentTab == 0) {
+            if (checkMerchant() == false) {
+              return false;
+            }
+            if (checkName() == false) {
+              return false;
+            }
+          }
+
+          //if (currentTab == 1) {
+          //  if (checkCountryBlocks() == false) {
+          //    return false;
+          //  }
+          //}            
+
+          action = 'next';
+          success.hide();
+          error.hide();
+
+          validations[currentTab] = form.valid(); //index is from the tab we are going to
+          handleTitle(tab, navigation, index, action);
+          enableLink(navigation, index);
+        },
+        onPrevious: function (tab, navigation, index) {
+          action = 'prev';
+          success.hide();
+          error.hide();
+
+          validations[index + 1] = form.valid(); //index is from the tab we are going to
+          handleTitle(tab, navigation, index, action);
+        },
+        onTabShow: function (tab, navigation, index) {
+          var total = navigation.find('li').length;
+          var current = index + 1;
+          var $percent = (current / total) * 100;
+          $('#configure_service_wizard').find('.progress-bar').css({
+            width: $percent + '%'
+          });
+          showMessages(navigation, index);
+        }
+      });
+
+      $('#configure_service_wizard').find('.button-previous').hide();
+
+      $('#configure_service_wizard .button-submit').click(function () {
+        console.log($(this));
+
+        Metronic.blockUI({
+          animate: true
+        });
+
+        $('#configure_service_wizard .button-submit').prop('disabled', true);
+
+        //alert('Finished!');
+        if ($(this).attr('action') == 'configure' || $(this).attr('action') == 'send' || $(this).attr('action') == 'editService')
+          for (var i = 0; i < validations.length; i++)
+            if (validations[i] == false) {
+              success.hide();
+              error.show();
+              Metronic.scrollTo(error, -200);
+              Metronic.unblockUI();
+              return false;
+            }
+
+        success.show();
+        error.hide();
+        var actionUrl = $('#configure_service_form').attr('action') + '?actionText=' + $(this).attr('action') + '&task_id=' + $('#inputTaskID').val();
+        $('#configure_service_form').attr('action', actionUrl);
+        $('#configure_service_form').submit();
+      }).hide();
+
+      $('#btnSendCheck').click(function () {
+        for (var i = 0; i < validations.length; i++)
+          if (validations[i] == false) {
+            success.hide();
+            error.show();
+            Metronic.scrollTo(error, -200);
+            return false;
+          }
+      }).hide();
+
+      //apply validation on select2 dropdown value change, this is only needed for chosen dropdown integration.
+      $('.select2', form).change(function () {
+        form.validate().element($(this)); //revalidate the chosen dropdown value and show error or success message for the input
+      });
+
+      //$('.button-next').click(function () {
+      //  $('.help-block-error').show();
+      //  $('.help-block-error.valid').hide();
+      //});
+      //$('.button-previous').click(function () {
+      //  $('.help-block-error').show();
+      //  $('.help-block-error.valid').hide();
+      //});
+    }
+
+  };
+
+}();

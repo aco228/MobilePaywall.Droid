@@ -1,0 +1,48 @@
+﻿@model MobilePaywall.Web.Models.QuizModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+  bool _hasAccess = false;
+  bool _hasGreekSession = false;
+
+  GreeceUserSession greeceUserSession = PaywallHttpContext.Current.Session as GreeceUserSession;
+  if (greeceUserSession != null)
+  {
+    _hasGreekSession = true;
+    _hasAccess = greeceUserSession.HasAccessToQuiz();
+  }
+
+  if (!_hasAccess)
+  {
+    Response.Redirect("/login");
+  }
+
+}
+
+@Scripts.Render("~/Script/Black/Home")
+@Scripts.Render("~/Script/Quiz")
+
+@if (Model.HasError)
+{
+  <div id="contentVideos" class="row">
+    <strong style="color:red">Error: Please contact system administrator</strong>
+  </div>
+}
+
+<div class="_sys_ignoreFooter"></div>
+
+  @if(PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("GR"))
+  { <h4>Η ερώτηση της εβδομάδος</h4> }
+                                     
+  <div id="quizTimer">00:00</div>
+  <div id="quizQuestionWait">@Translations.Web.Pending.PleaseWait</div>
+  <div id="contentVideos" class="row"> </div>
+
+  <script>
+    var _quizManager = new QuizManager();
+    _quizManager.avalibleQuestions = @Model.AvalibleQuestions;
+    _quizManager.quizContentID = @Model.QuizContentID;
+
+    $(document).ready(function () {
+      _quizManager.load();
+    });
+  </script>

@@ -1,0 +1,278 @@
+﻿using Cashflow.Client;
+using Cashflow.Message;
+using Cashflow.Message.Mobile;
+using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.MobilePaywallDirect;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers._Specific.CH.Dimoco
+{
+  public class CHDimocoController : Controller
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (CHDimocoController._log == null)
+          CHDimocoController._log = LogManager.GetLogger(typeof(CHDimocoController));
+        return CHDimocoController._log;
+      }
+    }
+    #endregion
+
+    public ActionResult Index()
+    {
+      Country country = Country.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.ID);
+      string msisdn = Request["msisdn"] != null ? country.FixNumber(Request["msisdn"].ToString()) : "";
+      string returnUrl = Request["returnUrl"] != null ? Request["returnUrl"].ToString() : "http://" + PaywallHttpContext.Current.Service.ServiceData.Name + "/";
+      char continueChar = returnUrl.Contains('?') ? '&' : '?';
+
+      if (string.IsNullOrEmpty(msisdn))
+      {
+        returnUrl +=
+          continueChar + "sessionID=" + PaywallHttpContext.Current.Session.SessionData.Guid +
+          "&sessionIntID=" + PaywallHttpContext.Current.Session.SessionData.ID +
+          "&lang=" + PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode +
+          "&err=true";
+        return Redirect(returnUrl);
+      }
+
+
+      PaywallHttpContext.Current.Session.SessionData.Referrer = Request.UrlReferrer != null ? Request.UrlReferrer.ToString() : null;
+      PaywallHttpContext.Current.Session.SessionData.Update(); //we add referer to session
+
+      //Customer customer = Customer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData, msisdn, CustomerIdentifier.Msisdn).FirstOrDefault();
+      Customer customer = Customer.LoadCustomerByServiceMsisdn(PaywallHttpContext.Current.Service.ServiceData, msisdn);
+      if (customer == null) //if customer doesn't exists
+      {
+        customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Pending, PaywallHttpContext.Current.Service.ServiceData,
+          PaywallHttpContext.Current.Service.ServiceData.FallbackCountry, null, null, msisdn, "", "", new byte[] { 0 }, DateTime.Now, DateTime.Now);
+        customer.Update();
+      }
+      else if (customer.CustomerStatus == CustomerStatus.Active) return Redirect("/");
+
+      PaywallHttpContext.Current.Session.SessionData.Customer = customer;
+      PaywallHttpContext.Current.Session.SessionData.Update();
+      (new OLCacher()).Synchronize(PaywallHttpContext.Current.Session.SessionData); //synhronise with cashflow
+
+      returnUrl +=
+        continueChar + "sessionID=" + PaywallHttpContext.Current.Session.SessionData.Guid +
+        "&sessionIntID=" + PaywallHttpContext.Current.Session.SessionData.ID +
+        "&lang=" + PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode +
+        "&customerID=" + customer.ID +
+        "&err=false";
+
+      return Redirect(returnUrl);
+    }
+
+
+
+    public ActionResult Setup()
+    {
+      Country country =  Country.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.ID);
+      string msisdn = Request["msisdn"] != null ? country.FixNumber(Request["msisdn"].ToString()) : string.Empty;
+      string mno = Request["mno"] != null ? Request["mno"].ToString() : string.Empty;
+
+      Log.Error("CHDimoco::msisdn : " + msisdn);
+
+      if (string.IsNullOrEmpty(msisdn))
+      {
+        Log.Error("CHDimoco::Input is empty");
+        return this.Json(new { status = false, message= "Msisdn is empty"});
+      }
+
+      if (msisdn.Equals("4133228"))
+        return this.Json(new { status = true, message = "Test mno", select_mno = true });
+
+      //dodati za sce entry od soneta keyword i shortcode
+      ServiceConfigurationEntry serviceConfigurationEntry = (from s in ServiceConfigurationEntry.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData.ServiceConfiguration)
+                                                             where s.MobileOperator == null
+                                                             select s).FirstOrDefault();
+
+
+      Log.Error("CHDimoco::msisdn : " + serviceConfigurationEntry.ID);
+
+      if (serviceConfigurationEntry == null || string.IsNullOrEmpty(serviceConfigurationEntry.Keyword) || string.IsNullOrEmpty(serviceConfigurationEntry.Shortcode))
+      {//if serviceConfig doesnt exists
+        Log.Error("CHDimoco::Service config is null, or sohortcode or keyword are missing");
+        return this.Json(new { status = false, message= "Internal error"});
+      }
+
+      PaywallDirect db = PaywallDirect.Instance;
+      //Customer customer = Customer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData, msisdn, CustomerIdentifier.Msisdn).FirstOrDefault();
+      Customer customer = Customer.LoadCustomerByServiceMsisdn(PaywallHttpContext.Current.Service.ServiceData, msisdn);
+
+      #region # check if customer exists, and if does have PaymentContentAccesPolicy, give him content
+      if (customer !=null && customer.CustomerStatus == CustomerStatus.Active)
+      {
+        int? hasPaymentContentAccessPolicy = db.LoadInt(string.Format(@"SELECT COUNT(*) FROM MobilePaywall.core.PaymentContentAccessPolicyMap AS map
+          LEFT OUTER JOIN MobilePaywall.core.Payment AS p ON map.PaymentID=p.PaymentID
+          LEFT OUTER JOIN MobilePaywall.core.ServiceOffer AS so ON p.ServiceOfferID=so.ServiceOfferID
+          WHERE CustomerID={0}  AND so.ServiceID={1} AND map.IsValid=1 AND map.ValidTo>=GETDATE()", customer.ID, PaywallHttpContext.Current.Service.ServiceData.ID));
+
+          PaywallHttpContext.Current.Session.SessionData.Copy(customer.OriginalUserSession);
+        if(hasPaymentContentAccessPolicy.HasValue && hasPaymentContentAccessPolicy.Value > 0)
+        {
+          string lookupSessionGuid = db.LoadString(string.Format("SELECT  LookupSessionGuid FROM MobilePaywall.core.LookupSession WHERE UserSessionID={0} ORDER BY LookupSessionID DESC;",
+            PaywallHttpContext.Current.Session.SessionData.ID));
+          return this.Json(new
+          {
+            status = true, message = "You have valid subscription, please login",
+            redirectUrl = "/"
+          });
+        }
+      }
+      #endregion
+
+      ServiceOffer so = (from s in ServiceOffer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData) where s.IsDefault && s.IsActive select s).FirstOrDefault();
+      if(customer == null)
+      {
+        Log.Debug("CHDimoco:: Customer does not exists and we create new one");
+        customer = new Customer(-1, Guid.NewGuid(),CustomerStatus.Pending, PaywallHttpContext.Current.Service.ServiceData,PaywallHttpContext.Current.Service.ServiceData.FallbackCountry,
+          null,null,msisdn,string.Empty, Guid.NewGuid().ToString(),null,DateTime.Now, DateTime.Now);
+        customer.Insert();
+        customer.SetUsernameAndPassword();
+        PaywallHttpContext.Current.Session.SessionData.Customer = customer;
+        PaywallHttpContext.Current.Session.SessionData.Update();
+      }
+
+      //first check if there ios supllid mno freom login page
+      if(customer.MobileOperator == null && !string.IsNullOrEmpty(mno))
+      {
+        customer.MobileOperator = this.GetMobileOperatorByStringId(mno);
+        customer.Update();
+        PaywallHttpContext.Current.Session.SessionData.MobileOperator = customer.MobileOperator;
+        PaywallHttpContext.Current.Session.SessionData.Update();
+      }
+      //load mno by msisdn
+      if(customer.MobileOperator == null)
+      {
+        customer.MobileOperator = this.GetMobileOperator(so,serviceConfigurationEntry,msisdn);
+        customer.Update();
+        PaywallHttpContext.Current.Session.SessionData.MobileOperator = customer.MobileOperator;
+        PaywallHttpContext.Current.Session.SessionData.Update();
+      }
+
+      if(customer.MobileOperator == null)
+      {
+        Log.Error("CHDimoco:: MobileOperator could not be loadded for customer: " + customer.ID + " with msisdn: " + msisdn);
+        return this.Json(new { status = false, message = "Sorry, we could not identify you. Please select your mobile operator", select_mno = true });
+      }
+
+      customer.SetUsernameAndPassword();
+
+      SmsGeneratorArguments arguments = new SmsGeneratorArguments();
+      arguments.Keyword = serviceConfigurationEntry.Keyword;
+      arguments.Shortcode = serviceConfigurationEntry.Shortcode;
+      arguments.Username = customer.Username;
+      arguments.Password = customer.Storage.GetString("password");
+
+      SendSmsRequest sendSmsRequest = new SendSmsRequest(RequestMode.Synchronous, PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+        so.PaymentConfiguration.PaymentCredentials.Username,
+        so.PaymentConfiguration.PaymentCredentials.Password,
+        so.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+        so.Service.Product.ExternalProductGuid,
+        so.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+        PaywallHttpContext.Current.Session.SessionData.Country.TwoLetterIsoCode,
+        so.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid.Value,
+        customer.MobileOperator.ExternalMobileOperatorID.Value.ToString(),
+        customer.Msisdn,
+        serviceConfigurationEntry.Keyword, // text
+        "", // sendSmsReference
+        "", // notification
+        arguments.ToMessageArguments());
+      sendSmsRequest.ReferenceIntID = PaywallHttpContext.Current.Session.SessionData.ID;
+
+      MobileExtensionClient mobileExtensionClient = CashflowClientPaywallManager.GetMobileExtensionClient(PaywallHttpContext.Current.Service);
+      SendSmsResponse respones = mobileExtensionClient.SendSms(sendSmsRequest);
+
+      if (respones.Status.Code == MessageStatusCode.Success)
+      {
+        Log.Debug("CZ.Dimoco:: SendSmsResponse is success");
+        return this.Json(new { status = true, message = "Sie werden bald eine Nachricht erhalten" });
+      }
+      else
+      {
+        Log.Error("CZ.Dimoco:: SendSmsResponse is NOT success");
+        return this.Json(new { status = true, message = "Interner Fehler.Bitte versuchen Sie es später noch einmal" });
+      }
+    }
+
+    #region # GetMobileOperatorByString()
+    private MobileOperator GetMobileOperatorByStringId(string id)
+    {
+      if (string.IsNullOrEmpty(id) || id.Equals("-1"))
+        return null;
+
+      int _id = -1;
+      if (!Int32.TryParse(id, out _id))
+        return null;
+
+      return MobileOperator.CreateManager().Load(_id);
+    }
+    #endregion method
+
+    #region # GetMobileOperator() method
+    private MobileOperator GetMobileOperator(ServiceOffer so, ServiceConfigurationEntry sce, string msisdn)
+    {
+      SmsArguments arguments = new SmsArguments();
+      arguments.Shortcode = sce.Shortcode;
+      arguments.Keyword = sce.Keyword;
+      arguments.Msisdn = msisdn;
+
+      MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(PaywallHttpContext.Current.Service.ServiceData);
+      mobileClient.AttachLogWriter(new CashflowLog(PaywallHttpContext.Current.Service.ServiceData));
+      LookupOperatorRequest request = new LookupOperatorRequest(RequestMode.Synchronous,
+        PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+        so.PaymentConfiguration.PaymentCredentials.Username,
+        so.PaymentConfiguration.PaymentCredentials.Password,
+        so.Service.Product.ExternalProductGuid,
+        so.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+        PaywallHttpContext.Current.Session.SessionData.Country.TwoLetterIsoCode,
+        so.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+        so.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+        PaywallHttpContext.Current.Session.SessionData.IPAddress,
+        "", // notificationUrl
+        arguments.ToMessageArguments());
+      request.ReferenceIntID = PaywallHttpContext.Current.Session.SessionData.ID;
+
+      LookupOperatorResponse lookupOperatorResponse = mobileClient.LookupOperator(request);
+      switch (lookupOperatorResponse.Status.Code)
+      {
+        case MessageStatusCode.Success:
+        int mobileOperaotID = -1;
+        if (!Int32.TryParse(lookupOperatorResponse.OperatorID.ToString(), out mobileOperaotID))
+        {
+          Log.Error("CZ.Dimoco:: Could not parse mobileoperator from this: " + lookupOperatorResponse.OperatorID.ToString());
+          return null;
+        }
+        MobileOperator mobileOperator = MobileOperator.CreateManager().Load(mobileOperaotID, IDType.External);
+        if (mobileOperator == null)
+        {
+          Log.Error("CH.Dimoco::Could not load mobileOperator by ID: " + mobileOperaotID);
+          return null;
+        }
+        return mobileOperator;
+        default:
+        return null;
+      }
+    }
+    #endregion
+
+
+   
+
+
+  }
+
+
+}

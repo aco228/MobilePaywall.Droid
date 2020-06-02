@@ -1,0 +1,114 @@
+﻿using MobilePaywall.Direct;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Web;
+
+namespace MobilePaywall.Service.Callback.Code.Undercover
+{
+	public class UndercoverOffer
+	{
+		private string _clickID = string.Empty;
+		private string _offerID = string.Empty;
+		private string _link = string.Empty;
+		private Data.UserSession _userSession = null;
+		private DirectContainer _directContainer = null;
+		private int _transactions = 0;
+		private int _undercoverTransactions = 0;
+
+    private bool _offerDoesNotExists = false;
+		private bool _hasError = false;
+
+		public string ClickID { get { return this._clickID; } }
+		public string OfferID { get { return this._offerID; } }
+		public string Link { get { return this._link; } }
+		public bool HasError { get { return this._hasError; } }
+		public int UndercoverTransactions { get { return this._undercoverTransactions; } set { this._undercoverTransactions = value; } }
+		public int Transactions { get { return this._transactions; } }
+
+		public bool Exists { get { return (this._directContainer != null && this._directContainer.HasValue); } }
+		public bool IsActive { get { return (this._directContainer != null && this._directContainer.HasValue) ? this._directContainer.GetBoolean("IsActive") : false;  } }
+    public bool OfferDoesNotExists { get { return this._offerDoesNotExists; } }
+		public int ID { get { return (this._directContainer != null && this._directContainer.HasValue) ? this._directContainer.GetInt("UndercoverOfferID").Value : 0; } }
+		public int Value { get { return (this._directContainer != null && this._directContainer.HasValue) ? this._directContainer.GetInt("Value").Value : 0; } }
+		public DateTime CurrentDay { get { return (this._directContainer != null && this._directContainer.HasValue) ?  this._directContainer.GetDate("CurrentDay").Value : DateTime.Now; } }
+
+		public bool DontSendConversionToBananaclicks { get { return this._transactions % this.Value != 0; } }
+
+
+		public UndercoverOffer(string link, Data.UserSession us)
+		{
+			this._link = link;
+			this._userSession = us;
+
+			this._clickID = this.GetParamByName(link, "click_id");
+			this._offerID = this.GetParamByName(link, "offer_id");
+			if(string.IsNullOrEmpty(this._offerID))
+			{
+				this._hasError = true;
+				return;
+			}
+
+			this._directContainer = UndercoverAgent.Database.LoadContainer(string.Format("SELECT TOP 1 * FROM MobilePaywall.core.UndercoverOffer WHERE OfferID='{0}'", this._offerID));
+			if (this._directContainer == null || !this._directContainer.HasValue)
+      {
+        this._offerDoesNotExists = true;
+        this._hasError = false;
+				return;
+			}
+			
+			this._transactions = this._directContainer.GetInt("Transactions").Value;
+			this._undercoverTransactions = this._directContainer.GetInt("UndercoverTransaction").Value;
+
+			if ((DateTime.Now - this.CurrentDay).TotalDays >= 1)
+			{
+				this._undercoverTransactions = 0;
+				this._transactions = 0;
+			}
+
+			this._transactions++;
+			/*
+			if (this._transactions == 0 && this._userSession != null)
+				this._transactions = this.GetTransactionsFromService();
+			else
+				this._transactions++;
+				*/
+			
+		}
+
+		public void UpdateValues()
+		{
+			UndercoverAgent.Database.Execute(string.Format("UPDATE MobilePaywall.core.UndercoverOffer SET Transactions={0}, UndercoverTransaction={1}, CurrentDay='{2}-{3}-{4} 00:01:00.000' WHERE UndercoverOfferID={5}", 
+				this._transactions, this._undercoverTransactions, DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day, this.ID));
+		}
+
+		public void AddNewConversion()
+		{
+			UndercoverAgent.Database.Execute(string.Format("INSERT INTO MobilePaywall.core.UndercoverTransaction (UndercoverOfferID, OfferID, Url) VALUES ({0}, '{1}', '{2}')", 
+				this.ID, this._offerID, this._link));
+		}
+
+		public int GetTransactionsFromService()
+		{
+			int? transactions = UndercoverAgent.Database.LoadInt(string.Format(@"
+				SELECT COUNT(*) FROM MobilePaywall.core.OLCache AS ol
+				WHERE ol.ServiceID = {0} AND ol.TransactionID IS NOT NULL AND ol.IsSubseguent = 0 AND ol.Created >= '{1}-{2}-{3} 00:00:00.000'",
+				this._userSession.Service.ID, DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day));
+			return transactions.HasValue ? transactions.Value : 0;
+		}
+
+		private string GetParamByName(string input, string parameterName)
+		{
+			Match match = new Regex(string.Format(@"(\?{0}=([A-Za-z0-9]+))|(\&{0}=([A-Za-z0-9]+))", parameterName)).Match(input);
+			string result = string.Empty;
+			if (!string.IsNullOrEmpty(match.Groups[2].Value.ToString()))
+				result = match.Groups[2].Value.ToString();
+			else if (string.IsNullOrEmpty(result) && !string.IsNullOrEmpty(match.Groups[4].Value.ToString()))
+				result = match.Groups[4].Value.ToString();
+			return result;
+		}
+
+
+	}
+}

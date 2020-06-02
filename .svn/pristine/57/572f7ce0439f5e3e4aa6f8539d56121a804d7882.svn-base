@@ -1,0 +1,82 @@
+﻿@model MobilePaywall.Web.Models.ContentListViewModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+}
+
+@Scripts.Render("~/Script/Home")
+
+<style>
+  .haheader{ position:relative; }
+  .playedTimes { position:absolute; bottom:5px; right:5px; background-color:white; padding: 2px 10px; color:black; }
+</style>
+
+<div class="sliderOuterWrapper">
+  <div class="sliderWrapper">
+    <div class="mainSlider" id="mainSlider">
+      @{
+        List<int> randomIndexes = new List<int>();
+        Random rnd = new Random();
+        int numberOfRandomElements = 3;
+
+        for (int i = 0; i < numberOfRandomElements; i++)
+        {
+          int index = rnd.Next(0, Model.Content.Count);
+          if (randomIndexes.Contains(index))
+          { i--; }
+          randomIndexes.Add(index);
+
+          MobilePaywall.IContent content = Model.Content.ElementAt(index);
+
+
+          <a href="@Model.AppendSessionID(content)" class="___clink haheader" data-ajax="false">
+            <div class="playedTimes">@rnd.Next(100, 400) mal gespielt</div>
+            <img src="@content.GetThumbnailUrl(this.Request.UserAgent)" alt="" />
+          </a>
+        }
+      }
+    </div>
+  </div>
+</div>
+
+<div class="pageWrapper homePageWrapper">
+  <div class="pageContentWrapper servicesPageContent">
+    <div class="pageSpacer"></div>
+    <div id="contentVideoContainer">
+      @{
+        for (int i = 0; i < Model.Content.Count; i++)
+        {
+          MobilePaywall.IContent content = Model.Content.ElementAt(i);
+          string half = i % 2 == 0 ? string.Empty : "lastColumn";
+
+          <div class="columnWrapper serviceWrapper _videoBox oneHalf @half">
+              <a href="@Model.AppendSessionID(content)" class="___clink" data-ajax="false">
+                  <div class="playBtn @content.ContentIconClass"></div>
+                  <img class="backgroundImage" src="@content.GetThumbnailUrl(this.Request.UserAgent)" alt="" />
+              </a>
+          </div>
+        }
+      }
+    </div>
+    <input type="submit" class="buttonWrapper commentSubmitButton" id="controlLoadMore" value="Jetzt mehr laden">
+  </div>
+</div>
+
+
+<script>
+  var _videoController = null;
+  var _contentHome = null;
+
+  $(document).ready(function () {
+    _videoController = new VideoController();
+    _videoController.TextPending = '@Translations.Web.Pending.PleaseWait';
+
+    @{
+      if(Model.Category != null)
+      {
+        @Html.Raw(Server.HtmlDecode("_homeVideoControler.CategoryID = '" + Model.Category.ID + "';"));
+      }
+    }
+
+    //_contentHome = new ContentHome();
+  });
+</script>

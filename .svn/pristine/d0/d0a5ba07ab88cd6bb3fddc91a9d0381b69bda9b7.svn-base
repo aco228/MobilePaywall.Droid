@@ -1,0 +1,94 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class ImageContentDetailManager : IImageContentDetailManager
+  {
+    public ImageContentDetail Load(ImageContent imageContent, Language language)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, imageContent, language);
+    }
+
+    public ImageContentDetail Load(IConnectionInfo connection, ImageContent imageContent, Language language)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, imageContent, language);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, imageContent, language);
+    }
+
+    public ImageContentDetail Load(ISqlConnectionInfo connection, ImageContent imageContent, Language language)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[icd].ImageContentID = @ImageContentID AND [icd].LanguageID = @LanguageID";
+      parameters.Arguments.Add("ImageContentID", imageContent.ID);
+      parameters.Arguments.Add("LanguageID", language.ID);
+      return this.Load(connection, parameters);
+    }
+
+    public T Load<T>(ImageContent imageContent, Service service, Language language)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load<T>(connection, imageContent, service, language);
+    }
+
+    public T Load<T>(IConnectionInfo connection, ImageContent imageContent, Service service, Language language)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load<T>(sqlConnection, imageContent, service, language);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load<T>(sqlConnection, imageContent, service, language);
+    }
+
+    public T Load<T>(ISqlConnectionInfo connection, ImageContent imageContent, Service service, Language language)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[icd_ic].ImageContentID = @ImageContentID AND ([icd_s].ServiceID = @ServiceID OR [icd_s].ServiceID IS NULL) AND ([icd_l].LanguageID = @LanguageID OR [icd_l].LanguageID IS NULL)";
+      parameters.Arguments.Add("ImageContentID", imageContent.ID);
+      parameters.Arguments.Add("ServiceID", service.ID);
+      parameters.Arguments.Add("LanguageID", language.ID);
+      if (typeof(T).Equals(typeof(List<VideoContentDetail>)))
+        return (T)Convert.ChangeType(this.LoadMany(connection, parameters), typeof(T));
+      else
+        return (T)Convert.ChangeType(this.Load(connection, parameters), typeof(T));
+    }
+
+    public List<ImageContentDetail> Load(ImageContent imageContent)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, imageContent);
+    }
+
+    public List<ImageContentDetail> Load(IConnectionInfo connection, ImageContent imageContent)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, imageContent);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, imageContent);
+    }
+
+    public List<ImageContentDetail> Load(ISqlConnectionInfo connection, ImageContent imageContent)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[icd].ImageContentID = @ImageContentID";
+      parameters.Arguments.Add("ImageContentID", imageContent.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+  }
+}
+

@@ -1,0 +1,70 @@
+﻿using MobilePaywall.Direct;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Data.Direct.MobilePaywall
+{
+  public class DirectUserSessionManager : MobilePaywallDirect
+  {
+    protected DataTable Count(Service service, bool validUntil, DateTime from, DateTime to)
+    {
+      string command = string.Empty;
+      #region # sql command #
+
+      command = " SELECT COUNT(*) FROM MobilePaywall.core.UserSession AS us WHERE  " +
+                " us.ServiceID=" + service.ID + " AND " +
+                " us.Created >= '" + this.Date(from) + "' AND " +
+                " us.Created <= '" + this.Date(to) + "'  " +
+                ( validUntil ? " AND us.ValidUntil >= '" + this.Date(DateTime.Now) + "' " : " " ) +
+                ""; // " GROUP BY us.UserSessionGuid ";
+
+      #endregion
+
+      return this.Load(command);
+    }
+
+
+  }
+
+  public class DirectUserSessionTable : DirectUserSessionManager
+  {
+
+    public static int UserSessionCount(Service service, DateTime? from = null, DateTime? to = null)
+    {
+      DirectUserSessionTable table = new DirectUserSessionTable();
+      return table.UserSessions(service, false, from, to);
+    }
+
+    public static int UserSessionsActive(Service service, DateTime? from = null, DateTime? to = null)
+    {
+      DirectUserSessionTable table = new DirectUserSessionTable();
+      return table.UserSessions(service, true, from, to);
+    }
+
+    public int UserSessions(Service service, bool validUntil, DateTime? from, DateTime? to)
+    {
+      if (!from.HasValue)
+        from = new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day);
+
+      if (!to.HasValue)
+      {
+        DateTime temp = DateTime.Now.AddDays(1);
+        to = new DateTime(temp.Year, temp.Month, temp.Day);
+      }
+
+      int result = 0;
+      DataTable table = this.Count(service, validUntil, from.Value, to.Value);
+      if (table == null)
+        return 0;
+
+      Int32.TryParse(table.Rows[0][0].ToString(), out result);
+
+      return result;
+    }
+
+  }
+}

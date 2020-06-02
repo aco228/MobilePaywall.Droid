@@ -1,0 +1,459 @@
+﻿using Cashflow.Client;
+using Cashflow.Message;
+using Cashflow.Message.Mobile;
+using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Direct;
+using MobilePaywall.Web.Controllers._Specific.GR;
+using Senti.Security;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Web;
+
+namespace MobilePaywall.Web.Controllers._Specific._ProviderSpecific.Veoo.GR
+{
+  public class GreeceVeoHelper
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (GreeceVeoHelper._log == null)
+          GreeceVeoHelper._log = LogManager.GetLogger(typeof(GreeceVeoHelper));
+        return GreeceVeoHelper._log;
+      }
+    }
+    #endregion
+
+    private string _originalInput = string.Empty;
+    private string _input = string.Empty;
+    private bool _hasError = false;
+    private bool _isTestBehavior = false;
+    private string _errorMessage = string.Empty;
+    private ServiceOffer _serviceOffer = null;
+    private GreeceUserSession _session = null;
+    private ServiceConfigurationEntry _serviceConfigrationEntry = null;
+    private PaymentInterface _paymentInterface = null;
+
+    public string Input { get { return this._input; } set { this._input = value; } }
+    public bool HasError { get { return this._hasError; } }
+    public bool IsTestBehavior { get { return this._isTestBehavior; } }
+    public string ErrorMessage { get { return this._errorMessage; } }
+    public ServiceOffer ServiceOffer { get { return this._serviceOffer; } }
+    public PaymentConfiguration PaymentConfiguration { get { return this._serviceOffer != null ? this._serviceOffer.PaymentConfiguration : null; } }
+    public GreeceUserSession Session { get { return this._session; } }
+    public ServiceConfigurationEntry ServiceConfigurationEntry { get { return this._serviceConfigrationEntry; } }
+    public Service Service { get { return this._serviceOffer.Service; } }
+    public PaymentInterface PaymentInterface
+    {
+      get
+      {
+        if (this._paymentInterface != null)
+          return this._paymentInterface;
+
+        if (PaywallHttpContext.Current.Service.ServiceData.ID == 239) // shopvauchers
+          this._paymentInterface = PaymentInterface.CreateManager().Load(3);
+        else
+          this._paymentInterface = this.ServiceOffer.PaymentConfiguration.PaymentInterface;
+
+        return this._paymentInterface;
+      }
+    }
+    public string OperatorCode { get; set; }
+
+    public GreeceVeoHelper(HttpRequestBase request)
+    {
+      this._input = this._originalInput = request["input"] != null ? request["input"].ToString() : string.Empty;
+      this._isTestBehavior = (this._input.Equals("33228") || (PaywallHttpContext.Current.Session.SessionData.Customer != null && PaywallHttpContext.Current.Session.SessionData.Customer.Msisdn.Equals("3033228")));
+      OperatorCode = request["oc"] != null ? request["oc"].ToString() : string.Empty;
+
+      if (string.IsNullOrEmpty(this._input))
+        this._input = this.TryToGetMsisdnFromHeader(request);
+
+      if (string.IsNullOrEmpty(this._input))
+      {
+        this._hasError = true;
+        this._errorMessage = GreecePaymentPageTranslation.NothingIsPassed;
+        Log.Error(string.Format("GreecePayment:: There is not input"));
+        return;
+      }
+
+      this._serviceOffer = (from s in ServiceOffer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData) where s.IsDefault && s.IsActive select s).FirstOrDefault();
+      if (this._serviceOffer == null)
+      {
+        this._hasError = true;
+        this._errorMessage = GreecePaymentPageTranslation.ConfigurationError;
+        Log.Error(string.Format("GreecePayment:: Service '{0}' has no ServiceOffer", this.Service.Name));
+        return;
+      }
+
+      // SUMARY: From Landing page user session sync
+      string sessionID = request["userSessionID"] != null ? request["userSessionID"].ToString() : string.Empty;
+      if (!string.IsNullOrEmpty(sessionID))
+      {
+        int _sessionID;
+        if (Int32.TryParse(sessionID, out _sessionID))
+        {
+          UserSession us = UserSession.CreateManager().Load(_sessionID);
+          GreeceUserSession gus = (us != null ? us.Instantiate(PaywallHttpContext.Current.Service) as GreeceUserSession : null);
+          if (gus != null)
+          {
+            this._session = gus;
+            PaywallHttpContext.Current.SetTemplateSession(gus);
+          }
+        }
+      }
+
+      if (this._session == null)
+      {
+        this._session = PaywallHttpContext.Current.Session as GreeceUserSession;
+        Log.Info("GreekSession: " + this._session.SessionData.ID);
+        Log.Info("GreeekHelper.PaywallHttpContext.Current.Session: " + PaywallHttpContext.Current.Session.SessionData.ID.ToString());
+      }
+
+      if (this._session == null)
+      {
+        this._hasError = true;
+        this._errorMessage = GreecePaymentPageTranslation.ConfigurationError;
+        Log.Error(string.Format("GreecePayment:: Service '{0}' has not set Session type to be GreeceUserSession", this.Service.Name));
+        return;
+      }
+
+      this._serviceConfigrationEntry = PaywallHttpContext.Current.Service.GetConfiguration(PaywallHttpContext.Current.Service.ServiceData.FallbackCountry, PaywallHttpContext.Current.Session.SessionData.MobileOperator);
+      if (this._serviceConfigrationEntry == null)
+      {
+        this._hasError = true;
+        this._errorMessage = GreecePaymentPageTranslation.ConfigurationError;
+        Log.Error(string.Format("GreecePayment:: Could not load ServiceConfigrationEntry for service {0}", this.Service.Name));
+        return;
+      }
+      else if (string.IsNullOrEmpty(this._serviceConfigrationEntry.Keyword) || string.IsNullOrEmpty(this._serviceConfigrationEntry.Shortcode))
+      {
+        this._hasError = true;
+        this._errorMessage = GreecePaymentPageTranslation.ConfigurationError;
+        Log.Error(string.Format("GreecePayment:: ServiceConfigrationEntry for service:{0} has no Keyword or Shortcode ({1}))", this.Service.Name, this._serviceConfigrationEntry.ID));
+        return;
+      }
+    }
+
+    public void UpdateCustomerMobileOperator()
+    {
+      int mobileOperatorID;
+      if (!Int32.TryParse(this.OperatorCode, out mobileOperatorID))
+      {
+        Log.Error("Greece payment: Cannot parse operatorCode ");
+      }
+      MobileOperator mobileOperator = MobileOperator.CreateManager().Load(mobileOperatorID, IDType.External);
+      if (mobileOperator == null)
+      {
+        Log.Error("Greece payment: Cannot load mo with id " + mobileOperatorID);
+      }
+      this.Session.SessionData.Customer.MobileOperator = mobileOperator;
+      this.Session.SessionData.Customer.Update();
+    }
+
+    public SendSmsResponse GetTanSmsResponse(GreeceCustomerResult customer, string message)
+    {
+      if (this._isTestBehavior)
+        return new SendSmsResponse(ResponseMode.Synchronous, string.Empty, MessageStatus.CreateSuccess(), null);
+
+      SmsArguments smsArguments = new SmsArguments();
+      smsArguments.IsTanSms = "true";
+      smsArguments.Tan = this._session.CurrentGeneratedPin;
+      smsArguments.Username = this.Input;
+      smsArguments.Password = customer.CustomerPassword;
+
+      smsArguments.Shortcode = this._serviceConfigrationEntry.Shortcode;
+      smsArguments.Keyword = this._serviceConfigrationEntry.Keyword;
+      smsArguments.Msisdn = this._session.SessionData.Customer.Msisdn;
+			smsArguments.Operator = customer.Customer.MobileOperator.ExternalMobileOperatorID.ToString();
+
+      return this.CreateSmsResponse(smsArguments, message,1);
+    }
+
+    public SendSmsResponse GetWelcomeSmsResponse(string message)
+    {
+      if (this._isTestBehavior)
+        return new SendSmsResponse(ResponseMode.Synchronous, string.Empty, MessageStatus.CreateSuccess(), null);
+
+      SmsArguments smsArguments = new SmsArguments();
+      Guid? previousSmsGuid = this._session.SessionData.Customer.Storage.GetGuid(GreeceUserSession.CustomerStorageKeys.SmsID.ToString());
+      Guid? subscriptionGuid = this._session.SessionData.Customer.Storage.GetGuid(GreeceUserSession.CustomerStorageKeys.SubscriptionRequestID.ToString());
+      if (!previousSmsGuid.HasValue && !subscriptionGuid.HasValue)
+      {
+        Log.Error("Could not load PreviousSms AND subscriptionGuid before welcome message... Please check this!!!");
+        return new SendSmsResponse(ResponseMode.Synchronous, string.Empty, new MessageStatus(MessageStatusCode.Failure, MessageStatusSubCode.None, 0, ""), null);
+      }
+
+      smsArguments.IsWelcomeSms = "false";
+      smsArguments.Username = this._session.SessionData.Customer.Msisdn;
+      smsArguments.Password = this._session.SessionData.Customer.Storage.GetString("password");
+      smsArguments.Tan = this._session.SessionData.Customer.Storage.GetString(GreeceUserSession.CustomerStorageKeys.Pin.ToString());
+      smsArguments.PreviousSmsId = previousSmsGuid.HasValue ? previousSmsGuid.Value.ToString() : null;
+      smsArguments.SubscriptionRequestID = subscriptionGuid.HasValue ? subscriptionGuid.Value.ToString() : null;
+      smsArguments.Shortcode = this._serviceConfigrationEntry.Shortcode;
+      smsArguments.Keyword = this._serviceConfigrationEntry.Keyword;
+      smsArguments.Msisdn = this._session.SessionData.Customer.Msisdn;
+      smsArguments.Operator = this._session.SessionData.Customer.MobileOperator.ExternalMobileOperatorID.ToString();
+
+      return this.CreateSmsResponse(smsArguments, message,2);
+    }
+
+    public InitiateSubscriptionResponse GetInitiateResponse()
+    {
+      ArgumentGroupBase argument = null;
+
+      // In case that this is gr.shopvaucers, we will need to use arguments from old impelementations
+      // for every other service we will use new arguments for new cashflow (paysmart) implementation
+      if (PaywallHttpContext.Current.Service.ServiceData.ID == 239)
+      {
+        MobileSubscriberArguments mobileSubscriberArguments = new MobileSubscriberArguments();
+        mobileSubscriberArguments.Msisdn = this._session.SessionData.Customer.Msisdn;
+        mobileSubscriberArguments.OperatorCode = this._session.SessionData.MobileOperator.ExternalMobileOperatorID.ToString();
+        argument = mobileSubscriberArguments;
+      }
+      else
+      {
+        SmsArguments smsArguments = new SmsArguments();
+        smsArguments.Msisdn = this._session.SessionData.Customer.Msisdn;
+        smsArguments.Operator = this._session.SessionData.MobileOperator.ExternalMobileOperatorID.ToString();
+        smsArguments.Password = this._session.SessionData.Customer.Storage.GetString("password");
+        argument = smsArguments;
+      }
+
+      return CashflowClientPaywallManager.GetInitiateSubscriptionResponse(PaywallHttpContext.Current.Session, string.Empty, argument);
+    }
+
+    private SendSmsResponse CreateSmsResponse(SmsArguments smsArguments, string message,int sendSms)
+    {
+      try
+      {
+        SendSmsRequest request = new SendSmsRequest(RequestMode.Synchronous,
+          PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+          this.PaymentConfiguration.PaymentCredentials.Username,
+          this.PaymentConfiguration.PaymentCredentials.Password,
+          this.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+          PaywallHttpContext.Current.Service.ServiceData.Product.ExternalProductGuid,
+          this.PaymentInterface.ExternalPaymentInterfaceGuid,
+          this.Service.FallbackCountry.TwoLetterIsoCode,
+          this.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid.Value,
+          this.OperatorCode, // operatorCode
+          this._session.SessionData.Customer.Msisdn,
+          message, // messageTest
+          PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+          "", // notificationUrl
+          smsArguments.ToMessageArguments());
+        request.ReferenceIntID = this.Session.SessionData.ID;
+
+        MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(PaywallHttpContext.Current.Service.ServiceData);
+        mobileClient.AttachLogWriter(new CashflowLog(this.Service));
+        return mobileClient.SendSms(request);
+      }
+      catch (Exception e)
+      {
+        Log.Error("FATAL ERROR ON SEND SMS", e);
+        return new SendSmsResponse(ResponseMode.Synchronous, "", MessageStatus.CreateFailure(MessageStatusSubCode.PermanentFailure, "PAYWALL_FATAL"), null);
+      }
+    }
+
+    public SendSmsResponse CreateSmsSpecialResponse(SmsSpecialArgs smsArguments, Payment p)
+    {
+      try
+      {
+        SendSmsRequest request = new SendSmsRequest(RequestMode.Synchronous,
+          PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+          this.PaymentConfiguration.PaymentCredentials.Username,
+          this.PaymentConfiguration.PaymentCredentials.Password,
+          this.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+          PaywallHttpContext.Current.Service.ServiceData.Product.ExternalProductGuid,
+          this.PaymentInterface.ExternalPaymentInterfaceGuid,
+          this.Service.FallbackCountry.TwoLetterIsoCode,
+          this.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid.Value,
+          this._session.SessionData.Customer.MobileOperator.ExternalMobileOperatorID.ToString(), // operatorCode
+          this._session.SessionData.Customer.Msisdn,
+          string.Empty, // messageTest
+          PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+          string.Format("http://{0}/GreecePayment/PaymentFailure?pid={1}", this._session.Service.ServiceData.Name, p.ID), // notificationUrl
+          smsArguments.ToMessageArguments());
+        request.ReferenceIntID = this.Session.SessionData.ID;
+
+        MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(PaywallHttpContext.Current.Service.ServiceData);
+        mobileClient.AttachLogWriter(new CashflowLog(this.Service));
+        return mobileClient.SendSms(request);
+      }
+      catch (Exception e)
+      {
+        Log.Error("FATAL ERROR ON SEND SMS", e);
+        return new SendSmsResponse(ResponseMode.Synchronous, "", MessageStatus.CreateFailure(MessageStatusSubCode.PermanentFailure, "PAYWALL_FATAL"), null);
+      }
+    }
+
+    public SetupSubscriptionResponse Setup(PaymentRequest paymentRequest)
+    {
+
+      SetupSubscriptionRequest setupSubscriptionRequest = new SetupSubscriptionRequest(RequestMode.Synchronous,
+        PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+        this._serviceOffer.PaymentConfiguration.PaymentCredentials.Username,
+        this._serviceOffer.PaymentConfiguration.PaymentCredentials.Password,
+        paymentRequest.ExternalPaymentRequestGuid.Value,
+        paymentRequest.ExternalPaymentRequestGuid.ToString(),
+        null);
+
+      return CashflowClientPaywallManager.GetSubscriptionClient(PaywallHttpContext.Current.Service).SetupSubscription(setupSubscriptionRequest);
+    }
+
+    public GreeceCustomerResult GetCustomer()
+    {
+      if (this._isTestBehavior)
+        return GreeceCustomerResult.GenerateTest();
+
+      Customer customer = Customer.LoadCustomerByServiceMsisdn(this.Service, this.Input);
+
+      bool isNewCustomer = false;
+      string password = string.Empty;
+
+      if (customer == null)
+      {
+        password = Guid.NewGuid().ToString().Substring(0, 4).ToLower();
+        customer = new Customer(-1, Guid.NewGuid(),
+          CustomerStatus.Active, PaywallHttpContext.Current.Service.ServiceData, PaywallHttpContext.Current.Service.ServiceData.FallbackCountry,
+          null, null,
+          this.Input, string.Empty,
+          this.Input, PasswordEncryption.Create(password).EncryptedPasswordAndSalt, //pass
+          DateTime.Now, DateTime.Now);
+        customer.Insert();
+        Log.Info("Customer password: " + password);
+        customer.Storage.PutString("password", password);
+        isNewCustomer = true;
+      }
+      else
+      {
+        //customer.MobileOperator = mobileOperator;
+        //customer.Update();
+
+        isNewCustomer = false;
+
+        int? transactionID = MobilePaywallDirect.Instance.LoadInt(string.Format(@"
+          SELECT t.TransactionID FROM MobilePaywall.core.Customer AS customer
+          LEFT OUTER JOIN MobilePaywall.core.Payment AS p ON p.CustomerID=customer.CustomerID
+          LEFT OUTER JOIN MobilePaywall.core.[Transaction] AS t ON t.PaymentID=p.PaymentID
+          WHERE customer.CustomerID={0}
+          ORDER BY customer.CustomerID DESC", customer.ID));
+
+        if (!transactionID.HasValue)
+          isNewCustomer = true;
+
+        DateTime? diff = MobilePaywallDirect.Instance.LoadDateTime(string.Format(@"SELECT TOP 1 Created FROM MobilePaywall.core.UserSession WHERE CustomerID={0}  ORDER BY UserSessionID DESC", customer.ID));
+        if (diff.HasValue && (DateTime.Now - diff.Value).Days < 7)
+          isNewCustomer = false;
+      }
+
+      // Create Lookup session if there is none
+      LookupSession ls = LookupSession.CreateManager().Load(this._session.SessionData);
+      if (ls == null)
+      {
+        Log.Debug("GreeceMethodHelper.session.SessionData:" + this._session.SessionData.ID);
+        UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), this._session.SessionData, null, string.Format(""), DateTime.Now, DateTime.Now);
+        Log.Debug("GreeceMethodHelper.UserHttpRequest.session.SessionData:" + uhr.UserSession.ID);
+        uhr.Insert();
+
+        ls = new LookupSession(-1, Guid.NewGuid(),
+          LookupSessionStatus.Complete,
+          this._session.SessionData,
+          uhr, null, "",
+          DateTime.Now, DateTime.Now);
+        ls.Insert();
+      }
+
+      if (isNewCustomer)
+        return GreeceCustomerResult.GenerateNewCustomer(customer, password, ls);
+      return GreeceCustomerResult.GenerateOldCustomer(customer, ls);
+    }
+
+    public MobileOperator GetMobileOperatorSmsGuid(Guid smsGuid)
+    {
+      //SmsArguments smsArguments = new SmsArguments();
+      //smsArguments.Shortcode = this._serviceConfigrationEntry.Shortcode;
+      //smsArguments.Keyword = this._serviceConfigrationEntry.Keyword;
+      //smsArguments.Msisdn = this._input;
+
+      MobileOriginatedArguments moa = new MobileOriginatedArguments();
+      moa.ShortMessageID = smsGuid.ToString();
+
+      MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(PaywallHttpContext.Current.Service.ServiceData);
+      mobileClient.AttachLogWriter(new CashflowLog(PaywallHttpContext.Current.Service.ServiceData));
+      LookupOperatorRequest loreq = new LookupOperatorRequest(RequestMode.Synchronous,
+        PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+        this.PaymentConfiguration.PaymentCredentials.Username,
+        this.PaymentConfiguration.PaymentCredentials.Password,
+        PaywallHttpContext.Current.Service.ServiceData.Product.ExternalProductGuid,
+        this.PaymentInterface.ExternalPaymentInterfaceGuid,
+        this.Service.FallbackCountry.TwoLetterIsoCode,
+        this.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+        this.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+        PaywallHttpContext.Current.Session.SessionData.IPAddress,
+        "", //  notifcationUrl
+        moa.ToMessageArguments()); // arguments
+      loreq.ReferenceIntID = this.Session.SessionData.ID; 
+
+
+      LookupOperatorResponse lookupOperatorResponse = mobileClient.LookupOperator(loreq);
+      switch (lookupOperatorResponse.Status.Code)
+      {
+        case MessageStatusCode.Success:
+
+          int mobileOperaotID = -1;
+          if (!Int32.TryParse(lookupOperatorResponse.OperatorID.ToString(), out mobileOperaotID))
+          {
+            Log.Error("GreecePayment:: Could not parse mobileoperator from this: " + lookupOperatorResponse.OperatorID.ToString());
+            return null;
+          }
+          MobileOperator mobileOperator = MobileOperator.CreateManager().Load(mobileOperaotID, IDType.External);
+          if (mobileOperator == null)
+          {
+            Log.Error("GreecePayment::Could not load mobileOperator by ID: " + mobileOperaotID);
+            return null;
+          }
+
+          return mobileOperator;
+        default:
+          return null;
+      }
+    }
+
+    public string FixNumber()
+    {
+      this._input = Regex.Replace(this._input, "[^0-9]", "");
+      if (string.IsNullOrEmpty(this._input))
+        return this._input;
+
+      if (this._input.StartsWith("00"))
+        this._input = this._input.Substring(2);
+      if (this._input[0] == '0')
+        this._input = this._input.Substring(1);
+      if (!this._input.StartsWith("30"))
+        this._input = "30" + this._input;
+      return this._input;
+    }
+
+    private string TryToGetMsisdnFromHeader(HttpRequestBase request)
+    {
+      foreach (string key in request.Headers.AllKeys)
+        if (key.ToLower().Contains("msisdn"))
+          return request.Headers[key];
+
+      if (this.Session != null && this.Session.SessionData.ID != -1)
+        return this.Session.Storage.GetString(GreeceUserSession.CustomerStorageKeys.WindMsisdn.ToString());
+
+      return string.Empty;
+    }
+
+  }
+
+
+}

@@ -1,0 +1,69 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Direct;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.GeoLocation
+{
+  public class GeoResult
+  {
+		private List<MobileOperator> _mobileOperator = null;
+
+    public string Country { get; set; } = string.Empty;
+    public string CountryName { get; set; } = string.Empty;
+
+    public string MCC { get; set; } = null;
+    public string MNC { get; set; } = null;
+
+    public string DeviceType { get; set; } = string.Empty;
+    public string HardwareVendor { get; set; } = string.Empty;
+    public string HardwareName { get; set; } = string.Empty;
+
+		public List<MobileOperator> MobileOperator
+		{
+			get
+			{
+				if (this._mobileOperator != null)
+					return this._mobileOperator;
+
+				if (string.IsNullOrEmpty(this.MNC) || string.IsNullOrEmpty(this.MCC))
+					return null;
+
+				int _mcc;
+				string mncs = "";
+
+				if (this.MNC.Contains('/'))
+				{
+					string[] data = this.MNC.Split('/');
+					foreach (string s in data)
+						mncs += (string.IsNullOrEmpty(mncs) ? "" : ",") + s;
+				}
+				else
+					mncs = this.MNC;
+
+				if (!int.TryParse(this.MCC, out _mcc))
+					return null;
+
+				string query = string.Format(
+					@"SELECT mno.MobileOperatorID FROM MobilePaywall.core.MobileOperator AS mno
+						LEFT OUTER JOIN MobilePaywall.core.MobileOperatorCode AS mcc ON mcc.MobileOperatorID=mno.MobileOperatorID
+							WHERE mcc.MCC={0} AND mcc.MNC IN ({1})", _mcc, mncs);
+				DirectContainer mnoIDs = MobilePaywallDirect.Instance.LoadContainer(query);
+
+				if (!mnoIDs.HasValue)
+					return null;
+
+				IMobileOperatorManager mm = Data.MobileOperator.CreateManager();
+				this._mobileOperator = new List<Data.MobileOperator>();
+				foreach (DirectContainerRow row in mnoIDs.Rows)
+					this._mobileOperator.Add(mm.Load(row.GetInt("MobileOperatorID").Value));
+				
+				return this._mobileOperator;
+			}
+		}
+
+  }
+}

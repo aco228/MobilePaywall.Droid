@@ -1,0 +1,444 @@
+﻿
+using Cashflow.Message;
+using Cashflow.Message.Mobile;
+using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Direct;
+using MobilePaywall.Web.Controllers._Specific.GR;
+using Senti.Security;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers._Specific._ProviderSpecific.Veoo.GR
+{
+  public class VeooGreeceImplementationController : Controller
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (VeooGreeceImplementationController._log == null)
+          VeooGreeceImplementationController._log = LogManager.GetLogger(typeof(GreecePaymentController));
+        return VeooGreeceImplementationController._log;
+      }
+    }
+		#endregion
+
+		public ActionResult SendNumber()
+		{
+			GreeceVeoHelper helper = new GreeceVeoHelper(Request);
+
+			if (helper.Input.Equals("33228"))
+				return this.Json(new { status = true, message = "33228", userSessionID = helper.Session.SessionData.ID, usePassword = true }, JsonRequestBehavior.AllowGet);
+
+			if (helper.HasError)
+			{
+				Log.Error("Greece.SendNumber: Helper has error");
+				return this.Json(new { status = false, message = GreecePaymentPageTranslation.ErrorWithNumberYouProvided, dsc = "helper.HasError", userSessionID = helper.Session.SessionData.ID }, JsonRequestBehavior.AllowGet);
+			}
+			
+			helper.Input = helper.FixNumber();
+
+			if (string.IsNullOrEmpty(helper.Input))
+			{
+				Log.Error("Greece.SendNumber: Input is not ssetted");
+				return this.Json(new { status = false, message = GreecePaymentPageTranslation.ErrorWithNumberYouProvided, dsc = "input is empty", userSessionID = helper.Session.SessionData.ID }, JsonRequestBehavior.AllowGet);
+			}
+
+			int? customerID = GreeceCustomerResult.CheckIfCustomerHasActivePayment(helper.Input);
+			if (customerID.HasValue)
+			{
+				Log.Error("Greece.SendNumber: Customer has active payment with number: " + helper.Input);
+				return this.Json(new { status = false, message = "", dsc = "customerID has no value", userSessionID = helper.Session.SessionData.ID, cusID = customerID.Value, usePassword = true }, JsonRequestBehavior.AllowGet);
+			}
+
+			GreeceCustomerResult customerResult = helper.GetCustomer();
+			customerResult.Customer.MobileOperator = helper.MobileOperator;
+			customerResult.Customer.Update();
+
+			helper.Session.UpdateCustomer(customerResult.Customer);
+			if (customerResult.HasError)
+			{
+				Log.Error("Greece.SendNumber: Customer result has error");
+				return this.Json(new { status = false, dsc = "customerResult has Error", message = customerResult.ErrorJsonMessage, userSessionID = helper.Session.SessionData.ID }, JsonRequestBehavior.AllowGet);
+			}
+
+
+			helper.Session.GenerateNewPin();
+
+			// SEND PIN message to Customer
+			string pinMessage = VeooMessages.GetPinMessage(helper.Session.CurrentGeneratedPin);
+			SendSmsResponse smsResponse = helper.GetTanSmsResponse(customerResult, pinMessage);
+
+			helper.Session.SessionData.Customer.Storage.PutBool(GreeceUserSession.CustomerStorageKeys.PinConfirmed.ToString(), false);
+
+
+			helper.Session.UpdateCustomer(helper.Session.SessionData.Customer);
+
+			switch (smsResponse.Status.Code)
+			{
+				case MessageStatusCode.Success:
+				case MessageStatusCode.Pending:
+					int customerStorageCache = MobilePaywallDirect.Instance.LoadInt(@"SELECT TOP 1 CustomerStorageID FROM MobilePaywall.core.CustomerStorage ORDER BY CustomerStorageID DESC").Value;
+					helper.Session.Storage.PutInt("CustomerStorageCache", customerStorageCache);
+
+					helper.UpdateCustomerMobileOperator();
+
+					return this.Json(new
+					{
+						status = true,
+						message = helper.Session.CurrentGeneratedPin,
+						userSessionID = helper.Session.SessionData.ID,
+						customerStorageCache = customerStorageCache,
+						customerID = helper.Session.SessionData.Customer.ID
+					}, JsonRequestBehavior.AllowGet);
+				default:
+					Log.Error("Greece payment: Error occured sending TAN message " + smsResponse.Status.Code);
+					return this.Json(new { status = false, message = GreecePaymentPageTranslation.ErrorSendingMessage, dsc = "smsResponse has error", userSessionID = helper.Session.SessionData.ID }, JsonRequestBehavior.AllowGet);
+			}
+
+		}
+
+		public ActionResult CheckForSmsID()
+		{
+			string customerStorageValue = Request["csc"] != null ? Request["csc"].ToString() : string.Empty;
+			if (string.IsNullOrEmpty(customerStorageValue))
+				return this.Json(new { status = false, message = "nocscgr." }, JsonRequestBehavior.AllowGet);
+
+			string customerID = Request["cid"] != null ? Request["cid"].ToString() : string.Empty;
+			if (string.IsNullOrEmpty(customerID))
+				return this.Json(new { status = false, message = "nocid" }, JsonRequestBehavior.AllowGet);
+			
+			int? count = MobilePaywallDirect.Instance.LoadInt(string.Format(@"SELECT COUNT(*) FROM MobilePaywall.core.CustomerStorage WHERE CustomerID={0} AND [Key]='SmsID' AND CustomerStorageID>={1}",
+				customerID, customerStorageValue));
+
+      if (count.HasValue)
+        MobilePaywallDirect.Instance.Execute(string.Format(@"DELETE FROM MobilePaywall.core.CustomerStorage WHERE CustomerID = {0} AND [Key] = 'SmsID' ", customerID));
+    
+			return this.Json(new { status = count.HasValue && count.Value > 0 }, JsonRequestBehavior.AllowGet);
+		}
+
+		public ActionResult ConfirmPin()
+		{
+			GreeceVeoHelper helper = new GreeceVeoHelper(Request);
+			if (helper.Input.Equals("33228"))
+				return this.Json(new { status = true, message = "33228", userSessionID = helper.Session.SessionData.ID }, JsonRequestBehavior.AllowGet);
+
+			if (helper.HasError)
+				return this.Json(new { status = false, message = helper.ErrorMessage });
+
+			if (string.IsNullOrEmpty(helper.Input))
+				return this.Json(new { status = false, message = GreecePaymentPageTranslation.PinIsNotSet }, JsonRequestBehavior.AllowGet);
+
+			if (string.IsNullOrEmpty(helper.Session.CurrentGeneratedPin))
+			{
+				Log.Error("GreecePayment:: Strange error. Could not find PIN for this customer : " + helper.Session.SessionData.Customer.ID);
+				return this.Json(new { status = false, message = GreecePaymentPageTranslation.ConfigurationError }, JsonRequestBehavior.AllowGet);
+			}
+
+			if (!helper.Input.ToLower().Equals(helper.Session.CurrentGeneratedPin.ToLower()))
+				return this.Json(new { status = false, message = GreecePaymentPageTranslation.WrongPin }, JsonRequestBehavior.AllowGet);
+
+			UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), helper.Session.SessionData, null, "-nil-", DateTime.Now, DateTime.Now); uhr.Insert();
+			PaymentRequest pr = new PaymentRequest(-1, Guid.NewGuid(), PaymentType.Subscription, PaymentRequestStatus.Initialized, helper.Session.SessionData.LastLookupSession,
+				helper.Session.SessionData.Customer, helper.Session.SessionData, helper.ServiceOffer, helper.ServiceOffer.BusinessModelEntry, null, uhr, "-nil-", DateTime.Now, DateTime.Now);
+			pr.Insert();
+
+			string previousSmsId = helper.Session.SessionData.Customer.Storage.GetString("SmsID");
+			if (string.IsNullOrEmpty(previousSmsId))
+				previousSmsId = helper.Session.Storage.GetString("SmsID");
+
+			string password = helper.Session.SessionData.Customer.Storage.GetString("password");
+			if (string.IsNullOrEmpty(password))
+			{
+				password = Guid.NewGuid().ToString().Substring(0, 4).ToLower();
+				helper.Session.SessionData.Customer.EncryptedPassword = PasswordEncryption.Create(password).EncryptedPasswordAndSalt;
+				helper.Session.SessionData.Customer.Update();
+				helper.Session.SessionData.Customer.Storage.PutString("password", password);
+				Log.Error("Password was NULL!!! WTF??");
+			}
+
+
+			SmsArguments smsArguments = new SmsArguments();
+			smsArguments.Operator = helper.Session.SessionData.MobileOperator.ExternalMobileOperatorID.ToString();
+			smsArguments.Msisdn = helper.Session.SessionData.Customer.Msisdn;
+			smsArguments.Username = helper.Session.SessionData.Customer.Username;
+			smsArguments.Password = password;
+			smsArguments.PreviousSmsId = previousSmsId;
+
+			InitiateSubscriptionResponse initiateSubscriptionResponse = CashflowClientPaywallManager.GetInitiateSubscriptionResponse(helper.Session, string.Empty, smsArguments);
+
+			switch (initiateSubscriptionResponse.Status.Code)
+			{
+				case MessageStatusCode.Pending:
+				case MessageStatusCode.Success:
+					pr.ExternalPaymentRequestGuid = initiateSubscriptionResponse.SubscriptionRequestID;
+					pr.PaymentRequestStatus = PaymentRequestStatus.Complete;
+					pr.Update();
+
+					Payment p = new Payment(-1, Guid.NewGuid(), PaymentType.Subscription, null, PaymentStatus.Initialized, pr, helper.Session.SessionData.Customer, helper.ServiceOffer, helper.ServiceOffer.BusinessModelEntry, DateTime.Now, DateTime.Now); p.Insert();
+
+					SetupSubscriptionResponse setupSubscriptionResponse = helper.Setup(pr);
+					if (setupSubscriptionResponse.Status.Code != MessageStatusCode.Success && setupSubscriptionResponse.Status.Code != MessageStatusCode.Redirect)
+					{
+						Log.Error("GreeceVeo::Setup. SetupSubscriptionResponse. Setup is not successfull");
+						p.PaymentStatus = PaymentStatus.Failed;
+						p.Update();
+						return this.Json(new { status = false, message = "Παρακαλούμε ελέγξτε το PIN που έχετε εισάγει" });
+					}
+
+					helper.Session.SessionData.Customer.Storage.PutBool(GreeceUserSession.CustomerStorageKeys.PinConfirmed.ToString(), true);
+					p.PaymentStatus = PaymentStatus.Successful;
+					p.Update();
+					PaymentContentAccessPolicyMap pcapm = new PaymentContentAccessPolicyMap(-1, p, null, helper.ServiceOffer.ContentAccessPolicy, null, true, true, DateTime.Now, DateTime.Now.AddMinutes(15), DateTime.Now, DateTime.Now); pcapm.Insert();
+
+					return this.Json(new { status = true, message = helper.Session.CurrentGeneratedPin }, JsonRequestBehavior.AllowGet);
+				default:
+					pr.PaymentRequestStatus = PaymentRequestStatus.Failure;
+					pr.Update();
+					return this.Json(new { status = false, message = GreecePaymentPageTranslation.ErrorSendingMessage }, JsonRequestBehavior.AllowGet);
+			}
+		}
+
+		public ActionResult LPNum()
+		{
+			string TAG = "NumberProcede:: ";
+			bool isAdult = (Request["tp"] != null && Request["tp"].ToString() == "a") ? true : false;
+			string redirectUrl = isAdult ?
+				"http://mt.kiwiclicks.com/click.php?c=1402&key=k8r5g06l6pql9tvty4bq8tlh" :
+				"http://mt.kiwiclicks.com/click.php?c=1401&key=e9006v1wnvnzzd1d08g1vcg2";
+			
+			//
+			// --------------------------------------------------------------------------------------------------------------------------------------------------
+			// 1. STEP
+			//
+
+			GreeceVeoHelper helper = new GreeceVeoHelper(Request);
+			if (helper.HasError)
+			{
+				Log.Error(TAG + "this click has GreeceMethodHelper error");
+				return this.Redirect(redirectUrl);
+			}
+
+			if (!string.IsNullOrEmpty(helper.Session.Storage.GetString("SmsID")))
+			{
+				Log.Error(TAG + " this UserSession had allready SmsID");
+				return this.Redirect(redirectUrl);
+			}
+
+			int? filterMobileOperator = this.GetMobileOperatorForNumber();
+
+			MobilePaywallDirect db = MobilePaywallDirect.Instance;
+			DirectContainer dc = db.LoadContainer(string.Format(@"
+        SELECT TOP 1 gm.GreeceVeooMsisdnID, gm.Msisdn, map.ServiceID, gm.MobileOperatorID FROM MobilePaywall.core.GreeceVeooMsisdn AS gm
+        LEFT OUTER JOIN MobilePaywall.core.GreeceVeooMsisdnServiceMap AS map ON gm.GreeceVeooMsisdnID=map.GreeceVeooMsisdnID
+        WHERE (map.ServiceID IS NULL OR map.ServiceID != {0}) {1}
+        ORDER BY newid() ", PaywallHttpContext.Current.Service.ServiceData.ID,
+				(filterMobileOperator.HasValue ? "AND gm.MobileOperatorID="+filterMobileOperator.Value : "")));
+			
+			//6764
+			if (Request["aco"] != null)
+				dc = db.LoadContainer(string.Format(@"
+					SELECT TOP 1 gm.GreeceVeooMsisdnID, gm.Msisdn, map.ServiceID, gm.MobileOperatorID FROM MobilePaywall.core.GreeceVeooMsisdn AS gm
+					LEFT OUTER JOIN MobilePaywall.core.GreeceVeooMsisdnServiceMap AS map ON gm.GreeceVeooMsisdnID=map.GreeceVeooMsisdnID
+					WHERE gm.GreeceVeooMsisdnID={0}
+					ORDER BY newid() ", Request["aco"].ToString()));
+
+			if (!dc.HasValue || dc.RowsCount == 0)
+			{
+				Log.Error(TAG + "There are no records for msisdn");
+				return this.Redirect(redirectUrl);
+			}
+
+			string msisdn = dc.GetString("Msisdn");
+			helper.Input = dc.GetString("Msisdn");
+			helper.Input = helper.FixNumber();
+			
+			GreeceCustomerResult customerResult = helper.GetCustomer();
+			if (!customerResult.IsNewCustomer && !customerResult.Customer.Msisdn.Equals("306945022449"))
+			{
+				Log.Error(TAG + "This customer with msisdn " + msisdn + " is allready subscribed to this service");
+				return this.Redirect(redirectUrl);
+			}
+			
+			int? mobileOperatorID = dc.GetInt("MobileOperatorID");
+			if(mobileOperatorID.HasValue)
+			{
+				MobileOperator mno = MobileOperator.CreateManager().Load(mobileOperatorID.Value);
+				if(mno != null && customerResult.Customer.MobileOperator == null)
+				{
+					customerResult.Customer.MobileOperator = mno;
+					customerResult.Customer.Update();
+				}
+			}
+
+			if (customerResult.Customer.MobileOperator == null)
+			{
+				Log.Error(TAG + "This customer with msisdn " + msisdn + " has no mobile operator");
+				return this.Redirect(redirectUrl);
+			}
+			helper.OperatorCode = customerResult.Customer.MobileOperator.ExternalMobileOperatorID.ToString();
+
+			string smsid = customerResult.Customer.Storage.GetString("SmsID");
+			if(!string.IsNullOrEmpty(smsid))
+			{
+				Log.Error(TAG + "Customer has allready some old smsID. CustomerID: " + customerResult.Customer.ID);
+				return this.Redirect(redirectUrl);
+			}
+
+			if (!PaywallCapManager.HasAccess(customerResult.Customer))
+			{
+				Log.Error(TAG + "CAP error");
+				return this.Redirect(redirectUrl);
+			}
+
+			helper.Session.UpdateCustomer(customerResult.Customer);
+			helper.Session.GenerateNewPin();
+
+			// SEND PIN message to Customer
+			string pinMessage = VeooMessages.GetPinMessage(helper.Session.CurrentGeneratedPin);
+			SendSmsResponse smsResponse = helper.GetTanSmsResponse(customerResult, pinMessage);
+
+			helper.Session.SessionData.Customer.Storage.PutBool(GreeceUserSession.CustomerStorageKeys.PinConfirmed.ToString(), false);
+			helper.Session.UpdateCustomer(helper.Session.SessionData.Customer);
+			
+			if (smsResponse.Status.Code != MessageStatusCode.Success && smsResponse.Status.Code != MessageStatusCode.Pending)
+			{
+				Log.Error(TAG + "smsTanResponse is not successfull");
+				return this.Redirect(redirectUrl);
+			}
+
+			db.Execute(string.Format("INSERT INTO MobilePaywall.core.GreeceVeooMsisdnServiceMap (GreeceVeooMsisdnID, ServiceID, UserSessionID) VALUES ({0},{1},{2})", 
+				dc.GetString("GreeceVeooMsisdnID"), helper.Service.ID, helper.Session.SessionData.ID));
+			
+			//
+			// --------------------------------------------------------------------------------------------------------------------------------------------------
+			// 2. STEP
+			//
+			
+			bool thereIsSmsID = false;
+			int currentSecondsOfWaiting = 0;
+			for(; ;)
+			{
+				if (thereIsSmsID) break;
+				if(currentSecondsOfWaiting >= 60)
+				{
+					Log.Error(TAG + " there is no Notification after 60seconds. Wtf");
+					return this.Redirect(redirectUrl);
+				}
+
+				thereIsSmsID = !string.IsNullOrEmpty(customerResult.Customer.Storage.GetString("SmsID"));
+				currentSecondsOfWaiting++;
+				System.Threading.Thread.Sleep(1000);
+			}
+
+
+			System.Threading.Thread.Sleep(new Random().Next(30000, 60000));
+
+			//
+			// --------------------------------------------------------------------------------------------------------------------------------------------------
+			// 3. STEP
+			//
+
+			UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), PaywallHttpContext.Current.Session.SessionData, null, "-nil-", DateTime.Now, DateTime.Now); uhr.Insert();
+			PaymentRequest pr = new PaymentRequest(-1, Guid.NewGuid(), PaymentType.Subscription, PaymentRequestStatus.Initialized, PaywallHttpContext.Current.Session.SessionData.LastLookupSession,
+				helper.Session.SessionData.Customer, PaywallHttpContext.Current.Session.SessionData, helper.ServiceOffer, helper.ServiceOffer.BusinessModelEntry, null, uhr, "-nil-", DateTime.Now, DateTime.Now);
+			pr.Insert();
+
+
+			helper.Session.SessionData.Customer.Storage.PutInt("PaymentRequestID", pr.ID);
+
+			SmsArguments smsArguments = new SmsArguments();
+			smsArguments.Operator = PaywallHttpContext.Current.Session.SessionData.MobileOperator.ExternalMobileOperatorID.ToString();
+			smsArguments.Msisdn = PaywallHttpContext.Current.Session.SessionData.Customer.Msisdn;
+			smsArguments.Username = PaywallHttpContext.Current.Session.SessionData.Customer.Username;
+			smsArguments.Password = PaywallHttpContext.Current.Session.SessionData.Customer.Storage.GetString("password");
+			smsArguments.PreviousSmsId = customerResult.Customer.Storage.GetString("SmsID");
+
+			InitiateSubscriptionResponse initiateSubscriptionResponse = CashflowClientPaywallManager.GetInitiateSubscriptionResponse(PaywallHttpContext.Current.Session, string.Empty, smsArguments);
+
+			switch (initiateSubscriptionResponse.Status.Code)
+			{
+				case MessageStatusCode.Pending:
+				case MessageStatusCode.Success:
+					pr.ExternalPaymentRequestGuid = initiateSubscriptionResponse.SubscriptionRequestID;
+					pr.PaymentRequestStatus = PaymentRequestStatus.Complete;
+					pr.Update();
+
+					Payment p = new Payment(-1, Guid.NewGuid(), PaymentType.Subscription, null, PaymentStatus.Initialized, pr, helper.Session.SessionData.Customer, helper.ServiceOffer, helper.ServiceOffer.BusinessModelEntry, DateTime.Now, DateTime.Now); p.Insert();
+
+					SetupSubscriptionResponse setupSubscriptionResponse = helper.Setup(pr);
+					if (setupSubscriptionResponse.Status.Code != MessageStatusCode.Success && setupSubscriptionResponse.Status.Code != MessageStatusCode.Redirect)
+					{
+						Log.Error("GreeceVeo::Setup. SetupSubscriptionResponse. Setup is not successfull");
+						p.PaymentStatus = PaymentStatus.Failed;
+						p.Update();
+						return this.Json(new { status = false, message = "Παρακαλούμε ελέγξτε το PIN που έχετε εισάγει" });
+					}
+
+					helper.Session.SessionData.Customer.Storage.PutBool(GreeceUserSession.CustomerStorageKeys.PinConfirmed.ToString(), true);
+					p.PaymentStatus = PaymentStatus.Successful;
+					p.Update();
+					PaymentContentAccessPolicyMap pcapm = new PaymentContentAccessPolicyMap(-1, p, null, helper.ServiceOffer.ContentAccessPolicy, null, true, true, DateTime.Now, DateTime.Now.AddMinutes(15), DateTime.Now, DateTime.Now); pcapm.Insert();
+					
+           Log.Error(TAG + "initiateSubscriptionResponse is OK");
+           return this.Redirect(redirectUrl);
+				default:
+					pr.PaymentRequestStatus = PaymentRequestStatus.Failure;
+					pr.Update();
+					Log.Error(TAG + "initiateSubscriptionResponse is FAILURE");
+					return this.Redirect(redirectUrl);
+			}
+			
+			Log.Info(TAG + "Flow is success for msisdn:" + helper.Input);
+			return this.Redirect(redirectUrl);
+		}
+
+
+		private int? GetMobileOperatorForNumber()
+		{
+			List<TemplateServiceCap> caps = PaywallCapManager.GetAllCaps(PaywallHttpContext.Current.Service.ServiceData);
+			List<int> mnos = new List<int>();
+			foreach (var cap in caps)
+			{
+				cap.CheckIfValuesAreOld();
+				if (cap.Value > cap.TempCurrentValue)
+					mnos.Add(cap.MobileOperator.ID);
+			}
+
+			if (mnos.Count == 0)
+				return null;
+			if (mnos.Count == 1)
+				return mnos.ElementAt(0);
+
+			return mnos.ElementAt(new Random().Next(0, mnos.Count));
+			
+			//DirectContainer dc = MobilePaywallDirect.Instance.LoadContainer(string.Format(@"
+			//	SELECT MobileOperatorID, [Value], TempCurrentValue FROM MobilePaywall.core.TemplateServiceCap 
+			//	WHERE MobileOperatorID IS NOT NULL AND ServiceID=" + PaywallHttpContext.Current.Service.ServiceData.ID));
+
+			//if (dc == null || !dc.HasValue)
+			//	return null;
+
+			//List<int> mnos = new List<int>();
+			//foreach (var row in dc.Rows)
+			//	if (row.GetInt("Value") >= row.GetInt("TempCurrentValue"))
+			//		mnos.Add(row.GetInt("MobileOperatorID").Value);
+
+			//if (mnos.Count == 0)
+			//	return null;
+
+			//if (mnos.Count == 1)
+			//	return mnos[0];
+
+			//return mnos[new Random().Next(0, mnos.Count - 1)];
+		}
+
+	}
+}

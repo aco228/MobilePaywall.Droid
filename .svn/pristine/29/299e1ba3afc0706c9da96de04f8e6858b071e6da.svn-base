@@ -1,0 +1,92 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class FilterBypassManager : IFilterBypassManager
+  {
+    public List<FilterBypass> Load()
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection);
+    }
+
+    public List<FilterBypass> Load(IConnectionInfo connection)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection);
+    }
+
+    public List<FilterBypass> Load(ISqlConnectionInfo connection)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      return this.LoadMany(connection, parameters);
+    }
+
+    
+
+    public List<FilterBypass> Load(Country country)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, country);
+    }
+
+    public List<FilterBypass> Load(IConnectionInfo connection, Country country)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, country);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, country);
+    }
+
+    public List<FilterBypass> Load(ISqlConnectionInfo connection, Country country)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[fb].CountryID = @CountryID";
+      parameters.Arguments.Add("CountryID", country.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+
+    public FilterBypass Load(FilterBypassType filterBypassType, Country country, PaymentProvider paymentProvider, Service service)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, filterBypassType, country, paymentProvider, service);
+    }
+
+    public FilterBypass Load(IConnectionInfo connection, FilterBypassType filterBypassType, Country country, PaymentProvider paymentProvider, Service service)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, filterBypassType, country, paymentProvider, service);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, filterBypassType, country, paymentProvider, service);
+    }
+
+    public FilterBypass Load(ISqlConnectionInfo connection, FilterBypassType filterBypassType, Country country, PaymentProvider paymentProvider, Service service)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[fb].FilterBypassTypeID = @FilterBypassTypeID AND [fb].CountryID = @CountryID AND [fb].PaymentProviderID = @PaymentProviderID AND [fb].ServiceID = @ServiceID";
+      parameters.Arguments.Add("FilterBypassTypeID", (int)filterBypassType);
+      parameters.Arguments.Add("CountryID", country.ID);
+      parameters.Arguments.Add("PaymentProviderID", paymentProvider.ID);
+      parameters.Arguments.Add("ServiceID", service.ID);
+      return this.Load(connection, parameters);
+    }
+
+  }
+}
+

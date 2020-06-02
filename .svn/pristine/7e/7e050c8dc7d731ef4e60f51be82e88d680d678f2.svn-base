@@ -1,0 +1,73 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class PaymentManagerConfigurationManager : IPaymentManagerConfigurationManager
+  {
+
+    public PaymentManagerConfiguration Load(Service service)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, service);
+    }
+
+    public PaymentManagerConfiguration Load(IConnectionInfo connection, Service service)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, service);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, service);
+    }
+
+    public PaymentManagerConfiguration Load(ISqlConnectionInfo connection, Service service)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[pmc].ServiceID = @ServiceID";
+      parameters.Arguments.Add("ServiceID", service.ID);
+      return this.Load(connection, parameters);
+    }
+
+
+
+    public List<PaymentManagerConfiguration> Load(PaymentProvider paymentProvider, Country country)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, paymentProvider, country);
+    }
+
+    public List<PaymentManagerConfiguration> Load(IConnectionInfo connection, PaymentProvider paymentProvider, Country country)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, paymentProvider, country);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, paymentProvider, country);
+    }
+
+    public List<PaymentManagerConfiguration> Load(ISqlConnectionInfo connection, PaymentProvider paymentProvider, Country country)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[pmc].PaymentProviderID = @PaymentProviderID AND [pmc].CountryID = @CountryID";
+      parameters.Arguments.Add("PaymentProviderID", paymentProvider.ID);
+      parameters.Arguments.Add("CountryID", country.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+
+
+
+
+  }
+}
+

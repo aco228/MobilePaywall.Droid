@@ -1,0 +1,115 @@
+﻿using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers
+{
+  public partial class TemplateController : PaywallTemplateController
+  {
+    
+
+    public ActionResult TempCurrentValue_Update()
+    {
+      string _id = Request["id"] != null ? Request["id"].ToString() : string.Empty;
+      int id;
+      if(!Int32.TryParse(_id, out id))
+        return this.Json(new { status = false, message = "Id is not set" });
+
+      TemplateServiceCap template = TemplateServiceCap.CreateManager().Load(id);
+
+      template.UpdateCapValue();
+
+      return this.Json(new { status = true });
+    }
+    public ActionResult TemplateServiceCap_Update()
+    {
+      string _id = Request["id"] != null ? Request["id"].ToString() : string.Empty;
+      string _mobileOperator = Request["mobileOperator"] != null && !Request["mobileOperator"].ToString().Equals("-1") ? Request["mobileOperator"].ToString() : string.Empty;
+      string _description = Request["description"] != null ? Request["description"].ToString() : string.Empty;
+      string _value = Request["value"] != null ? Request["value"].ToString() : string.Empty;
+      string _timespan;
+      string _datekey = Request["datekey"] != null ? Request["datekey"].ToString() : string.Empty;
+      bool _isActive = Request["isActive"] != null && Request["isActive"].ToString().Equals("1");
+      bool _isLocked = Request["isLocked"] != null && Request["isLocked"].ToString().Equals("1");
+      string _hours = Request["hours"] != null ? Request["hours"].ToString() : string.Empty;
+      string _minutes = Request["minutes"] != null ? Request["minutes"].ToString() : string.Empty;
+      string _seconds = Request["seconds"] != null ? Request["seconds"].ToString() : string.Empty;
+
+      _timespan = string.Format("{0}:{1}:{2}", _hours, _minutes, _seconds);
+        
+      int _tempCurrentValue = 0;
+
+      if (string.IsNullOrEmpty(_id))
+        return this.Json(new { status = false, message = "Id is not set" });
+
+      int serviceCapID;
+      if (!Int32.TryParse(_id, out serviceCapID))
+        return this.Json(new { status = false, message = "Id is not set" });
+
+      int value;
+      if (!Int32.TryParse(_value, out value))
+        return this.Json(new { status = false, message = "Value is not set" });
+      if(value < 0)
+        return this.Json(new { status = false, message = "Value could not be less than 0" });
+      
+      if (serviceCapID != -1)
+      {
+        Service service = PaywallHttpContext.Current.Service.ServiceData;
+        TemplateServiceCap ts = TemplateServiceCap.CreateManager().Load(serviceCapID);
+
+        if(ts == null)
+          return this.Json(new { status = false, message = "TemplateServiceCap could not be loaded with ID:" + serviceCapID });
+
+        ts.Value = value;
+        ts.Description = _description;
+        ts.IsActive = _isActive;
+        ts.IsLocked = _isLocked;
+        ts.Timespan = _timespan;
+        ts.DateKey = _datekey;
+        ts.UpdateWithHistory(PaywallHttpContext.Current.Session);
+        ts.UpdateCapValue();
+
+        return this.Json(new { status = true, message = "Updated", id = ts.ID });
+      }
+      else
+      {
+        MobileOperator mobileOperator = null;
+        if (!string.IsNullOrEmpty(_mobileOperator))
+        {
+          int mid;
+          if (!Int32.TryParse(_mobileOperator, out mid))
+            return this.Json(new { status = false, message = "Mobile operator is not set" });
+          else
+            mobileOperator = new MobileOperator(mid);
+        }
+
+        TemplateServiceCap template = TemplateServiceCap.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData, mobileOperator);
+        if(template != null)
+          return this.Json(new { status = false, message = "You already insenrted a cap with this MobileOperator"});
+
+        template = new TemplateServiceCap(serviceCapID,
+          PaywallHttpContext.Current.Service.ServiceData, 
+          mobileOperator, 
+          value,
+          _tempCurrentValue,
+          _timespan,
+          _datekey, 
+          _description, 
+          _isLocked, _isActive,
+          DateTime.Now.Date, DateTime.Now.Date,
+          DateTime.Now, DateTime.Now);
+      
+        template.InsertWithHistory(PaywallHttpContext.Current.Session);
+        template.UpdateCapValue();
+        
+        return this.Json(new { status = true, message = "Inserted", id = template.ID });
+      }
+    }
+
+     
+    }
+}

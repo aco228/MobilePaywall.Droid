@@ -1,0 +1,169 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class ContentThumbnailDataManager : IContentThumbnailDataManager
+  {
+    public List<ContentThumbnailData> Load()
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection);
+    }
+
+    public List<ContentThumbnailData> Load(IConnectionInfo connection)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection);
+    }
+
+    public List<ContentThumbnailData> Load(ISqlConnectionInfo connection)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      return this.LoadMany(connection, parameters);
+    }
+
+  	public List<ContentThumbnailData> Load(Content content, bool? isDefault)
+		{
+			using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+				return this.Load(connection, content, isDefault);
+		}
+
+		public List<ContentThumbnailData> Load(IConnectionInfo connection, Content content, bool? isDefault)
+		{
+			ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+			if (sqlConnection != null)
+				return this.Load(sqlConnection, content, isDefault);
+			using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+				return this.Load(sqlConnection, content, isDefault);
+		}
+
+		public List<ContentThumbnailData> Load(ISqlConnectionInfo connection, Content content, bool? isDefault)
+		{
+			SqlQueryParameters parameters = new SqlQueryParameters();
+			parameters.Where = "[ctd_ct].ContentID = @ContentID AND [ctd].IsOriginal = 0";
+			parameters.Where += isDefault.HasValue ? string.Format(" AND [ctd_tc].IsDefault = {0}", isDefault.Value ? "1" : "0") : "";
+			parameters.Arguments.Add("ContentID", content.ID);
+			return this.LoadMany(connection, parameters);
+		}
+
+		public List<ContentThumbnailData> Load(Application application)
+		{
+			using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+				return this.Load(connection, application);
+		}
+
+		public List<ContentThumbnailData> Load(IConnectionInfo connection, Application application)
+		{
+			ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+			if (sqlConnection != null)
+				return this.Load(sqlConnection, application);
+			using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+				return this.Load(sqlConnection, application);
+		}
+
+		// WARN: Custom DB Query
+		// WARNING: Custom DB Query
+		// REVIEW: Custom DB Query
+		// We are writing a lot of custom queries here.
+		public List<ContentThumbnailData> Load(ISqlConnectionInfo connection, Application application)
+		{
+			if (this.Depth < 1)
+				this.Depth = 1;
+			// content -> content group -> content group service map -> service (here is ApplicationID)
+			SqlQueryParameters parameters = new SqlQueryParameters();
+			parameters.Where = "[ctd_ct].ContentID IN (SELECT custom_c.[ContentID] FROM [core].[Content] AS custom_c " +
+																								"INNER JOIN [core].[ContentGroup] AS custom_cg ON custom_c.ContentGroupID = custom_cg.ContentGroupID " +
+																								"INNER JOIN [core].[ServiceContentGroupMap] AS custom_scgm ON custom_cg.ContentGroupID = custom_scgm.ContentGroupID " +
+																								"INNER JOIN [core].[Service] AS custom_s ON custom_scgm.ServiceID = custom_s.ServiceID "+
+																								"WHERE custom_s.ApplicationID = @ApplicationID) " +
+													"AND [ctd].IsOriginal = 0";
+			parameters.Arguments.Add("ApplicationID", application.ID);
+			return this.LoadMany(connection, parameters);
+		}
+
+		public ContentThumbnailData Load(Content content, ThumbnailConversionProfileEntry entry)
+		{
+			using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+				return this.Load(connection, content, entry);
+		}
+
+		public ContentThumbnailData Load(IConnectionInfo connection, Content content, ThumbnailConversionProfileEntry entry)
+		{
+			ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+			if (sqlConnection != null)
+				return this.Load(sqlConnection, content, entry);
+			using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+				return this.Load(sqlConnection, content, entry);
+		}
+
+		public ContentThumbnailData Load(ISqlConnectionInfo connection, Content content, ThumbnailConversionProfileEntry entry)
+		{
+			SqlQueryParameters parameters = new SqlQueryParameters();
+			parameters.Where = "[ctd_ct].ContentID = @ContentID AND [ctd].ThumbnailConversionProfileEntryID = @ThumbnailConversionProfileEntryID AND [ctd_ct].IsDefault = 1 AND [ctd].IsOriginal = 0";
+			parameters.Arguments.Add("ContentID", content.ID);
+			parameters.Arguments.Add("ThumbnailConversionProfileEntryID", entry.ID);
+			return this.Load(connection, parameters);
+		}
+
+    public List<ContentThumbnailData> LoadWithoutData()
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.LoadWithoutData(connection);
+    }
+
+    public List<ContentThumbnailData> LoadWithoutData(IConnectionInfo connection)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.LoadWithoutData(sqlConnection);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.LoadWithoutData(sqlConnection);
+    }
+
+    public List<ContentThumbnailData> LoadWithoutData(ISqlConnectionInfo connection)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[ctd].IsOriginal = 1";
+      parameters.SetExcludedColumns(new List<ColumnDescription>(new ColumnDescription[] { ContentThumbnailDataTable.Columns.Data }));
+      return this.LoadMany(connection, parameters);
+    }
+
+    public List<ContentThumbnailData> Load(ContentThumbnail contentThumbnail)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, contentThumbnail);
+    }
+
+    public List<ContentThumbnailData> Load(IConnectionInfo connection, ContentThumbnail contentThumbnail)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, contentThumbnail);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, contentThumbnail);
+    }
+
+    public List<ContentThumbnailData> Load(ISqlConnectionInfo connection, ContentThumbnail contentThumbnail)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[ctd].ContentThumbnailID = @ContnetThumbnailID";
+      parameters.Arguments.Add("ContnetThumbnailID", contentThumbnail.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+  }
+}
+

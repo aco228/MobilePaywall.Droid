@@ -1,0 +1,86 @@
+﻿@model MobilePaywall.Web.Models.ContentProxyModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+}
+
+@Styles.Render("~/Style/Darkley/Login")
+@Scripts.Render("~/Script/Login")
+
+<style>
+  .buttonWrap{ margin-top: 5px; }
+</style>
+
+<div class="container no-bottom">
+
+  @*<h3 class="pageTitle">Please enter your Mobile Operator and phone number</h3>*@
+  <h3 class="pageTitle">กรุณากรอก บริการมือถือที่ และหมายเลขโทรศัพท์ของคุณ</h3>
+
+  <div class="section_body" id="loginForm">
+    <div class="form_section">
+      <div class="form_label">ผู้ประกอบการมือถือ:<span class="login_asterix">*</span></div>
+      <select class="contactField requiredField" id="mno_select">
+        <option value="407">AIS</option>
+        <option value="408">DTAC</option>
+      </select>
+    </div>
+    <div class="form_section">
+      <div class="form_label">หมายเลขโทรศัพท์:<span class="login_asterix">*</span></div>
+      <input id="input_number" type="text" name="name" value=""  />
+    </div>
+    <input type="button" class="buttonWrap button button-green contactSubmitButton" id="submit" value="เสนอ" />
+    <div class="ajax_response"></div>
+  </div>
+
+  <div class="pageBreak"></div>
+</div>
+
+</div>
+
+
+
+<script>
+  var succ_url = '@Model.AppendSessionID(Model.Content)';
+  var wait_text = '@Translations.Web.Pending.PleaseWait';
+  var original_text = '';
+
+  $(document).ready(function () {
+
+    original_text = $('#submit').text();
+    $('#submit').attr('inuse', 'false');
+
+    $('#submit').click(function (e) {
+      if ($(this).attr('inuse') == 'true')
+        return;
+
+      e.preventDefault();
+
+      var btn = $(this);
+      var mobileOperatorID = $('#mno_select').find(":selected").attr('value');
+      var number = $('#input_number').val();
+
+      if (number == '') {
+        _visual.Alert('โปรดใส่หมายเลขโทรศัพท์ของคุณเป็นครั้งแรก');
+        return;
+      }
+
+      btn.text(wait_text);
+      btn.attr('inuse', 'true');
+
+      $.ajax({
+        url: '/other/SetNumber',
+        data: { number: number, mobileOperatorID: mobileOperatorID },
+        method: 'POST',
+        success: function (response) {
+          if (response.status)
+            window.location = succ_url;
+          else {
+            _visual.Alert(response.message);
+            btn.text(original_text);
+            btn.attr('inuse', 'false');
+          }
+        }
+      });
+
+    });
+  });
+</script>

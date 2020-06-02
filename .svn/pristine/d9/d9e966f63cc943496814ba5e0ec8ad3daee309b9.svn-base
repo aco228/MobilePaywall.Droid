@@ -1,0 +1,40 @@
+SELECT 
+	TOP 50
+	userSession.UserSessionID,
+	userSession.UserSessionGuid,
+	customer.CustomerID AS 'CustomerID',
+	customer.Username AS 'CustomerUsername',
+	customerStatus.Name AS 'CustomerStatus',
+	userSession.IPAddress AS 'IPAddress',
+	service.ServiceID AS 'ServiceID',
+	service.Name AS 'ServiceName',
+	domain.DomainName AS 'Domain',
+	userSessionType.Name AS 'UserSessionType',
+	country.GlobalName AS 'Country',
+	mobileOperator.Name AS 'MobileOperator',
+	userSession.HasVerifiedAge,
+	ipAddressType.Name AS 'IPAddressType',
+	userSession.UserAgent,
+	userSession.Referrer,
+	userSession.ValidUntil,
+	userSession.Updated,
+	userSession.Created
+FROM
+	MobilePaywall.core.UserSession AS userSession
+LEFT JOIN MobilePaywall.core.Customer AS customer 							ON userSession.CustomerID = customer.CustomerID
+LEFT JOIN MobilePaywall.core.CustomerStatus AS customerStatus 				ON customer.CustomerStatusID = customerStatus.CustomerStatusID
+LEFT JOIN MobilePaywall.core.Service AS service 							ON userSession.ServiceID = service.ServiceID
+LEFT JOIN MobilePaywall.core.Domain AS domain 								ON userSession.DomainID = domain.DomainID
+LEFT JOIN MobilePaywall.core.UserSessionType AS userSessionType 			ON userSession.UserSessionTypeID = userSessionType.UserSessionTypeID
+LEFT JOIN MobilePaywall.core.Country AS country 							ON userSession.CountryID = country.CountryID
+LEFT JOIN MobilePaywall.core.MobileOperator AS mobileOperator 				ON customer.MobileOperatorID = mobileOperator.MobileOperatorID
+LEFT JOIN MobilePaywall.core.IPAddressType AS ipAddressType 				ON userSession.IPAddressTypeID = ipAddressType.IPAddressTypeID
+WHERE
+	( @input = '{{input}}' OR
+		(
+			CAST(userSession.UserSessionID AS NVARCHAR(MAX)) = @input OR 
+			CAST(userSession.UserSessionGuid AS NVARCHAR(MAX)) = @input
+		)
+	)
+ORDER BY
+	userSession.UserSessionID DESC

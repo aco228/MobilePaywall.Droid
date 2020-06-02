@@ -1,0 +1,111 @@
+﻿@model MobilePaywall.Web.Models.CustomerModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+}
+
+@Styles.Render("~/Style/Red/Login")
+@Scripts.Render("~/Script/Login")
+
+<style>
+  .align_center {
+ text-align:center;border-bottom:0px;font-size:27px;
+  }
+</style>
+
+<div id="send_on_number" style="display:none" class="header align_center">
+    <div class="align_center">ส่ง</div><br>
+    <div class="align_center" style="color:white;margin:-20px;">MV1</div><br>
+   <div class="align_center">บน</div><br> 
+    <div class="align_center" style="color:white;margin:-20px;">4556013</div><br>
+</div>
+
+<div id="login_section">
+
+  <div id="newCustomer_section">
+    <div class="header">ป้อนหมายเลขโทรศัพท์</div>
+    <div class="section_body" id="passwordForm">
+      <div class="form_section">
+        @*<div class="form_label single_form_label">@Translations.Web.Reset.ErrGeneral</div>*@
+      </div>
+      <div class="form_section" style="display:none">
+        <div class="form_label">ป้อนหมายเลขโทรศัพท์<span class="login_asterix">*</span></div>
+        <input id="inputPhoneNumberr" type="text" name="name" value="" />
+      </div>
+      <div class="submitBtn" inuse="false" id="btnSetup">สมัครสมาชิก</div>
+      <div class="ajax_response"></div>
+    </div>
+  </div>
+
+  <div class="header">@Translations.Web.Login.Header</div>
+  <div class="section_body" id="loginForm">
+    <div class="form_section">
+      <div class="form_label">@Translations.Web.Login.Username<span class="login_asterix">*</span></div>
+      <input id="input_username" type="text" name="name" value="" placeholder="@Translations.Web.Login.PlcUsername" />
+    </div>
+    <div class="form_section">
+      <div class="form_label">@Translations.Web.Login.Password <span class="login_asterix">*</span></div>
+      <input id="input_password" type="password" name="name" value="" placeholder="@Translations.Web.Login.PlcPassword" />
+    </div>
+    <div class="submitBtn" id="loginSubmit">
+      @Translations.Web.Login.Button
+      <div class="ajax_response"></div>
+    </div>
+
+  </div>
+
+  <script>
+    var _login = new Login();
+    _login.RedirectUrl = '@Model.RedirectUrl';
+    _login.Message_login_input = '@Translations.Web.Login.Error';
+    _login.Message_login_success = '@Translations.Web.Login.Success';
+    _login.Message_login_error = '@Translations.Web.Login.Error';
+    _login.Message_reset_input = '@Translations.Web.Reset.ErrGeneral';
+    _login.Message_reset_error = '@Translations.Web.Reset.ErrNotFound';
+    _login.Message_reset_success = '@Translations.Web.Reset.Success';
+    _login.messageHandler();
+
+    $(document).ready(function () {
+
+      @if(PaywallHttpContext.Current.Session.SessionData.EntranceParameterExists("ap"))
+      { Html.Raw("setTimeout(function(){ $('#btnSetup').click();  }, 500);"); }
+
+      $('#btnSetup').on('click', function () {
+        var btn = $(this);
+        if (btn.attr('insue') == 'true')
+          return;
+
+        var originalValue = btn.text();;
+        btn.attr('inuse', 'true');
+        btn.text('...');
+
+        var phoneNumber = $('#inputPhoneNumberr').val();
+
+        $.ajax({
+          url: '/THAlterco/Setup',
+          type: 'POST',
+          data:{msisdn:phoneNumber},
+          success: function (response) {
+            console.log(response);
+
+            btn.attr('inuse', 'false');
+            btn.text(originalValue);
+
+            if (response.status == false){
+              _visual.Alert(response.message);
+              btn.attr('inuse', false);
+              btn.attr('value', originalValue);
+            }
+            if (response.status == true && response.redirectUrl != '') {
+              window.location.href = response.redirectUrl;
+            }
+            if (response.status == true && response.redirectUrl == '')
+            {
+              $('#newCustomer_section').css('display', 'none');
+              $('#send_on_number').css('display', 'block');
+            }
+          }
+        });
+      });
+
+    });
+  </script>

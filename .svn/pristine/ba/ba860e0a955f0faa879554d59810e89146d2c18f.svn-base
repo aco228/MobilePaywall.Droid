@@ -1,0 +1,75 @@
+﻿@model MobilePaywall.Web.Models.ContentListViewModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+}
+
+@Scripts.Render("~/Script/Home")
+@Scripts.Render("~/Script/Black/Home")
+
+
+
+@{
+  //Change it to take random content!
+  Random rnd = new Random();
+  int index = rnd.Next(0, Model.Content.Count-1);
+  MobilePaywall.IContent content = Model.Content.ElementAt(index);
+}
+
+<div id="contentVideoOfDay" class="row">
+  <div class="header row">@Translations.Web.Home.Header1</div>
+    <a href="@Model.AppendSessionID(content)" class="___clink">
+        <div class="content_video col-sm-12 col-xs-12" id="conten_video_ofDay">
+            <div class="content_video_inside" id="conten_video_ofDay_in">
+                <div class="content_video_playIcon @content.ContentIconClass"></div>
+                <img src="@content.GetThumbnailUrl(this.Request.UserAgent)" alt="Alternate Text" />
+            </div>
+        </div>
+    </a>
+  <div style="clear:both"></div>
+</div>
+
+<div id="contentVideos" class="row">
+  <div class="header row">@Translations.Web.Home.Header2</div>
+
+  <div id="contentVideoContainer">
+    @foreach (MobilePaywall.IContent item in Model.Content)
+    {
+        MobilePaywall.ContentInformations info = item.GetInformations(PaywallHttpContext.Current.Service.ServiceData, PaywallHttpContext.Current.Service.ServiceData.FallbackLanguage);
+
+        <a href="@Model.AppendSessionID(item)" class="___clink">
+            <div class="content_video col-sm-6 col-xs-6">
+                <div class="content_video_inside">
+                    <div class="content_video_playIcon @item.ContentIconClass"></div>
+                    <img src="@item.GetThumbnailUrl(this.Request.UserAgent)" alt="Alternate Text" style="width:100%" />
+                </div>
+            </div>
+        </a>
+    }
+  </div>
+  <div style="clear:both"></div>
+
+  <div id="contentVideoControls" class="row">
+    <div class="content_videoControl" id="controlLoadMore">@Translations.Web.Controls.More</div>
+  </div>
+</div>
+
+<script>
+  var _videoController = null;
+  var _contentHome = null;
+
+
+  $(document).ready(function () {
+    _videoController = new VideoController();
+    _videoController.TextPending = '@Translations.Web.Pending.PleaseWait';
+
+    @{
+      if(Model.Category != null)
+      {
+        @Html.Raw(Server.HtmlDecode("_homeVideoControler.CategoryID = '" + Model.Category.ID + "';"));
+      }
+    }
+
+    _contentHome = new ContentHome();
+  });
+</script>
+

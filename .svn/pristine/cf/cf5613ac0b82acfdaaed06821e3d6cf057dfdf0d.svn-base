@@ -1,0 +1,78 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class TemplateModificationManager : ITemplateModificationManager
+  {
+
+    public List<TemplateModification> Load(Template template)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, template);
+    }
+
+    public List<TemplateModification> Load(IConnectionInfo connection, Template template)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, template);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, template);
+    }
+
+    public List<TemplateModification> Load(ISqlConnectionInfo connection, Template template)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[tm].TemplateID=@TemplateID AND [tm].IsActive=1";
+      parameters.Arguments.Add("TemplateID", template.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+
+    public TemplateModification Load(Template template, Country country, PaymentProvider paymentProvider, MobileOperator mobileOperator, Service service)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, template, country, paymentProvider, mobileOperator, service);
+    }
+
+    public TemplateModification Load(IConnectionInfo connection, Template template, Country country, PaymentProvider paymentProvider, MobileOperator mobileOperator, Service service)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, template, country, paymentProvider, mobileOperator, service);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, template, country, paymentProvider, mobileOperator, service);
+    }
+
+    public TemplateModification Load(ISqlConnectionInfo connection, Template template, Country country, PaymentProvider paymentProvider, MobileOperator mobileOperator, Service service)
+    {
+     SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[tm].TemplateID=" + template.ID;
+
+      if (country != null)
+        parameters.Where += " AND [tm].CountryID=" + country.ID;
+
+      if (paymentProvider != null)
+        parameters.Where += " AND [tm].PaymentProviderID=" + paymentProvider.ID;
+
+      if(service != null)
+        parameters.Where += " AND [tm].ServiceID=" + service.ID;
+
+      if (mobileOperator != null)
+        parameters.Where += " AND [tm].MobileOperatorID=" + mobileOperator.ID;
+
+      return this.Load(connection, parameters);
+    }
+
+  }
+}

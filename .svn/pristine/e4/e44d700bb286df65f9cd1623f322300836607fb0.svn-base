@@ -1,0 +1,96 @@
+﻿@model MobilePaywall.Web.Models.ContentListViewModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+}
+@Scripts.Render("~/Script/Home")
+
+@section belgium{
+  <div class="__checkbox" id="belgiumCheck" ischecked="false">
+    <table>
+      <tr>
+        <td>
+          <div class="custom_checkbox"></div>
+        </td>
+        <td>
+          Bij inschrijving bevestig ik dat ik ouder ben dan 18 jaar en ik bevestig de voorwaarden te hebben gelezen en te accepteren en hierbij geef ik mijn herroepingsrecht op de aankoop van dit product op.
+        </td>
+      </tr>
+    </table>
+  </div>
+}
+
+@if (PaymentHelper.HasPayment())
+{
+  <script>
+    $(document).ready(function () {
+      $('#belgiumCheck').hide();
+    });
+  </script>
+}
+else
+{
+  <style> .videoa { pointer-events: none; } </style>
+  <script>
+    $(document).ready(function () {
+      if ($('#belgiumCheck').length > 0) {
+        $('#belgiumCheck').click(function () {
+          if ($(this).attr('ischecked') == 'true') {
+            $('.videoa').css('pointer-events', 'none');
+            $(this).attr('ischecked', 'false');
+            $(this).find('.custom_checkbox').removeClass('custom_checkbox_checked');
+          }
+          else {
+            $('.videoa').css('pointer-events', 'initial');
+            $(this).attr('ischecked', 'true');
+            $(this).find('.custom_checkbox').addClass('custom_checkbox_checked');
+          }
+        });
+      }
+    });
+  </script>
+
+}
+
+<div class="portfolioTwoWrapper" id="contentVideoContainer">
+  @foreach (MobilePaywall.IContent content in Model.Content)
+  {
+      MobilePaywall.Video video = content as MobilePaywall.Video;
+
+    <a href="@MobilePaywall.Web.Helpers.UrlHelper.AppendSessionID(PaywallHttpContext.Current.HttpContext.Request.RequestContext, content.GetAccessUrl(this.Request.UserAgent))" class="videoa ___clink" data-ajax="false">
+        <div class="portfolioTwoItemWrapper">
+            <div class="videoPlayButton @content.ContentIconClass"></div>
+            <img src="@content.GetThumbnailUrl(this.Request.UserAgent)" alt="" class="thumb" />
+            <div class="portfolioTwoItemInfoWrapper">
+                <h4 class="portfolioTwoItemTitle">Koop nu</h4>
+            </div>
+        </div>
+    </a>
+  }
+</div>
+
+<div class="pageNumbersWrapper">
+  <span class="pageNumber currentPageNumber" id="controlLoadMore">@Translations.Web.Controls.More</span>
+</div>
+
+<script>
+  var _videoController = null;
+  var _contentHome = null;
+
+  $(document).ready(function () {
+    _videoController = new VideoController();
+    _videoController.TextPending = '@Translations.Web.Pending.PleaseWait';
+
+    @{
+      if(Model.Category != null)
+      {
+        @Html.Raw(Server.HtmlDecode("_homeVideoControler.CategoryID = '" + Model.Category.ID + "';"));
+      }
+    }
+
+    _videoController.OnAppendFunc = function () {
+      // tempalte function to adapt size of thumbnails ( Scripts/Blinds/custom.js:286 )
+      adaptPortfolio()
+    }
+
+  });
+</script>

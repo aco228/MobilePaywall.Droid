@@ -1,0 +1,356 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ClickInformation))] 
+  public partial class ClickInformationManager : MobilePaywall.Data.Sql.SqlManagerBase<ClickInformation>, IClickInformationManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ClickInformation LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ClickInformationTable.GetColumnNames("[ci]") + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[ci_us]") : string.Empty) + 
+					" FROM [core].[ClickInformation] AS [ci] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [ci_us] ON [ci].[UserSessionID] = [ci_us].[UserSessionID] ";
+				sqlCmdText += "WHERE [ci].[ClickInformationID] = @ClickInformationID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ClickInformationID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ci", "loadinternal", "notfound"), "ClickInformation could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ClickInformationTable ciTable = new ClickInformationTable(query);
+				UserSessionTable ci_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+
+        
+				UserSession ci_usObject = (this.Depth > 0) ? ci_usTable.CreateInstance() : null;
+				ClickInformation ciObject = ciTable.CreateInstance(ci_usObject);
+				sqlReader.Close();
+
+				return ciObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ci", "loadinternal", "exception"), "ClickInformation could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ClickInformation", "Exception while loading ClickInformation object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ClickInformation Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ClickInformationTable.GetColumnNames("[ci]") + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[ci_us]") : string.Empty) +  
+					" FROM [core].[ClickInformation] AS [ci] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [ci_us] ON [ci].[UserSessionID] = [ci_us].[UserSessionID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ci", "customload", "notfound"), "ClickInformation could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ClickInformationTable ciTable = new ClickInformationTable(query);
+				UserSessionTable ci_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+
+        
+				UserSession ci_usObject = (this.Depth > 0) ? ci_usTable.CreateInstance() : null;
+				ClickInformation ciObject = ciTable.CreateInstance(ci_usObject);
+				sqlReader.Close();
+
+				return ciObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ci", "customload", "exception"), "ClickInformation could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ClickInformation", "Exception while loading (custom/single) ClickInformation object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ClickInformation> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ClickInformationTable.GetColumnNames("[ci]") + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[ci_us]") : string.Empty) +  
+					" FROM [core].[ClickInformation] AS [ci] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [ci_us] ON [ci].[UserSessionID] = [ci_us].[UserSessionID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ci", "customloadmany", "notfound"), "ClickInformation list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ClickInformation>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ClickInformationTable ciTable = new ClickInformationTable(query);
+				UserSessionTable ci_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+
+        List<ClickInformation> result = new List<ClickInformation>();
+        do
+        {
+          
+					UserSession ci_usObject = (this.Depth > 0) ? ci_usTable.CreateInstance() : null;
+					ClickInformation ciObject = (this.Depth > -1) ? ciTable.CreateInstance(ci_usObject) : null;
+					result.Add(ciObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ci", "customloadmany", "exception"), "ClickInformation list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ClickInformation", "Exception while loading (custom/many) ClickInformation object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ClickInformation data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ClickInformation] ([ClickInformationDeviceID],[UserSessionID],[DeviceFamily],[DeviceModel],[DeviceName],[DeviceVendor],[DeviceOEM],[PlatformName],[PlatformVendor],[PlatformVersion],[BrowserName],[BrowserVendor],[BrowserVersion]) VALUES(@ClickInformationDeviceID,@UserSessionID,@DeviceFamily,@DeviceModel,@DeviceName,@DeviceVendor,@DeviceOEM,@PlatformName,@PlatformVendor,@PlatformVersion,@BrowserName,@BrowserVendor,@BrowserVersion); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ClickInformationDeviceID", (int)data.ClickInformationDevice);
+				sqlCmd.Parameters.AddWithValue("@UserSessionID", data.UserSession.ID);
+				sqlCmd.Parameters.AddWithValue("@DeviceFamily", !string.IsNullOrEmpty(data.DeviceFamily) ? (object)data.DeviceFamily : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@DeviceModel", !string.IsNullOrEmpty(data.DeviceModel) ? (object)data.DeviceModel : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@DeviceName", !string.IsNullOrEmpty(data.DeviceName) ? (object)data.DeviceName : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@DeviceVendor", !string.IsNullOrEmpty(data.DeviceVendor) ? (object)data.DeviceVendor : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@DeviceOEM", !string.IsNullOrEmpty(data.DeviceOEM) ? (object)data.DeviceOEM : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@PlatformName", !string.IsNullOrEmpty(data.PlatformName) ? (object)data.PlatformName : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@PlatformVendor", !string.IsNullOrEmpty(data.PlatformVendor) ? (object)data.PlatformVendor : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@PlatformVersion", !string.IsNullOrEmpty(data.PlatformVersion) ? (object)data.PlatformVersion : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@BrowserName", !string.IsNullOrEmpty(data.BrowserName) ? (object)data.BrowserName : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@BrowserVendor", !string.IsNullOrEmpty(data.BrowserVendor) ? (object)data.BrowserVendor : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@BrowserVersion", !string.IsNullOrEmpty(data.BrowserVersion) ? (object)data.BrowserVersion : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ci", "insert", "noprimarykey"), "ClickInformation could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ClickInformation", "Exception while inserting ClickInformation object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ci", "insert", "exception"), "ClickInformation could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ClickInformation", "Exception while inserting ClickInformation object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ClickInformation data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ClickInformation] SET " +
+												"[ClickInformationDeviceID] = @ClickInformationDeviceID, " + 
+												"[UserSessionID] = @UserSessionID, " + 
+												"[DeviceFamily] = @DeviceFamily, " + 
+												"[DeviceModel] = @DeviceModel, " + 
+												"[DeviceName] = @DeviceName, " + 
+												"[DeviceVendor] = @DeviceVendor, " + 
+												"[DeviceOEM] = @DeviceOEM, " + 
+												"[PlatformName] = @PlatformName, " + 
+												"[PlatformVendor] = @PlatformVendor, " + 
+												"[PlatformVersion] = @PlatformVersion, " + 
+												"[BrowserName] = @BrowserName, " + 
+												"[BrowserVendor] = @BrowserVendor, " + 
+												"[BrowserVersion] = @BrowserVersion, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ClickInformationID] = @ClickInformationID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ClickInformationDeviceID", (int)data.ClickInformationDevice);
+				sqlCmd.Parameters.AddWithValue("@UserSessionID", data.UserSession.ID);
+				sqlCmd.Parameters.AddWithValue("@DeviceFamily", !string.IsNullOrEmpty(data.DeviceFamily) ? (object)data.DeviceFamily : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@DeviceModel", !string.IsNullOrEmpty(data.DeviceModel) ? (object)data.DeviceModel : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@DeviceName", !string.IsNullOrEmpty(data.DeviceName) ? (object)data.DeviceName : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@DeviceVendor", !string.IsNullOrEmpty(data.DeviceVendor) ? (object)data.DeviceVendor : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@DeviceOEM", !string.IsNullOrEmpty(data.DeviceOEM) ? (object)data.DeviceOEM : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@PlatformName", !string.IsNullOrEmpty(data.PlatformName) ? (object)data.PlatformName : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@PlatformVendor", !string.IsNullOrEmpty(data.PlatformVendor) ? (object)data.PlatformVendor : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@PlatformVersion", !string.IsNullOrEmpty(data.PlatformVersion) ? (object)data.PlatformVersion : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@BrowserName", !string.IsNullOrEmpty(data.BrowserName) ? (object)data.BrowserName : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@BrowserVendor", !string.IsNullOrEmpty(data.BrowserVendor) ? (object)data.BrowserVendor : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@BrowserVersion", !string.IsNullOrEmpty(data.BrowserVersion) ? (object)data.BrowserVersion : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ClickInformationID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ci", "update", "norecord"), "ClickInformation could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ClickInformation", "Exception while updating ClickInformation object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ci", "update", "morerecords"), "ClickInformation was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ClickInformation", "Exception while updating ClickInformation object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ci", "update", "exception"), "ClickInformation could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ClickInformation", "Exception while updating ClickInformation object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ClickInformation data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ClickInformation] WHERE ClickInformationID = @ClickInformationID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ClickInformationID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ci", "delete", "norecord"), "ClickInformation could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ClickInformation", "Exception while deleting ClickInformation object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ci", "delete", "exception"), "ClickInformation could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ClickInformation", "Exception while deleting ClickInformation object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

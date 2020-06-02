@@ -1,0 +1,149 @@
+﻿function Login() {
+
+  this.RedirectUrl = "";
+  this.Message_close = 'Close';
+
+  this.init = function () {
+    this.loginBtn();
+    this.resetBtn();
+
+    $('._login_form').submit(function (event) { event.preventDefault(); });
+  }
+
+  this.messageHandler = function()
+  {
+    // Default messages if not supplied by translations
+    if (this.Message_login_error == '') this.Message_login_error = 'Your informations are not valid!';
+    if (this.Message_login_input == '') this.Message_login_input = 'You did not entered username or password!';
+    if (this.Message_login_success == '') this.Message_login_success = 'You are successfully logged in!';
+    
+    if (this.Message_reset_error == '') this.Message_reset_error = 'Informations you supplied are invalid!';
+    if (this.Message_reset_input == '') this.Message_reset_input = 'You did not entered your phone number!';
+    if (this.Message_reset_success == '') this.Message_reset_success = 'Soon you will receive a SMS with the new password!';
+  };
+
+  /*
+    =======================================================================================================================================
+    Login btn
+  */
+
+  this.Message_login_input = '';
+  this.Message_login_error = '';
+  this.Message_login_success = '';
+
+  this.loginBtn = function () {
+    var self = this;
+    var btn = $('#loginSubmit');
+    var error = $('#loginForm .ajax_response');
+    var originalText = btn.text();
+    btn.attr("inuse", "false");
+
+    //console.log("loginBtn");
+
+    $('#loginForm').submit(function (event) { event.preventDefault(); });
+
+    btn.click(function (event) {
+      event.preventDefault();
+
+      if (btn.attr("inuse") == "true") return;
+      error.text("");
+
+      var username = $('#input_username').val();
+      var password = $('#input_password').val();
+
+      if (username == "" || password == "")
+      {
+        _visual.Alert(self.Message_login_input, self.Message_close, function () { });
+        return;
+      }
+
+      btn.attr("inuse", "true");
+      btn.text('...');
+
+
+      var data = "&username=" + username + "&password=" + password;
+      self.ajax('login', data, function (response) {
+        if (response.result)
+        {
+          var redirectUrl = response.redirect != '' ? response.redirect : self.RedirectUrl;
+          _visual.Alert(self.Message_login_success, self.Message_close, function () {
+            window.location = redirectUrl;
+          });
+        }
+        else
+          _visual.Alert(self.Message_login_error, self.Message_close);
+
+        btn.attr('inuse', 'false');
+        btn.text(originalText);
+      });
+    });
+
+  }
+
+  /*
+    =======================================================================================================================================
+    Login btn
+  */
+
+  this.Message_reset_input = '';
+  this.Message_reset_error = '';
+  this.Message_reset_success = '';
+
+  this.resetBtn = function()
+  {
+    var self = this;
+    var btn = $('#resetPasswordSubmit');
+    var error = $('#passwordForm .ajax_response');
+    var originalText = btn.text();
+    btn.attr("inuse", "false");
+
+
+    $('#passwordForm').submit(function (event) { event.preventDefault(); });
+
+    btn.click(function (event) {
+      event.preventDefault();
+
+      if (btn.attr("inuse") == "true") return;
+      error.text("");
+
+      var username = $('#inputPhoneNumber').val();
+      if(username == "")
+      {
+        _visual.Alert(self.Message_reset_input, self.Message_close, function () { });
+        return;
+      }
+
+      btn.attr("inuse", "true");
+      btn.text('...');
+      
+      var data = "&username=" + username;
+      self.ajax('reset', data, function (response) {
+        if (response.Result)
+          _visual.Alert(self.Message_reset_success, self.Message_close);
+        else
+          _visual.Alert(self.Message_reset_error, self.Message_close);
+
+        btn.attr('inuse', 'false');
+        btn.text(originalText);
+      });
+
+    });
+
+  }
+
+  /*
+      =====================================================================================================================================
+      Communication
+  */
+
+  this.ajax = function(url, data, successFunction)
+  {
+    $.ajax({
+      url: '/action/' + url, method:'post', data: data,
+      success: function (response) { successFunction(response); },
+      error: function (response) { successFunction(false); }
+    });
+  }
+
+  this.init();
+}

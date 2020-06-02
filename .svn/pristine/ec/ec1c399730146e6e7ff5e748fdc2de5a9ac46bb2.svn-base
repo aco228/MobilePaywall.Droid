@@ -1,0 +1,201 @@
+﻿@model TemplateCategoryModel
+
+@{
+  Layout = "~/Views/Template/_Layout/_Layout.cshtml";
+  string[] serviceStatuses = new string[] { "", "Online", "Offline", "Updating", "Free" };
+}
+
+<style>
+  .category_detail_wraper_margin{ margin-top: 25px!important;}
+
+  .category_detail_table {
+    border: 1px solid rgba(25, 118, 210, 0.13);
+    border-collapse: inherit;
+    padding-top: 5px;
+    padding-left: 5px;
+    padding-bottom: 10px;
+    padding-right: 5px;
+    background-color: #f7f7f7;
+    border-radius: 15px;
+  }
+
+  .category_detail_wraper{
+    width:50%;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+
+  .category_detail_wraper_new {
+    width: 50%;
+    margin: 0 auto;
+  }
+
+  #input_newCategory{
+    width:58%;
+  }
+
+  .category_detail_table tr td:first-of-type{
+    text-align:right;
+    padding-top:14px;
+  }
+</style>
+
+<div class="md-card" id="serviceConfiguration">
+  <div class="md-card-content">
+    <h3 class="heading_a">Category Management</h3>
+    <div class="uk-grid">
+      <div class="uk-width-medium-1-6">
+        <a class="md-btn md-btn-flat md-btn-flat-primary" href="#" id="btnAddNewCategory" inuse="false">Add New Category</a>
+      </div>
+      <div id="input_newCategory" hidden>
+        <div class="category_detail_wraper_new uk-grid-margin">
+          <table class="uk-table  category_detail_table">
+            <thead>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Name</td>
+                <td><input value="" type="text" id="categoryName" class="form-control content_detail_title"></td>
+              </tr>
+              <tr>
+                <td>Description</td>
+                <td><input value="" type="text" id="categoryDescription" class="form-control content_detail_title"></td>
+              </tr>
+              <tr>
+                <td></td>
+                <td align="right"><a class="md-btn md-btn-flat md-btn-flat-primary" href="#" id="btnInsertNewCategory" inuse="false">Insert</a></td>
+              </tr>
+            </tbody>
+          </table>
+          
+        </div>
+      </div>
+
+    </div>
+
+    <div class="template_for_adding" hidden>
+      <div class="category_detail_wraper category_detail_wraper_margin" categoryid="-1">
+        <table class="uk-table  category_detail_table">
+          <thead>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="categoryName" style="text-align:center; font-weight:bold;width: 92%;"></td>
+              <td><a class="btnEditCategory" href="">Edit</a></td>
+            </tr>
+            <tr>
+              <td class="categoryDescription" style="text-align:center;"></td>
+              <td>
+                <a class="btnDeleteCategory">Delete</a>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="uk-grid categories">
+      @foreach (Category category in Model.Categories)
+      {
+        <div class="category_detail_wraper category_detail_wraper_margin" categoryid="@Html.Raw(category.ID)">
+          <table class="uk-table  category_detail_table">
+            <thead>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="categoryName" style="text-align:center; font-weight:bold;width: 92%;">@category.Name</td>
+                <td><a class="btnEditCategory" href="/Template/TemplateCategoryEditor?categoryID=@category.ID">Edit</a></td>
+              </tr>
+              <tr>
+                <td class="categoryDescription" style="text-align:center;">@category.Description</td>
+                <td>
+                  <a class="btnDeleteCategory">Delete</a>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      }
+    </div>
+  </div>
+
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    onAddNewCategory();
+    onInsertNewCategory();
+    onDeleteCategory();
+  });
+
+  function onAddNewCategory() {
+    $("#btnAddNewCategory").click(function () {
+      $("#input_newCategory").toggle();
+    });
+  }
+
+  function onInsertNewCategory() {
+    $("#btnInsertNewCategory").click(function () {
+      if ($(this).attr('inuse') == 'true')
+        return;
+      var btn = $(this);
+
+      var _description = $('#categoryDescription').val();
+      var _name = $('#categoryName').val();
+
+      if (_name == '')
+      { visual.Alert('Please enter name'); return; }
+
+
+      visual.Confirm('Are you sure you want to make this change?', 'Yes', 'No', function () {
+
+        var tmplText = btn.text();
+        btn.attr('inuse', 'true');
+        btn.text('...');
+
+        template.call('ApiTemplateAddCategoryAdd', { name: _name, description: _description }, function (response) {
+          btn.attr('inuse', 'false');
+          btn.text(tmplText);
+          if (response.status)
+          {
+            $(".template_for_adding").find(".categoryName").text(_name);
+            $(".template_for_adding").find(".categoryDescription").text(_description);
+            $(".template_for_adding").find(".category_detail_wraper").attr("categoryid", response.id);            
+            $(".categories").prepend($(".template_for_adding").html());
+          }
+          visual.Alert(response.message);
+        });
+
+      });
+    });
+  }
+
+  function onDeleteCategory() {
+    $('body').on('click', '.btnDeleteCategory', function () {
+      if ($(this).attr('inuse') == 'true')
+        return;
+      var btn = $(this);
+
+      visual.Confirm('Are you sure you want to delete this category?', 'Yes', 'No', function () {
+
+        var tmplText = btn.text();
+        btn.attr('inuse', 'true');
+        btn.text('...');
+        var _categoryID = btn.closest(".category_detail_wraper").attr("categoryID");
+
+        template.call('ApiTemplateAddCategoryDelete', { categoryID: _categoryID }, function (response) {
+          btn.attr('inuse', 'false');
+          btn.text(tmplText);
+          if (response.status) {
+            btn.closest(".category_detail_wraper").remove();
+          }
+          visual.Alert(response.message);
+        });
+
+      });
+
+    });
+  }
+</script>

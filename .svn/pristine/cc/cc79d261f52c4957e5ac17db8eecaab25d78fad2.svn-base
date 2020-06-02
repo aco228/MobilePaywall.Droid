@@ -1,0 +1,67 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using MobilePaywall.Data;
+using System.Xml.Serialization;
+using System.Xml;
+using System.IO;
+
+namespace MobilePaywall
+{
+  public abstract class TaskBase : ITask
+  {
+    private Task _taskData = null;
+    private ResolverModel _resolver = null;
+    private ServiceConfigAction _actionType = ServiceConfigAction.Unknown;
+
+    public Task TaskData { get { return this._taskData; } }
+    public ResolverModel Resolver { get { return this._resolver; } set { this._resolver = value; } }
+    public ServiceConfigAction ActionType { get { return this._actionType; } set { this._actionType = value; } }
+
+    public class ResolverModel
+    {
+      private int? _resolverID = null;
+
+      public int? ResolverID { get { return this._resolverID; } set { this._resolverID = value; } }
+
+      public Client Resolver { get { return this._resolverID.HasValue ? Data.Client.CreateManager().Load(this._resolverID.Value) : null; } }
+    }
+
+    public TaskBase()
+    {
+
+    }
+
+    public TaskBase(Task task)
+    {
+      this._taskData = task;
+    }
+
+    public abstract string Serialize();
+    public T Deserialize<T>() 
+    {
+      if (string.IsNullOrEmpty(this.TaskData.Data))
+        return default(T);
+
+      XmlSerializer serializer = new XmlSerializer(typeof(T));
+      XmlReaderSettings settings = new XmlReaderSettings();
+      // No settings need modifying here
+
+      using (StringReader textReader = new StringReader(this.TaskData.Data))
+      {
+        using (XmlReader xmlReader = XmlReader.Create(textReader, settings))
+          return (T)serializer.Deserialize(xmlReader);
+      }
+    }
+  }
+
+
+  public enum ServiceConfigAction
+  {
+    Unknown = 0,
+    Insert = 1,
+    Edit = 2
+  }
+}

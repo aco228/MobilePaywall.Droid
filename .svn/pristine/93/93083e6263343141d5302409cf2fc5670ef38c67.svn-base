@@ -1,0 +1,422 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ClientSession))] 
+  public partial class ClientSessionManager : MobilePaywall.Data.Sql.SqlManagerBase<ClientSession>, IClientSessionManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ClientSession LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ClientSessionTable.GetColumnNames("[cs]") + 
+							(this.Depth > 0 ? "," + ApplicationTable.GetColumnNames("[cs_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[cs_a_i]") : string.Empty) + 
+							(this.Depth > 1 ? "," + RuntimeTypeTable.GetColumnNames("[cs_a_rt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ClientTable.GetColumnNames("[cs_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ClientTypeTable.GetColumnNames("[cs_c_ct]") : string.Empty) + 
+							(this.Depth > 0 ? "," + LanguageTable.GetColumnNames("[cs_l]") : string.Empty) + 
+					" FROM [core].[ClientSession] AS [cs] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [cs_a] ON [cs].[ApplicationID] = [cs_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [cs_a_i] ON [cs_a].[InstanceID] = [cs_a_i].[InstanceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[RuntimeType] AS [cs_a_rt] ON [cs_a].[RuntimeTypeID] = [cs_a_rt].[RuntimeTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Client] AS [cs_c] ON [cs].[ClientID] = [cs_c].[ClientID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ClientType] AS [cs_c_ct] ON [cs_c].[ClientTypeID] = [cs_c_ct].[ClientTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [cs_l] ON [cs].[LanguageID] = [cs_l].[LanguageID] ";
+				sqlCmdText += "WHERE [cs].[ClientSessionID] = @ClientSessionID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ClientSessionID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "loadinternal", "notfound"), "ClientSession could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ClientSessionTable csTable = new ClientSessionTable(query);
+				ApplicationTable cs_aTable = (this.Depth > 0) ? new ApplicationTable(query) : null;
+				InstanceTable cs_a_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				RuntimeTypeTable cs_a_rtTable = (this.Depth > 1) ? new RuntimeTypeTable(query) : null;
+				ClientTable cs_cTable = (this.Depth > 0) ? new ClientTable(query) : null;
+				ClientTypeTable cs_c_ctTable = (this.Depth > 1) ? new ClientTypeTable(query) : null;
+				LanguageTable cs_lTable = (this.Depth > 0) ? new LanguageTable(query) : null;
+
+        
+				Instance cs_a_iObject = (this.Depth > 1) ? cs_a_iTable.CreateInstance() : null;
+				RuntimeType cs_a_rtObject = (this.Depth > 1) ? cs_a_rtTable.CreateInstance() : null;
+				Application cs_aObject = (this.Depth > 0) ? cs_aTable.CreateInstance(cs_a_iObject, cs_a_rtObject) : null;
+				ClientType cs_c_ctObject = (this.Depth > 1) ? cs_c_ctTable.CreateInstance() : null;
+				Client cs_cObject = (this.Depth > 0) ? cs_cTable.CreateInstance(cs_c_ctObject) : null;
+				Language cs_lObject = (this.Depth > 0) ? cs_lTable.CreateInstance() : null;
+				ClientSession csObject = csTable.CreateInstance(cs_aObject, cs_cObject, cs_lObject);
+				sqlReader.Close();
+
+				return csObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "loadinternal", "exception"), "ClientSession could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ClientSession", "Exception while loading ClientSession object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ClientSession Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ClientSessionTable.GetColumnNames("[cs]") + 
+							(this.Depth > 0 ? "," + ApplicationTable.GetColumnNames("[cs_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[cs_a_i]") : string.Empty) + 
+							(this.Depth > 1 ? "," + RuntimeTypeTable.GetColumnNames("[cs_a_rt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ClientTable.GetColumnNames("[cs_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ClientTypeTable.GetColumnNames("[cs_c_ct]") : string.Empty) + 
+							(this.Depth > 0 ? "," + LanguageTable.GetColumnNames("[cs_l]") : string.Empty) +  
+					" FROM [core].[ClientSession] AS [cs] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [cs_a] ON [cs].[ApplicationID] = [cs_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [cs_a_i] ON [cs_a].[InstanceID] = [cs_a_i].[InstanceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[RuntimeType] AS [cs_a_rt] ON [cs_a].[RuntimeTypeID] = [cs_a_rt].[RuntimeTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Client] AS [cs_c] ON [cs].[ClientID] = [cs_c].[ClientID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ClientType] AS [cs_c_ct] ON [cs_c].[ClientTypeID] = [cs_c_ct].[ClientTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [cs_l] ON [cs].[LanguageID] = [cs_l].[LanguageID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "customload", "notfound"), "ClientSession could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ClientSessionTable csTable = new ClientSessionTable(query);
+				ApplicationTable cs_aTable = (this.Depth > 0) ? new ApplicationTable(query) : null;
+				InstanceTable cs_a_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				RuntimeTypeTable cs_a_rtTable = (this.Depth > 1) ? new RuntimeTypeTable(query) : null;
+				ClientTable cs_cTable = (this.Depth > 0) ? new ClientTable(query) : null;
+				ClientTypeTable cs_c_ctTable = (this.Depth > 1) ? new ClientTypeTable(query) : null;
+				LanguageTable cs_lTable = (this.Depth > 0) ? new LanguageTable(query) : null;
+
+        
+				Instance cs_a_iObject = (this.Depth > 1) ? cs_a_iTable.CreateInstance() : null;
+				RuntimeType cs_a_rtObject = (this.Depth > 1) ? cs_a_rtTable.CreateInstance() : null;
+				Application cs_aObject = (this.Depth > 0) ? cs_aTable.CreateInstance(cs_a_iObject, cs_a_rtObject) : null;
+				ClientType cs_c_ctObject = (this.Depth > 1) ? cs_c_ctTable.CreateInstance() : null;
+				Client cs_cObject = (this.Depth > 0) ? cs_cTable.CreateInstance(cs_c_ctObject) : null;
+				Language cs_lObject = (this.Depth > 0) ? cs_lTable.CreateInstance() : null;
+				ClientSession csObject = csTable.CreateInstance(cs_aObject, cs_cObject, cs_lObject);
+				sqlReader.Close();
+
+				return csObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "customload", "exception"), "ClientSession could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ClientSession", "Exception while loading (custom/single) ClientSession object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ClientSession> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ClientSessionTable.GetColumnNames("[cs]") + 
+							(this.Depth > 0 ? "," + ApplicationTable.GetColumnNames("[cs_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[cs_a_i]") : string.Empty) + 
+							(this.Depth > 1 ? "," + RuntimeTypeTable.GetColumnNames("[cs_a_rt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ClientTable.GetColumnNames("[cs_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ClientTypeTable.GetColumnNames("[cs_c_ct]") : string.Empty) + 
+							(this.Depth > 0 ? "," + LanguageTable.GetColumnNames("[cs_l]") : string.Empty) +  
+					" FROM [core].[ClientSession] AS [cs] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [cs_a] ON [cs].[ApplicationID] = [cs_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [cs_a_i] ON [cs_a].[InstanceID] = [cs_a_i].[InstanceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[RuntimeType] AS [cs_a_rt] ON [cs_a].[RuntimeTypeID] = [cs_a_rt].[RuntimeTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Client] AS [cs_c] ON [cs].[ClientID] = [cs_c].[ClientID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ClientType] AS [cs_c_ct] ON [cs_c].[ClientTypeID] = [cs_c_ct].[ClientTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [cs_l] ON [cs].[LanguageID] = [cs_l].[LanguageID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "customloadmany", "notfound"), "ClientSession list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ClientSession>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ClientSessionTable csTable = new ClientSessionTable(query);
+				ApplicationTable cs_aTable = (this.Depth > 0) ? new ApplicationTable(query) : null;
+				InstanceTable cs_a_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				RuntimeTypeTable cs_a_rtTable = (this.Depth > 1) ? new RuntimeTypeTable(query) : null;
+				ClientTable cs_cTable = (this.Depth > 0) ? new ClientTable(query) : null;
+				ClientTypeTable cs_c_ctTable = (this.Depth > 1) ? new ClientTypeTable(query) : null;
+				LanguageTable cs_lTable = (this.Depth > 0) ? new LanguageTable(query) : null;
+
+        List<ClientSession> result = new List<ClientSession>();
+        do
+        {
+          
+					Instance cs_a_iObject = (this.Depth > 1) ? cs_a_iTable.CreateInstance() : null;
+					RuntimeType cs_a_rtObject = (this.Depth > 1) ? cs_a_rtTable.CreateInstance() : null;
+					Application cs_aObject = (this.Depth > 0) ? cs_aTable.CreateInstance(cs_a_iObject, cs_a_rtObject) : null;
+					ClientType cs_c_ctObject = (this.Depth > 1) ? cs_c_ctTable.CreateInstance() : null;
+					Client cs_cObject = (this.Depth > 0) ? cs_cTable.CreateInstance(cs_c_ctObject) : null;
+					Language cs_lObject = (this.Depth > 0) ? cs_lTable.CreateInstance() : null;
+					ClientSession csObject = (this.Depth > -1) ? csTable.CreateInstance(cs_aObject, cs_cObject, cs_lObject) : null;
+					result.Add(csObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "customloadmany", "exception"), "ClientSession list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ClientSession", "Exception while loading (custom/many) ClientSession object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ClientSession data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ClientSession] ([ClientSessionGuid],[ApplicationID],[ClientID],[LanguageID],[Domain],[IPAdress],[IPAdressTypeID],[UserAgent],[IsActive],[ValidUntil]) VALUES(@ClientSessionGuid,@ApplicationID,@ClientID,@LanguageID,@Domain,@IPAdress,@IPAdressTypeID,@UserAgent,@IsActive,@ValidUntil); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ClientSessionGuid", data.Guid);
+				sqlCmd.Parameters.AddWithValue("@ApplicationID", data.Application.ID);
+				sqlCmd.Parameters.AddWithValue("@ClientID", data.Client == null ? DBNull.Value : (object)data.Client.ID);
+				sqlCmd.Parameters.AddWithValue("@LanguageID", data.Language == null ? DBNull.Value : (object)data.Language.ID);
+				sqlCmd.Parameters.AddWithValue("@Domain", data.Domain).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@IPAdress", data.IPAdress).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@IPAdressTypeID", (int)data.IPAdressType);
+				sqlCmd.Parameters.AddWithValue("@UserAgent", data.UserAgent).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@IsActive", data.IsActive).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@ValidUntil", data.ValidUntil).SqlDbType = SqlDbType.DateTime2;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "insert", "noprimarykey"), "ClientSession could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ClientSession", "Exception while inserting ClientSession object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "insert", "exception"), "ClientSession could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ClientSession", "Exception while inserting ClientSession object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ClientSession data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ClientSession] SET " +
+												"[ClientSessionGuid] = @ClientSessionGuid, " + 
+												"[ApplicationID] = @ApplicationID, " + 
+												"[ClientID] = @ClientID, " + 
+												"[LanguageID] = @LanguageID, " + 
+												"[Domain] = @Domain, " + 
+												"[IPAdress] = @IPAdress, " + 
+												"[IPAdressTypeID] = @IPAdressTypeID, " + 
+												"[UserAgent] = @UserAgent, " + 
+												"[IsActive] = @IsActive, " + 
+												"[ValidUntil] = @ValidUntil, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ClientSessionID] = @ClientSessionID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ClientSessionGuid", data.Guid);
+				sqlCmd.Parameters.AddWithValue("@ApplicationID", data.Application.ID);
+				sqlCmd.Parameters.AddWithValue("@ClientID", data.Client == null ? DBNull.Value : (object)data.Client.ID);
+				sqlCmd.Parameters.AddWithValue("@LanguageID", data.Language == null ? DBNull.Value : (object)data.Language.ID);
+				sqlCmd.Parameters.AddWithValue("@Domain", data.Domain).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@IPAdress", data.IPAdress).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@IPAdressTypeID", (int)data.IPAdressType);
+				sqlCmd.Parameters.AddWithValue("@UserAgent", data.UserAgent).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@IsActive", data.IsActive).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@ValidUntil", data.ValidUntil).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ClientSessionID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "update", "norecord"), "ClientSession could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ClientSession", "Exception while updating ClientSession object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "update", "morerecords"), "ClientSession was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ClientSession", "Exception while updating ClientSession object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "update", "exception"), "ClientSession could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ClientSession", "Exception while updating ClientSession object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ClientSession data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ClientSession] WHERE ClientSessionID = @ClientSessionID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ClientSessionID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "delete", "norecord"), "ClientSession could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ClientSession", "Exception while deleting ClientSession object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "delete", "exception"), "ClientSession could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ClientSession", "Exception while deleting ClientSession object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

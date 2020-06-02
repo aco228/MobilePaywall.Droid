@@ -1,0 +1,477 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using MobilePaywall.Data;
+
+using MoreLinq;
+
+using Senti.Diagnostics.Log;
+
+using log4net;
+
+using FiftyOne.Foundation.Mobile.Detection;
+using FiftyOne.Foundation.Mobile.Detection.Entities;
+using MobilePaywall.Data.Direct;
+using System.Data;
+
+namespace MobilePaywall.Merchant
+{
+  public class StatisticEntry
+  {
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (StatisticEntry._log == null)
+          StatisticEntry._log = LogManager.GetLogger(typeof(StatisticEntry));
+        return StatisticEntry._log;
+      }
+    }
+
+    #region #properties#
+    private Guid? _identificator = null;
+
+    private DateTime? _date = null;
+    private string _weekRange = string.Empty;
+    private DateTime? _year = null;
+    private DateTime? _month = null;
+    private DateTime? _day = null;
+    private int? _week = null;
+    private int? _hour = null;
+    private string _browser = null;
+    private Instance _instance = null;
+    private string _instanceName = string.Empty;
+    private Data.Merchant _merchant = null;
+    private string _merchantName = string.Empty;
+    private Service _service = null;
+    private string _serviceName = string.Empty;
+    private PaymentProvider _provider = null;
+    private string _providerName = string.Empty;
+    private Country _country = null;
+    private string _countryName = string.Empty;
+    private string _twoLetterIsoCode = string.Empty;
+    private MobileOperator _operator = null;
+    private string _operatorName = string.Empty;
+    private int _sessions = 0;
+
+    private int _newSessions = 0;
+    private int _returningSessins = 0;
+    private string _dateForDashboard = null;
+
+    private int _identifications = 0;
+    private int _initializedIdentifications = 0;
+    private int _pendingIdentifications = 0;
+    private int _failedIdentifications = 0;
+    private int _successfulIdentifications = 0;
+
+
+    private int _payments = 0;
+    private int _initializedPayments = 0;
+    private int _pendingPayments = 0;
+    private int _successfullPayments = 0;
+    private int _failedPayments = 0;
+    private int _cancelledPayments = 0;
+
+    private int _tCancellations = 0;
+    private int _cancellations = 0;
+
+    private int _tTransactions = 0;
+    private int _transactions = 0;
+    private int _subsequents = 0;
+
+    private decimal _grossTransactions = 0;
+    private decimal _payoutTransactions = 0;
+    private decimal _grossSubsequents = 0;
+    private decimal _payoutSubsequents = 0;
+    private decimal _totalGross = 0;
+    private decimal _totalPayout = 0;
+    private Currency _currency = null;
+    private string _currencySymbol = string.Empty;
+    private string _currencyAbbreviation = string.Empty;
+    private string _serviceOfferName = String.Empty;
+    private string _gross = string.Empty;
+    private string _payout = string.Empty;
+
+    public string DateForDashboard { get { return this._dateForDashboard; } set { this._dateForDashboard = value; } }
+    public int NewSessions { get { return this._newSessions; } set { this._newSessions = value; } }
+    public int ReturningSessions { get { return this._returningSessins; } set { this._returningSessins = value; } }
+
+
+    public Guid? Identificator { get { return this._identificator; } set { this._identificator = value; } }
+
+    public DateTime? Date { get { return this._date; } set { this._date = value; } }
+    public string WeekRange { get { return this._weekRange; } set { this._weekRange = value; } }
+    public DateTime? Year { get { return this._year; } set { this._year = value; } }
+    public DateTime? Month { get { return this._month; } set { this._month = value; } }
+    public DateTime? Day { get { return this._day; } set { this._day = value; } }
+    public int? Week { get { return this._week; } set { this._week = value; } }
+    public int? Hour { get { return this._hour; } set { this._hour = value; } }
+    public string Browser { get { return this._browser; } set { this._browser = value; } }
+    public Instance InstanceData { get { return this._instance; } set { this._instance = value; } }
+    public string InstanceName { get { return this._instanceName; } set { this._instanceName = value; } }
+    public Data.Merchant MerchantData { get { return this._merchant; } set { this._merchant = value; } }
+    public string MerchantName { get { return this._merchantName; } set { this._merchantName = value; } }
+    public Service ServiceData { get { return this._service; } set { this._service = value; } }
+    public string ServiceName { get { return this._serviceName; } set { this._serviceName = value; } }
+    public PaymentProvider ProviderData { get { return this._provider; } set { this._provider = value; } }
+    public string ProviderName { get { return this._providerName; } set { this._providerName = value; } }
+    public Country CountryData { get { return this._country; } set { this._country = value; } }
+    public string CountryName { get { return this._countryName; } set { this._countryName = value; } }
+    public string TwoLetterIsoCode { get { return this._twoLetterIsoCode; } set { this._twoLetterIsoCode = value; } }
+    public MobileOperator OperatorData { get { return this._operator; } set { this._operator = value; } }
+    public string OperatorName { get { return this._operatorName; } set { this._operatorName = value; } }
+    public int Sessions { get { return this._sessions; } set { this._sessions = value; } }
+
+    public int Identifications { get { return this._identifications; } set { this._identifications = value; } }
+    public int InitializedIdentifications { get { return this._initializedIdentifications; } set { this._initializedIdentifications = value; } }
+    public int PendingIdentifications { get { return this._pendingIdentifications; } set { this._pendingIdentifications = value; } }
+    public int FailedIdentifications { get { return this._failedIdentifications; } set { this._failedIdentifications = value; } }
+    public int SuccessfullIdentifications { get { return this._successfulIdentifications; } set { this._successfulIdentifications = value; } }
+
+    public int Payments { get { return this._payments; } set { this._payments = value; } }
+    public int InitializedPayments { get { return this._initializedPayments; } set { this._initializedPayments = value; } }
+    public int PendingPayments { get { return this._pendingPayments; } set { this._pendingPayments = value; } }
+    public int SuccessfullPayments { get { return this._successfullPayments; } set { this._successfullPayments = value; } }
+    public int FailedPayments { get { return this._failedPayments; } set { this._failedPayments = value; } }
+    public int CancelledPayments { get { return this._cancelledPayments; } set { this._cancelledPayments = value; } }
+
+    public int TCancellations { get { return this._tCancellations; } set { this._tCancellations = value; } }
+    public int Cancellations { get { return this._cancellations; } set { this._cancellations = value; } } //???
+
+    //INFO: Total number of transactions for selected period.
+    public int TTransactions { get { return this._tTransactions; } set { this._tTransactions = value; } }
+    //INFO: Total number of transactions for selected period.
+    public int Transactions { get { return this._transactions; } set { this._transactions = value; } }
+    public int Subsequents { get { return this._subsequents; } set { this._subsequents = value; } }
+
+    public decimal GrossTransactions { get { return this._grossTransactions; } set { this._grossTransactions = value; } }
+    public decimal PayoutTransactions { get { return this._payoutTransactions; } set { this._payoutTransactions = value; } }
+    public decimal GrossSubsequents { get { return this._grossSubsequents; } set { this._grossSubsequents = value; } }
+    public decimal PayoutSubsequents { get { return this._payoutSubsequents; } set { this._payoutSubsequents = value; } }
+    public decimal TotalGross { get { return this._grossTransactions + this._grossSubsequents; } set { this._totalGross = value; } }
+    public decimal TotalPayout { get { return this._payoutTransactions + this._payoutSubsequents; } set { this._totalPayout = value; } }
+    public Currency Currency { get { return this._currency; } set { this._currency = value; } }
+    public string CurrencySymbol { get { return this._currencySymbol; } set { this._currencySymbol = value; } }
+    public string CurrencyAbbreviation { get { return this._currencyAbbreviation; } set { this._currencyAbbreviation = value; } }
+    public string ServiceOfferName { get { return this._serviceOfferName; } set { this._serviceOfferName = value; } }
+    public string Gross { get { return this._gross; } set { this._gross = value; } }
+    public string Payout { get { return this._payout; } set { this._payout = value; } }
+    #endregion
+
+    public string GetHour()
+    {
+      if (!this.Hour.HasValue)
+        return string.Empty;
+
+      if (this.Hour.Value < 10)
+        return string.Format("0{0}:00", this.Hour.Value);
+      else
+        return string.Format("{0}:00", this.Hour.Value);
+    }
+
+    //public static List<StatisticEntry> Load(Split split, List<Group> group, QueryBuilder queryBuilder)
+    public static List<StatisticEntry> Load(QueryBuilder queryBuilder, string component, List<Group> groupBy)
+    {
+      try
+      {
+        StatisticDirectManager sdManager = new StatisticDirectManager();
+        //DataTable result = sdManager.Load(queryBuilder.From, queryBuilder.To, queryBuilder.FilterBy, queryBuilder.Select, queryBuilder.GroupBy);
+        DataTable result = sdManager.Load(queryBuilder.From, queryBuilder.To, queryBuilder.Select, queryBuilder.SelectInner, queryBuilder.QueryFrom, queryBuilder.FilterBy, queryBuilder.GroupBy, queryBuilder.JoinOn, component, queryBuilder.ProviderQueryBuilder, queryBuilder.RevenueGroupBy);
+
+        List<StatisticEntry> entries = new List<StatisticEntry>();
+        MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+        Dictionary<int, string> merchantsNames = new Dictionary<int, string>();
+        Dictionary<int, string> serviceNames = new Dictionary<int, string>();
+        Dictionary<int, string> operatorNames = new Dictionary<int, string>();
+        Dictionary<int, string> providerNames = new Dictionary<int, string>();
+        List<ServiceOffer> serviceOffers = new List<ServiceOffer>();
+        List<Country> countries = new List<Country>();
+        List<Currency> currencies = new List<Currency>();
+
+        if (!string.IsNullOrEmpty(queryBuilder.GroupBy[0]) || component.Equals("revenue"))
+        {
+          foreach (Data.Merchant merch in runtime.Merchants) //merchantsNames[Int32.Parse(dt["MerchantID"].ToString())]
+            merchantsNames.Add(merch.ID, merch.Name);
+
+          foreach (IService s in runtime.Services)
+            serviceNames.Add(s.ServiceData.ID, s.ServiceData.Name);
+
+          foreach (MobileOperator mo in runtime.Operators)
+            operatorNames.Add(mo.ID, mo.Name);
+
+          foreach (PaymentProvider pp in runtime.Providers)
+            providerNames.Add(pp.ID, pp.Name);
+
+          serviceOffers = ServiceOffer.CreateManager().Load();
+          currencies = Currency.CreateManager().Load();
+          countries = runtime.Countries;
+        }
+
+
+        if (component == "dashboardMap")
+          entries = (from DataRow dt in result.Rows
+                     select new StatisticEntry()
+                     {
+                       Date = dt.Table.Columns.Contains("Date") ? DateTime.Parse(dt["Date"].ToString()) : (DateTime?)null,
+                       ServiceName = dt["ServiceName"].ToString(),
+                       TwoLetterIsoCode = dt["CountryCode"].ToString(),
+                       Transactions = Int32.Parse(dt["NewTransactions"].ToString())
+                     }).ToList();
+        else
+          entries =
+          (from DataRow dt in result.Rows
+           select new StatisticEntry()
+           {
+             Date = dt.Table.Columns.Contains("Date") ? DateTime.Parse(dt["Date"].ToString()) : (DateTime?)null,
+             WeekRange = dt.Table.Columns.Contains("WeekRange") ? dt["WeekRange"].ToString() : string.Empty,
+             InstanceName = dt.Table.Columns.Contains("InstanceName") ? dt["InstanceName"].ToString() : dt.Table.Columns.Contains("InstanceID") ? (from ins in runtime.Instances where ins.ID.Equals(dt["InstanceID"]) select ins.Name).FirstOrDefault().ToString() : string.Empty,
+             MerchantName = dt.Table.Columns.Contains("MerchantName") ? dt["MerchantName"].ToString() : dt.Table.Columns.Contains("MerchantID") ? merchantsNames.Keys.Contains(Int32.Parse(dt["MerchantID"].ToString())) ? merchantsNames[Int32.Parse(dt["MerchantID"].ToString())] : string.Empty : string.Empty,
+             ServiceName = dt.Table.Columns.Contains("ServiceName") ? dt["ServiceName"].ToString() : dt.Table.Columns.Contains("ServiceID") ? serviceNames.Keys.Contains(Int32.Parse(dt["ServiceID"].ToString())) ? serviceNames[Int32.Parse(dt["ServiceID"].ToString())] : string.Empty : string.Empty,
+             ProviderName = dt.Table.Columns.Contains("ProviderName") ? dt["ProviderName"].ToString() : (dt.Table.Columns.Contains("PaymentProviderID") && dt["PaymentProviderID"] != DBNull.Value) ? providerNames.Keys.Contains(Int32.Parse(dt["PaymentProviderID"].ToString())) ? providerNames[Int32.Parse(dt["PaymentProviderID"].ToString())] : string.Empty : string.Empty,
+             CountryName = dt.Table.Columns.Contains("CountryName") ? dt["CountryName"].ToString() : (dt.Table.Columns.Contains("CountryCode") && dt["CountryCode"] != DBNull.Value) ? (from c in countries where c.CountryCode.Equals(dt["CountryCode"].ToString()) select c.GlobalName).FirstOrDefault() : string.Empty,
+             OperatorName = dt.Table.Columns.Contains("OperatorName") ? dt["OperatorName"].ToString() : (dt.Table.Columns.Contains("MobileOperatorID") && dt["MobileOperatorID"] != DBNull.Value) ? operatorNames.Keys.Contains(Int32.Parse(dt["MobileOperatorID"].ToString())) ? operatorNames[Int32.Parse(dt["MobileOperatorID"].ToString())] : string.Empty : string.Empty,
+             ServiceOfferName = dt.Table.Columns.Contains("ServiceOfferID") ? (from so in serviceOffers where so.ID == Int32.Parse(dt["ServiceOfferID"].ToString()) select so.Name).FirstOrDefault() : string.Empty,
+
+             Sessions = dt.Table.Columns.Contains("Sessions") ? Int32.Parse(dt["Sessions"].ToString()) : 0,
+             Identifications = dt.Table.Columns.Contains("Identifications") ? Int32.Parse(dt["Identifications"].ToString()) : 0,
+             SuccessfullIdentifications = dt.Table.Columns.Contains("SuccessfullIdentifications") ? Int32.Parse(dt["SuccessfullIdentifications"].ToString()) : 0,
+             PendingIdentifications = dt.Table.Columns.Contains("PendingIdentifications") ? Int32.Parse(dt["PendingIdentifications"].ToString()) : 0,
+             InitializedIdentifications = dt.Table.Columns.Contains("InitializedIdentifications") ? Int32.Parse(dt["InitializedIdentifications"].ToString()) : 0,
+             FailedIdentifications = dt.Table.Columns.Contains("FailedIdentifications") ? Int32.Parse(dt["FailedIdentifications"].ToString()) : 0,
+
+             Payments = dt.Table.Columns.Contains("Payments") ? Int32.Parse(dt["Payments"].ToString()) : dt.Table.Columns.Contains("InitializedPayments") ?
+                         Int32.Parse(dt["InitializedPayments"].ToString()) + Int32.Parse(dt["PendingPayments"].ToString()) +
+                         Int32.Parse(dt["SuccessfullPayments"].ToString()) + Int32.Parse(dt["FailedPayments"].ToString()) + Int32.Parse(dt["CancelledPayments"].ToString()) : 0,
+             InitializedPayments = dt.Table.Columns.Contains("InitializedPayments") ? Int32.Parse(dt["InitializedPayments"].ToString()) : 0,
+             PendingPayments = dt.Table.Columns.Contains("PendingPayments") ? Int32.Parse(dt["PendingPayments"].ToString()) : 0,
+             SuccessfullPayments = dt.Table.Columns.Contains("SuccessfullPayments") ? Int32.Parse(dt["SuccessfullPayments"].ToString()) : 0,
+             FailedPayments = dt.Table.Columns.Contains("FailedPayments") ? Int32.Parse(dt["FailedPayments"].ToString()) : 0,
+             CancelledPayments = dt.Table.Columns.Contains("CancelledPayments") ? Int32.Parse(dt["CancelledPayments"].ToString()) : 0,
+             TCancellations = dt.Table.Columns.Contains("TotalCancellations") ? Int32.Parse(dt["TotalCancellations"].ToString()) : 0,
+
+             Transactions = Int32.Parse(dt["NewTransactions"].ToString()),
+             Subsequents = dt.Table.Columns.Contains("Subsequents") ? Int32.Parse(dt["Subsequents"].ToString()) : 0,
+             TTransactions = Int32.Parse(dt["NewTransactions"].ToString()) + (dt.Table.Columns.Contains("Subsequents") ? Int32.Parse(dt["Subsequents"].ToString()) : 0),
+
+             GrossTransactions = dt.Table.Columns.Contains("GrossTransactions") ? Decimal.Parse(dt["GrossTransactions"].ToString()) : 0,
+             PayoutTransactions = dt.Table.Columns.Contains("PayoutTransactions") ? Decimal.Parse(dt["PayoutTransactions"].ToString()) : 0,
+             GrossSubsequents = dt.Table.Columns.Contains("GrossSubsequents") ? Decimal.Parse(dt["GrossSubsequents"].ToString()) : 0,
+             PayoutSubsequents = dt.Table.Columns.Contains("PayoutSubsequents") ? Decimal.Parse(dt["PayoutSubsequents"].ToString()) : 0,
+             // Currency = dt.Table.Columns.Contains("Currency") ? dt["Currency"].ToString() : String.Empty,
+             CurrencySymbol = dt.Table.Columns.Contains("Currency") ? (from cu in currencies where cu.Abbreviation == dt["Currency"].ToString() select cu.Symbol).FirstOrDefault() : string.Empty,
+             CurrencyAbbreviation = dt.Table.Columns.Contains("Currency") ? (from cu in currencies where cu.Abbreviation == dt["Currency"].ToString() select cu.Abbreviation).FirstOrDefault() : string.Empty,
+             Gross = dt.Table.Columns.Contains("GrossPrice") ? dt["GrossPrice"].ToString() : String.Empty,
+             Payout = dt.Table.Columns.Contains("PayoutPrice") ? dt["PayoutPrice"].ToString() : String.Empty
+           }).ToList();
+        return entries;
+
+        //MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+        //Provider provider = WebProvider.ActiveProvider;
+
+        //Log.Debug(new LogMessageBuilder(new LogErrorCode("merchant", "statisticentry", "load"), "", filter.From.Date, filter.To.Date));
+        //MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+        //List<Statistic> sessions = Statistic.Load(filter.From.Date, filter.To.Date);
+        //List<Statistic> sessions = Statistic.Load(filter.From.Date, filter.To.Date, What.Sessions);
+        //List<Statistic> subsequents = Statistic.Load(filter.From.Date, filter.To.Date, What.Subsequents);
+        //List<Statistic> cancellations = Statistic.Load(filter.From.Date, filter.To.Date, What.Cancellations);
+
+        //if (!string.IsNullOrEmpty(filter.Search))
+        //{
+        //  sessions = (from s in sessions where !string.IsNullOrEmpty(s.Referrer) && s.Referrer.ToLower().Contains(filter.Search.ToLower()) select s).ToList();
+        //  //subsequents = (from s in subsequents where !string.IsNullOrEmpty(s.Referrer) && s.Referrer.ToLower().Contains(filter.Search.ToLower()) select s).ToList();
+        //  //cancellations = (from c in cancellations where !string.IsNullOrEmpty(c.Referrer) && c.Referrer.ToLower().Contains(filter.Search.ToLower()) select c).ToList();
+        //}
+
+        //List<StatisticEntry> entries =
+        //  (from t in sessions
+        //   group t by new
+        //   {
+        //     Year = show != Split.None && show == Merchant.Split.Year ? new DateTime(t.RealTime(filter.From, filter.To).Year, 1, 1) : (object)null,
+        //     Month = show != Split.None && show == Merchant.Split.Month ? new DateTime(t.RealTime(filter.From, filter.To).Year, t.RealTime(filter.From, filter.To).Month, 1) : (object)null,
+        //     Day = show != Split.None && show == Merchant.Split.Day ? new DateTime(t.RealTime(filter.From, filter.To).Year, t.RealTime(filter.From, filter.To).Month, t.RealTime(filter.From, filter.To).Day) : (object)null,
+        //     Hour = show != Split.None && show == Merchant.Split.Hour ? t.RealTime(filter.From, filter.To).Hour : (object)null,
+        //     //Browser = provider.Match(t.UserAgent)["BrowserName"],
+        //     TempMerchant = @group.Contains(Group.Merchant) || filter.Merchants.Count > 0 ? t.MerchantID : (int?)null,
+        //     TempService = @group.Contains(Group.Service) || filter.Services.Count > 0 ? t.ServiceID : (int?)null,
+        //     TempCountry = @group.Contains(Group.Country) || filter.Countries.Count > 0 ? t.CountryID : (int?)null,
+        //     TempOperator = @group.Contains(Group.Operator) || filter.Operators.Count > 0 ? t.MobileOperatorID : (int?)null
+        //   } into t1
+        //   select new StatisticEntry()
+        //   {
+        //     Identificator = Guid.NewGuid(),
+        //     Year = (DateTime?)t1.Key.Year,
+        //     Month = (DateTime?)t1.Key.Month,
+        //     Day = (DateTime?)t1.Key.Day,
+        //     Hour = (int?)t1.Key.Hour,
+        //     MerchantData = (from m in runtime.Merchants where m.ID == t1.Key.TempMerchant select m).FirstOrDefault(),
+        //     ServiceData = (from s in runtime.Services where s.ServiceData.ID == t1.Key.TempService select s.ServiceData).FirstOrDefault(),
+        //     CountryData = (from c in runtime.Countries where c.ID == t1.Key.TempCountry select c).FirstOrDefault(),
+        //     OperatorData = (from o in runtime.Operators where o.ID == t1.Key.TempOperator select o).FirstOrDefault(),
+        //     Sessions = t1.Where(x =>
+        //         x.UserSessionCreated >= filter.From.Date &&
+        //         x.UserSessionCreated <= filter.To.Date)
+        //       .DistinctBy(x => x.UserSessionGuid)
+        //       .Count(),
+
+        //     Identifications = t1.Where(x =>
+        //         x.UserSessionCreated >= filter.From.Date &&
+        //         x.UserSessionCreated <= filter.To.Date &&
+        //         x.LookupSessionGuid.HasValue)
+        //       .DistinctBy(x => x.UserSessionGuid)
+        //       .Count(),
+
+        //     SuccessfullIdentifications = t1.Where(x =>
+        //         x.UserSessionCreated >= filter.From.Date &&
+        //         x.UserSessionCreated <= filter.To.Date &&
+        //         x.LookupSessionGuid.HasValue &&
+        //         x.LookupSessionResultID.HasValue &&
+        //         x.LookupSessionStatusID.Value == (int)LookupSessionStatus.Complete &&
+        //         x.IsSuccessfull.Value)
+        //       .DistinctBy(x => x.UserSessionGuid)
+        //       .Count(),
+
+        //     PendingIdentifications = t1.Where(x =>
+        //         x.UserSessionCreated >= filter.From.Date &&
+        //         x.UserSessionCreated <= filter.To.Date &&
+        //         x.LookupSessionGuid.HasValue &&
+        //         x.LookupSessionResultID.HasValue &&
+        //         x.LookupSessionStatusID.Value == (int)LookupSessionStatus.Pending)
+        //       .DistinctBy(x => x.UserSessionGuid)
+        //       .Count(),
+
+        //     FailedIdentifications = t1.Where(x =>
+        //         x.UserSessionCreated >= filter.From.Date &&
+        //         x.UserSessionCreated <= filter.To.Date &&
+        //         x.LookupSessionGuid.HasValue &&
+        //         x.LookupSessionResultID.HasValue &&
+        //         x.LookupSessionStatusID.Value == (int)LookupSessionStatus.Complete &&
+        //         !x.IsSuccessfull.Value)
+        //       .DistinctBy(x => x.UserSessionGuid)
+        //       .Count(),
+
+        //     InitializedIdentifications = t1.Where(x =>
+        //         x.UserSessionCreated >= filter.From.Date &&
+        //         x.UserSessionCreated <= filter.To.Date &&
+        //         x.LookupSessionGuid.HasValue &&
+        //         x.LookupSessionResultID.HasValue &&
+        //         x.LookupSessionStatusID.Value == (int)LookupSessionStatus.Initialized)
+        //       .DistinctBy(x => x.UserSessionGuid)
+        //       .Count(),
+
+        //     Payments = t1.Where(x =>
+        //         x.PaymentGuid.HasValue &&
+        //         x.UserSessionCreated >= filter.From.Date &&
+        //         x.UserSessionCreated <= filter.To.Date &&
+        //         x.PaymentStatusID.Value == (int)PaymentStatus.Successful)
+        //       .DistinctBy(x => x.PaymentGuid)
+        //       .Count(),
+
+        //     InitializedPayments = t1.Where(x =>
+        //         x.PaymentGuid.HasValue &&
+        //         x.UserSessionCreated >= filter.From.Date &&
+        //         x.UserSessionCreated <= filter.To.Date &&
+        //         x.PaymentStatusID.Value == (int)PaymentStatus.Initialized)
+        //       .DistinctBy(x => x.UserSessionGuid)
+        //       .Count(),
+
+        //     PendingPayments = t1.Where(x =>
+        //         x.PaymentGuid.HasValue &&
+        //         x.UserSessionCreated >= filter.From.Date &&
+        //         x.UserSessionCreated <= filter.To.Date &&
+        //         x.PaymentStatusID.Value == (int)PaymentStatus.Pending)
+        //       .DistinctBy(x => x.UserSessionGuid)
+        //       .Count(),
+
+        //     SuccessfullPayments = t1.Where(x =>
+        //         x.PaymentGuid.HasValue &&
+        //         x.UserSessionCreated >= filter.From.Date &&
+        //         x.UserSessionCreated <= filter.To.Date &&
+        //         x.PaymentStatusID.Value == (int)PaymentStatus.Successful)
+        //       .DistinctBy(x => x.PaymentGuid)
+        //       .Count(),
+
+        //     FailedPayments = t1.Where(x =>
+        //         x.PaymentGuid.HasValue &&
+        //         x.UserSessionCreated >= filter.From.Date &&
+        //         x.UserSessionCreated <= filter.To.Date &&
+        //         x.PaymentStatusID.Value == (int)PaymentStatus.Failed)
+        //       .DistinctBy(x => x.UserSessionGuid)
+        //       .Count(),
+
+        //     CancelledPayments = t1.Where(x =>
+        //         x.PaymentGuid.HasValue &&
+        //         x.PaymentUpdated.Value >= filter.From.Date &&
+        //         x.PaymentUpdated.Value <= filter.To.Date &&
+        //         x.PaymentStatusID.Value == (int)PaymentStatus.Cancelled)
+        //       .DistinctBy(x => x.PaymentGuid)
+        //       .Count(),
+
+        //     TCancellations = t1.Where(x =>
+        //         x.PaymentGuid.HasValue &&
+        //         ((x.PaymentUpdated.Value >= filter.From.Date && x.PaymentUpdated.Value <= filter.To.Date) ||
+        //         (x.PaymentCreated.Value >= filter.From.Date && x.PaymentCreated.Value <= filter.To.Date)) &&
+        //         x.PaymentStatusID.Value == (int)PaymentStatus.Cancelled)
+        //       .DistinctBy(x => x.PaymentGuid)
+        //       .Count(),
+
+        //     Cancellations = t1.Where(x =>
+        //         x.PaymentGuid.HasValue &&
+        //         x.PaymentCreated.Value >= filter.From.Date &&
+        //         x.PaymentCreated.Value <= filter.To.Date &&
+        //         x.PaymentStatusID.Value == (int)PaymentStatus.Cancelled)
+        //       .DistinctBy(x => x.PaymentGuid)
+        //       .Count(),
+
+        //     TTransactions = t1.Where(x =>
+        //         x.PaymentGuid.HasValue &&
+        //         x.TransactionGuid.HasValue &&
+        //         ((x.PaymentUpdated.Value >= filter.From.Date && x.PaymentUpdated.Value <= filter.To.Date) ||
+        //         (x.PaymentCreated.Value >= filter.From.Date && x.PaymentCreated.Value <= filter.To.Date)) &&
+        //         ((x.UserSessionCreated <= filter.From.Date) || (x.UserSessionCreated >= filter.From.Date)))
+        //       .DistinctBy(x => x.PaymentGuid)
+        //       .DistinctBy(x => x.TransactionGuid)
+        //       .Count(),
+
+        //     Transactions = t1.Where(x =>
+        //         x.UserSessionCreated >= filter.From.Date &&
+        //         x.UserSessionCreated <= filter.To.Date &&
+        //         x.TransactionGuid.HasValue)
+        //       .DistinctBy(x => x.TransactionGuid)
+        //       .Count(),
+
+        //     Subsequents = t1.Where(x =>
+        //         x.STransactionGuid.HasValue &&
+        //         x.STransactionCreated.Value >= filter.From.Date &&
+        //         x.STransactionCreated.Value <= filter.To.Date)
+        //       .DistinctBy(x => x.STransactionGuid)
+        //       .Count()
+
+        //   }).ToList();
+
+        //#region filtering
+        //if (filter.Services.Count > 0)
+        //  entries = entries.Where(x => filter.Services.Contains(x.ServiceData)).ToList();
+        //if (filter.Countries.Count > 0)
+        //  entries = entries.Where(x => filter.Countries.Contains(x.CountryData)).ToList();
+        //if (filter.Operators.Count > 0)
+        //  entries = entries.Where(x => filter.Operators.Contains(x.OperatorData)).ToList();
+        //#endregion
+
+        //DateTime end = DateTime.Now;
+        //return entries;
+      }
+      catch (Exception ex)
+      {
+        Log.Debug("", ex);
+        return new List<StatisticEntry>();
+      }
+    }
+
+
+  }
+}

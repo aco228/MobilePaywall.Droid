@@ -1,0 +1,144 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Direct;
+using MobilePaywall.Web.Filters;
+using MobilePaywall.Web.Models;
+using MobilePaywall.Web.Models.Specific._Template;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers
+{
+  public partial class TemplateController : PaywallTemplateController
+  {
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateRouteManagementNewRouteSet(string name, string useService)
+    {
+      Instance instance = new Instance(1);
+      RouteSet routeSet = new RouteSet(-1, instance, name, DateTime.Now, DateTime.Now);
+      routeSet.Insert();
+
+      ApplicationRouteSetMap applicationRouteSetMap = new ApplicationRouteSetMap(-1, PaywallHttpContext.Current.Service.ServiceData.Application, useService == "1" ? PaywallHttpContext.Current.Service.ServiceData : null, routeSet, DateTime.Now, DateTime.Now);
+      applicationRouteSetMap.Insert();
+      return this.Json(new { status = true, message = "Successfully inserted!"});
+    }
+
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateRouteManagementNewRouteParameter(string routeID, string paramID, string key, string value, string constraint, string isOptional)
+    {
+      int _routeID = -1;
+      if (!Int32.TryParse(routeID, out _routeID))
+        return this.Json(new { status = false, message = "RouteID could not be parsed" });
+
+      Route route = Route.CreateManager().Load(_routeID);
+
+      if (route == null)
+        return this.Json(new { status = false, message = "Route not found" });
+
+      int _paramID = -1;
+      if (!Int32.TryParse(paramID, out _paramID))
+        return this.Json(new { status = false, message = "RouteParameterID could not be parsed" });
+
+      RouteParameter routeParameter = null;
+      if (_paramID == -1)
+      {
+        routeParameter = new RouteParameter(_paramID, route, key, value, constraint, isOptional == "1" ? true : false, DateTime.Now, DateTime.Now);
+        routeParameter.Insert();
+        return this.Json(new { status = true, message = "Successfully inserted!", id = routeParameter.ID });
+      }
+      else
+      {
+        routeParameter = RouteParameter.CreateManager().Load(_paramID);
+        if (routeParameter == null)
+          return this.Json(new { status = false, message = "RouteParameter not found" });
+        routeParameter.Key = key;
+        routeParameter.Value = value;
+        routeParameter.Constraint = constraint;
+        routeParameter.IsOptional = isOptional == "1" ? true : false;
+        routeParameter.Update();
+        return this.Json(new { status = true, message = "Successfully edited!", id = routeParameter.ID });
+      }
+      
+    }
+    
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateRouteManagementUpdateRouteDetails(string routeID, string routeSetID, string name, string action, string controller, string pattern, string index, string isignore, string isenabled, string issessionroute)
+    {
+      int _routeID = -1;
+      if (!Int32.TryParse(routeID, out _routeID))
+        return this.Json(new { status = false, message = "RouteID could not be parsed" });
+
+
+      bool _isignore = isignore == "1" ? true : false;
+      bool _isenabled = isenabled == "1" ? true : false;
+      bool _issessionroute = issessionroute == "1" ? true : false;
+      int _index = -1;
+      if (!Int32.TryParse(index, out _index))
+        return this.Json(new { status = false, message = "Route Index could not be parsed" });
+
+      Route route = null;
+      if(_routeID== -1)
+      {
+        int _routeSetID = -1;
+        if (!Int32.TryParse(routeSetID, out _routeSetID))
+          return this.Json(new { status = false, message = "RouteSetID could not be parsed" });
+        
+        RouteSet routeSet = RouteSet.CreateManager().Load(_routeSetID);
+
+        if(routeSet == null)
+        return this.Json(new { status = false, message = "RouteSet not found" });
+
+        route = new Route(_routeID, routeSet, name, action, controller, pattern, _isignore, _isenabled, _index, _issessionroute, DateTime.Now, DateTime.Now);
+        route.Insert();
+
+        return this.Json(new { status = true, message = "Successfully Inserted!", id = route.ID });
+      }
+
+      route = Route.CreateManager().Load(_routeID);
+
+      if (route == null)
+        return this.Json(new { status = false, message = "Route not found" });      
+
+      route.Name = name;
+      route.Action = action;
+      route.Controller = controller;
+      route.Pattern = pattern;
+      route.Index = _index;
+      route.IsIgnore = _isignore;
+      route.IsEnabled = _isenabled;
+      route.IsSessionRoute = _issessionroute;
+      route.UpdateWithHistory(PaywallHttpContext.Current.Session);
+
+      return this.Json(new { status = true, message = "Successfully Updated!" });
+
+    }
+    
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateRouteManagementDeleteRoute(string routeID)
+    {
+      int _routeID = -1;
+      if (!Int32.TryParse(routeID, out _routeID))
+        return this.Json(new { status = false, message = "RouteID could not be parsed" });
+
+      Route route = Route.CreateManager().Load(_routeID);
+
+      if (route == null)
+        return this.Json(new { status = false, message = "Route not found" });
+
+      List<RouteParameter> routeParameters = RouteParameter.CreateManager().Load(route);
+      if (routeParameters!= null)
+      {
+        foreach(RouteParameter routeParameter in routeParameters)
+        {
+          routeParameter.Delete();
+        }
+      }
+      route.Delete();
+
+      return this.Json(new { status = true, message = "Successfully Deleted!" });
+    }
+    
+  }
+}

@@ -1,0 +1,413 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ImageContentData))] 
+  public partial class ImageContentDataManager : MobilePaywall.Data.Sql.SqlManagerBase<ImageContentData>, IImageContentDataManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ImageContentData LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ImageContentDataTable.GetColumnNames("[icd]") + 
+							(this.Depth > 0 ? "," + ImageContentTable.GetColumnNames("[icd_ic]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[icd_ic_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + VideoConversionProfileEntryTable.GetColumnNames("[icd_vcpe]") : string.Empty) + 
+							(this.Depth > 1 ? "," + VideoConversionProfileTable.GetColumnNames("[icd_vcpe_vcp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + VisualMediaDimensionsTable.GetColumnNames("[icd_vcpe_vmd]") : string.Empty) + 
+							(this.Depth > 1 ? "," + VideoCodecTable.GetColumnNames("[icd_vcpe_vc]") : string.Empty) + 
+					" FROM [core].[ImageContentData] AS [icd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ImageContent] AS [icd_ic] ON [icd].[ImageContentID] = [icd_ic].[ImageContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [icd_ic_c] ON [icd_ic].[ContentID] = [icd_ic_c].[ContentID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[VideoConversionProfileEntry] AS [icd_vcpe] ON [icd].[VideoConversionProfileEntryID] = [icd_vcpe].[VideoConversionProfileEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[VideoConversionProfile] AS [icd_vcpe_vcp] ON [icd_vcpe].[VideoConversionProfileID] = [icd_vcpe_vcp].[VideoConversionProfileID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[VisualMediaDimensions] AS [icd_vcpe_vmd] ON [icd_vcpe].[VisualMediaDimensionsID] = [icd_vcpe_vmd].[VisualMediaDimensionsID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[VideoCodec] AS [icd_vcpe_vc] ON [icd_vcpe].[VideoCodecID] = [icd_vcpe_vc].[VideoCodecID] ";
+				sqlCmdText += "WHERE [icd].[ImageContentDataID] = @ImageContentDataID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ImageContentDataID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "loadinternal", "notfound"), "ImageContentData could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ImageContentDataTable icdTable = new ImageContentDataTable(query);
+				ImageContentTable icd_icTable = (this.Depth > 0) ? new ImageContentTable(query) : null;
+				ContentTable icd_ic_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				VideoConversionProfileEntryTable icd_vcpeTable = (this.Depth > 0) ? new VideoConversionProfileEntryTable(query) : null;
+				VideoConversionProfileTable icd_vcpe_vcpTable = (this.Depth > 1) ? new VideoConversionProfileTable(query) : null;
+				VisualMediaDimensionsTable icd_vcpe_vmdTable = (this.Depth > 1) ? new VisualMediaDimensionsTable(query) : null;
+				VideoCodecTable icd_vcpe_vcTable = (this.Depth > 1) ? new VideoCodecTable(query) : null;
+
+        
+				Content icd_ic_cObject = (this.Depth > 1) ? icd_ic_cTable.CreateInstance() : null;
+				ImageContent icd_icObject = (this.Depth > 0) ? icd_icTable.CreateInstance(icd_ic_cObject) : null;
+				VideoConversionProfile icd_vcpe_vcpObject = (this.Depth > 1) ? icd_vcpe_vcpTable.CreateInstance() : null;
+				VisualMediaDimensions icd_vcpe_vmdObject = (this.Depth > 1) ? icd_vcpe_vmdTable.CreateInstance() : null;
+				VideoCodec icd_vcpe_vcObject = (this.Depth > 1) ? icd_vcpe_vcTable.CreateInstance() : null;
+				VideoConversionProfileEntry icd_vcpeObject = (this.Depth > 0) ? icd_vcpeTable.CreateInstance(icd_vcpe_vcpObject, icd_vcpe_vmdObject, icd_vcpe_vcObject) : null;
+				ImageContentData icdObject = icdTable.CreateInstance(icd_icObject, icd_vcpeObject);
+				sqlReader.Close();
+
+				return icdObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "loadinternal", "exception"), "ImageContentData could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ImageContentData", "Exception while loading ImageContentData object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ImageContentData Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ImageContentDataTable.GetColumnNames("[icd]") + 
+							(this.Depth > 0 ? "," + ImageContentTable.GetColumnNames("[icd_ic]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[icd_ic_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + VideoConversionProfileEntryTable.GetColumnNames("[icd_vcpe]") : string.Empty) + 
+							(this.Depth > 1 ? "," + VideoConversionProfileTable.GetColumnNames("[icd_vcpe_vcp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + VisualMediaDimensionsTable.GetColumnNames("[icd_vcpe_vmd]") : string.Empty) + 
+							(this.Depth > 1 ? "," + VideoCodecTable.GetColumnNames("[icd_vcpe_vc]") : string.Empty) +  
+					" FROM [core].[ImageContentData] AS [icd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ImageContent] AS [icd_ic] ON [icd].[ImageContentID] = [icd_ic].[ImageContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [icd_ic_c] ON [icd_ic].[ContentID] = [icd_ic_c].[ContentID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[VideoConversionProfileEntry] AS [icd_vcpe] ON [icd].[VideoConversionProfileEntryID] = [icd_vcpe].[VideoConversionProfileEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[VideoConversionProfile] AS [icd_vcpe_vcp] ON [icd_vcpe].[VideoConversionProfileID] = [icd_vcpe_vcp].[VideoConversionProfileID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[VisualMediaDimensions] AS [icd_vcpe_vmd] ON [icd_vcpe].[VisualMediaDimensionsID] = [icd_vcpe_vmd].[VisualMediaDimensionsID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[VideoCodec] AS [icd_vcpe_vc] ON [icd_vcpe].[VideoCodecID] = [icd_vcpe_vc].[VideoCodecID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "customload", "notfound"), "ImageContentData could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ImageContentDataTable icdTable = new ImageContentDataTable(query);
+				ImageContentTable icd_icTable = (this.Depth > 0) ? new ImageContentTable(query) : null;
+				ContentTable icd_ic_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				VideoConversionProfileEntryTable icd_vcpeTable = (this.Depth > 0) ? new VideoConversionProfileEntryTable(query) : null;
+				VideoConversionProfileTable icd_vcpe_vcpTable = (this.Depth > 1) ? new VideoConversionProfileTable(query) : null;
+				VisualMediaDimensionsTable icd_vcpe_vmdTable = (this.Depth > 1) ? new VisualMediaDimensionsTable(query) : null;
+				VideoCodecTable icd_vcpe_vcTable = (this.Depth > 1) ? new VideoCodecTable(query) : null;
+
+        
+				Content icd_ic_cObject = (this.Depth > 1) ? icd_ic_cTable.CreateInstance() : null;
+				ImageContent icd_icObject = (this.Depth > 0) ? icd_icTable.CreateInstance(icd_ic_cObject) : null;
+				VideoConversionProfile icd_vcpe_vcpObject = (this.Depth > 1) ? icd_vcpe_vcpTable.CreateInstance() : null;
+				VisualMediaDimensions icd_vcpe_vmdObject = (this.Depth > 1) ? icd_vcpe_vmdTable.CreateInstance() : null;
+				VideoCodec icd_vcpe_vcObject = (this.Depth > 1) ? icd_vcpe_vcTable.CreateInstance() : null;
+				VideoConversionProfileEntry icd_vcpeObject = (this.Depth > 0) ? icd_vcpeTable.CreateInstance(icd_vcpe_vcpObject, icd_vcpe_vmdObject, icd_vcpe_vcObject) : null;
+				ImageContentData icdObject = icdTable.CreateInstance(icd_icObject, icd_vcpeObject);
+				sqlReader.Close();
+
+				return icdObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "customload", "exception"), "ImageContentData could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ImageContentData", "Exception while loading (custom/single) ImageContentData object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ImageContentData> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ImageContentDataTable.GetColumnNames("[icd]") + 
+							(this.Depth > 0 ? "," + ImageContentTable.GetColumnNames("[icd_ic]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[icd_ic_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + VideoConversionProfileEntryTable.GetColumnNames("[icd_vcpe]") : string.Empty) + 
+							(this.Depth > 1 ? "," + VideoConversionProfileTable.GetColumnNames("[icd_vcpe_vcp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + VisualMediaDimensionsTable.GetColumnNames("[icd_vcpe_vmd]") : string.Empty) + 
+							(this.Depth > 1 ? "," + VideoCodecTable.GetColumnNames("[icd_vcpe_vc]") : string.Empty) +  
+					" FROM [core].[ImageContentData] AS [icd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ImageContent] AS [icd_ic] ON [icd].[ImageContentID] = [icd_ic].[ImageContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [icd_ic_c] ON [icd_ic].[ContentID] = [icd_ic_c].[ContentID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[VideoConversionProfileEntry] AS [icd_vcpe] ON [icd].[VideoConversionProfileEntryID] = [icd_vcpe].[VideoConversionProfileEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[VideoConversionProfile] AS [icd_vcpe_vcp] ON [icd_vcpe].[VideoConversionProfileID] = [icd_vcpe_vcp].[VideoConversionProfileID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[VisualMediaDimensions] AS [icd_vcpe_vmd] ON [icd_vcpe].[VisualMediaDimensionsID] = [icd_vcpe_vmd].[VisualMediaDimensionsID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[VideoCodec] AS [icd_vcpe_vc] ON [icd_vcpe].[VideoCodecID] = [icd_vcpe_vc].[VideoCodecID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "customloadmany", "notfound"), "ImageContentData list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ImageContentData>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ImageContentDataTable icdTable = new ImageContentDataTable(query);
+				ImageContentTable icd_icTable = (this.Depth > 0) ? new ImageContentTable(query) : null;
+				ContentTable icd_ic_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				VideoConversionProfileEntryTable icd_vcpeTable = (this.Depth > 0) ? new VideoConversionProfileEntryTable(query) : null;
+				VideoConversionProfileTable icd_vcpe_vcpTable = (this.Depth > 1) ? new VideoConversionProfileTable(query) : null;
+				VisualMediaDimensionsTable icd_vcpe_vmdTable = (this.Depth > 1) ? new VisualMediaDimensionsTable(query) : null;
+				VideoCodecTable icd_vcpe_vcTable = (this.Depth > 1) ? new VideoCodecTable(query) : null;
+
+        List<ImageContentData> result = new List<ImageContentData>();
+        do
+        {
+          
+					Content icd_ic_cObject = (this.Depth > 1) ? icd_ic_cTable.CreateInstance() : null;
+					ImageContent icd_icObject = (this.Depth > 0) ? icd_icTable.CreateInstance(icd_ic_cObject) : null;
+					VideoConversionProfile icd_vcpe_vcpObject = (this.Depth > 1) ? icd_vcpe_vcpTable.CreateInstance() : null;
+					VisualMediaDimensions icd_vcpe_vmdObject = (this.Depth > 1) ? icd_vcpe_vmdTable.CreateInstance() : null;
+					VideoCodec icd_vcpe_vcObject = (this.Depth > 1) ? icd_vcpe_vcTable.CreateInstance() : null;
+					VideoConversionProfileEntry icd_vcpeObject = (this.Depth > 0) ? icd_vcpeTable.CreateInstance(icd_vcpe_vcpObject, icd_vcpe_vmdObject, icd_vcpe_vcObject) : null;
+					ImageContentData icdObject = (this.Depth > -1) ? icdTable.CreateInstance(icd_icObject, icd_vcpeObject) : null;
+					result.Add(icdObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "customloadmany", "exception"), "ImageContentData list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ImageContentData", "Exception while loading (custom/many) ImageContentData object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ImageContentData data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ImageContentData] ([ImageContentID],[VideoConversionProfileEntryID],[Data],[Width],[Height],[Size],[IsOriginal]) VALUES(@ImageContentID,@VideoConversionProfileEntryID,@Data,@Width,@Height,@Size,@IsOriginal); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ImageContentID", data.ImageContent.ID);
+				sqlCmd.Parameters.AddWithValue("@VideoConversionProfileEntryID", data.VideoConversionProfileEntry == null ? DBNull.Value : (object)data.VideoConversionProfileEntry.ID);
+				sqlCmd.Parameters.AddWithValue("@Data", data.Data).SqlDbType = SqlDbType.VarBinary;
+				sqlCmd.Parameters.AddWithValue("@Width", data.Width).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Height", data.Height).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Size", data.Size).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@IsOriginal", data.IsOriginal).SqlDbType = SqlDbType.Bit;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "insert", "noprimarykey"), "ImageContentData could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ImageContentData", "Exception while inserting ImageContentData object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "insert", "exception"), "ImageContentData could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ImageContentData", "Exception while inserting ImageContentData object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ImageContentData data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ImageContentData] SET " +
+												"[ImageContentID] = @ImageContentID, " + 
+												"[VideoConversionProfileEntryID] = @VideoConversionProfileEntryID, " + 
+												"[Data] = @Data, " + 
+												"[Width] = @Width, " + 
+												"[Height] = @Height, " + 
+												"[Size] = @Size, " + 
+												"[IsOriginal] = @IsOriginal, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ImageContentDataID] = @ImageContentDataID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ImageContentID", data.ImageContent.ID);
+				sqlCmd.Parameters.AddWithValue("@VideoConversionProfileEntryID", data.VideoConversionProfileEntry == null ? DBNull.Value : (object)data.VideoConversionProfileEntry.ID);
+				sqlCmd.Parameters.AddWithValue("@Data", data.Data).SqlDbType = SqlDbType.VarBinary;
+				sqlCmd.Parameters.AddWithValue("@Width", data.Width).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Height", data.Height).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Size", data.Size).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@IsOriginal", data.IsOriginal).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ImageContentDataID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "update", "norecord"), "ImageContentData could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ImageContentData", "Exception while updating ImageContentData object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "update", "morerecords"), "ImageContentData was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ImageContentData", "Exception while updating ImageContentData object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "update", "exception"), "ImageContentData could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ImageContentData", "Exception while updating ImageContentData object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ImageContentData data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ImageContentData] WHERE ImageContentDataID = @ImageContentDataID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ImageContentDataID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "delete", "norecord"), "ImageContentData could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ImageContentData", "Exception while deleting ImageContentData object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "delete", "exception"), "ImageContentData could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ImageContentData", "Exception while deleting ImageContentData object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

@@ -1,0 +1,51 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IImageContentManager
+  {
+    List<ImageContent> Load();
+    List<ImageContent> Load(IConnectionInfo connection);
+    List<ImageContent> Load(ContentGroup contentGroup);
+    List<ImageContent> Load(IConnectionInfo connection, ContentGroup contentGroup);
+    ImageContent Load(Content content);
+    ImageContent Load(IConnectionInfo connection, Content content);
+
+    //List<ImageContent> Load(int from);
+    //List<ImageContent> Load(IConnectionInfo connection, int from);
+
+  }
+
+  public partial class ImageContent
+  {
+
+    public void UpdateWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void UpdateWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void InsertWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void InsertWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void DeleteWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+    public void DeleteWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+
+    public static List<ImageContent> LoadByContentGroup(ContentGroup contentGroup)
+    {
+      List<ImageContent> returnCotnent = null;
+      using(ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        connection.Transaction.Begin();
+        returnCotnent = ImageContent.CreateManager().Load(contentGroup);
+        connection.Transaction.Commit();
+      }
+
+      return returnCotnent;
+    }
+
+  }
+}
+

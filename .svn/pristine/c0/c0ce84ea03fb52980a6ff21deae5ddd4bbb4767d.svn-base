@@ -1,0 +1,75 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using MobilePaywall.Direct;
+
+namespace MobilePaywall.Data
+{
+  public partial interface IClientSessionManager
+  {
+    ClientSession Load(Guid sessionGuid);
+    ClientSession Load(IConnectionInfo connection, Guid sessionGuid);
+  }
+
+  public enum TemplateClientType { None, Administrator, Merchant, CustomerCare, Marketing, Tester, MerchantUser }
+
+  public partial class ClientSession
+  {
+    private TemplateClientType _clientType = TemplateClientType.None;
+    
+    public TemplateClientType ClientAccessType
+    {
+      get
+      {
+        if (this._clientType != TemplateClientType.None)
+          return this._clientType;
+
+        if (this._client == null)
+          return TemplateClientType.None;
+
+        string type = MobilePaywallDirect.Instance.LoadString(string.Format(@"
+          SELECT ct.Name FROM MobilePaywall.core.Client AS c
+          LEFT OUTER JOIN MobilePaywall.core.ClientType AS ct ON c.ClientTypeID=ct.ClientTypeID
+          WHERE c.ClientID={0}", this._client.ID));
+
+        switch(type)
+        {
+          case "Administrator": this._clientType = TemplateClientType.Administrator; break;
+          case "Merchant": this._clientType = TemplateClientType.Merchant; break;
+          case "CustomerCare": this._clientType = TemplateClientType.CustomerCare; break;
+          case "Marketing": this._clientType = TemplateClientType.Merchant; break;
+          case "Tester": this._clientType = TemplateClientType.Tester; break;
+          case "MerchantUser": this._clientType = TemplateClientType.MerchantUser; break;
+          default: this._clientType = TemplateClientType.None; break;
+        }
+
+        return this._clientType;
+      }
+    }
+
+    public int ClientAdministratorWeight(TemplateClientType type)
+    {
+      switch (type)
+      {
+        case TemplateClientType.Administrator: return 100;
+        case TemplateClientType.Merchant: return 90;
+        case TemplateClientType.Marketing: return 80;
+        case TemplateClientType.MerchantUser: return 70;
+        case TemplateClientType.CustomerCare: return 60;
+
+        case TemplateClientType.Tester: return 10;
+        default: return 0;
+      }
+    }
+
+    public bool HasAccesToTemplateContent(TemplateClientType type)
+    {
+      return this.ClientAdministratorWeight(this.ClientAccessType) >= this.ClientAdministratorWeight(type);
+    }
+
+  }
+}
+

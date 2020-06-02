@@ -1,0 +1,416 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ContentCategoryMap))] 
+  public partial class ContentCategoryMapManager : MobilePaywall.Data.Sql.SqlManagerBase<ContentCategoryMap>, IContentCategoryMapManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ContentCategoryMap LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ContentCategoryMapTable.GetColumnNames("[ccm]") + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[ccm_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[ccm_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[ccm_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[ccm_c_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[ccm_c_ar]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CategoryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[c1_i]") : string.Empty) + 
+					" FROM [core].[ContentCategoryMap] AS [ccm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [ccm_c] ON [ccm].[ContentID] = [ccm_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroup] AS [ccm_c_cg] ON [ccm_c].[ContentGroupID] = [ccm_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentType] AS [ccm_c_ct] ON [ccm_c].[ContentTypeID] = [ccm_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorage] AS [ccm_c_cs] ON [ccm_c].[ContentStorageID] = [ccm_c_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [ccm_c_ar] ON [ccm_c].[AgeRatingID] = [ccm_c_ar].[AgeRatingID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Category] AS [c1] ON [ccm].[CategoryID] = [c1].[CategoryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [c1_i] ON [c1].[InstanceID] = [c1_i].[InstanceID] ";
+				sqlCmdText += "WHERE [ccm].[ContentCategoryMapID] = @ContentCategoryMapID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ContentCategoryMapID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          //IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccm", "loadinternal", "notfound"), "ContentCategoryMap could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          //if (this.Logger.IsWarnEnabled)
+          //  this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ContentCategoryMapTable ccmTable = new ContentCategoryMapTable(query);
+				ContentTable ccm_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable ccm_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable ccm_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable ccm_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+				AgeRatingTable ccm_c_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				CategoryTable c1Table = (this.Depth > 0) ? new CategoryTable(query) : null;
+				InstanceTable c1_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+
+        
+				ContentGroup ccm_c_cgObject = (this.Depth > 1) ? ccm_c_cgTable.CreateInstance() : null;
+				ContentType ccm_c_ctObject = (this.Depth > 1) ? ccm_c_ctTable.CreateInstance() : null;
+				ContentStorage ccm_c_csObject = (this.Depth > 1) ? ccm_c_csTable.CreateInstance() : null;
+				AgeRating ccm_c_arObject = (this.Depth > 1) ? ccm_c_arTable.CreateInstance() : null;
+				Content ccm_cObject = (this.Depth > 0) ? ccm_cTable.CreateInstance(ccm_c_cgObject, ccm_c_ctObject, ccm_c_csObject, ccm_c_arObject) : null;
+				Instance c1_iObject = (this.Depth > 1) ? c1_iTable.CreateInstance() : null;
+				Category c1Object = (this.Depth > 0) ? c1Table.CreateInstance(c1_iObject) : null;
+				ContentCategoryMap ccmObject = ccmTable.CreateInstance(ccm_cObject, c1Object);
+				sqlReader.Close();
+
+				return ccmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccm", "loadinternal", "exception"), "ContentCategoryMap could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ContentCategoryMap", "Exception while loading ContentCategoryMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ContentCategoryMap Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ContentCategoryMapTable.GetColumnNames("[ccm]") + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[ccm_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[ccm_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[ccm_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[ccm_c_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[ccm_c_ar]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CategoryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[c1_i]") : string.Empty) +  
+					" FROM [core].[ContentCategoryMap] AS [ccm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [ccm_c] ON [ccm].[ContentID] = [ccm_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroup] AS [ccm_c_cg] ON [ccm_c].[ContentGroupID] = [ccm_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentType] AS [ccm_c_ct] ON [ccm_c].[ContentTypeID] = [ccm_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorage] AS [ccm_c_cs] ON [ccm_c].[ContentStorageID] = [ccm_c_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [ccm_c_ar] ON [ccm_c].[AgeRatingID] = [ccm_c_ar].[AgeRatingID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Category] AS [c1] ON [ccm].[CategoryID] = [c1].[CategoryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [c1_i] ON [c1].[InstanceID] = [c1_i].[InstanceID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          //IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccm", "customload", "notfound"), "ContentCategoryMap could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          //if (this.Logger.IsDebugEnabled)
+          //  this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ContentCategoryMapTable ccmTable = new ContentCategoryMapTable(query);
+				ContentTable ccm_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable ccm_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable ccm_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable ccm_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+				AgeRatingTable ccm_c_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				CategoryTable c1Table = (this.Depth > 0) ? new CategoryTable(query) : null;
+				InstanceTable c1_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+
+        
+				ContentGroup ccm_c_cgObject = (this.Depth > 1) ? ccm_c_cgTable.CreateInstance() : null;
+				ContentType ccm_c_ctObject = (this.Depth > 1) ? ccm_c_ctTable.CreateInstance() : null;
+				ContentStorage ccm_c_csObject = (this.Depth > 1) ? ccm_c_csTable.CreateInstance() : null;
+				AgeRating ccm_c_arObject = (this.Depth > 1) ? ccm_c_arTable.CreateInstance() : null;
+				Content ccm_cObject = (this.Depth > 0) ? ccm_cTable.CreateInstance(ccm_c_cgObject, ccm_c_ctObject, ccm_c_csObject, ccm_c_arObject) : null;
+				Instance c1_iObject = (this.Depth > 1) ? c1_iTable.CreateInstance() : null;
+				Category c1Object = (this.Depth > 0) ? c1Table.CreateInstance(c1_iObject) : null;
+				ContentCategoryMap ccmObject = ccmTable.CreateInstance(ccm_cObject, c1Object);
+				sqlReader.Close();
+
+				return ccmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccm", "customload", "exception"), "ContentCategoryMap could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ContentCategoryMap", "Exception while loading (custom/single) ContentCategoryMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ContentCategoryMap> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ContentCategoryMapTable.GetColumnNames("[ccm]") + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[ccm_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[ccm_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[ccm_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[ccm_c_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[ccm_c_ar]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CategoryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[c1_i]") : string.Empty) +  
+					" FROM [core].[ContentCategoryMap] AS [ccm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [ccm_c] ON [ccm].[ContentID] = [ccm_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroup] AS [ccm_c_cg] ON [ccm_c].[ContentGroupID] = [ccm_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentType] AS [ccm_c_ct] ON [ccm_c].[ContentTypeID] = [ccm_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorage] AS [ccm_c_cs] ON [ccm_c].[ContentStorageID] = [ccm_c_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [ccm_c_ar] ON [ccm_c].[AgeRatingID] = [ccm_c_ar].[AgeRatingID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Category] AS [c1] ON [ccm].[CategoryID] = [c1].[CategoryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [c1_i] ON [c1].[InstanceID] = [c1_i].[InstanceID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          //IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccm", "customloadmany", "notfound"), "ContentCategoryMap list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          //if (this.Logger.IsDebugEnabled)
+          //  this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ContentCategoryMap>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ContentCategoryMapTable ccmTable = new ContentCategoryMapTable(query);
+				ContentTable ccm_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable ccm_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable ccm_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable ccm_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+				AgeRatingTable ccm_c_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				CategoryTable c1Table = (this.Depth > 0) ? new CategoryTable(query) : null;
+				InstanceTable c1_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+
+        List<ContentCategoryMap> result = new List<ContentCategoryMap>();
+        do
+        {
+          
+					ContentGroup ccm_c_cgObject = (this.Depth > 1) ? ccm_c_cgTable.CreateInstance() : null;
+					ContentType ccm_c_ctObject = (this.Depth > 1) ? ccm_c_ctTable.CreateInstance() : null;
+					ContentStorage ccm_c_csObject = (this.Depth > 1) ? ccm_c_csTable.CreateInstance() : null;
+					AgeRating ccm_c_arObject = (this.Depth > 1) ? ccm_c_arTable.CreateInstance() : null;
+					Content ccm_cObject = (this.Depth > 0) ? ccm_cTable.CreateInstance(ccm_c_cgObject, ccm_c_ctObject, ccm_c_csObject, ccm_c_arObject) : null;
+					Instance c1_iObject = (this.Depth > 1) ? c1_iTable.CreateInstance() : null;
+					Category c1Object = (this.Depth > 0) ? c1Table.CreateInstance(c1_iObject) : null;
+					ContentCategoryMap ccmObject = (this.Depth > -1) ? ccmTable.CreateInstance(ccm_cObject, c1Object) : null;
+					result.Add(ccmObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccm", "customloadmany", "exception"), "ContentCategoryMap list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ContentCategoryMap", "Exception while loading (custom/many) ContentCategoryMap object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ContentCategoryMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ContentCategoryMap] ([ContentID],[CategoryID],[IsEnabled]) VALUES(@ContentID,@CategoryID,@IsEnabled); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ContentID", data.Content.ID);
+				sqlCmd.Parameters.AddWithValue("@CategoryID", data.Category.ID);
+				sqlCmd.Parameters.AddWithValue("@IsEnabled", data.IsEnabled).SqlDbType = SqlDbType.Bit;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccm", "insert", "noprimarykey"), "ContentCategoryMap could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ContentCategoryMap", "Exception while inserting ContentCategoryMap object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccm", "insert", "exception"), "ContentCategoryMap could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ContentCategoryMap", "Exception while inserting ContentCategoryMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ContentCategoryMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ContentCategoryMap] SET " +
+												"[ContentID] = @ContentID, " + 
+												"[CategoryID] = @CategoryID, " + 
+												"[IsEnabled] = @IsEnabled, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ContentCategoryMapID] = @ContentCategoryMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ContentID", data.Content.ID);
+				sqlCmd.Parameters.AddWithValue("@CategoryID", data.Category.ID);
+				sqlCmd.Parameters.AddWithValue("@IsEnabled", data.IsEnabled).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Created", data.Created).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ContentCategoryMapID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccm", "update", "norecord"), "ContentCategoryMap could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ContentCategoryMap", "Exception while updating ContentCategoryMap object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccm", "update", "morerecords"), "ContentCategoryMap was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ContentCategoryMap", "Exception while updating ContentCategoryMap object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccm", "update", "exception"), "ContentCategoryMap could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ContentCategoryMap", "Exception while updating ContentCategoryMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ContentCategoryMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ContentCategoryMap] WHERE ContentCategoryMapID = @ContentCategoryMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ContentCategoryMapID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccm", "delete", "norecord"), "ContentCategoryMap could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ContentCategoryMap", "Exception while deleting ContentCategoryMap object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccm", "delete", "exception"), "ContentCategoryMap could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ContentCategoryMap", "Exception while deleting ContentCategoryMap object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

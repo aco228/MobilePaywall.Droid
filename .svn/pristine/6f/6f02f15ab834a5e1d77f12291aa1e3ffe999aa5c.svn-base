@@ -1,0 +1,360 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+
+using MobilePaywall.Data;
+
+using Cashflow.Client.Configuration;
+
+using log4net;
+using WebTrack.Client;
+using WebTrack.Client.Configuration;
+using System.Configuration;
+using Senti.Diagnostics.Log;
+using Cashflow.Client;
+using MobilePaywall.Service.Callback.Log;
+
+namespace MobilePaywall.Service.Handlers
+{
+  public class WebTrackNotificationHandler : NotificationHandlerBase
+  {
+    protected static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (WebTrackNotificationHandler._log == null)
+          WebTrackNotificationHandler._log = LogManager.GetLogger(typeof(WebTrackNotificationHandler));
+        return WebTrackNotificationHandler._log;
+      }
+    }
+
+    private static readonly object NotificationLockObject = new object();
+
+    private List<int> _migratedServiceOffers = new List<int>() { 6, 51, 57 };
+    private List<int> _services = new List<int>() { 4, 6, 53, 55 };
+
+    private CashflowConfigurationSection _cashflowConfiguration = null;
+    private WebTrackConfigurationSection _webTrackConfiguration = null;
+
+    public CashflowConfigurationSection CashflowConfiguration
+    {
+      get
+      {
+        if (this._cashflowConfiguration == null)
+          this._cashflowConfiguration = (CashflowConfigurationSection)ConfigurationManager.GetSection("cashflow");
+        return this._cashflowConfiguration;
+      }
+    }
+
+    public WebTrackConfigurationSection WebTrackConfiguration
+    {
+      get
+      {
+        if (this._webTrackConfiguration == null)
+          this._webTrackConfiguration = (WebTrackConfigurationSection)ConfigurationManager.GetSection("webtrack");
+        return this._webTrackConfiguration;
+      }
+    }
+
+    protected override void ProcessChargeSubscription(Cashflow.Message.ChargeSubscriptionNotification notification)
+    {
+      base.ProcessChargeSubscription(notification);
+      CallbackLog CLog = new CallbackLog(notification, Log);
+
+      if (notification.Status.Code != Cashflow.Message.MessageStatusCode.Success)
+      {
+        CLog.Warn(new LogMessageBuilder(new LogErrorCode("webtrack", "charge", "nosense"),
+          "Notification which arrived is unsuccessful and we will not process it.",
+          notification.Status, notification.Subscription, notification.Transaction));
+        return;
+      }
+
+      bool isFirstPayment = false;
+
+      Data.IPaymentManager pManager = Data.Payment.CreateManager(2);
+      Data.Payment payment = pManager.Load(notification.Subscription.SubscriptionID, GuidType.External);
+      IBehaviorModelManager bmManager = BehaviorModel.CreateManager();
+      BehaviorModel behaviorModel = bmManager.Load(notification.Subscription.Model.ModelID);
+      if (payment == null)
+      {
+        if (behaviorModel == null)
+        {
+          CLog.Debug(new LogMessageBuilder(new LogErrorCode("webtrack", "charge", "payment"),
+           "Payment is probably from MobileMafia. We do not have specified model registered in our database.",
+           notification.Status, notification.Subscription, notification.Transaction, notification.Subscription.Model));
+          return;
+        }
+
+        CLog.Error(new LogMessageBuilder(new LogErrorCode("webtrack", "charge", "payment"),
+           "Payment was not loaded.",
+           notification.Status, notification.Subscription, notification.Transaction));
+        return;
+      }
+
+      Data.ITransactionManager tManager = Data.Transaction.CreateManager();
+      Data.Transaction transaction = tManager.Load(notification.Transaction.TransactionID, GuidType.External);
+      if (transaction == null)
+      {
+        CLog.Warn(new LogMessageBuilder(new LogErrorCode("webtrack", "charge", "transaction"),
+           "Transaction was not loaded.",
+           notification.Status, notification.Subscription, notification.Transaction, payment));
+        return;
+      }
+
+      if (!this._services.Contains(payment.Customer.Service.ID))
+        return;
+
+      ConversionReport conversionReport = null;
+      try
+      {
+        lock (NotificationLockObject)
+        {
+          IConversionReportManager crManager = ConversionReport.CreateManager();
+          conversionReport = crManager.Load(payment, ConversionProvider.WebTrack, ConversionAction.SubscriptionFirstCharge);
+          if (conversionReport == null)
+            isFirstPayment = true;
+
+          if (this._migratedServiceOffers.Contains(payment.ServiceOffer.ID))
+            isFirstPayment = false;
+
+          conversionReport = new ConversionReport(-1, payment.PaymentRequest.UserSession, payment, transaction,
+                ConversionProvider.WebTrack, isFirstPayment ? ConversionAction.SubscriptionFirstCharge : ConversionAction.SubscriptionSubsequentCharge,
+                ConversionReportStatus.Initialized, DateTime.Now, DateTime.Now);
+          conversionReport.Insert();
+        }
+
+        int? pcid = this.GetBySession(payment.PaymentRequest.UserSession);
+        if (!pcid.HasValue)
+        {
+          CLog.Error(new LogMessageBuilder(new LogErrorCode("webtrack", "charge", "pcid"),
+             "PCID was not found.",
+             notification.Status, notification.Subscription, notification.Transaction, payment.PaymentRequest.UserSession));
+          return;
+        }
+
+        int? actionID = null;
+        switch (conversionReport.ConversionAction)
+        {
+          case ConversionAction.SubscriptionFirstCharge:
+            actionID = this.WebTrackConfiguration.GetActionID("Subscription");
+            break;
+          case ConversionAction.SubscriptionSubsequentCharge:
+            actionID = this.WebTrackConfiguration.GetActionID("SubscriptionSubsequentPayment");
+            break;
+          default: break;
+        }
+
+        if (!actionID.HasValue)
+        {
+          CLog.Error(new LogMessageBuilder(new LogErrorCode("webtrack", "charge", "action"),
+             "Action could not be loaded from configuration.",
+             notification.Status, notification.Subscription, notification.Transaction, actionID.Value, isFirstPayment));
+          return;
+        }
+
+        int? actionSubTypeID = GetActionSubType(behaviorModel.ExternalBehaviorModelGuid);
+        if (!actionSubTypeID.HasValue)
+        {
+          CLog.Error(new LogMessageBuilder(new LogErrorCode("webtrack", "charge", "actionsubtype"),
+             "ActionSubType could not be loaded from configuration.",
+             notification.Status, notification.Subscription, notification.Transaction, actionSubTypeID.Value, isFirstPayment));
+          return;
+        }
+
+        using (TrackerClient client = new TrackerClient())
+        {
+          try
+          {
+            decimal amount = notification.Transaction.Amount.Value;
+            if (notification.Transaction.Country.ToLower() == "rs")
+              amount = amount * 0.0087291666666667m;
+            if (notification.Transaction.Country.ToLower() == "ch")
+              amount = amount * 0.8170808080808081m;
+            if (notification.Transaction.Country.ToLower() == "ba")
+              amount = amount * 0.511292m;
+            if (notification.Transaction.Country.ToLower() == "se")
+              amount = amount * 0.110695m;
+            if (notification.Transaction.Country.ToLower() == "pl")
+              amount = amount * 0.242773m;
+            client.ReportAction(pcid.Value, actionID.Value, actionSubTypeID, notification.Subscription.Country, amount,
+                                this.GetCurrencyID(notification.Transaction.Amount.Currency), string.Empty);
+
+            conversionReport.ConversionReportStatus = ConversionReportStatus.Success;
+            conversionReport.Update();
+          }
+          catch (Exception webTrackException)
+          {
+            CLog.Warn(new LogMessageBuilder(new LogErrorCode("webtrack", "charge", "exception"),
+             "WebTrack Exception occured while processing ChargeSubscription Notification.",
+             notification.Status, notification.Subscription, notification.Transaction), webTrackException);
+            conversionReport.ConversionReportStatus = ConversionReportStatus.Error;
+            conversionReport.Update();
+            return;
+          }
+        }
+      }
+      catch (Exception ex)
+      {
+        CLog.Warn(new LogMessageBuilder(new LogErrorCode("webtrack", "charge", "exception"),
+         "Exception occured.",
+         notification.Status, notification.Subscription, notification.Transaction), ex);
+        conversionReport.ConversionReportStatus = ConversionReportStatus.Error;
+        conversionReport.Update();
+        return;
+      }
+    }
+
+    protected override void ProcessCancelSubscription(Cashflow.Message.CancelSubscriptionNotification notification)
+    {
+      base.ProcessCancelSubscription(notification);
+      CallbackLog CLog = new CallbackLog(notification, Log);
+
+      if (notification.Status.Code != Cashflow.Message.MessageStatusCode.Success)
+      {
+        CLog.Warn(new LogMessageBuilder(new LogErrorCode("webtrack", "cancel", "nosense"),
+          "Notification which arrived is unsuccessful and we will not process it.",
+          notification.Status, notification.Subscription));
+        return;
+      }
+
+      Data.IPaymentManager pManager = Data.Payment.CreateManager(2);
+      Data.Payment payment = pManager.Load(notification.Subscription.SubscriptionID, GuidType.External);
+      IBehaviorModelManager bmManager = BehaviorModel.CreateManager();
+      BehaviorModel behaviorModel = bmManager.Load(notification.Subscription.Model.ModelID);
+      if (payment == null)
+      {
+        if (behaviorModel == null)
+        {
+          CLog.Debug(new LogMessageBuilder(new LogErrorCode("webtrack", "cancel", "payment"),
+           "Payment is probably from MobileMafia. We do not have specified model registered in our database.",
+           notification.Status, notification.Subscription, notification.Subscription.Model));
+          return;
+        }
+
+        CLog.Error(new LogMessageBuilder(new LogErrorCode("webtrack", "cancel", "payment"),
+           "Payment was not loaded.",
+           notification.Status, notification.Subscription));
+        return;
+      }
+
+      if (!this._services.Contains(payment.Customer.Service.ID))
+        return;
+
+      IPaymentContentAccessPolicyMapManager pcapmManager = PaymentContentAccessPolicyMap.CreateManager();
+      List<PaymentContentAccessPolicyMap> paymentContentAccessPolicyMapList = pcapmManager.Load(payment);
+      PaymentContentAccessPolicyMap paymentContentAccessPolicyMap = (from pcapm in paymentContentAccessPolicyMapList where pcapm.Transaction != null select pcapm).FirstOrDefault();
+      if(paymentContentAccessPolicyMap == null)
+      {
+        CLog.Debug(new LogMessageBuilder(new LogErrorCode("webtrack", "cancel", "paymentcontentaccesspolicymap"),
+           "This cancellation would not be reported as if it isn't charged previously.",
+           notification.Status, notification.Subscription, notification.Subscription.Model));
+        return;
+      }
+
+      try
+      {
+        int? pcid = this.GetBySession(payment.PaymentRequest.UserSession);
+        if (!pcid.HasValue)
+        {
+          CLog.Error(new LogMessageBuilder(new LogErrorCode("webtrack", "cancel", "pcid"),
+             "PCID was not found.",
+             notification.Status, notification.Subscription, payment.PaymentRequest.UserSession));
+          return;
+        }
+
+        int? actionID = this.WebTrackConfiguration.GetActionID("SubscriptionCancellation");
+        if (!actionID.HasValue)
+        {
+          CLog.Error(new LogMessageBuilder(new LogErrorCode("webtrack", "cancel", "action"),
+             "Action could not be loaded from configuration.",
+             notification.Status, notification.Subscription));
+          return;
+        }
+
+        int? actionSubTypeID = GetActionSubType(behaviorModel.ExternalBehaviorModelGuid);
+        if (!actionSubTypeID.HasValue)
+        {
+          CLog.Error(new LogMessageBuilder(new LogErrorCode("webtrack", "cancel", "actionsubtype"),
+             "ActionSubType could not be loaded from configuration.",
+             notification.Status, notification.Subscription));
+          return;
+        }
+        using (TrackerClient client = new TrackerClient())
+        {
+          try
+          {
+            client.ReportAction(pcid.Value, actionID.Value, actionSubTypeID, notification.Subscription.Country, null, null, null);
+          }
+          catch (Exception webTrackException)
+          {
+            CLog.Warn(new LogMessageBuilder(new LogErrorCode("webtrack", "cancel", "exception"),
+             "WebTrack Exception occured while processing ChargeSubscription Notification.",
+             notification.Status, notification.Subscription), webTrackException);
+            return;
+          }
+        }
+      }
+      catch (Exception ex)
+      {
+        CLog.Warn(new LogMessageBuilder(new LogErrorCode("webtrack", "cancel", "exception"),
+         "Exception occured.",
+         notification.Status, notification.Subscription), ex);
+        return;
+      }
+    }
+
+    protected int? GetActionSubType(Guid modelID)
+    {
+      int? actionSubTypeID = null;
+      if (modelID.Equals(Guid.Parse("E3855283-D7C5-4C8D-ABC0-00942845D4F5")))
+        actionSubTypeID = this.WebTrackConfiguration.GetActionSubTypeID("cf.mobile.wap.ip.dimoco.greyjoy");
+      else if (modelID.Equals(Guid.Parse("F678DFCA-841B-4254-BA29-55F9BC15C841")) ||
+               modelID.Equals(Guid.Parse("D354AAF0-A71C-47B5-9FF1-38A7CF65BD78")))
+        actionSubTypeID = this.WebTrackConfiguration.GetActionSubTypeID("cf.mobile.wap.ip.netm.nextlevel.old");
+      else if (modelID.Equals(Guid.Parse("685F61AC-6E1D-45A3-819A-92AD7355CC8F")) ||
+               modelID.Equals(Guid.Parse("D61D4E1A-567D-445B-B4CE-B3E90802CB76")) ||
+               modelID.Equals(Guid.Parse("5912D6ED-9CC6-44A6-80DB-07B1921A0EC3")))
+        actionSubTypeID = this.WebTrackConfiguration.GetActionSubTypeID("cf.mobile.wap.ip.nth.margarey");
+      else if (modelID.Equals(Guid.Parse("2462417E-BE1D-4555-A770-F89903F306BA")))
+        actionSubTypeID = this.WebTrackConfiguration.GetActionSubTypeID("cf.mobile.wap.ip.netm.greyjoy");
+      else
+        actionSubTypeID = null;
+
+      return actionSubTypeID;
+    }
+
+    protected int? GetBySession(UserSession session)
+    {
+      //string fingerprintID = session.FingerprintID;
+      //Guid fingerprintGuid = Guid.Empty;
+      //if (!Guid.TryParseExact(fingerprintID, "N", out fingerprintGuid))
+      //  return null;
+      return session.TrackingID;
+    }
+
+    protected virtual int GetCurrencyID(string currency)
+    {
+      switch (currency)
+      {
+        case "EUR":
+          return 1;
+        case "RSD":
+          return 1;
+        case "CHF":
+          return 1;
+        case "BAM":
+          return 1;
+        case "SEK":
+          return 1;
+        case "PLN":
+          return 1;
+        default:
+          return -2;
+      }
+    }
+
+  }
+}

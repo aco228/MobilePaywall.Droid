@@ -1,0 +1,84 @@
+﻿using System;
+using System.IO;
+using System.IO.MemoryMappedFiles;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Diagnostics;
+
+using MobilePaywall.Data;
+
+namespace MobilePaywall.Importer.Process
+{
+  public class FfmpegProcess
+  {
+
+    private string _ffmpegPath = AppDomain.CurrentDomain.BaseDirectory + "\\External\\ffmpeg.exe";
+    private string _outputPath = AppDomain.CurrentDomain.BaseDirectory + "Output\\";
+    private static int _counter = 0;
+    
+    public string Start(string inputFilename, VideoConversionProfileEntry videoConversionProfileEntry)
+    {
+      string outputFile = this._outputPath + (_counter++) + videoConversionProfileEntry.VideoCodec.Extension;
+
+      int existCounter = 0;
+      FileInfo fi = new FileInfo(outputFile);
+      while (fi.Exists && (existCounter++) < 100)
+      {
+				outputFile = this._outputPath + (_counter++) + videoConversionProfileEntry.VideoCodec.Extension;
+        fi = new FileInfo(outputFile);
+      }
+      if (existCounter == 100)
+        throw new InvalidOperationException("There are too many files in the temporary folder and something is really broken. Clean it up manually.");
+
+      string parameters = string.Format("-i {0} -loglevel debug {1} {2} ", string.Format("\"" + inputFilename + "\""), 
+					string.Format(videoConversionProfileEntry.VideoCodec.Arguments, videoConversionProfileEntry.VisualMediaDimensions.Width, videoConversionProfileEntry.VisualMediaDimensions.Height), 
+					String.Format("\"" + outputFile + "\""));
+
+      ProcessStartInfo oInfo = new ProcessStartInfo(this._ffmpegPath, parameters);
+      oInfo.UseShellExecute = false;
+      oInfo.CreateNoWindow = true;
+      oInfo.RedirectStandardOutput = true;
+      oInfo.RedirectStandardError = true;
+
+      string output = null;
+      StreamReader srOutput = null;
+
+      try
+      {
+        //run the process
+        System.Diagnostics.Process proc = System.Diagnostics.Process.Start(oInfo);
+
+        //get the output
+        srOutput = proc.StandardError;
+
+        //now put it in a string
+        output = srOutput.ReadToEnd();
+
+        Console.WriteLine(output);
+
+        proc.WaitForExit();
+        proc.Close();
+        proc.Dispose();
+      }
+      catch (Exception ex)
+      {
+        output = string.Empty;
+      }
+      finally
+      {
+        //now, if we succeded, close out the streamreader
+        if (srOutput != null)
+        {
+          srOutput.Close();
+          srOutput.Dispose();
+        }
+      }
+      //Console.WriteLine(output);
+
+      return outputFile;
+      //return File.ReadAllBytes(outputFile);
+    }
+  }
+}

@@ -1,0 +1,105 @@
+﻿@model PaymentsViewModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+  MobilePaywall.Direct.MobilePaywallDirect database = MobilePaywall.Direct.MobilePaywallDirect.Instance;
+  
+  Payment payment = null;
+  
+  if(Model.TemplateMode)
+  {
+    int? paymentID = database.LoadInt(string.Format(@"SELECT TOP 1 PaymentID FROM MobilePaywall.core.Payment AS p WHERE PaymentStatusID=3 ORDER BY PaymentID DESC"));
+    if (paymentID.HasValue)
+    {
+      payment = Payment.CreateManager().Load(paymentID.Value);
+    }
+  }
+  else if(PaywallHttpContext.Current.Session.SessionData.Customer != null)
+  {
+    int? paymentID = database.LoadInt(string.Format(@"SELECT TOP 1 PaymentID FROM MobilePaywall.core.Payment AS p WHERE CustomerID={0} ORDER BY PaymentID DESC", PaywallHttpContext.Current.Session.SessionData.Customer.ID));
+    if(paymentID.HasValue)
+    {
+      payment = Payment.CreateManager().Load(paymentID.Value);
+    }
+  }
+  
+}
+@Styles.Render("~/Style/Pink/Cancellation")
+@Scripts.Render("~/Script/Cancellation")
+
+<style>
+  #paymentTable tr td{ width:50%; }
+  #paymentTable tr td:nth-child(2){ background-color:#eae6a8; }
+</style>
+
+<h2>Présentation des services</h2>
+
+<p>
+  @if(payment != null)
+  {
+
+    DateTime? lastDate = database.LoadDateTime(string.Format(@"SELECT t.Created FROM MobilePaywall.core.[Transaction] AS t
+      LEFT OUTER JOIN MobilePaywall.core.Payment AS p ON t.PaymentID=p.PaymentID
+      WHERE p.CustomerID={0}
+      ORDER BY t.TransactionID DESC", payment.Customer.ID));
+
+    DateTime? nextCharge = null;
+    if (lastDate.HasValue)
+    {
+      nextCharge = lastDate.Value.AddDays(7);
+    }
+    
+    string startDateString = payment.Created.ToString();
+    string lastDateString = lastDate != null ? lastDate.ToString() : "";
+    string nextDateString = nextCharge != null ? nextCharge.ToString() : "";
+    string statusString = payment.PaymentStatus.ToString();
+    string cancelLink = (PaywallHttpContext.Current.Session.SessionData.MobileOperator != null && PaywallHttpContext.Current.Session.SessionData.MobileOperator.ID == 83) ?
+      "http://www.infoconso-multimedia.fr/" : Model.Link;
+    
+    <div>
+      Afin d'être admissible et accéder a votre compte est consulter vos transactions, vous devez utiliser 3G.
+    </div>
+
+    <div style="margin-top: 15px;">
+      <table style="background-color: #f0dc79; width: 100%; text-align:center; " id="paymentTable">
+        <tr>
+          <td>Date de Démarrage</td>
+          <td>@startDateString</td>
+        </tr>
+        <tr>
+          <td>Dernier Renouvellement</td>
+          <td>@lastDateString</td>
+        </tr>
+        <tr>
+          <td>Prochain Renouvellement</td>
+          <td>@nextDateString</td>
+        <tr>
+          <td>Prix / Frequence</td>
+          <td>@PaywallHttpContext.Current.Service.ServiceInfo.Price</td>
+        </tr>
+        <tr>
+          <td>Statut</td>
+          <td>@statusString</td>
+        </tr>
+        <tr>
+          <td>Nom du Service</td>
+          <td>@PaywallHttpContext.Current.Service.ServiceData.Name</td>
+        </tr>
+      </table>
+    </div>
+
+    <div style="font-weight:bold; margin-top:20px;">
+      Pour vous désabonner, cliquez <a href="@cancelLink">ici</a>.
+    </div>
+
+    <div style="margin-top:20px;">
+      <div>Lu-Ve: 8.00 - 22.00</div>
+      <div>Tel: 0033183714105</div>
+      <div>E-Mail: info.fr@ccsupport.biz</div>
+    </div>
+  }
+  else
+  {
+    <h1>You dont have active subscriptions</h1>
+  }
+
+</p>

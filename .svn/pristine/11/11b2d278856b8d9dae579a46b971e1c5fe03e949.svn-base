@@ -1,0 +1,63 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class ServicePriceManager : IServicePriceManager
+  {
+    public List<ServicePrice> Load()
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection);
+    }
+
+    public List<ServicePrice> Load(IConnectionInfo connection)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection);
+    }
+
+    public List<ServicePrice> Load(ISqlConnectionInfo connection)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      return this.LoadMany(connection, parameters);
+    }
+
+    public List<ServicePrice> Load(Service service)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, service);
+    }
+
+    public List<ServicePrice> Load(IConnectionInfo connection, Service service)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, service);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, service);
+    }
+
+    public List<ServicePrice> Load(ISqlConnectionInfo connection, Service service)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[sp].ServiceID=@ServiceID AND [sp].ValidTo IS NULL";
+      parameters.Arguments.Add("ServiceID", service.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+
+  }
+}
+

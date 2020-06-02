@@ -1,0 +1,44 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class AndroidClientLogManager : IAndroidClientLogManager
+  {
+
+    public List<AndroidClientLog> Load(AndroidClientSession cs)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, cs);
+    }
+
+    public List<AndroidClientLog> Load(IConnectionInfo connection, AndroidClientSession cs)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, cs);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, cs);
+    }
+
+    public List<AndroidClientLog> Load(ISqlConnectionInfo connection, AndroidClientSession cs)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[acl].AndroidClientSessionID=@AndroidSessionID";
+      parameters.Arguments.Add("AndroidSessionID", cs.ID);
+      parameters.OrderBy = "[acl].AndroidClientLogID DESC";
+      return this.LoadMany(connection, parameters);
+    }
+
+  }
+}
+

@@ -1,0 +1,145 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using Senti.Diagnostics.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web
+{
+  public class AuctionService : ServiceBase
+  {
+
+    #region #logging#
+
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (AuctionService._log == null)
+          AuctionService._log = LogManager.GetLogger(typeof(AuctionService));
+        return AuctionService._log;
+      }
+    }
+
+    #endregion #logging#
+
+
+    public AuctionService(Service service, IPaywallRuntime runtime)
+      :base(service, runtime)
+    { }
+
+
+    public int GetCustomerCredits(Customer customer)
+    {
+      if (customer == null)
+        return 0; 
+
+      AuctionCredit credits = AuctionCredit.CreateManager().Load(customer);
+      return credits == null ? 0 : credits.Amount;
+    }
+
+    public AuctionRound GetAuctionRound()
+    {
+      AuctionRound lastAuctionRound = AuctionRound.CreateManager().Load(this.ServiceData);
+
+      if(lastAuctionRound == null)
+      {
+        Log.Error(new LogMessageBuilder(new LogErrorCode("service", "auction", "getAuctionRound"),
+          string.Format("This service has no AuctionRound setup"), this.ServiceData));
+        return null;
+      }
+
+      if( DateTime.Now > lastAuctionRound.FinishTime)
+      {
+        AuctionRound newAuctionRound = new AuctionRound(-1, 
+          this.ServiceData, 
+          lastAuctionRound.ContentGroup, 
+          lastAuctionRound.Content, 
+          null, 
+          lastAuctionRound.Interval, 
+          lastAuctionRound.IntervalValue,
+          lastAuctionRound.FinishTime, null,
+          DateTime.Now, DateTime.Now);
+        newAuctionRound.Insert();
+
+        // NOTE: recursive function in case that this new Round is also expired
+        return this.GetAuctionRound();
+      }
+
+      return lastAuctionRound;
+    }
+
+    // TODO: Logic for both methods are same.. check are they both necessary
+
+    public override void OnChargeSubscription(Payment payment)
+    {
+      AuctionCreditPolicy auctionCreditPolicy = AuctionCreditPolicy.CreateManager().Load(payment.ServiceOffer);
+      if (auctionCreditPolicy == null)
+      {
+        Log.Error(new LogMessageBuilder(new LogErrorCode("service", "auction", "OnChargeSubscription"),
+          string.Format("This service has no AuctionCreditPolicy setup"), this.ServiceData));
+        return;
+      }
+
+      AuctionCredit auctionCredit = AuctionCredit.CreateManager().Load(payment.Customer);
+
+      if (auctionCredit != null)
+      {
+        AuctionCreditHistory historyEntry = new AuctionCreditHistory(-1,
+          auctionCredit,
+          auctionCreditPolicy,
+          payment.Customer,
+          auctionCredit.Amount,
+          DateTime.Now, DateTime.Now);
+        historyEntry.Insert();
+      }
+
+      AuctionCredit newAuctionCredit = new AuctionCredit(-1,
+        AuctionCreditStatus.In,
+        payment.Customer,
+        (auctionCredit.Amount + auctionCreditPolicy.Amount),
+        DateTime.Now, DateTime.Now);
+      newAuctionCredit.Insert();
+
+    }
+
+    public override void OnChargePurchase(Payment payment)
+    {
+      
+      AuctionCreditPolicy auctionCreditPolicy = AuctionCreditPolicy.CreateManager().Load(payment.ServiceOffer);
+      if (auctionCreditPolicy == null)
+      {
+        Log.Error(new LogMessageBuilder(new LogErrorCode("service", "auction", "OnChargePurchase"),
+          string.Format("This service has no AuctionCreditPolicy setup"), this.ServiceData));
+        return;
+      }
+
+      AuctionCredit auctionCredit = AuctionCredit.CreateManager().Load(payment.Customer);
+
+      if (auctionCredit != null)
+      {
+        AuctionCreditHistory historyEntry = new AuctionCreditHistory(-1,
+          auctionCredit,
+          auctionCreditPolicy,
+          payment.Customer,
+          auctionCredit.Amount,
+          DateTime.Now, DateTime.Now);
+        historyEntry.Insert();
+      }
+
+      AuctionCredit newAuctionCredit = new AuctionCredit(-1,
+        AuctionCreditStatus.In,
+        payment.Customer,
+        (auctionCredit.Amount + auctionCreditPolicy.Amount),
+        DateTime.Now, DateTime.Now);
+      newAuctionCredit.Insert();
+
+    }
+
+  }
+}

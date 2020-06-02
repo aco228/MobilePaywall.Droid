@@ -1,0 +1,123 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+using Senti.Security;
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class ClientManager : IClientManager
+  {
+
+    public List<Client> Load()
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection);
+    }
+
+    public List<Client> Load(IConnectionInfo connection)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection);
+    }
+
+    public List<Client> Load(ISqlConnectionInfo connection)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      return this.LoadMany(connection, parameters);
+    }
+
+    public Client Load(string username, string password)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, username, password);
+    }
+
+    public Client Load(IConnectionInfo connection, string username, string password)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, username, password);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, username, password);
+    }
+
+    public Client Load(ISqlConnectionInfo connection, string username, string password)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = string.Format("[c].Username = @Username");
+      parameters.Arguments.Add("Username", username);
+
+      Client client = Load(connection, parameters);
+      if (client == null)
+        return null;
+
+      int SALT_LENGTH = 8;
+      byte[] salt = new byte[SALT_LENGTH];
+      for (int i = 0; i < SALT_LENGTH;
+        salt[i] = client.Password[client.Password.Length - SALT_LENGTH + i++]) ;
+
+      byte[] encryptedUnckeckedPassword = PasswordEncryption.Create(password, salt).EncryptedPasswordAndSalt;
+
+      if (encryptedUnckeckedPassword.SequenceEqual(client.Password))
+        return client;
+
+      return null;
+    }
+
+    public Client Load(Guid clientGuid)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, clientGuid);
+    }
+
+    public Client Load(IConnectionInfo connection, Guid clientGuid)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, clientGuid);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, clientGuid);
+    }
+
+    public Client Load(ISqlConnectionInfo connection, Guid clientGuid)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[c].ClientGuid = @ClientGuid";
+      parameters.Arguments.Add("ClientGuid", clientGuid);
+      return this.Load(connection, parameters);
+    }
+
+    public Client Load(string username)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, username);
+    }
+
+    public Client Load(IConnectionInfo connection, string username)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, username);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, username);
+    }
+
+    public Client Load(ISqlConnectionInfo connection, string username)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[c].Username = @Username";
+      parameters.Arguments.Add("Username", username);
+      return this.Load(connection, parameters);
+    }
+  }
+}
+

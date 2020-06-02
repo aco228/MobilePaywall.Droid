@@ -1,0 +1,41 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class TemplateServiceFlowManager : ITemplateServiceFlowManager
+  {
+    public List<TemplateServiceFlow> Load(Service service)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, service);
+    }
+
+    public List<TemplateServiceFlow> Load(IConnectionInfo connection, Service service)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, service);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, service);
+    }
+
+    public List<TemplateServiceFlow> Load(ISqlConnectionInfo connection, Service service)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[tsf].ServiceID = @ServiceID";
+      parameters.Arguments.Add("ServiceID", service.ID);
+      return this.LoadMany(connection, parameters);
+    }
+  }
+}
+

@@ -1,0 +1,403 @@
+﻿using System;
+using System.Linq;
+using System.Web;
+using System.Configuration;
+using System.Collections.Generic;
+
+using Cashflow.Client;
+using Cashflow.Client.Configuration;
+
+using MobilePaywall.Data;
+// zbog ovog namespace-a
+using MobilePaywall.TrckdPaywall.Data;
+
+using Trckd.Client;
+using Trckd.Message;
+using Trckd.Client.Configuration;
+using log4net;
+using Senti.Diagnostics.Log;
+using MobilePaywall.Service.Callback.Log;
+
+namespace MobilePaywall.Service.Handlers
+{
+  public class TrckdNotificationHandler : NotificationHandlerBase
+  {
+    protected static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (TrckdNotificationHandler._log == null)
+          TrckdNotificationHandler._log = LogManager.GetLogger(typeof(TrckdNotificationHandler));
+        return TrckdNotificationHandler._log;
+      }
+    }
+
+    private static readonly object NotificationLockObject = new object();
+
+    private List<int> _migratedServiceOffers = new List<int>() { 6, 51, 57 };
+    private CashflowConfigurationSection _cashflowConfiguration = null;
+    private TrckdConfigurationSection _trckdConfiguration = null;
+
+    public CashflowConfigurationSection CashflowConfiguration
+    {
+      get
+      {
+        if (this._cashflowConfiguration == null)
+          this._cashflowConfiguration = (CashflowConfigurationSection)ConfigurationManager.GetSection("cashflow");
+        return this._cashflowConfiguration;
+      }
+    }
+
+    public TrckdConfigurationSection TrckdConfiguration
+    {
+      get
+      {
+        if (this._trckdConfiguration == null)
+          this._trckdConfiguration = (TrckdConfigurationSection)ConfigurationManager.GetSection("trckd");
+        return this._trckdConfiguration;
+      }
+    }
+
+    protected override void ProcessChargeSubscription(Cashflow.Message.ChargeSubscriptionNotification notification)
+    {
+      base.ProcessChargeSubscription(notification);
+      CallbackLog CLog = new CallbackLog(notification, Log);
+
+      try
+      {
+        if (notification.Status.Code != Cashflow.Message.MessageStatusCode.Success)
+        {
+          CLog.Warn(new LogMessageBuilder(new LogErrorCode("trckd", "charge.subscription", "nosense"),
+            "Notification which arrived is unsuccessful and we will not process it.",
+            notification.Status, notification.Subscription, notification.Transaction));
+          return;
+        }
+
+        bool isFirstPayment = false;
+
+        Data.IPaymentManager pManager = Data.Payment.CreateManager(2);
+        Data.Payment payment = pManager.Load(notification.Subscription.SubscriptionID, GuidType.External);
+        IBehaviorModelManager bmManager = BehaviorModel.CreateManager();
+        BehaviorModel behaviorModel = bmManager.Load(notification.Subscription.Model.ModelID);
+        if (payment == null)
+        {
+          if (behaviorModel == null)
+          {
+            CLog.Debug(new LogMessageBuilder(new LogErrorCode("trckd", "charge.subscription", "payment"),
+             "Payment is from MobileMafia. We do not have specified model registered in our database.",
+             notification.Status, notification.Subscription, notification.Transaction, notification.Subscription.Model));
+            return;
+          }
+
+          CLog.Error(new LogMessageBuilder(new LogErrorCode("trckd", "charge.subscription", "payment"),
+             "Payment was not loaded.",
+             notification.Status, notification.Subscription, notification.Transaction));
+          return;
+        }
+
+        ////Translease fix
+        IUserSessionManager usManager = UserSession.CreateManager();
+        UserSession session = usManager.Load(payment.PaymentRequest.UserSession.ID);
+        if (session.MobileOperator != null && session.MobileOperator.ID != 380 && session.MobileOperator.ID != 383)
+          if ((!string.IsNullOrEmpty(payment.PaymentRequest.UserSession.Referrer) && payment.PaymentRequest.UserSession.Referrer.Contains("&aff=tp&")) ||
+              (payment.PaymentRequest.UserSession.EntranceUrl.Contains("&aff=tp&") || payment.PaymentRequest.UserSession.EntranceUrl.EndsWith("&aff=tp&")))
+            return;
+
+        Data.ITransactionManager tManager = Data.Transaction.CreateManager();
+        Data.Transaction transaction = tManager.Load(notification.Transaction.TransactionID, GuidType.External);
+        if (transaction == null)
+        {
+          CLog.Warn(new LogMessageBuilder(new LogErrorCode("trckd", "charge.subscription", "transaction"),
+             "Transaction was not loaded.",
+             notification.Status, notification.Subscription, notification.Transaction, payment));
+          return;
+        }
+
+        ConversionReport conversionReport = null;
+        try
+        {
+          lock (NotificationLockObject)
+          {
+
+
+						IConversionReportManager crManager = ConversionReport.CreateManager();
+            conversionReport = crManager.Load(payment, ConversionProvider.Trckd, ConversionAction.SubscriptionFirstCharge);
+            if (conversionReport == null)
+              isFirstPayment = true;
+
+            if (this._migratedServiceOffers.Contains(payment.ServiceOffer.ID))
+              isFirstPayment = false;
+
+            conversionReport = new ConversionReport(-1, payment.PaymentRequest.UserSession, payment, transaction,
+              ConversionProvider.Trckd, isFirstPayment ? ConversionAction.SubscriptionFirstCharge : ConversionAction.SubscriptionSubsequentCharge,
+              ConversionReportStatus.Initialized, DateTime.Now, DateTime.Now);
+            conversionReport.Insert();
+          }
+
+					Guid? fingerprintID = payment.PaymentRequest.UserSession.FingerprintID;
+          if (!fingerprintID.HasValue)
+          {
+            CLog.Error(new LogMessageBuilder(new LogErrorCode("trckd", "charge.subscription", "fingerprint"),
+               "Fingerprint was not found.",
+               notification.Status, notification.Subscription, notification.Transaction, payment.PaymentRequest.UserSession));
+            return;
+          }
+
+          Guid? containerSet = null;
+          ContainerType containerType = ContainerType.Fallback;
+
+          Guid? goalID = isFirstPayment ?
+                             this.TrckdConfiguration.GetGoalID("SubscriptionFirstCharge") : // it is a new subscription and the action is "Subscription"
+                             this.TrckdConfiguration.GetGoalID("SubsequentPayment"); // that subscription existed already and the action is "Subsequent Payment"
+
+          //IServiceManager sManager = Data.Service.CreateManager();
+          //Data.Service service = sManager.Load(payment.Customer.Service.ID); || payment.Customer.Service.ID == 29
+          //if ((payment.Customer.Service.ID == 52 || payment.Customer.Service.ID == 27 ||
+          //  payment.Customer.Service.ID == 29 || payment.Customer.Service.ID == 9 || payment.Customer.Service.ID == 26 || payment.Customer.Service.ID == 77 ||
+          //  payment.Customer.Service.ID == 62 || payment.Customer.Service.ID == 115 || payment.Customer.Service.ID == 71 || payment.Customer.Service.ID == 106 || payment.Customer.Service.ID == 109 ||
+          //  payment.Customer.Service.ID == 43 || payment.Customer.Service.ID == 10 || payment.Customer.Service.ID == 61 || 
+
+
+          if ((payment.Customer.Service.Name.Equals("mobilerotik.mobi") ||    // 9, AT, MediaMonkeys, Excelity Ltd., Dimoco
+            payment.Customer.Service.Name.Equals("erotikclips.mobi") ||       // 10, DE, MediaMonkeys, Excelity Ltd., Dimoco
+            payment.Customer.Service.Name.Equals("porntraum.mobi") ||         // 26, AT, MediaMonkeys, Avilia Mobile Ltd., NTH
+            payment.Customer.Service.Name.Equals("phoneschlampe.mobi") ||     // 27, DE, MediaMonkeys, Avilia Mobile Ltd., NTH
+            payment.Customer.Service.Name.Equals("fuckclips.mobi") ||         // 29, BE, MediaMonkeys, Avilia Mobile Ltd., NTH
+            payment.Customer.Service.Name.Equals("polskiefilmy.net") ||       // 43, PL, MediaMonkeys, Excelity Ltd., Dimoco
+            payment.Customer.Service.Name.Equals("geileclips.mobi") ||        // 52, DE, MediaMonkeys, NTH Media GmbH, NTH
+            payment.Customer.Service.Name.Equals("pervertclips.mobi") ||      // 61, BE, MediaMonkeys, Go ahead management limited, NTH
+            payment.Customer.Service.Name.Equals("geilevids.mobi") ||         // 62, AT, MediaMonkeys, Go ahead management limited, NTH
+            payment.Customer.Service.Name.Equals("nacktetitten.net") ||       // 71, AT, MediaMonkeys, Practice Holdings Limited, Dimoco
+            payment.Customer.Service.Name.Equals("lustigevideos.me") ||       // 77, AT, MediaMonkeys, Practice Holdings Limited, Dimoco
+            payment.Customer.Service.Name.Equals("mob-pornici.com") ||        // 106, RS, MediaMonkeys, Luffer services limited, Centili
+            payment.Customer.Service.Name.Equals("erogirls.me") ||            // 109, ZA, MediaMonkeys, Luffer services limited, Centili
+            payment.Customer.Service.Name.Equals("smesni-klipovi.com") ||     // 115, RS, MediaMonkeys, Avilia Mobile Ltd., Centili
+            payment.Customer.Service.Name.Equals("geile-videos.mobi") ||      // 60, DE, MediaMonkeys, Avilia Mobile Ltd., NTH
+            payment.Customer.Service.Name.Equals("mobilerotic.mobi") ||       // 11, AU, MediaMonkeys, Excelity Ltd., Dimoco
+            payment.Customer.Service.Name.Equals("taschen-porno.mobi") ||     // 32, CH, MediaMonkeys, Avilia Mobile Ltd., NTH
+            payment.Customer.Service.Name.Equals("melhor-porno.net") ||       // 68, PT, MediaMonkeys, Go ahead management limited, NTH
+            payment.Customer.Service.Name.Equals("erotikvids.mobi") ||        // 111, AT, MediaMonkeys, Luffer services limited, Centili
+            payment.Customer.Service.Name.Equals("erovids.mobi") ||           // 130, ZA, MediaMonkeys, Avilia Mobile Ltd., Centili
+            payment.Customer.Service.Name.Equals("tetas-grandes.mobi") ||     // 110, ES, MediaMonkeys, Luffer services limited, Centili
+            payment.Customer.Service.Name.Equals("wilde-erovids.me") ||       // 118, DE, MediaMonkeys, Go ahead management limited, Dimoco
+            payment.Customer.Service.Name.Equals("geiledeutschetube.com") ||  //  16, DE, Atnese, Hakuna Mtata Ltd., NTH
+            payment.Customer.Service.Name.Equals("freche-clips.mobi") ||      // 141, DE, MediaMonkeys, Luffer services limited, Dimoco
+            payment.Customer.Service.Name.Equals("erotischvids.mobi") ||      // 142, DE, MediaMonkeys, Stretto investments limited, Dimoco
+            payment.Customer.Service.Name.Equals("xxxmadchen.mobi") ||          // 200, DE, MediaMonkeys, Stretto investments limited, Dimoco
+					  payment.Customer.Service.Name.Equals("xxxvogue.mobi") ||          // 201, DE, MediaMonkeys, Stretto investments limited, Dimoco
+					  payment.Customer.Service.Name.Equals("xxx-tube.mobi") ||          // 202, DE, MediaMonkeys, Stretto investments limited, Dimoco
+																																							 // payment.Customer.Service.Name.Equals("hot-vids.mobi") ||          // 143, DE, MediaMonkeys, Luffer services limited, Dimoco
+
+						TemplateServiceInfo.CreateManager().Load(payment.Customer.Service).TrckdEnabled) // Dynamic from database
+            && isFirstPayment)
+          {
+            containerSet = Guid.Parse("8511F427-C9DE-4549-96DC-3BC3F1AF73AA");
+            containerType = ContainerType.Override;
+            goalID = Guid.Parse("631B4278-A430-4FEA-859F-859A3535FDBE");
+          }
+
+          if (!goalID.HasValue)
+          {
+            CLog.Error(new LogMessageBuilder(new LogErrorCode("trckd", "charge.subscription", "goal"),
+               "Goal could not be loaded from configuration.",
+               notification.Status, notification.Subscription, notification.Transaction, goalID.Value, isFirstPayment));
+            return;
+          }
+          using (TrackClient client = new TrackClient())
+          {
+            try
+            {
+              ReportGoalRequest request = new ReportGoalRequest(RequestMode.Synchronous,
+                                                                "123456",
+                                                                "user",
+                                                                "password",
+                                                                goalID.Value,
+                                                                fingerprintID.Value,
+                                                                containerSet,
+                                                                containerType,
+                                                                null);
+              ReportGoalResponse response = client.ReportGoal(request);
+              switch (response.Status.Code)
+              {
+                case MessageStatusCode.Success:
+                  conversionReport.ConversionReportStatus = ConversionReportStatus.Success;
+                  break;
+                default:
+                  conversionReport.ConversionReportStatus = ConversionReportStatus.Error;
+                  break;
+              }
+              conversionReport.Update();
+            }
+            catch (Exception trckdException)
+            {
+              CLog.Warn(new LogMessageBuilder(new LogErrorCode("trckd", "charge.subscription", "exception"),
+               "Trckd Exception occured while processing ChargeSubscription Notification.",
+               notification.Status, notification.Subscription, notification.Transaction), trckdException);
+              conversionReport.ConversionReportStatus = ConversionReportStatus.Error;
+              conversionReport.Update();
+              return;
+            }
+          }
+        }
+        catch (Exception ex)
+        {
+          CLog.Warn(new LogMessageBuilder(new LogErrorCode("trckd", "charge.subscription", "exception"),
+           "Exception occured.",
+           notification.Status, notification.Subscription, notification.Transaction), ex);
+          conversionReport.ConversionReportStatus = ConversionReportStatus.Error;
+          conversionReport.Update();
+          return;
+        }
+      }
+      catch (Exception e)
+      {
+        CLog.Fatal(new LogMessageBuilder(new LogErrorCode("trckd", "charge.subscription", "general"),
+          "Exception occur."), e);
+      }
+    }
+
+    protected override void ProcessChargePurchase(Cashflow.Message.ChargePurchaseNotification notification)
+    {
+      base.ProcessChargePurchase(notification);
+      CallbackLog CLog = new CallbackLog(notification, Log);
+      try
+      {
+        if (notification.Status.Code != Cashflow.Message.MessageStatusCode.Success)
+        {
+          CLog.Warn(new LogMessageBuilder(new LogErrorCode("trckd", "charge.purchase", "nosense"),
+            "Notification which arrived is unsuccessful and we will not process it.",
+            notification.Status, notification.Purchase, notification.Transaction));
+          return;
+        }
+
+        Data.IPaymentManager pManager = Data.Payment.CreateManager(2);
+        Data.Payment payment = pManager.Load(notification.Purchase.PurchaseID, GuidType.External);
+        IBehaviorModelManager bmManager = BehaviorModel.CreateManager();
+        BehaviorModel behaviorModel = bmManager.Load(notification.Purchase.Model.ModelID);
+        if (payment == null)
+        {
+          if (behaviorModel == null)
+          {
+            CLog.Debug(new LogMessageBuilder(new LogErrorCode("trckd", "charge.purchase", "payment"),
+             "Payment is from MobileMafia. We do not have specified model registered in our database.",
+             notification.Status, notification.Purchase, notification.Transaction, notification.Purchase.Model));
+            return;
+          }
+
+          CLog.Error(new LogMessageBuilder(new LogErrorCode("trckd", "charge.purchase", "payment"),
+             "Payment was not loaded.",
+             notification.Status, notification.Purchase, notification.Transaction));
+          return;
+        }
+
+        Data.ITransactionManager tManager = Data.Transaction.CreateManager();
+        Data.Transaction transaction = tManager.Load(notification.Transaction.TransactionID, GuidType.External);
+        if (transaction == null)
+        {
+          CLog.Warn(new LogMessageBuilder(new LogErrorCode("trckd", "charge.purchase", "transaction"),
+             "Transaction was not loaded.",
+             notification.Status, notification.Purchase, notification.Transaction, payment));
+          return;
+        }
+
+        ConversionReport conversionReport = null;
+        try
+        {
+          lock (NotificationLockObject)
+          {
+            IConversionReportManager crManager = ConversionReport.CreateManager();
+            conversionReport = crManager.Load(payment, ConversionProvider.Trckd, ConversionAction.Purchase);
+            if (conversionReport != null)
+              return;
+
+            if (this._migratedServiceOffers.Contains(payment.ServiceOffer.ID))
+              return;
+
+            conversionReport = new ConversionReport(-1, payment.PaymentRequest.UserSession, payment, transaction,
+              ConversionProvider.Trckd, ConversionAction.Purchase, ConversionReportStatus.Initialized, DateTime.Now, DateTime.Now);
+            conversionReport.Insert();
+          }
+
+          Guid? fingerprintID = payment.PaymentRequest.UserSession.FingerprintID;
+          if (!fingerprintID.HasValue)
+          {
+            CLog.Error(new LogMessageBuilder(new LogErrorCode("trckd", "charge.purchase", "fingerprint"),
+               "Fingerprint was not found.",
+               notification.Status, notification.Purchase, notification.Transaction, payment.PaymentRequest.UserSession));
+            return;
+          }
+
+          Guid? containerSet = null;
+          ContainerType containerType = ContainerType.Fallback;
+
+          Guid? goalID = Guid.Parse("754CF579-E259-401E-95F8-4ACD46A4B5CA");
+          containerSet = Guid.Parse("F7E4C227-89B4-4BF5-8ECC-3E5168926B60");
+
+          if (!goalID.HasValue)
+          {
+            CLog.Error(new LogMessageBuilder(new LogErrorCode("trckd", "charge.purchase", "goal"),
+               "Goal could not be loaded from configuration.",
+               notification.Status, notification.Purchase, notification.Transaction, goalID.Value));
+            return;
+          }
+          using (TrackClient client = new TrackClient())
+          {
+            try
+            {
+              ReportGoalRequest request = new ReportGoalRequest(RequestMode.Synchronous,
+                                                                "123456",
+                                                                "user",
+                                                                "password",
+                                                                goalID.Value,
+                                                                fingerprintID.Value,
+                                                                containerSet,
+                                                                containerType,
+                                                                null);
+              ReportGoalResponse response = client.ReportGoal(request);
+              switch (response.Status.Code)
+              {
+                case MessageStatusCode.Success:
+                  conversionReport.ConversionReportStatus = ConversionReportStatus.Success;
+                  break;
+                default:
+                  conversionReport.ConversionReportStatus = ConversionReportStatus.Error;
+                  break;
+              }
+              conversionReport.Update();
+            }
+            catch (Exception trckdException)
+            {
+              CLog.Warn(new LogMessageBuilder(new LogErrorCode("trckd", "charge.purchase", "exception"),
+               "Trckd Exception occured while processing ChargeSubscription Notification.",
+               notification.Status, notification.Purchase, notification.Transaction), trckdException);
+              conversionReport.ConversionReportStatus = ConversionReportStatus.Error;
+              conversionReport.Update();
+              return;
+            }
+          }
+        }
+        catch (Exception ex)
+        {
+          CLog.Warn(new LogMessageBuilder(new LogErrorCode("trckd", "charge.purchase", "exception"),
+           "Exception occured.",
+           notification.Status, notification.Purchase, notification.Transaction), ex);
+          conversionReport.ConversionReportStatus = ConversionReportStatus.Error;
+          conversionReport.Update();
+          return;
+        }
+      }
+      catch (Exception e)
+      {
+        CLog.Fatal(new LogMessageBuilder(new LogErrorCode("trckd", "charge.purchase", "general"),
+          "Exception occur."), e);
+      }
+    }
+
+    protected Guid? GetBySession(UserSession session)
+    {
+      return session.FingerprintID;
+    }
+  }
+}

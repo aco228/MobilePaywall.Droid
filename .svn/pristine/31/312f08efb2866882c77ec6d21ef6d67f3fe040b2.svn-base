@@ -1,0 +1,76 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class LoginAttemptManager : ILoginAttemptManager
+  {
+
+      
+      public LoginAttempt Load(UserSession userSession)
+      {
+          using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+              return this.Load(connection, userSession);
+      }
+
+      public LoginAttempt Load(IConnectionInfo connection, UserSession userSession)
+      {
+          ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+          if (sqlConnection != null)
+              return this.Load(sqlConnection, userSession);
+          using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+              return this.Load(sqlConnection, userSession);
+      }
+
+      public LoginAttempt Load(ISqlConnectionInfo connection, UserSession userSession)
+      {
+          SqlQueryParameters parameters = new SqlQueryParameters();
+          parameters.Where = "[la].UserSessionID = @UserSession";
+          parameters.Arguments.Add("UserSession", userSession.ID);
+          return this.Load(connection, parameters);
+      }
+
+
+      
+      
+
+
+      public List<LoginAttempt> Load(Customer customer)
+      {
+          using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+              return this.Load(connection, customer);
+      }
+
+      public List<LoginAttempt> Load(IConnectionInfo connection, Customer customer)
+      {
+          ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+          if (sqlConnection != null)
+              return this.Load(sqlConnection, customer);
+          using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+              return this.Load(sqlConnection, customer);
+      }
+
+      public List<LoginAttempt> Load(ISqlConnectionInfo connection, Customer customer)
+      {
+          SqlQueryParameters parameters = new SqlQueryParameters();
+          parameters.Where = "[la].CustomerID = @CustomerID";
+          parameters.OrderBy = "[la].Created DESC";
+          parameters.Arguments.Add("CustomerID", customer.ID);
+          return this.LoadMany(connection, parameters);
+      }
+
+
+
+
+  }
+}
+

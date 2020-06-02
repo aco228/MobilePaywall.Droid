@@ -1,0 +1,47 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Data.Direct.MobilePaywall;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web.Models
+{
+    public class TempalteCustomPageDataModel : PaywallViewModelBase
+    {
+        private PaymentProvider _paymentProvider = null;
+        private List<MobileOperator> _mobileOperator = null;
+        private CustomPage _customPage = null;
+        private Country _country = null;
+        private CustomPageData _customPageData = null;
+        private List<CustomPageData> _customPageDatas = null;
+        private List<TranslationGroup> _translationGroup = null;
+
+        public PaymentProvider PaymentProvider { get { return this._paymentProvider; } }
+        public CustomPage CustomPage { get { return this._customPage; } set { this._customPage = value; } }
+        public Country Country { get { return this._country; } }
+        public CustomPageData CustomPageData { get { return this._customPageData; } }
+        public List<CustomPageData> CustomPageDatas { get { return this._customPageDatas; } }
+        public List<MobileOperator> MobileOperators { get { return this._mobileOperator; } }
+        public List<TranslationGroup> TranslationGroup { get { return this._translationGroup; } }
+
+        public TempalteCustomPageDataModel(PaywallHttpContext context, int customPageID)
+            : base(context)
+        {
+            this._translationGroup = MobilePaywall.Data.TranslationGroup.CreateManager().Load();
+            this._customPage = MobilePaywall.Data.CustomPage.CreateManager().Load(customPageID);
+
+            this._customPageDatas = (from csd in MobilePaywall.Data.CustomPageData.CreateManager().Load(_customPage)
+                                     where
+                                         (csd.Service != null && csd.Service.ID == PaywallHttpContext.Current.Service.ServiceData.ID) ||
+                                         (csd.Service == null)
+                                     select csd).ToList();
+
+            this._mobileOperator = MobileOperator.CreateManager().Load(context.Service.ServiceData.FallbackCountry);
+
+        }
+    }
+
+}

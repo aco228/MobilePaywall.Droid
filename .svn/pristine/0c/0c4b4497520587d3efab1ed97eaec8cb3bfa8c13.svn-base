@@ -1,0 +1,133 @@
+﻿using Cashflow.Message;
+using MobilePaywall.Data;
+using MobilePaywall.MobilePaywallDirect;
+using Senti.Diagnostics.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+
+namespace MobilePaywall.Service.Callback.SpecificHandlers.Iran
+{
+  public class InitializeSubscriptionMethod : SpecificHandlerMethodBase
+  {
+
+    public InitializeSubscriptionMethod()
+      : base("iran_InitializeSubscriptionMethod")
+    { }
+
+    protected override bool TryConvert(Cashflow.Message.Notification notification)
+    {
+      return notification as InitiateSubscriptionNotification != null;
+    }
+
+    protected override void Execute()
+    {
+      Guid userSessionGuid = Guid.Empty;
+      InitiateSubscriptionNotification notification = this.Notification as InitiateSubscriptionNotification;
+      UserSession userSession = this.CLog.UserSession;
+
+      PaymentRequest paymentRequest = PaymentRequest.CreateManager().Load(notification.SubscriptionRequestID.Value, GuidType.External);
+
+      // we need this because there is a lot of usersessions, and only one created lookup session
+      int? lookupSessionID = (new PaywallDirect()).LoadInt("SELECT TOP 1 LookupSessionID FROM MobilePaywall.core.LookupSession AS ls "
+                                                            + " LEFT OUTER JOIN MobilePaywall.core.UserSession AS us ON ls.UserSessionID=us.UserSessionID "
+                                                            + " WHERE us.UserSessionGuid='" + userSession.Guid + "' "
+                                                            + " ORDER BY ls.Created DESC ");
+
+      if (!lookupSessionID.HasValue)
+      {
+        CLog.Error("Could not load Lookup session for User Session with ID: " + userSession.ID);
+        return;
+      }
+
+      LookupSession lookupSession = LookupSession.CreateManager().Load(lookupSessionID.Value);
+      if (lookupSession == null)
+      {
+        CLog.Error("Could not load Lookup session with ID: " + lookupSessionID.Value);
+        return;
+      }
+
+      userSession = lookupSession.UserSession;
+
+      ServiceOffer serviceOffer = (from s in ServiceOffer.CreateManager().Load(userSession.Service) where s.IsDefault && s.IsActive select s).FirstOrDefault();
+      if (serviceOffer == null)
+      {
+        CLog.Error("There is no active service offers for service with name: " + userSession.Service.Name);
+        return;
+      }
+
+      BusinessModelEntry businessModelEntry = serviceOffer.BusinessModelEntry;
+      UserHttpRequest userhttpRequest = lookupSession.UserHttpRequest;
+      
+      Customer customer = Customer.LoadByStorageUserSessionID(userSession);
+      if (customer == null)
+      {
+        CLog.Error("Could not load Customer from CustomerStorage WHERE [Key]= USID_" + userSession.ID);
+        return;
+      }
+
+      if (customer.ExternalCustomerGuid != notification.CustomerID)
+      {
+        customer.ExternalCustomerGuid = notification.CustomerID;
+        customer.Update();
+      }
+
+      if (paymentRequest == null)
+      {
+        paymentRequest = new PaymentRequest(-1,
+          Guid.NewGuid(),
+          PaymentType.Subscription,
+          PaymentRequestStatus.Initialized,
+          lookupSession,
+          customer,
+          userSession,
+          serviceOffer,
+          businessModelEntry,
+          notification.SubscriptionRequestID.Value,
+          userhttpRequest,
+          notification.RedirectUrl,
+          DateTime.Now, DateTime.Now);
+        paymentRequest.Insert();
+      }
+
+      if (notification.CustomerID.HasValue)
+      {
+        userSession.Customer.ExternalCustomerGuid = notification.CustomerID;
+        userSession.Customer.Update();
+      }
+
+      IInitiateCallbackManager icpManager = InitiateCallback.CreateManager();
+      InitiateCallback initiateCallback = icpManager.Load(paymentRequest);
+      if (initiateCallback == null)
+      {
+        initiateCallback = new InitiateCallback(-1, Guid.NewGuid(), paymentRequest, false, DateTime.Now.AddMinutes(10), DateTime.Now, DateTime.Now);
+        initiateCallback.Insert();
+      }
+
+      switch (notification.Status.Code)
+      {
+        case MessageStatusCode.Redirect:
+        case MessageStatusCode.Success:
+          paymentRequest.PaymentRedirectUrl = notification.RedirectUrl;
+          paymentRequest.ExternalPaymentRequestGuid = notification.SubscriptionRequestID.Value;
+          paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Complete;
+          paymentRequest.Customer.ExternalCustomerGuid = notification.CustomerID;
+          paymentRequest.Update();
+          paymentRequest.Customer.Update();
+          break;
+        case MessageStatusCode.Failure:
+          paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Failure;
+          paymentRequest.Update();
+          break;
+        case MessageStatusCode.Pending:
+          CLog.Debug(new LogMessageBuilder(
+            new LogErrorCode("ppishandler", "initiate", "notification"), "Initiate Subscription pending.",
+              notification.ReferenceID));
+          break;
+        default:
+          break;
+      }
+    }
+  }
+}

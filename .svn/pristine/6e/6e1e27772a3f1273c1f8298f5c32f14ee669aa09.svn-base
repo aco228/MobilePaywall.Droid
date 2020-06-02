@@ -1,0 +1,194 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.Specialized;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using MobilePaywall.Data;
+using log4net;
+using Senti.Diagnostics.Log;
+using System.Web.Routing;
+
+namespace MobilePaywall
+{
+	public abstract class ContentBase : IContent
+	{
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (ContentBase._log == null)
+          ContentBase._log = LogManager.GetLogger(typeof(ContentBase));
+        return ContentBase._log;
+      }
+    }
+    #endregion
+
+		private Content _contentData = null;
+		private List<ContentThumbnail> _thumbnails = null;
+    private List<Category> _categories = null;
+    //private IContentCacheManager _contentCache = null;
+    private ICache _cache = null;
+
+    public int ID { get { return this._contentData.ID; } }
+		public Content ContentData { get { return this._contentData; } }
+		public List<ContentThumbnail> Thumbnails { get { return this._thumbnails; } }
+    public List<Category> Categories { get { return this._categories; } }
+    //protected IContentCacheManager ContentCache { get { return this._contentCache; } }
+    protected ICache ContentCache { get { return this._cache; } }
+
+		public virtual bool IsDownloadable { get { return true; } }
+		public virtual bool IsStreamable { get { return true; } }
+    public virtual string ContentIconClass { get { return "__contentIcon_video"; } }
+    public virtual string DefaultTitle { get { return string.Empty; } }
+    public virtual string DefaultDescription { get { return string.Empty; } }
+
+		public ContentBase(Content content)
+		{
+			this._contentData = content;
+      this.LoadThumbnails();
+      this.LoadCategories();
+		}
+
+    public ContentBase(ICache cache, Content content)
+      : this(content)
+    {
+      this._cache = cache;
+    }
+
+    //public ContentBase(IContentCacheManager cache, Content content)
+    //  : this(content)
+    //{
+    //  this._contentCache = contentCache;
+    //}
+
+		public abstract NameValueCollection GetMetaInformation(Service service, Language language);
+		public abstract ContentData GetContentData(string userAgent);
+    public abstract ContentData GetContentData(int id);
+		//public abstract ApplicationContent ApplicationContentData { get; }
+		//public abstract AudioContent AudioContentData { get; }
+		//public abstract ImageContent ImageContentData { get; }
+		//public abstract BinaryContent BinaryContentData { get; }
+		//public abstract OtherContent OtherContentData { get; }
+
+    public virtual ContentInformations GetInformations(Service service, Language language)
+    {
+      return new ContentInformations();
+    }
+    
+    public virtual string GetAccessUrl()
+    {
+      return "/content/" + this.ContentData.ID.ToString();
+    }
+
+		public virtual string GetAccessUrl(string userAgent)
+		{
+      // TODO: The url might have to be received from the route sets dynamically as they might be localized or specific to a service due to some market regulations. How can we do that?
+			// REVIEW:
+      //return "/content/access/" + this.ContentData.ID.ToString();
+      return "/content/" + this.ContentData.ID.ToString();
+    }
+
+    public virtual string GetAccessUrl(string userAgent, string sid)
+    {
+      // TODO: The url might have to be received from the route sets dynamically as they might be localized or specific to a service due to some market regulations. How can we do that?
+      // REVIEW:
+      //return "/content/access/" + this.ContentData.ID.ToString();
+      return "/content/" + this.ContentData.ID.ToString() + "/" + MobilePaywall.Constants.SessionID + "/" + sid;
+    }
+    
+		//public virtual List<DownloadOption> GetDownloadOptions(string userAgent) { }
+		// public class DownloadOption
+		//   public string GetLabel(); -> returns "Full HD 1920x1080" or "HD Ready" or "VGA"
+		//   public string GetDownloadUrl(); -> returns "/video/download/[VIDEOID]/[VIDEOCONVERSIONPROFILEID]" or "/video/download/[VIDEODATAID]"
+		//
+
+
+		public virtual List<ContentDownloadOption> GetDownloadOptions(string userAgent)
+		{
+			// REVIEW:
+      // TODO: The url might have to be received from the route sets dynamically as they might be localized or specific to a service due to some market regulations. How can we do that?
+      //return new List<ContentDownloadOption>() { new ContentDownloadOption() { Label = "ContentBase Download Option", Url = "/content/download?contentID=" + this.ContentData.ID.ToString() } };
+      return new List<ContentDownloadOption>() { new ContentDownloadOption() { Label = "ContentBase Download Option", Url = "/content/download/" + this.ContentData.ID.ToString() } };
+    }
+
+		public virtual List<ContentStreamingOption> GetStreamingOptions(string userAgent)
+		{
+			// REVIEW:
+      // TODO: The url might have to be received from the route sets dynamically as they might be localized or specific to a service due to some market regulations. How can we do that?
+      //return new List<ContentStreamingOption>() { new ContentStreamingOption() { Label = "ContentBase Streaming Option", Url = "/content/stream?contentID=" + this.ContentData.ID.ToString() } };
+      return new List<ContentStreamingOption>() { new ContentStreamingOption() { Label = "ContentBase Streaming Option", Url = "/content/stream/" + this.ContentData.ID.ToString() } };
+    }
+
+    private void LoadCategories()
+    {
+      IContentCategoryMapManager ccmManager = ContentCategoryMap.CreateManager();
+      List<ContentCategoryMap> contentCategories = ccmManager.Load(this.ContentData);
+      this._categories = (from c in contentCategories where c.IsEnabled select c.Category).ToList();
+    }
+
+		private void LoadThumbnails()
+		{
+			this._thumbnails = ContentThumbnail.LoadByContent<List<ContentThumbnail>>(this.ContentData);
+		}
+
+		public ContentThumbnail GetDefaultThumbnail()
+		{
+			ContentThumbnail thumbnail = null;
+			if (this.ContentCache != null)
+			{
+				thumbnail = this.ContentCache.GetDefaultThumbnail(this.ContentData);
+				if (thumbnail != null)
+					return thumbnail;
+			}
+
+			// REVIEW:
+      // TODO: here we should consider lazy loading the thumbnails as we weren't able to resolve it through the cache (maybe the cache is responsible for lazy loading it and if its still null, it really failed).
+			return null;
+		}
+
+    public virtual string GetThumbnailUrl(string userAgent)
+    {
+      //// TODO: The url might have to be received from the route sets dynamically as they might be localized or specific to a service due to some market regulations. How can we do that?
+      //// REVIEW:
+      //RouteValueDictionary routeValueDictionary = new RouteValueDictionary();
+      //routeValueDictionary.Add("contentID", this.ContentData.ID.ToString());
+
+      //VirtualPathData virtualPathData = RouteTable.Routes.GetVirtualPath(null, "Thumbnail", routeValueDictionary);
+      ////return "/thumbnail/get?contentID=" + this.ContentData.ID.ToString();
+      //return virtualPathData.VirtualPath;
+      return "/thumbnail/default/" + this.ContentData.ID;
+    }
+
+
+
+    public virtual void UpdateTitle(string title, IUserSession us)
+    {
+    }
+
+    public virtual void UpdateDescription(string description, IUserSession us)
+    {
+    }
+
+    public virtual void UpdateContentDetails(ContentInformations info, IUserSession us)
+    {
+
+    }
+
+    public virtual void DeleteContentDetails(ContentInformations info, IUserSession us)
+    {
+
+    }
+
+    public virtual List<ContentInformations> GetAllContentDetail()
+    {
+      return null;
+    }
+  }
+
+
+}

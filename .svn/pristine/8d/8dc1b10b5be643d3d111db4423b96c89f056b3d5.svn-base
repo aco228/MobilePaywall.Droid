@@ -1,0 +1,90 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IContentManager 
+  {
+    List<Content> Load();
+    List<Content> Load(IConnectionInfo connection);
+		List<Content> Load(ContentGroup contentGroup);
+		List<Content> Load(IConnectionInfo connection, ContentGroup contentGroup);
+		List<Content> Load(ContentType contentType);
+		List<Content> Load(IConnectionInfo connection, ContentType contentType);
+		List<Content> Load(ContentStorage contentStorage);
+		List<Content> Load(IConnectionInfo connection, ContentStorage contentStorage);
+		List<Content> Load(ContentGroup contentGroup, ContentType contentType);
+		List<Content> Load(IConnectionInfo connection, ContentGroup contentGroup, ContentType contentType);
+		List<Content> Load(ContentGroup contentGroup, ContentStorage contentStorage);
+		List<Content> Load(IConnectionInfo connection, ContentGroup contentGroup, ContentStorage contentStorage);
+		List<Content> Load(ContentGroup contentGroup, ContentType contentType, ContentStorage contentStorage);
+		List<Content> Load(IConnectionInfo connection, ContentGroup contentGroup, ContentType contentType, ContentStorage contentStorage);
+		List<Content> Load(ContentType contentType, ContentStorage contentStorage);
+		List<Content> Load(IConnectionInfo connection, ContentType contentType, ContentStorage contentStorage);
+  }
+
+  public partial class Content
+  {
+    public IContent Instantiate()
+    {
+      return this.ContentType.Instantiate(this);
+    }
+
+    public IContent Instantiate(ICache cache)
+    {
+      return this.ContentType.Instantiate(cache, this);
+    }
+
+    //public IContent Instantiate(IContentCacheManager contentCache)
+    //{
+    //  return this.ContentType.Instantiate(contentCache, this);
+    //}
+
+		public static Content LoadByContentID(int contentID)
+		{
+			Content content = null;
+			using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+			{
+				connection.Transaction.Begin();
+				IContentManager cManager = Content.CreateManager();
+				content = cManager.Load(connection, contentID);
+				connection.Transaction.Commit();
+			}
+
+			return content;
+		}
+
+    public static List<Content> LoadAll()
+    {
+      return LoadAll(1);
+    }
+
+    public static List<Content> LoadAll(int depth)
+    {
+      List<Content> content = null;
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        try
+        {
+          connection.Transaction.Begin();
+          IContentManager manager = Content.CreateManager(depth);
+          content = manager.Load(connection);
+          connection.Transaction.Commit();
+          return content;
+        }
+        catch (Exception ex)
+        {
+          connection.Transaction.Rollback();
+          return null;
+        }
+      }
+    }
+  }
+}
+

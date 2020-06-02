@@ -1,0 +1,71 @@
+using MobilePaywall.MobilePaywallDirect;
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+
+
+namespace MobilePaywall.Data
+{
+	public partial interface IPaymentManager
+	{
+		List<Payment> Load(DateTime? from, DateTime? to);
+		List<Payment> Load(IConnectionInfo connection, DateTime? from, DateTime? to);
+
+		T Load<T>(Customer customer);
+		T Load<T>(IConnectionInfo connection, Customer customer);
+		Payment Load(Guid paymentGuid, GuidType guidType, Customer customer);
+		Payment Load(IConnectionInfo connection, Guid paymentGuid, GuidType guidType, Customer customer);
+    Payment Load(PaymentRequest paymentRequest);
+    Payment Load(IConnectionInfo connection, PaymentRequest paymentRequest);
+    Payment Load(Guid paymentGuid, GuidType guidType);
+    Payment Load(IConnectionInfo connection, Guid paymentGuid, GuidType guidType);
+
+    List<Payment> Load();
+    List<Payment> Load(IConnectionInfo connection);
+	}
+
+	public partial class Payment
+	{
+		public static List<Payment> Load(DateTime? from, DateTime? to)
+		{
+			List<Payment> payments = null;
+
+			using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+			{
+				try
+				{
+					connection.Transaction.Begin();
+					IPaymentManager pManager = Payment.CreateManager(0);
+					payments = pManager.Load(connection, from, to);
+					connection.Transaction.Commit();
+				}
+				catch (Exception ex)
+				{
+					connection.Transaction.Rollback();
+				}
+			}
+
+			return payments;
+		}
+
+    public override bool Insert()
+    {
+      bool result = base.Insert();
+      new OLCacher().Synchronize(this);
+      return result;
+    }
+
+    public override bool Update()
+    {
+      bool result = base.Update();
+      new OLCacher().Synchronize(this);
+      return result;
+    }
+
+	}
+}
+

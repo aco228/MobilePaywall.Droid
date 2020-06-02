@@ -1,0 +1,353 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(AndroidClientSessionOLCacheMap))] 
+  public partial class AndroidClientSessionOLCacheMapManager : MobilePaywall.Data.Sql.SqlManagerBase<AndroidClientSessionOLCacheMap>, IAndroidClientSessionOLCacheMapManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override AndroidClientSessionOLCacheMap LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							AndroidClientSessionOLCacheMapTable.GetColumnNames("[acsolcm]") + 
+							(this.Depth > 0 ? "," + AndroidClientSessionTable.GetColumnNames("[acsolcm_acs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[acsolcm_acs_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + OLCacheTable.GetColumnNames("[acsolcm_olc]") : string.Empty) + 
+					" FROM [core].[AndroidClientSessionOLCacheMap] AS [acsolcm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidClientSession] AS [acsolcm_acs] ON [acsolcm].[AndroidClientSessionID] = [acsolcm_acs].[AndroidClientSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [acsolcm_acs_c] ON [acsolcm_acs].[CountryID] = [acsolcm_acs_c].[CountryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[OLCache] AS [acsolcm_olc] ON [acsolcm].[OLCacheID] = [acsolcm_olc].[OLCacheID] ";
+				sqlCmdText += "WHERE [acsolcm].[AndroidClientSessionOLCacheMapID] = @AndroidClientSessionOLCacheMapID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AndroidClientSessionOLCacheMapID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acsolcm", "loadinternal", "notfound"), "AndroidClientSessionOLCacheMap could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AndroidClientSessionOLCacheMapTable acsolcmTable = new AndroidClientSessionOLCacheMapTable(query);
+				AndroidClientSessionTable acsolcm_acsTable = (this.Depth > 0) ? new AndroidClientSessionTable(query) : null;
+				CountryTable acsolcm_acs_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				OLCacheTable acsolcm_olcTable = (this.Depth > 0) ? new OLCacheTable(query) : null;
+
+        
+				Country acsolcm_acs_cObject = (this.Depth > 1) ? acsolcm_acs_cTable.CreateInstance() : null;
+				AndroidClientSession acsolcm_acsObject = (this.Depth > 0) ? acsolcm_acsTable.CreateInstance(acsolcm_acs_cObject) : null;
+				OLCache acsolcm_olcObject = (this.Depth > 0) ? acsolcm_olcTable.CreateInstance() : null;
+				AndroidClientSessionOLCacheMap acsolcmObject = acsolcmTable.CreateInstance(acsolcm_acsObject, acsolcm_olcObject);
+				sqlReader.Close();
+
+				return acsolcmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acsolcm", "loadinternal", "exception"), "AndroidClientSessionOLCacheMap could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AndroidClientSessionOLCacheMap", "Exception while loading AndroidClientSessionOLCacheMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public AndroidClientSessionOLCacheMap Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AndroidClientSessionOLCacheMapTable.GetColumnNames("[acsolcm]") + 
+							(this.Depth > 0 ? "," + AndroidClientSessionTable.GetColumnNames("[acsolcm_acs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[acsolcm_acs_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + OLCacheTable.GetColumnNames("[acsolcm_olc]") : string.Empty) +  
+					" FROM [core].[AndroidClientSessionOLCacheMap] AS [acsolcm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidClientSession] AS [acsolcm_acs] ON [acsolcm].[AndroidClientSessionID] = [acsolcm_acs].[AndroidClientSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [acsolcm_acs_c] ON [acsolcm_acs].[CountryID] = [acsolcm_acs_c].[CountryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[OLCache] AS [acsolcm_olc] ON [acsolcm].[OLCacheID] = [acsolcm_olc].[OLCacheID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acsolcm", "customload", "notfound"), "AndroidClientSessionOLCacheMap could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AndroidClientSessionOLCacheMapTable acsolcmTable = new AndroidClientSessionOLCacheMapTable(query);
+				AndroidClientSessionTable acsolcm_acsTable = (this.Depth > 0) ? new AndroidClientSessionTable(query) : null;
+				CountryTable acsolcm_acs_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				OLCacheTable acsolcm_olcTable = (this.Depth > 0) ? new OLCacheTable(query) : null;
+
+        
+				Country acsolcm_acs_cObject = (this.Depth > 1) ? acsolcm_acs_cTable.CreateInstance() : null;
+				AndroidClientSession acsolcm_acsObject = (this.Depth > 0) ? acsolcm_acsTable.CreateInstance(acsolcm_acs_cObject) : null;
+				OLCache acsolcm_olcObject = (this.Depth > 0) ? acsolcm_olcTable.CreateInstance() : null;
+				AndroidClientSessionOLCacheMap acsolcmObject = acsolcmTable.CreateInstance(acsolcm_acsObject, acsolcm_olcObject);
+				sqlReader.Close();
+
+				return acsolcmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acsolcm", "customload", "exception"), "AndroidClientSessionOLCacheMap could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AndroidClientSessionOLCacheMap", "Exception while loading (custom/single) AndroidClientSessionOLCacheMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<AndroidClientSessionOLCacheMap> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AndroidClientSessionOLCacheMapTable.GetColumnNames("[acsolcm]") + 
+							(this.Depth > 0 ? "," + AndroidClientSessionTable.GetColumnNames("[acsolcm_acs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[acsolcm_acs_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + OLCacheTable.GetColumnNames("[acsolcm_olc]") : string.Empty) +  
+					" FROM [core].[AndroidClientSessionOLCacheMap] AS [acsolcm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidClientSession] AS [acsolcm_acs] ON [acsolcm].[AndroidClientSessionID] = [acsolcm_acs].[AndroidClientSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [acsolcm_acs_c] ON [acsolcm_acs].[CountryID] = [acsolcm_acs_c].[CountryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[OLCache] AS [acsolcm_olc] ON [acsolcm].[OLCacheID] = [acsolcm_olc].[OLCacheID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acsolcm", "customloadmany", "notfound"), "AndroidClientSessionOLCacheMap list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<AndroidClientSessionOLCacheMap>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AndroidClientSessionOLCacheMapTable acsolcmTable = new AndroidClientSessionOLCacheMapTable(query);
+				AndroidClientSessionTable acsolcm_acsTable = (this.Depth > 0) ? new AndroidClientSessionTable(query) : null;
+				CountryTable acsolcm_acs_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				OLCacheTable acsolcm_olcTable = (this.Depth > 0) ? new OLCacheTable(query) : null;
+
+        List<AndroidClientSessionOLCacheMap> result = new List<AndroidClientSessionOLCacheMap>();
+        do
+        {
+          
+					Country acsolcm_acs_cObject = (this.Depth > 1) ? acsolcm_acs_cTable.CreateInstance() : null;
+					AndroidClientSession acsolcm_acsObject = (this.Depth > 0) ? acsolcm_acsTable.CreateInstance(acsolcm_acs_cObject) : null;
+					OLCache acsolcm_olcObject = (this.Depth > 0) ? acsolcm_olcTable.CreateInstance() : null;
+					AndroidClientSessionOLCacheMap acsolcmObject = (this.Depth > -1) ? acsolcmTable.CreateInstance(acsolcm_acsObject, acsolcm_olcObject) : null;
+					result.Add(acsolcmObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acsolcm", "customloadmany", "exception"), "AndroidClientSessionOLCacheMap list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AndroidClientSessionOLCacheMap", "Exception while loading (custom/many) AndroidClientSessionOLCacheMap object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, AndroidClientSessionOLCacheMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[AndroidClientSessionOLCacheMap] ([AndroidClientSessionID],[OLCacheID]) VALUES(@AndroidClientSessionID,@OLCacheID); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@AndroidClientSessionID", data.AndroidClientSession.ID);
+				sqlCmd.Parameters.AddWithValue("@OLCacheID", data.OLCache.ID);
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acsolcm", "insert", "noprimarykey"), "AndroidClientSessionOLCacheMap could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "AndroidClientSessionOLCacheMap", "Exception while inserting AndroidClientSessionOLCacheMap object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acsolcm", "insert", "exception"), "AndroidClientSessionOLCacheMap could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "AndroidClientSessionOLCacheMap", "Exception while inserting AndroidClientSessionOLCacheMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, AndroidClientSessionOLCacheMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[AndroidClientSessionOLCacheMap] SET " +
+												"[AndroidClientSessionID] = @AndroidClientSessionID, " + 
+												"[OLCacheID] = @OLCacheID, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [AndroidClientSessionOLCacheMapID] = @AndroidClientSessionOLCacheMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@AndroidClientSessionID", data.AndroidClientSession.ID);
+				sqlCmd.Parameters.AddWithValue("@OLCacheID", data.OLCache.ID);
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@AndroidClientSessionOLCacheMapID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acsolcm", "update", "norecord"), "AndroidClientSessionOLCacheMap could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "AndroidClientSessionOLCacheMap", "Exception while updating AndroidClientSessionOLCacheMap object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acsolcm", "update", "morerecords"), "AndroidClientSessionOLCacheMap was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "AndroidClientSessionOLCacheMap", "Exception while updating AndroidClientSessionOLCacheMap object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acsolcm", "update", "exception"), "AndroidClientSessionOLCacheMap could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "AndroidClientSessionOLCacheMap", "Exception while updating AndroidClientSessionOLCacheMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, AndroidClientSessionOLCacheMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[AndroidClientSessionOLCacheMap] WHERE AndroidClientSessionOLCacheMapID = @AndroidClientSessionOLCacheMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AndroidClientSessionOLCacheMapID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acsolcm", "delete", "norecord"), "AndroidClientSessionOLCacheMap could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "AndroidClientSessionOLCacheMap", "Exception while deleting AndroidClientSessionOLCacheMap object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acsolcm", "delete", "exception"), "AndroidClientSessionOLCacheMap could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "AndroidClientSessionOLCacheMap", "Exception while deleting AndroidClientSessionOLCacheMap object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

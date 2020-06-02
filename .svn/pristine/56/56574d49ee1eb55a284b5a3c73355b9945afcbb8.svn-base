@@ -1,0 +1,150 @@
+﻿@model Statistics
+@{
+   ViewBag.Title = "Chart";
+   MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+}
+
+<!-- BEGIN PAGE HEADER-->
+<div class="page-bar">
+   <ul class="page-breadcrumb">
+      <li>
+         <i class="icon-bar-chart"></i>
+         <a href="#">@ViewBag.Title</a>
+      </li>
+   </ul>
+   <div class="page-toolbar">
+      <div id="dashboard-report-range" class="tooltips btn btn-sm btn-default" data-container="body" data-placement="bottom" data-original-title="Change statistics date range">
+         <i class="icon-calendar"></i>&nbsp; <span class="thin uppercase visible-lg-inline-block"></span>&nbsp; <i class="fa fa-angle-down"></i>
+      </div>
+   </div>
+</div>
+@*<div class="row statistics-header">
+     <div class="col-xs-offset-6 col-xs-6 calendar">
+       <div id="dashboard-report-range" class="tooltips btn btn-sm btn-default" data-container="body" data-placement="bottom" data-original-title="Change statistics date range">
+         <i class="icon-calendar"></i>&nbsp; <span class="thin uppercase visible-lg-inline-block"></span>&nbsp; <i class="fa fa-angle-down"></i>
+       </div>
+     </div>
+   </div>*@
+
+<!-- END PAGE HEADER-->
+<div class="statistics-wrapper">
+   <div class="col-md-12 filters">
+      <div class="row">
+         <div class="col-sm-6 col-md-4 col-lg-2 filter">
+            <select id="select_merchant" class="form-control select2" placeholder="Merchant" multiple>
+               @{
+                  foreach (Merchant merchant in runtime.Merchants)
+                  {
+                     <option value="@merchant.ID">@merchant.Name</option>
+                  }
+               }
+            </select>
+         </div>
+         <div class="col-sm-6 col-md-4 col-lg-2 filter">
+            <select id="select_service" class="form-control select2" multiple>
+               @{
+                  foreach (KeyValuePair<int, List<IService>> kv in runtime.MerchantServiceMap)
+                  {
+                     <optgroup value="@kv.Key" label="@runtime.GetMerchantByID(kv.Key).Name">
+                        @foreach (IService service in kv.Value)
+                        {
+                           <option value="@service.ServiceData.ID">@service.ServiceData.Name</option>
+                        }
+                     </optgroup>
+                  }
+               }
+            </select>
+         </div>
+         <div class="col-sm-6 col-md-4 col-lg-2 filter">
+            <select id="select_country" class="form-control select2" multiple>
+               @{
+                  foreach (Country country in runtime.Countries)
+                  {
+                     <option value="@country.ID" data-ccode="@country.CountryCode">@country.GlobalName</option>
+                  }
+               }
+            </select>
+         </div>
+         <div class="col-sm-6 col-md-4 col-lg-2 filter">
+            <select id="select_operator" class="form-control select2" multiple>
+
+               @foreach (KeyValuePair<int, List<MobileOperator>> kv in runtime.CountryOperatorMap)
+               {
+                  <optgroup value="@kv.Key" label="@runtime.GetCountryByID(kv.Key).GlobalName">
+
+                     @foreach (MobileOperator mobileOperator in kv.Value)
+                     {
+                        <option value="@mobileOperator.ID">@mobileOperator.Name</option>
+                     }
+                  </optgroup>
+               }
+            </select>
+         </div>
+
+
+      </div>
+   </div>
+
+   <div id="mptable">
+      <div class="col-md-12">
+         <div class="row">
+            <div class="portlet box blue-steel statistics-table">
+               <div class="portlet-title" id="mptable-portlet-title">
+                  @*<div class="caption">
+                         <i class="fa fa-globe"></i>Table Title
+                     </div>*@
+                  <div id="statistics_table_controls" class="actions">
+                     <div id="table_export" class="btn-group">
+                        <button class="btn btn-default dropdown-toggle" data-toggle="dropdown">Tools <i class="fa fa-angle-down"></i></button>
+                        <div id="table_export_btns" class="dropdown-menu">
+                        </div>
+                     </div>
+                     <div id="column_picker" class="btn-group">
+                        <a class="btn btn-default" href="javascript:;" data-toggle="dropdown">
+                           Columns <i class="fa fa-angle-down"></i>
+                        </a>
+                        <div id="statistics_table_column_toggler" class="dropdown-menu hold-on-click dropdown-checkboxes pull-right">
+                        </div>
+                     </div>
+                     <button id="save_filters_btn" class="btn btn-default" style="cursor: pointer;" data-toggle="popover" data-placement="auto">Save</button>
+                     <div id="popover_content_wrapper">
+                        <input id="save_filters_name" placeholder="Name" />
+                        <button id="filters_save">Save</button>
+                        <button id="filters_cancel">Cancel</button>
+                     </div>
+
+                     <button id="reset_btn" class="btn btn-default" style="cursor: pointer;">Reset</button>
+                     <button id="refresh_btn" class="btn btn-default" style="cursor: pointer;">Refresh</button>
+                  </div>
+               </div>
+               <div id="chartdiv"></div>
+               @*<div class="portlet-body" id="mptable-portlet-body">
+                     @Html.Partial("_Table", Model)
+                  </div>*@
+            </div>
+         </div>
+      </div>
+   </div>
+   <div class="clearfix">
+   </div>
+</div>
+
+<style>
+   #chartdiv {
+      width: 100%;
+      height: 500px;
+   }
+</style>
+
+@section PageScripts{
+   @Scripts.Render("~/pages/statistic/js")
+}
+
+@section CustomScripts {
+   <script src="~/Scripts/metronic/pages/custom/statistic.js"></script>
+   <script src="https://www.amcharts.com/lib/3/amcharts.js"></script>
+   <script src="https://www.amcharts.com/lib/3/amstock.js"></script>
+   <script src="~/Scripts/metronic/pages/custom/statistic-chart.js"></script>
+   <script src="https://www.amcharts.com/lib/3/serial.js"></script>
+   <script src="https://www.amcharts.com/lib/3/themes/none.js"></script>
+}

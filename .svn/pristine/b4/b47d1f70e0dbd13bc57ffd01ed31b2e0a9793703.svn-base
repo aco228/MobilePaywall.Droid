@@ -1,0 +1,362 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(OLCache))] 
+  public partial class OLCacheManager : MobilePaywall.Data.Sql.SqlManagerBase<OLCache>, IOLCacheManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override OLCache LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							OLCacheTable.GetColumnNames("[olc]") + 
+					" FROM [core].[OLCache] AS [olc] ";
+				sqlCmdText += "WHERE [olc].[OLCacheID] = @OLCacheID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@OLCacheID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("olc", "loadinternal", "notfound"), "OLCache could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				OLCacheTable olcTable = new OLCacheTable(query);
+
+        
+				OLCache olcObject = olcTable.CreateInstance();
+				sqlReader.Close();
+
+				return olcObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("olc", "loadinternal", "exception"), "OLCache could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        //if (this.Logger.IsErrorEnabled)
+        //  this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "OLCache", "Exception while loading OLCache object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public OLCache Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							OLCacheTable.GetColumnNames("[olc]")  + 
+					" FROM [core].[OLCache] AS [olc] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("olc", "customload", "notfound"), "OLCache could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          //if (this.Logger.IsDebugEnabled)
+          //  this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				OLCacheTable olcTable = new OLCacheTable(query);
+
+        
+				OLCache olcObject = olcTable.CreateInstance();
+				sqlReader.Close();
+
+				return olcObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("olc", "customload", "exception"), "OLCache could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        //if (this.Logger.IsErrorEnabled)
+        //  this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "OLCache", "Exception while loading (custom/single) OLCache object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<OLCache> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							OLCacheTable.GetColumnNames("[olc]")  + 
+					" FROM [core].[OLCache] AS [olc] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("olc", "customloadmany", "notfound"), "OLCache list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<OLCache>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				OLCacheTable olcTable = new OLCacheTable(query);
+
+        List<OLCache> result = new List<OLCache>();
+        do
+        {
+          
+					OLCache olcObject = (this.Depth > -1) ? olcTable.CreateInstance() : null;
+					result.Add(olcObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("olc", "customloadmany", "exception"), "OLCache list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        //if (this.Logger.IsErrorEnabled)
+        //  this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "OLCache", "Exception while loading (custom/many) OLCache object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, OLCache data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[OLCache] ([UserSessionID],[ServiceID],[Pxid],[IPAddress],[ServiceName],[ServiceCountry],[CountryName],[CountryCode],[MobileOperatorID],[MobileOperatorName],[IdentificationSessionGuid],[Msisdn],[PaymentRequestID],[PaymentID],[PaymentCreated],[PaymentContentAccessPolicyID],[TransactionID],[TransactionCreated],[IsSubseguent],[SessionCreated]) VALUES(@UserSessionID,@ServiceID,@Pxid,@IPAddress,@ServiceName,@ServiceCountry,@CountryName,@CountryCode,@MobileOperatorID,@MobileOperatorName,@IdentificationSessionGuid,@Msisdn,@PaymentRequestID,@PaymentID,@PaymentCreated,@PaymentContentAccessPolicyID,@TransactionID,@TransactionCreated,@IsSubseguent,@SessionCreated); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@UserSessionID", data.UserSessionID).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.ServiceID).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Pxid", !string.IsNullOrEmpty(data.Pxid) ? (object)data.Pxid : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@IPAddress", !string.IsNullOrEmpty(data.IPAddress) ? (object)data.IPAddress : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@ServiceName", !string.IsNullOrEmpty(data.ServiceName) ? (object)data.ServiceName : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@ServiceCountry", !string.IsNullOrEmpty(data.ServiceCountry) ? (object)data.ServiceCountry : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@CountryName", !string.IsNullOrEmpty(data.CountryName) ? (object)data.CountryName : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@CountryCode", !string.IsNullOrEmpty(data.CountryCode) ? (object)data.CountryCode : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@MobileOperatorID", data.MobileOperatorID.HasValue ? (object)data.MobileOperatorID.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@MobileOperatorName", !string.IsNullOrEmpty(data.MobileOperatorName) ? (object)data.MobileOperatorName : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@IdentificationSessionGuid", data.IdentificationSessionGuid.HasValue ? (object)data.IdentificationSessionGuid : DBNull.Value);
+				sqlCmd.Parameters.AddWithValue("@Msisdn", !string.IsNullOrEmpty(data.Msisdn) ? (object)data.Msisdn : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@PaymentRequestID", data.PaymentRequestID.HasValue ? (object)data.PaymentRequestID.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@PaymentID", data.PaymentID.HasValue ? (object)data.PaymentID.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@PaymentCreated", data.PaymentCreated.HasValue ? (object)data.PaymentCreated.Value : DBNull.Value).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@PaymentContentAccessPolicyID", data.PaymentContentAccessPolicyID.HasValue ? (object)data.PaymentContentAccessPolicyID.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@TransactionID", data.TransactionID.HasValue ? (object)data.TransactionID.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@TransactionCreated", data.TransactionCreated.HasValue ? (object)data.TransactionCreated.Value : DBNull.Value).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@IsSubseguent", data.IsSubseguent.HasValue ? (object)data.IsSubseguent.Value : DBNull.Value).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@SessionCreated", data.SessionCreated.HasValue ? (object)data.SessionCreated.Value : DBNull.Value).SqlDbType = SqlDbType.DateTime2;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("olc", "insert", "noprimarykey"), "OLCache could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          //if (this.Logger.IsErrorEnabled)
+          //  this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "OLCache", "Exception while inserting OLCache object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("olc", "insert", "exception"), "OLCache could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "OLCache", "Exception while inserting OLCache object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, OLCache data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[OLCache] SET " +
+												"[UserSessionID] = @UserSessionID, " + 
+												"[ServiceID] = @ServiceID, " + 
+												"[Pxid] = @Pxid, " + 
+												"[IPAddress] = @IPAddress, " + 
+												"[ServiceName] = @ServiceName, " + 
+												"[ServiceCountry] = @ServiceCountry, " + 
+												"[CountryName] = @CountryName, " + 
+												"[CountryCode] = @CountryCode, " + 
+												"[MobileOperatorID] = @MobileOperatorID, " + 
+												"[MobileOperatorName] = @MobileOperatorName, " + 
+												"[IdentificationSessionGuid] = @IdentificationSessionGuid, " + 
+												"[Msisdn] = @Msisdn, " + 
+												"[PaymentRequestID] = @PaymentRequestID, " + 
+												"[PaymentID] = @PaymentID, " + 
+												"[PaymentCreated] = @PaymentCreated, " + 
+												"[PaymentContentAccessPolicyID] = @PaymentContentAccessPolicyID, " + 
+												"[TransactionID] = @TransactionID, " + 
+												"[TransactionCreated] = @TransactionCreated, " + 
+												"[IsSubseguent] = @IsSubseguent, " + 
+												"[SessionCreated] = @SessionCreated, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [OLCacheID] = @OLCacheID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@UserSessionID", data.UserSessionID).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.ServiceID).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Pxid", !string.IsNullOrEmpty(data.Pxid) ? (object)data.Pxid : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@IPAddress", !string.IsNullOrEmpty(data.IPAddress) ? (object)data.IPAddress : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@ServiceName", !string.IsNullOrEmpty(data.ServiceName) ? (object)data.ServiceName : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@ServiceCountry", !string.IsNullOrEmpty(data.ServiceCountry) ? (object)data.ServiceCountry : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@CountryName", !string.IsNullOrEmpty(data.CountryName) ? (object)data.CountryName : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@CountryCode", !string.IsNullOrEmpty(data.CountryCode) ? (object)data.CountryCode : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@MobileOperatorID", data.MobileOperatorID.HasValue ? (object)data.MobileOperatorID.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@MobileOperatorName", !string.IsNullOrEmpty(data.MobileOperatorName) ? (object)data.MobileOperatorName : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@IdentificationSessionGuid", data.IdentificationSessionGuid.HasValue ? (object)data.IdentificationSessionGuid : DBNull.Value);
+				sqlCmd.Parameters.AddWithValue("@Msisdn", !string.IsNullOrEmpty(data.Msisdn) ? (object)data.Msisdn : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@PaymentRequestID", data.PaymentRequestID.HasValue ? (object)data.PaymentRequestID.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@PaymentID", data.PaymentID.HasValue ? (object)data.PaymentID.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@PaymentCreated", data.PaymentCreated.HasValue ? (object)data.PaymentCreated.Value : DBNull.Value).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@PaymentContentAccessPolicyID", data.PaymentContentAccessPolicyID.HasValue ? (object)data.PaymentContentAccessPolicyID.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@TransactionID", data.TransactionID.HasValue ? (object)data.TransactionID.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@TransactionCreated", data.TransactionCreated.HasValue ? (object)data.TransactionCreated.Value : DBNull.Value).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@IsSubseguent", data.IsSubseguent.HasValue ? (object)data.IsSubseguent.Value : DBNull.Value).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@SessionCreated", data.SessionCreated.HasValue ? (object)data.SessionCreated.Value : DBNull.Value).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@OLCacheID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("olc", "update", "norecord"), "OLCache could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "OLCache", "Exception while updating OLCache object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("olc", "update", "morerecords"), "OLCache was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "OLCache", "Exception while updating OLCache object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("olc", "update", "exception"), "OLCache could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "OLCache", "Exception while updating OLCache object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, OLCache data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[OLCache] WHERE OLCacheID = @OLCacheID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@OLCacheID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("olc", "delete", "norecord"), "OLCache could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "OLCache", "Exception while deleting OLCache object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("olc", "delete", "exception"), "OLCache could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "OLCache", "Exception while deleting OLCache object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

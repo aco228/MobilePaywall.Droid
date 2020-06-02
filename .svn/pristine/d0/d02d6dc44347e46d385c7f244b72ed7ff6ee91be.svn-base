@@ -1,0 +1,65 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Data.Direct.MobilePaywall;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web.Models
+{
+    // SUMMARY: TemplateService Model for tehnical information page
+    public class TemplateService
+    {
+        private Data.Service _service = null;
+        private Data.PaymentProvider _provider = null;
+        private Data.TemplateServiceInfo _info = null;
+        private List<Data.TemplateServiceNote> _notes = null;
+        private List<Data.MobileOperator> _countryOperators = null;
+        private List<Data.TemplateServiceMobileOperator> _serviceOperators = null;
+        private List<int> _serviceOperatorsIDs = null;
+
+        public Data.Service Service { get { return this._service; } }
+        public Data.PaymentProvider PaymentProvider { get { return this._provider; } }
+        public Data.TemplateServiceInfo Info { get { return this._info; } }
+        public List<Data.TemplateServiceNote> Notes { get { return this._notes.Take(10).ToList(); } }
+        public string Note { get { return this._notes.FirstOrDefault() == null ? "" : this._notes.FirstOrDefault().Text; } }
+        public int NoteID { get { return this._notes != null && this._notes.Count != 0 ? this._notes.FirstOrDefault().ID : -1; } }
+        public int Progess { get { return this._info == null ? 0 : this._info.Progress; } }
+        public int Color { get { return this._info == null || !this._info.Color.HasValue || this._info.Color > TemplateServiceTehnicalModel.ColorPallete.Length ? 0 : this._info.Color.Value; } }
+        public string Contact { get { return this._info == null || string.IsNullOrEmpty(this._info.Contact) ? string.Empty : this._info.Contact; } }
+        public string Price { get { return this._info == null || string.IsNullOrEmpty(this._info.Price) ? string.Empty : this._info.Price; } }
+        public bool TrckdEnabled { get { return this._info != null ? this._info.TrckdEnabled : false; } }
+        public List<MobileOperator> CountryOperators { get { return this._countryOperators; } }
+        public List<int> ServiceOperatorsMap
+        {
+            get
+            {
+                if (this._serviceOperatorsIDs == null)
+                {
+                    this._serviceOperatorsIDs = new List<int>();
+                    foreach (TemplateServiceMobileOperator tsmo in this._serviceOperators)
+                        this._serviceOperatorsIDs.Add(tsmo.MobileOperator.ID);
+                }
+                return this._serviceOperatorsIDs;
+            }
+        }
+        public string ServiceTypeClass { get { return this._info != null ? this._info.TemplateServiceType.ToString() : "Unknown"; } }
+        public int TemplateServiceTypeINT { get { return this._info != null ? (int)this._info.TemplateServiceType : -1; } }
+
+
+        public TemplateService(Data.Service service)
+        {
+            this._service = service;
+            ServiceOffer offer = ServiceOffer.CreateManager().Load(this._service).FirstOrDefault();
+            this._provider = offer.PaymentConfiguration.PaymentProvider;
+            this._info = TemplateServiceInfo.CreateManager().Load(this._service);
+            this._notes = TemplateServiceNote.CreateManager().Load(this._service);
+            this._countryOperators = MobileOperator.CreateManager().Load(this.Service.FallbackCountry);
+            this._serviceOperators = TemplateServiceMobileOperator.CreateManager().Load(this.Service);
+            if (this._notes == null)
+                this._notes = new List<TemplateServiceNote>();
+        }
+    }
+}

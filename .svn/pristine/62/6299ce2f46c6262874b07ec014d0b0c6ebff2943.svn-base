@@ -1,0 +1,79 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class CustomPageDataManager : ICustomPageDataManager
+  {
+
+    public List<CustomPageData> Load(CustomPage customPage)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, customPage);
+    }
+
+    public List<CustomPageData> Load(IConnectionInfo connection, CustomPage customPage)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, customPage);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, customPage);
+    }
+
+    public List<CustomPageData> Load(ISqlConnectionInfo connection, CustomPage customPage)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[cpd].CustomPageID=@CustomPageID";
+      parameters.Arguments.Add("CustomPageID", customPage.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+
+
+
+    public CustomPageData Load(CustomPage customPage, PaymentProvider paymentProvider, MobileOperator mobileOperator, Service service)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, customPage,paymentProvider,mobileOperator,service);
+    }
+
+    public CustomPageData Load(IConnectionInfo connection, CustomPage customPage, PaymentProvider paymentProvider, MobileOperator mobileOperator, Service service)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, customPage,  paymentProvider, mobileOperator, service);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, customPage, paymentProvider, mobileOperator, service);
+    }
+
+    public CustomPageData Load(ISqlConnectionInfo connection, CustomPage customPage, PaymentProvider paymentProvider, MobileOperator mobileOperator, Service service)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[cpd].CustomPageID=" + customPage.ID;
+     
+      if (paymentProvider != null)
+        parameters.Where += "AND [cpd].PaymentProviderID = " + paymentProvider.ID;
+      if (mobileOperator != null)
+        parameters.Where += "AND [cpd].MobileOperatorID = " + mobileOperator.ID;
+      if (service != null)
+        parameters.Where += "AND [cpd].ServiceID = " + service.ID;
+
+      return this.Load(connection, parameters);
+
+    }
+
+
+
+  }
+}
+

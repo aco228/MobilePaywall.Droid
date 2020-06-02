@@ -1,0 +1,180 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Web;
+
+using log4net;
+
+using Senti.Diagnostics.Log;
+using System.Web.Hosting;
+
+namespace MobilePaywall.Merchant
+{
+  public class PaywallHttpApplication : HttpApplication
+	{
+		#region #logging#
+		private static ILog _log = null;
+
+		protected static ILog Log
+		{
+			get
+			{
+				if (PaywallHttpApplication._log == null)
+					PaywallHttpApplication._log = LogManager.GetLogger(typeof(PaywallHttpApplication));
+				return PaywallHttpApplication._log;
+			}
+		}
+		#endregion
+
+		private static readonly object HasPreExecuteRequestHandlerListenerLockObject = new object();
+		private static readonly object PaywallHttpApplicationInitializeRuntimeLockObject = new object();
+		private static readonly string PaywallRuntimeApplicationKey = "PaywallRuntimeApplicationKey";
+    
+		public static bool HasRuntime(HttpContext context)
+		{
+			return PaywallHttpApplication.HasRuntime(context.Application);
+		}
+
+		public static bool HasRuntime(HttpApplication application)
+		{
+			return PaywallHttpApplication.HasRuntime(application.Application);
+		}
+
+		public static bool HasRuntime(HttpApplicationState state)
+		{
+			return state[PaywallHttpApplication.PaywallRuntimeApplicationKey] != null;
+		}
+
+		public static IPaywallRuntime GetRuntime(HttpContext context)
+		{
+			return PaywallHttpApplication.GetRuntime(context.Application);
+		}
+
+		public static IPaywallRuntime GetRuntime(HttpApplication application)
+		{
+			return PaywallHttpApplication.GetRuntime(application.Application);
+		}
+
+		public static IPaywallRuntime GetRuntime(HttpApplicationState state)
+		{
+			return state[PaywallHttpApplication.PaywallRuntimeApplicationKey] as IPaywallRuntime;
+		}
+
+		protected static void SetRuntime(HttpContext context, IPaywallRuntime runtime)
+		{
+			PaywallHttpApplication.SetRuntime(context.Application, runtime);
+		}
+
+		protected static void SetRuntime(HttpApplication application, IPaywallRuntime runtime)
+		{
+			PaywallHttpApplication.SetRuntime(application.Application, runtime);
+		}
+
+		protected static void SetRuntime(HttpApplicationState state, IPaywallRuntime runtime)
+		{
+			state[PaywallHttpApplication.PaywallRuntimeApplicationKey] = runtime;
+		}
+
+		public override void Init()
+		{
+			base.Init();
+			
+      LogMessageBuilder builder = null;
+      MobilePaywall.Data.Sql.Database dummy = null;
+      Senti.Data.DataLayerRuntime r = new Senti.Data.DataLayerRuntime();
+      
+      log4net.Config.XmlConfigurator.ConfigureAndWatch(new System.IO.FileInfo(Server.MapPath("~/log4net.config")));
+
+      try
+      {
+        this.InitializeRuntime();
+      }
+      catch (Exception ex)
+      {
+        builder = new LogMessageBuilder(new LogErrorCode("paywall.web.core", "paywallhttpapplication", "init"), "");
+        if (Log.IsFatalEnabled)
+          Log.Fatal(builder, ex);
+      }
+		}
+
+		protected virtual void InitializeRuntime()
+		{
+      LogMessageBuilder builder = null;
+
+			if (PaywallHttpApplication.HasRuntime(this))
+				return;
+
+			lock (PaywallHttpApplicationInitializeRuntimeLockObject)
+      {
+				//string name = HostingEnvironment.SiteName;
+				if (PaywallHttpApplication.HasRuntime(this)) 
+          return;
+        
+        Data.IApplicationManager appManager = MobilePaywall.Data.Application.CreateManager();
+        //MobilePaywall.Data.Application application = appManager.Load(HostingEnvironment.SiteName);
+        MobilePaywall.Data.Application application = appManager.Load("merchant.vod.mobilepaywall.com");
+
+        if (application == null)
+        {
+          Log.Fatal(new LogMessageBuilder(new LogErrorCode("paywall.web.core", "paywallhttpapplication", "initializeruntime"),
+            string.Format("Application {0} is not loaded.", HostingEnvironment.SiteName), application));
+          
+          throw new InvalidOperationException(string.Format("No application with name '{0}' registered in database.", HostingEnvironment.SiteName));
+        }
+
+				IPaywallRuntime runtime = application.InstantiateRuntime();
+				if (!runtime.Initialize(HostingEnvironment.SiteName))
+				{
+					return;
+				}
+
+				PaywallHttpApplication.SetRuntime(this, runtime);
+
+        this.InitializeApplication();
+			}
+
+			Log.Info(new LogMessageBuilder(new LogErrorCode("paywall.web.core", "paywallhttpapplication", "initializeruntime"), 
+        "Initialization of PaywallHttpApplication is complete"));
+
+			return;
+		}
+
+    protected virtual void InitializeApplication()
+    {
+    }
+
+		protected virtual void Application_Error(object sender, EventArgs e)
+		{
+
+      LogMessageBuilder builder = null;
+      HttpContext context = HttpContext.Current;
+      Exception lastExceptionWhichWasNotHandled = context.Server.GetLastError();
+
+      builder = new LogMessageBuilder(new LogErrorCode("global", "application", "exception"), string.Format("{0} - {1}", this.Request.Url.ToString(), this.Request.UserHostAddress ), System.Environment.StackTrace);
+      if (Log.IsErrorEnabled)
+        Log.Error(builder, lastExceptionWhichWasNotHandled);
+
+      int a = 0;
+      //this.Response.Redirect("/error");
+		}
+
+
+		protected virtual void Application_PreRequestHandlerExecute(object sender, EventArgs e)
+		{
+			//IPaywallRuntime runtime = PaywallHttpApplication.GetRuntime(this);
+			HttpContext httpContext = HttpContext.Current;
+
+			if (HttpContext.Current.Session == null)
+				return;
+
+			//if (HttpContext.Current.Handler == null || HttpContext.Current.Session == null ||
+			//		HttpContext.Current.Handler.GetType().IsAssignableFrom(typeof(IRequiresSessionState)))
+			//	return;
+
+			PaywallHttpContext paywallContext = PaywallHttpContext.Current;
+			return;
+		}
+  }
+}

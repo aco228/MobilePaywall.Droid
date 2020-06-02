@@ -1,0 +1,177 @@
+using MobilePaywall.Direct;
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+
+
+namespace MobilePaywall.Data
+{
+  public partial interface IEditHistoryManager
+  {
+    
+    List<EditHistory> Load(Service service);
+    List<EditHistory> Load(IConnectionInfo connection, Service service);
+
+
+
+
+  }
+
+  public partial class EditHistory
+  {
+
+    public static void Track(EditHistoryAction action, ClientSession session, DataObject entry, ConnectionInfo connection, Service service, string scheme = "core")
+    {
+      EditHistory.Track(action, session, entry.GetType().Name, scheme, entry, service, connection);
+    }
+
+    public static void Track(EditHistoryAction action, ClientSession session, DataObject entry, Service service, string scheme = "core")
+    {
+      EditHistory.Track(action, session, entry.GetType().Name, scheme, entry, service);
+    }
+
+    public static void Track(EditHistoryAction action, IUserSession session, DataObject entry, string scheme = "core")
+    {
+      if (session.ClientSession == null) return;
+      EditHistory.Track(action, session, entry.GetType().Name, scheme, entry);
+    }
+
+
+    public static void Track(EditHistoryAction action, ClientSession session, DataObject entry, string scheme = "core")
+    {
+      EditHistory.Track(action, session, entry.GetType().Name, scheme, entry);
+    }
+
+
+    // SUMMARY: Proxy method for getting client and service
+    public static void Track(EditHistoryAction action, IUserSession session, string table, string scheme, DataObject entry, ConnectionInfo connection = null)
+    {
+      if (session.ClientSession == null)
+        return;
+
+      if (action == EditHistoryAction.Update)
+        EditHistory.TrackUpdate(connection, session.ClientSession.Application, session.SessionData.Service, session.ClientSession.Client, table, scheme, entry);
+      else if (action == EditHistoryAction.Insert)
+        EditHistory.TrackInsert(connection, session.ClientSession.Application, session.SessionData.Service, session.ClientSession.Client, table, scheme, entry);
+      else if (action == EditHistoryAction.Delete)
+        EditHistory.TrackDelete(connection, session.ClientSession.Application, session.SessionData.Service, session.ClientSession.Client, table, scheme, entry);
+      else if (action == EditHistoryAction.UpdateOrInsert)
+        EditHistory.TrackUpdateOrInsert(connection, session.ClientSession.Application, session.SessionData.Service, session.ClientSession.Client, table, scheme, entry);
+    }
+
+    // SUMMARY: Proxy method for getting client
+    public static void Track(EditHistoryAction action, ClientSession session, string table, string scheme, DataObject entry, Service service = null, ConnectionInfo connection = null)
+    {
+      if (action == EditHistoryAction.Update)
+        EditHistory.TrackUpdate(connection, session.Application, service, session.Client, table, scheme, entry);
+      else if (action == EditHistoryAction.Insert)
+        EditHistory.TrackInsert(connection, session.Application, service, session.Client, table, scheme, entry);
+      else if (action == EditHistoryAction.Delete)
+        EditHistory.TrackDelete(connection, session.Application, service, session.Client, table, scheme, entry);
+      else if (action == EditHistoryAction.UpdateOrInsert)
+        EditHistory.TrackUpdateOrInsert(connection, session.Application, service, session.Client, table, scheme, entry);
+
+    }
+
+    // SUMMARY: Track Insert
+    public static void TrackInsert(ConnectionInfo connection, Application application, Service service, Client client, string table, string scheme, DataObject entry)
+    {
+      if ((connection == null && !entry.Insert()) || (connection != null && !entry.Insert(connection)))
+        return;
+
+      EditHistory editHistory = new EditHistory(-1, client, application, service, table, null, entry.ID, EditHistoryAction.Insert, null, null, DateTime.Now, DateTime.Now);
+
+      if (connection != null)
+        editHistory.Insert(connection);
+      else
+        editHistory.Insert();
+    }
+
+    // SUMMARY: Track update
+    public static void TrackUpdate(ConnectionInfo connection, Application application, Service service, Client client, string table, string scheme, DataObject entry)
+    {
+      MobilePaywallDirect db = new MobilePaywallDirect(); // !!! on publish pay attention to this
+      DataTable oldDataTable = db.Load(string.Format("SELECT * FROM MobilePaywall.{0}.{1} WHERE {1}ID={2};", scheme, table, entry.ID));
+      if (oldDataTable.Rows.Count == 0) return;
+      List<EditHistoryColumnHelper> oldEntries = EditHistoryColumnHelper.Sort(oldDataTable, entry);
+
+      if ((connection == null && !entry.Update()) || (connection != null && !entry.Update(connection)))
+        return;
+
+      DataTable newDataTable = db.Load(string.Format("SELECT * FROM MobilePaywall.{0}.{1} WHERE {1}ID={2};", scheme, table, entry.ID));
+      if (newDataTable.Rows.Count == 0) return;
+      List<EditHistoryColumnHelper> newEntries = EditHistoryColumnHelper.Sort(newDataTable, entry);
+
+      for (int i = 0; i < oldEntries.Count; i++)
+        if (oldEntries[i] != newEntries[i])
+        {
+          EditHistory editHistory = new EditHistory(-1, client, application, service, table, newEntries[i].ColumnName, entry.ID, EditHistoryAction.Update, oldEntries[i].Value, newEntries[i].Value, DateTime.Now, DateTime.Now);
+          if (connection != null)
+            editHistory.Insert(connection);
+          else
+            editHistory.Insert();
+        }
+    }
+
+    // SUMMARY: Track delete
+    public static void TrackDelete(ConnectionInfo connection, Application application, Service service, Client client, string table, string scheme, DataObject entry)
+    {
+      int id = entry.ID;
+      if ((connection == null && !entry.Delete()) || (connection != null && !entry.Delete(connection)))
+        return;
+
+      EditHistory editHistory = new EditHistory(-1, client, application, service, table, null, id, EditHistoryAction.Delete, null, null, DateTime.Now, DateTime.Now);
+      if (connection != null)
+        editHistory.Insert(connection);
+      else
+        editHistory.Insert();
+    }
+
+    // SUMMARY: Track update or insert
+    public static void TrackUpdateOrInsert(ConnectionInfo connection, Application application, Service service, Client client, string table, string scheme, DataObject entry)
+    {
+      if (entry.ID == -1)
+        EditHistory.TrackInsert(connection, application, service, client, table, scheme, entry);
+      else
+        EditHistory.TrackUpdate(connection, application, service, client, table, scheme, entry);
+    }
+  }
+
+  public class EditHistoryColumnHelper
+  {
+    public string ColumnName { get; set; }
+    public string Value { get; set; }
+
+    public static List<EditHistoryColumnHelper> Sort(DataTable table, DataObject entry)
+    {
+      DataRow row = table.Rows[0];
+      List<EditHistoryColumnHelper> result = new List<EditHistoryColumnHelper>();
+
+      for (int i = 0; i < row.ItemArray.Length; i++)
+      {
+        if (table.Columns[i].ToString().ToLower().Equals("updated") ||
+          table.Columns[i].ToString().ToLower().Equals("created"))
+          continue;
+
+        result.Add(new EditHistoryColumnHelper()
+        {
+          ColumnName = table.Columns[i].ToString(),
+          Value = table.Columns[i].DataType.Name.Equals("Byte[]") ? "BIN_" + entry.Updated.ToString() : row.ItemArray[i].ToString()
+        });
+      }
+      return result;
+    }
+
+    public static bool operator ==(EditHistoryColumnHelper one, EditHistoryColumnHelper two) { return one.Value.Equals(two.Value); }
+    public static bool operator !=(EditHistoryColumnHelper one, EditHistoryColumnHelper two) { return !one.Value.Equals(two.Value); }
+
+  }
+
+
+
+}
+

@@ -1,0 +1,542 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(QuizContentServiceConfiguration))] 
+  public partial class QuizContentServiceConfigurationManager : MobilePaywall.Data.Sql.SqlManagerBase<QuizContentServiceConfiguration>, IQuizContentServiceConfigurationManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override QuizContentServiceConfiguration LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							QuizContentServiceConfigurationTable.GetColumnNames("[qcsc]") + 
+							(this.Depth > 0 ? "," + QuizContentTable.GetColumnNames("[qcsc_qc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[qcsc_qc_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + QuizContentTypeTable.GetColumnNames("[qcsc_qc_qct]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[qcsc_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[qcsc_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[qcsc_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[qcsc_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[qcsc_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[qcsc_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[qcsc_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[qcsc_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[qcsc_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[qcsc_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[qcsc_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[qcsc_s_t]") : string.Empty) + 
+					" FROM [core].[QuizContentServiceConfiguration] AS [qcsc] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[QuizContent] AS [qcsc_qc] ON [qcsc].[QuizContentID] = [qcsc_qc].[QuizContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [qcsc_qc_c] ON [qcsc_qc].[ContentID] = [qcsc_qc_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[QuizContentType] AS [qcsc_qc_qct] ON [qcsc_qc].[QuizContentTypeID] = [qcsc_qc_qct].[QuizContentTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [qcsc_s] ON [qcsc].[ServiceID] = [qcsc_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [qcsc_s_a] ON [qcsc_s].[ApplicationID] = [qcsc_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [qcsc_s_p] ON [qcsc_s].[ProductID] = [qcsc_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [qcsc_s_m] ON [qcsc_s].[MerchantID] = [qcsc_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [qcsc_s_st] ON [qcsc_s].[ServiceTypeID] = [qcsc_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [qcsc_s_ust] ON [qcsc_s].[UserSessionTypeID] = [qcsc_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [qcsc_s_c] ON [qcsc_s].[FallbackCountryID] = [qcsc_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [qcsc_s_l] ON [qcsc_s].[FallbackLanguageID] = [qcsc_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [qcsc_s_ar] ON [qcsc_s].[FallbackAgeRatingID] = [qcsc_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [qcsc_s_sc] ON [qcsc_s].[ServiceConfigurationID] = [qcsc_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [qcsc_s_bm] ON [qcsc_s].[BusinessModelID] = [qcsc_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [qcsc_s_t] ON [qcsc_s].[TemplateID] = [qcsc_s_t].[TemplateID] ";
+				sqlCmdText += "WHERE [qcsc].[QuizContentServiceConfigurationID] = @QuizContentServiceConfigurationID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@QuizContentServiceConfigurationID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qcsc", "loadinternal", "notfound"), "QuizContentServiceConfiguration could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				QuizContentServiceConfigurationTable qcscTable = new QuizContentServiceConfigurationTable(query);
+				QuizContentTable qcsc_qcTable = (this.Depth > 0) ? new QuizContentTable(query) : null;
+				ContentTable qcsc_qc_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				QuizContentTypeTable qcsc_qc_qctTable = (this.Depth > 1) ? new QuizContentTypeTable(query) : null;
+				ServiceTable qcsc_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable qcsc_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable qcsc_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable qcsc_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable qcsc_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable qcsc_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable qcsc_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable qcsc_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable qcsc_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable qcsc_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable qcsc_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable qcsc_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        
+				Content qcsc_qc_cObject = (this.Depth > 1) ? qcsc_qc_cTable.CreateInstance() : null;
+				QuizContentType qcsc_qc_qctObject = (this.Depth > 1) ? qcsc_qc_qctTable.CreateInstance() : null;
+				QuizContent qcsc_qcObject = (this.Depth > 0) ? qcsc_qcTable.CreateInstance(qcsc_qc_cObject, qcsc_qc_qctObject) : null;
+				Application qcsc_s_aObject = (this.Depth > 1) ? qcsc_s_aTable.CreateInstance() : null;
+				Product qcsc_s_pObject = (this.Depth > 1) ? qcsc_s_pTable.CreateInstance() : null;
+				Merchant qcsc_s_mObject = (this.Depth > 1) ? qcsc_s_mTable.CreateInstance() : null;
+				ServiceType qcsc_s_stObject = (this.Depth > 1) ? qcsc_s_stTable.CreateInstance() : null;
+				UserSessionType qcsc_s_ustObject = (this.Depth > 1) ? qcsc_s_ustTable.CreateInstance() : null;
+				Country qcsc_s_cObject = (this.Depth > 1) ? qcsc_s_cTable.CreateInstance() : null;
+				Language qcsc_s_lObject = (this.Depth > 1) ? qcsc_s_lTable.CreateInstance() : null;
+				AgeRating qcsc_s_arObject = (this.Depth > 1) ? qcsc_s_arTable.CreateInstance() : null;
+				ServiceConfiguration qcsc_s_scObject = (this.Depth > 1) ? qcsc_s_scTable.CreateInstance() : null;
+				BusinessModel qcsc_s_bmObject = (this.Depth > 1) ? qcsc_s_bmTable.CreateInstance() : null;
+				Template qcsc_s_tObject = (this.Depth > 1) ? qcsc_s_tTable.CreateInstance() : null;
+				Service qcsc_sObject = (this.Depth > 0) ? qcsc_sTable.CreateInstance(qcsc_s_aObject, qcsc_s_pObject, qcsc_s_mObject, qcsc_s_stObject, qcsc_s_ustObject, qcsc_s_cObject, qcsc_s_lObject, qcsc_s_arObject, qcsc_s_scObject, qcsc_s_bmObject, qcsc_s_tObject) : null;
+				QuizContentServiceConfiguration qcscObject = qcscTable.CreateInstance(qcsc_qcObject, qcsc_sObject);
+				sqlReader.Close();
+
+				return qcscObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qcsc", "loadinternal", "exception"), "QuizContentServiceConfiguration could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "QuizContentServiceConfiguration", "Exception while loading QuizContentServiceConfiguration object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public QuizContentServiceConfiguration Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							QuizContentServiceConfigurationTable.GetColumnNames("[qcsc]") + 
+							(this.Depth > 0 ? "," + QuizContentTable.GetColumnNames("[qcsc_qc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[qcsc_qc_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + QuizContentTypeTable.GetColumnNames("[qcsc_qc_qct]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[qcsc_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[qcsc_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[qcsc_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[qcsc_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[qcsc_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[qcsc_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[qcsc_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[qcsc_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[qcsc_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[qcsc_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[qcsc_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[qcsc_s_t]") : string.Empty) +  
+					" FROM [core].[QuizContentServiceConfiguration] AS [qcsc] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[QuizContent] AS [qcsc_qc] ON [qcsc].[QuizContentID] = [qcsc_qc].[QuizContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [qcsc_qc_c] ON [qcsc_qc].[ContentID] = [qcsc_qc_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[QuizContentType] AS [qcsc_qc_qct] ON [qcsc_qc].[QuizContentTypeID] = [qcsc_qc_qct].[QuizContentTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [qcsc_s] ON [qcsc].[ServiceID] = [qcsc_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [qcsc_s_a] ON [qcsc_s].[ApplicationID] = [qcsc_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [qcsc_s_p] ON [qcsc_s].[ProductID] = [qcsc_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [qcsc_s_m] ON [qcsc_s].[MerchantID] = [qcsc_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [qcsc_s_st] ON [qcsc_s].[ServiceTypeID] = [qcsc_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [qcsc_s_ust] ON [qcsc_s].[UserSessionTypeID] = [qcsc_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [qcsc_s_c] ON [qcsc_s].[FallbackCountryID] = [qcsc_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [qcsc_s_l] ON [qcsc_s].[FallbackLanguageID] = [qcsc_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [qcsc_s_ar] ON [qcsc_s].[FallbackAgeRatingID] = [qcsc_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [qcsc_s_sc] ON [qcsc_s].[ServiceConfigurationID] = [qcsc_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [qcsc_s_bm] ON [qcsc_s].[BusinessModelID] = [qcsc_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [qcsc_s_t] ON [qcsc_s].[TemplateID] = [qcsc_s_t].[TemplateID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qcsc", "customload", "notfound"), "QuizContentServiceConfiguration could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				QuizContentServiceConfigurationTable qcscTable = new QuizContentServiceConfigurationTable(query);
+				QuizContentTable qcsc_qcTable = (this.Depth > 0) ? new QuizContentTable(query) : null;
+				ContentTable qcsc_qc_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				QuizContentTypeTable qcsc_qc_qctTable = (this.Depth > 1) ? new QuizContentTypeTable(query) : null;
+				ServiceTable qcsc_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable qcsc_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable qcsc_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable qcsc_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable qcsc_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable qcsc_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable qcsc_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable qcsc_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable qcsc_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable qcsc_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable qcsc_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable qcsc_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        
+				Content qcsc_qc_cObject = (this.Depth > 1) ? qcsc_qc_cTable.CreateInstance() : null;
+				QuizContentType qcsc_qc_qctObject = (this.Depth > 1) ? qcsc_qc_qctTable.CreateInstance() : null;
+				QuizContent qcsc_qcObject = (this.Depth > 0) ? qcsc_qcTable.CreateInstance(qcsc_qc_cObject, qcsc_qc_qctObject) : null;
+				Application qcsc_s_aObject = (this.Depth > 1) ? qcsc_s_aTable.CreateInstance() : null;
+				Product qcsc_s_pObject = (this.Depth > 1) ? qcsc_s_pTable.CreateInstance() : null;
+				Merchant qcsc_s_mObject = (this.Depth > 1) ? qcsc_s_mTable.CreateInstance() : null;
+				ServiceType qcsc_s_stObject = (this.Depth > 1) ? qcsc_s_stTable.CreateInstance() : null;
+				UserSessionType qcsc_s_ustObject = (this.Depth > 1) ? qcsc_s_ustTable.CreateInstance() : null;
+				Country qcsc_s_cObject = (this.Depth > 1) ? qcsc_s_cTable.CreateInstance() : null;
+				Language qcsc_s_lObject = (this.Depth > 1) ? qcsc_s_lTable.CreateInstance() : null;
+				AgeRating qcsc_s_arObject = (this.Depth > 1) ? qcsc_s_arTable.CreateInstance() : null;
+				ServiceConfiguration qcsc_s_scObject = (this.Depth > 1) ? qcsc_s_scTable.CreateInstance() : null;
+				BusinessModel qcsc_s_bmObject = (this.Depth > 1) ? qcsc_s_bmTable.CreateInstance() : null;
+				Template qcsc_s_tObject = (this.Depth > 1) ? qcsc_s_tTable.CreateInstance() : null;
+				Service qcsc_sObject = (this.Depth > 0) ? qcsc_sTable.CreateInstance(qcsc_s_aObject, qcsc_s_pObject, qcsc_s_mObject, qcsc_s_stObject, qcsc_s_ustObject, qcsc_s_cObject, qcsc_s_lObject, qcsc_s_arObject, qcsc_s_scObject, qcsc_s_bmObject, qcsc_s_tObject) : null;
+				QuizContentServiceConfiguration qcscObject = qcscTable.CreateInstance(qcsc_qcObject, qcsc_sObject);
+				sqlReader.Close();
+
+				return qcscObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qcsc", "customload", "exception"), "QuizContentServiceConfiguration could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "QuizContentServiceConfiguration", "Exception while loading (custom/single) QuizContentServiceConfiguration object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<QuizContentServiceConfiguration> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							QuizContentServiceConfigurationTable.GetColumnNames("[qcsc]") + 
+							(this.Depth > 0 ? "," + QuizContentTable.GetColumnNames("[qcsc_qc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[qcsc_qc_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + QuizContentTypeTable.GetColumnNames("[qcsc_qc_qct]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[qcsc_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[qcsc_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[qcsc_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[qcsc_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[qcsc_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[qcsc_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[qcsc_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[qcsc_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[qcsc_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[qcsc_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[qcsc_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[qcsc_s_t]") : string.Empty) +  
+					" FROM [core].[QuizContentServiceConfiguration] AS [qcsc] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[QuizContent] AS [qcsc_qc] ON [qcsc].[QuizContentID] = [qcsc_qc].[QuizContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [qcsc_qc_c] ON [qcsc_qc].[ContentID] = [qcsc_qc_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[QuizContentType] AS [qcsc_qc_qct] ON [qcsc_qc].[QuizContentTypeID] = [qcsc_qc_qct].[QuizContentTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [qcsc_s] ON [qcsc].[ServiceID] = [qcsc_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [qcsc_s_a] ON [qcsc_s].[ApplicationID] = [qcsc_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [qcsc_s_p] ON [qcsc_s].[ProductID] = [qcsc_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [qcsc_s_m] ON [qcsc_s].[MerchantID] = [qcsc_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [qcsc_s_st] ON [qcsc_s].[ServiceTypeID] = [qcsc_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [qcsc_s_ust] ON [qcsc_s].[UserSessionTypeID] = [qcsc_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [qcsc_s_c] ON [qcsc_s].[FallbackCountryID] = [qcsc_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [qcsc_s_l] ON [qcsc_s].[FallbackLanguageID] = [qcsc_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [qcsc_s_ar] ON [qcsc_s].[FallbackAgeRatingID] = [qcsc_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [qcsc_s_sc] ON [qcsc_s].[ServiceConfigurationID] = [qcsc_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [qcsc_s_bm] ON [qcsc_s].[BusinessModelID] = [qcsc_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [qcsc_s_t] ON [qcsc_s].[TemplateID] = [qcsc_s_t].[TemplateID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qcsc", "customloadmany", "notfound"), "QuizContentServiceConfiguration list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<QuizContentServiceConfiguration>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				QuizContentServiceConfigurationTable qcscTable = new QuizContentServiceConfigurationTable(query);
+				QuizContentTable qcsc_qcTable = (this.Depth > 0) ? new QuizContentTable(query) : null;
+				ContentTable qcsc_qc_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				QuizContentTypeTable qcsc_qc_qctTable = (this.Depth > 1) ? new QuizContentTypeTable(query) : null;
+				ServiceTable qcsc_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable qcsc_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable qcsc_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable qcsc_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable qcsc_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable qcsc_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable qcsc_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable qcsc_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable qcsc_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable qcsc_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable qcsc_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable qcsc_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        List<QuizContentServiceConfiguration> result = new List<QuizContentServiceConfiguration>();
+        do
+        {
+          
+					Content qcsc_qc_cObject = (this.Depth > 1) ? qcsc_qc_cTable.CreateInstance() : null;
+					QuizContentType qcsc_qc_qctObject = (this.Depth > 1) ? qcsc_qc_qctTable.CreateInstance() : null;
+					QuizContent qcsc_qcObject = (this.Depth > 0) ? qcsc_qcTable.CreateInstance(qcsc_qc_cObject, qcsc_qc_qctObject) : null;
+					Application qcsc_s_aObject = (this.Depth > 1) ? qcsc_s_aTable.CreateInstance() : null;
+					Product qcsc_s_pObject = (this.Depth > 1) ? qcsc_s_pTable.CreateInstance() : null;
+					Merchant qcsc_s_mObject = (this.Depth > 1) ? qcsc_s_mTable.CreateInstance() : null;
+					ServiceType qcsc_s_stObject = (this.Depth > 1) ? qcsc_s_stTable.CreateInstance() : null;
+					UserSessionType qcsc_s_ustObject = (this.Depth > 1) ? qcsc_s_ustTable.CreateInstance() : null;
+					Country qcsc_s_cObject = (this.Depth > 1) ? qcsc_s_cTable.CreateInstance() : null;
+					Language qcsc_s_lObject = (this.Depth > 1) ? qcsc_s_lTable.CreateInstance() : null;
+					AgeRating qcsc_s_arObject = (this.Depth > 1) ? qcsc_s_arTable.CreateInstance() : null;
+					ServiceConfiguration qcsc_s_scObject = (this.Depth > 1) ? qcsc_s_scTable.CreateInstance() : null;
+					BusinessModel qcsc_s_bmObject = (this.Depth > 1) ? qcsc_s_bmTable.CreateInstance() : null;
+					Template qcsc_s_tObject = (this.Depth > 1) ? qcsc_s_tTable.CreateInstance() : null;
+					Service qcsc_sObject = (this.Depth > 0) ? qcsc_sTable.CreateInstance(qcsc_s_aObject, qcsc_s_pObject, qcsc_s_mObject, qcsc_s_stObject, qcsc_s_ustObject, qcsc_s_cObject, qcsc_s_lObject, qcsc_s_arObject, qcsc_s_scObject, qcsc_s_bmObject, qcsc_s_tObject) : null;
+					QuizContentServiceConfiguration qcscObject = (this.Depth > -1) ? qcscTable.CreateInstance(qcsc_qcObject, qcsc_sObject) : null;
+					result.Add(qcscObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qcsc", "customloadmany", "exception"), "QuizContentServiceConfiguration list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "QuizContentServiceConfiguration", "Exception while loading (custom/many) QuizContentServiceConfiguration object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, QuizContentServiceConfiguration data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[QuizContentServiceConfiguration] ([QuizContentID],[ServiceID],[NumberOfQuestions],[TimePeriodInDays],[IsActive]) VALUES(@QuizContentID,@ServiceID,@NumberOfQuestions,@TimePeriodInDays,@IsActive); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@QuizContentID", data.QuizContent.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@NumberOfQuestions", data.NumberOfQuestions).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@TimePeriodInDays", data.TimePeriodInDays).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@IsActive", data.IsActive).SqlDbType = SqlDbType.Bit;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qcsc", "insert", "noprimarykey"), "QuizContentServiceConfiguration could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "QuizContentServiceConfiguration", "Exception while inserting QuizContentServiceConfiguration object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qcsc", "insert", "exception"), "QuizContentServiceConfiguration could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "QuizContentServiceConfiguration", "Exception while inserting QuizContentServiceConfiguration object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, QuizContentServiceConfiguration data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[QuizContentServiceConfiguration] SET " +
+												"[QuizContentID] = @QuizContentID, " + 
+												"[ServiceID] = @ServiceID, " + 
+												"[NumberOfQuestions] = @NumberOfQuestions, " + 
+												"[TimePeriodInDays] = @TimePeriodInDays, " + 
+												"[IsActive] = @IsActive, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [QuizContentServiceConfigurationID] = @QuizContentServiceConfigurationID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@QuizContentID", data.QuizContent.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@NumberOfQuestions", data.NumberOfQuestions).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@TimePeriodInDays", data.TimePeriodInDays).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@IsActive", data.IsActive).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@QuizContentServiceConfigurationID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qcsc", "update", "norecord"), "QuizContentServiceConfiguration could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "QuizContentServiceConfiguration", "Exception while updating QuizContentServiceConfiguration object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qcsc", "update", "morerecords"), "QuizContentServiceConfiguration was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "QuizContentServiceConfiguration", "Exception while updating QuizContentServiceConfiguration object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qcsc", "update", "exception"), "QuizContentServiceConfiguration could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "QuizContentServiceConfiguration", "Exception while updating QuizContentServiceConfiguration object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, QuizContentServiceConfiguration data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[QuizContentServiceConfiguration] WHERE QuizContentServiceConfigurationID = @QuizContentServiceConfigurationID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@QuizContentServiceConfigurationID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qcsc", "delete", "norecord"), "QuizContentServiceConfiguration could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "QuizContentServiceConfiguration", "Exception while deleting QuizContentServiceConfiguration object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qcsc", "delete", "exception"), "QuizContentServiceConfiguration could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "QuizContentServiceConfiguration", "Exception while deleting QuizContentServiceConfiguration object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

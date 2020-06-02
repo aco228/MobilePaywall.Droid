@@ -1,0 +1,446 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(AuctionBid))] 
+  public partial class AuctionBidManager : MobilePaywall.Data.Sql.SqlManagerBase<AuctionBid>, IAuctionBidManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override AuctionBid LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							AuctionBidTable.GetColumnNames("[ab]") + 
+							(this.Depth > 0 ? "," + AuctionRoundTable.GetColumnNames("[ab_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[ab_ar_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[ab_ar_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[ab_ar_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AuctionBidTable.GetColumnNames("[ab_ar_ab]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CustomerTable.GetColumnNames("[ab_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[ab_c_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[ab_c_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[ab_c_mo]") : string.Empty) + 
+					" FROM [core].[AuctionBid] AS [ab] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AuctionRound] AS [ab_ar] ON [ab].[AuctionRoundID] = [ab_ar].[AuctionRoundID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [ab_ar_s] ON [ab_ar].[ServiceID] = [ab_ar_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [ab_ar_cg] ON [ab_ar].[ContentGroupID] = [ab_ar_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [ab_ar_c] ON [ab_ar].[ContentID] = [ab_ar_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AuctionBid] AS [ab_ar_ab] ON [ab_ar].[AuctionBidID] = [ab_ar_ab].[AuctionBidID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [ab_c] ON [ab].[CustomerID] = [ab_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [ab_c_s] ON [ab_c].[ServiceID] = [ab_c_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [ab_c_c] ON [ab_c].[CountryID] = [ab_c_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [ab_c_mo] ON [ab_c].[MobileOperatorID] = [ab_c_mo].[MobileOperatorID] ";
+				sqlCmdText += "WHERE [ab].[AuctionBidID] = @AuctionBidID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AuctionBidID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ab", "loadinternal", "notfound"), "AuctionBid could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AuctionBidTable abTable = new AuctionBidTable(query);
+				AuctionRoundTable ab_arTable = (this.Depth > 0) ? new AuctionRoundTable(query) : null;
+				ServiceTable ab_ar_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				ContentGroupTable ab_ar_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTable ab_ar_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				AuctionBidTable ab_ar_abTable = (this.Depth > 1) ? new AuctionBidTable(query) : null;
+				CustomerTable ab_cTable = (this.Depth > 0) ? new CustomerTable(query) : null;
+				ServiceTable ab_c_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				CountryTable ab_c_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable ab_c_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+
+        
+				Service ab_ar_sObject = (this.Depth > 1) ? ab_ar_sTable.CreateInstance() : null;
+				ContentGroup ab_ar_cgObject = (this.Depth > 1) ? ab_ar_cgTable.CreateInstance() : null;
+				Content ab_ar_cObject = (this.Depth > 1) ? ab_ar_cTable.CreateInstance() : null;
+				AuctionBid ab_ar_abObject = (this.Depth > 1) ? ab_ar_abTable.CreateInstance() : null;
+				AuctionRound ab_arObject = (this.Depth > 0) ? ab_arTable.CreateInstance(ab_ar_sObject, ab_ar_cgObject, ab_ar_cObject, ab_ar_abObject) : null;
+				Service ab_c_sObject = (this.Depth > 1) ? ab_c_sTable.CreateInstance() : null;
+				Country ab_c_cObject = (this.Depth > 1) ? ab_c_cTable.CreateInstance() : null;
+				MobileOperator ab_c_moObject = (this.Depth > 1) ? ab_c_moTable.CreateInstance() : null;
+				Customer ab_cObject = (this.Depth > 0) ? ab_cTable.CreateInstance(ab_c_sObject, ab_c_cObject, ab_c_moObject) : null;
+				AuctionBid abObject = abTable.CreateInstance(ab_arObject, ab_cObject);
+				sqlReader.Close();
+
+				return abObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ab", "loadinternal", "exception"), "AuctionBid could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AuctionBid", "Exception while loading AuctionBid object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public AuctionBid Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AuctionBidTable.GetColumnNames("[ab]") + 
+							(this.Depth > 0 ? "," + AuctionRoundTable.GetColumnNames("[ab_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[ab_ar_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[ab_ar_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[ab_ar_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AuctionBidTable.GetColumnNames("[ab_ar_ab]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CustomerTable.GetColumnNames("[ab_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[ab_c_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[ab_c_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[ab_c_mo]") : string.Empty) +  
+					" FROM [core].[AuctionBid] AS [ab] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AuctionRound] AS [ab_ar] ON [ab].[AuctionRoundID] = [ab_ar].[AuctionRoundID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [ab_ar_s] ON [ab_ar].[ServiceID] = [ab_ar_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [ab_ar_cg] ON [ab_ar].[ContentGroupID] = [ab_ar_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [ab_ar_c] ON [ab_ar].[ContentID] = [ab_ar_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AuctionBid] AS [ab_ar_ab] ON [ab_ar].[AuctionBidID] = [ab_ar_ab].[AuctionBidID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [ab_c] ON [ab].[CustomerID] = [ab_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [ab_c_s] ON [ab_c].[ServiceID] = [ab_c_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [ab_c_c] ON [ab_c].[CountryID] = [ab_c_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [ab_c_mo] ON [ab_c].[MobileOperatorID] = [ab_c_mo].[MobileOperatorID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ab", "customload", "notfound"), "AuctionBid could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AuctionBidTable abTable = new AuctionBidTable(query);
+				AuctionRoundTable ab_arTable = (this.Depth > 0) ? new AuctionRoundTable(query) : null;
+				ServiceTable ab_ar_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				ContentGroupTable ab_ar_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTable ab_ar_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				AuctionBidTable ab_ar_abTable = (this.Depth > 1) ? new AuctionBidTable(query) : null;
+				CustomerTable ab_cTable = (this.Depth > 0) ? new CustomerTable(query) : null;
+				ServiceTable ab_c_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				CountryTable ab_c_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable ab_c_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+
+        
+				Service ab_ar_sObject = (this.Depth > 1) ? ab_ar_sTable.CreateInstance() : null;
+				ContentGroup ab_ar_cgObject = (this.Depth > 1) ? ab_ar_cgTable.CreateInstance() : null;
+				Content ab_ar_cObject = (this.Depth > 1) ? ab_ar_cTable.CreateInstance() : null;
+				AuctionBid ab_ar_abObject = (this.Depth > 1) ? ab_ar_abTable.CreateInstance() : null;
+				AuctionRound ab_arObject = (this.Depth > 0) ? ab_arTable.CreateInstance(ab_ar_sObject, ab_ar_cgObject, ab_ar_cObject, ab_ar_abObject) : null;
+				Service ab_c_sObject = (this.Depth > 1) ? ab_c_sTable.CreateInstance() : null;
+				Country ab_c_cObject = (this.Depth > 1) ? ab_c_cTable.CreateInstance() : null;
+				MobileOperator ab_c_moObject = (this.Depth > 1) ? ab_c_moTable.CreateInstance() : null;
+				Customer ab_cObject = (this.Depth > 0) ? ab_cTable.CreateInstance(ab_c_sObject, ab_c_cObject, ab_c_moObject) : null;
+				AuctionBid abObject = abTable.CreateInstance(ab_arObject, ab_cObject);
+				sqlReader.Close();
+
+				return abObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ab", "customload", "exception"), "AuctionBid could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AuctionBid", "Exception while loading (custom/single) AuctionBid object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<AuctionBid> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AuctionBidTable.GetColumnNames("[ab]") + 
+							(this.Depth > 0 ? "," + AuctionRoundTable.GetColumnNames("[ab_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[ab_ar_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[ab_ar_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[ab_ar_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AuctionBidTable.GetColumnNames("[ab_ar_ab]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CustomerTable.GetColumnNames("[ab_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[ab_c_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[ab_c_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[ab_c_mo]") : string.Empty) +  
+					" FROM [core].[AuctionBid] AS [ab] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AuctionRound] AS [ab_ar] ON [ab].[AuctionRoundID] = [ab_ar].[AuctionRoundID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [ab_ar_s] ON [ab_ar].[ServiceID] = [ab_ar_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [ab_ar_cg] ON [ab_ar].[ContentGroupID] = [ab_ar_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [ab_ar_c] ON [ab_ar].[ContentID] = [ab_ar_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AuctionBid] AS [ab_ar_ab] ON [ab_ar].[AuctionBidID] = [ab_ar_ab].[AuctionBidID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [ab_c] ON [ab].[CustomerID] = [ab_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [ab_c_s] ON [ab_c].[ServiceID] = [ab_c_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [ab_c_c] ON [ab_c].[CountryID] = [ab_c_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [ab_c_mo] ON [ab_c].[MobileOperatorID] = [ab_c_mo].[MobileOperatorID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ab", "customloadmany", "notfound"), "AuctionBid list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<AuctionBid>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AuctionBidTable abTable = new AuctionBidTable(query);
+				AuctionRoundTable ab_arTable = (this.Depth > 0) ? new AuctionRoundTable(query) : null;
+				ServiceTable ab_ar_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				ContentGroupTable ab_ar_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTable ab_ar_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				AuctionBidTable ab_ar_abTable = (this.Depth > 1) ? new AuctionBidTable(query) : null;
+				CustomerTable ab_cTable = (this.Depth > 0) ? new CustomerTable(query) : null;
+				ServiceTable ab_c_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				CountryTable ab_c_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable ab_c_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+
+        List<AuctionBid> result = new List<AuctionBid>();
+        do
+        {
+          
+					Service ab_ar_sObject = (this.Depth > 1) ? ab_ar_sTable.CreateInstance() : null;
+					ContentGroup ab_ar_cgObject = (this.Depth > 1) ? ab_ar_cgTable.CreateInstance() : null;
+					Content ab_ar_cObject = (this.Depth > 1) ? ab_ar_cTable.CreateInstance() : null;
+					AuctionBid ab_ar_abObject = (this.Depth > 1) ? ab_ar_abTable.CreateInstance() : null;
+					AuctionRound ab_arObject = (this.Depth > 0) ? ab_arTable.CreateInstance(ab_ar_sObject, ab_ar_cgObject, ab_ar_cObject, ab_ar_abObject) : null;
+					Service ab_c_sObject = (this.Depth > 1) ? ab_c_sTable.CreateInstance() : null;
+					Country ab_c_cObject = (this.Depth > 1) ? ab_c_cTable.CreateInstance() : null;
+					MobileOperator ab_c_moObject = (this.Depth > 1) ? ab_c_moTable.CreateInstance() : null;
+					Customer ab_cObject = (this.Depth > 0) ? ab_cTable.CreateInstance(ab_c_sObject, ab_c_cObject, ab_c_moObject) : null;
+					AuctionBid abObject = (this.Depth > -1) ? abTable.CreateInstance(ab_arObject, ab_cObject) : null;
+					result.Add(abObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ab", "customloadmany", "exception"), "AuctionBid list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AuctionBid", "Exception while loading (custom/many) AuctionBid object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, AuctionBid data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[AuctionBid] ([AuctionRoundID],[CustomerID],[Amount]) VALUES(@AuctionRoundID,@CustomerID,@Amount); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@AuctionRoundID", data.AuctionRound.ID);
+				sqlCmd.Parameters.AddWithValue("@CustomerID", data.Customer.ID);
+				sqlCmd.Parameters.AddWithValue("@Amount", data.Amount).SqlDbType = SqlDbType.Decimal;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ab", "insert", "noprimarykey"), "AuctionBid could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "AuctionBid", "Exception while inserting AuctionBid object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ab", "insert", "exception"), "AuctionBid could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "AuctionBid", "Exception while inserting AuctionBid object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, AuctionBid data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[AuctionBid] SET " +
+												"[AuctionRoundID] = @AuctionRoundID, " + 
+												"[CustomerID] = @CustomerID, " + 
+												"[Amount] = @Amount, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [AuctionBidID] = @AuctionBidID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@AuctionRoundID", data.AuctionRound.ID);
+				sqlCmd.Parameters.AddWithValue("@CustomerID", data.Customer.ID);
+				sqlCmd.Parameters.AddWithValue("@Amount", data.Amount).SqlDbType = SqlDbType.Decimal;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@AuctionBidID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ab", "update", "norecord"), "AuctionBid could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "AuctionBid", "Exception while updating AuctionBid object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ab", "update", "morerecords"), "AuctionBid was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "AuctionBid", "Exception while updating AuctionBid object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ab", "update", "exception"), "AuctionBid could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "AuctionBid", "Exception while updating AuctionBid object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, AuctionBid data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[AuctionBid] WHERE AuctionBidID = @AuctionBidID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AuctionBidID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ab", "delete", "norecord"), "AuctionBid could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "AuctionBid", "Exception while deleting AuctionBid object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ab", "delete", "exception"), "AuctionBid could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "AuctionBid", "Exception while deleting AuctionBid object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

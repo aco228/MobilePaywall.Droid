@@ -1,0 +1,512 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ServiceConfigurationEntry))] 
+  public partial class ServiceConfigurationEntryManager : MobilePaywall.Data.Sql.SqlManagerBase<ServiceConfigurationEntry>, IServiceConfigurationEntryManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ServiceConfigurationEntry LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ServiceConfigurationEntryTable.GetColumnNames("[sce]") + 
+							(this.Depth > 0 ? "," + ServiceConfigurationTable.GetColumnNames("[sce_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[sce_sc_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[sce_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[sce_c_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CurrencyTable.GetColumnNames("[sce_c_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[sce_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[sce_mo_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + AgeRatingTable.GetColumnNames("[sce_ar]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ShortMessageProviderTable.GetColumnNames("[sce_smp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ShortMessageProviderTypeTable.GetColumnNames("[sce_smp_smpt]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ShortMessageProviderConfigurationTable.GetColumnNames("[sce_smp_smpc]") : string.Empty) + 
+					" FROM [core].[ServiceConfigurationEntry] AS [sce] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [sce_sc] ON [sce].[ServiceConfigurationID] = [sce_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [sce_sc_i] ON [sce_sc].[IntstanceID] = [sce_sc_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [sce_c] ON [sce].[CountryID] = [sce_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [sce_c_l] ON [sce_c].[LanguageID] = [sce_c_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Currency] AS [sce_c_c] ON [sce_c].[CurrencyID] = [sce_c_c].[CurrencyID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [sce_mo] ON [sce].[MobileOperatorID] = [sce_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [sce_mo_c] ON [sce_mo].[CountryID] = [sce_mo_c].[CountryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [sce_ar] ON [sce].[AgeRatingID] = [sce_ar].[AgeRatingID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ShortMessageProvider] AS [sce_smp] ON [sce].[ShortMessageProviderID] = [sce_smp].[ShortMessageProviderID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ShortMessageProviderType] AS [sce_smp_smpt] ON [sce_smp].[ShortMessageProviderTypeID] = [sce_smp_smpt].[ShortMessageProviderTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ShortMessageProviderConfiguration] AS [sce_smp_smpc] ON [sce_smp].[ShortMessageProviderConfigurationID] = [sce_smp_smpc].[ShortMessageProviderConfigurationID] ";
+				sqlCmdText += "WHERE [sce].[ServiceConfigurationEntryID] = @ServiceConfigurationEntryID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ServiceConfigurationEntryID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sce", "loadinternal", "notfound"), "ServiceConfigurationEntry could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ServiceConfigurationEntryTable sceTable = new ServiceConfigurationEntryTable(query);
+				ServiceConfigurationTable sce_scTable = (this.Depth > 0) ? new ServiceConfigurationTable(query) : null;
+				InstanceTable sce_sc_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				CountryTable sce_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable sce_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				CurrencyTable sce_c_cTable = (this.Depth > 1) ? new CurrencyTable(query) : null;
+				MobileOperatorTable sce_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable sce_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				AgeRatingTable sce_arTable = (this.Depth > 0) ? new AgeRatingTable(query) : null;
+				ShortMessageProviderTable sce_smpTable = (this.Depth > 0) ? new ShortMessageProviderTable(query) : null;
+				ShortMessageProviderTypeTable sce_smp_smptTable = (this.Depth > 1) ? new ShortMessageProviderTypeTable(query) : null;
+				ShortMessageProviderConfigurationTable sce_smp_smpcTable = (this.Depth > 1) ? new ShortMessageProviderConfigurationTable(query) : null;
+
+        
+				Instance sce_sc_iObject = (this.Depth > 1) ? sce_sc_iTable.CreateInstance() : null;
+				ServiceConfiguration sce_scObject = (this.Depth > 0) ? sce_scTable.CreateInstance(sce_sc_iObject) : null;
+				Language sce_c_lObject = (this.Depth > 1) ? sce_c_lTable.CreateInstance() : null;
+				Currency sce_c_cObject = (this.Depth > 1) ? sce_c_cTable.CreateInstance() : null;
+				Country sce_cObject = (this.Depth > 0) ? sce_cTable.CreateInstance(sce_c_lObject, sce_c_cObject) : null;
+				Country sce_mo_cObject = (this.Depth > 1) ? sce_mo_cTable.CreateInstance() : null;
+				MobileOperator sce_moObject = (this.Depth > 0) ? sce_moTable.CreateInstance(sce_mo_cObject) : null;
+				AgeRating sce_arObject = (this.Depth > 0) ? sce_arTable.CreateInstance() : null;
+				ShortMessageProviderType sce_smp_smptObject = (this.Depth > 1) ? sce_smp_smptTable.CreateInstance() : null;
+				ShortMessageProviderConfiguration sce_smp_smpcObject = (this.Depth > 1) ? sce_smp_smpcTable.CreateInstance() : null;
+				ShortMessageProvider sce_smpObject = (this.Depth > 0) ? sce_smpTable.CreateInstance(sce_smp_smptObject, sce_smp_smpcObject) : null;
+				ServiceConfigurationEntry sceObject = sceTable.CreateInstance(sce_scObject, sce_cObject, sce_moObject, sce_arObject, sce_smpObject);
+				sqlReader.Close();
+
+				return sceObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sce", "loadinternal", "exception"), "ServiceConfigurationEntry could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ServiceConfigurationEntry", "Exception while loading ServiceConfigurationEntry object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ServiceConfigurationEntry Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ServiceConfigurationEntryTable.GetColumnNames("[sce]") + 
+							(this.Depth > 0 ? "," + ServiceConfigurationTable.GetColumnNames("[sce_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[sce_sc_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[sce_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[sce_c_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CurrencyTable.GetColumnNames("[sce_c_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[sce_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[sce_mo_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + AgeRatingTable.GetColumnNames("[sce_ar]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ShortMessageProviderTable.GetColumnNames("[sce_smp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ShortMessageProviderTypeTable.GetColumnNames("[sce_smp_smpt]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ShortMessageProviderConfigurationTable.GetColumnNames("[sce_smp_smpc]") : string.Empty) +  
+					" FROM [core].[ServiceConfigurationEntry] AS [sce] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [sce_sc] ON [sce].[ServiceConfigurationID] = [sce_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [sce_sc_i] ON [sce_sc].[IntstanceID] = [sce_sc_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [sce_c] ON [sce].[CountryID] = [sce_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [sce_c_l] ON [sce_c].[LanguageID] = [sce_c_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Currency] AS [sce_c_c] ON [sce_c].[CurrencyID] = [sce_c_c].[CurrencyID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [sce_mo] ON [sce].[MobileOperatorID] = [sce_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [sce_mo_c] ON [sce_mo].[CountryID] = [sce_mo_c].[CountryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [sce_ar] ON [sce].[AgeRatingID] = [sce_ar].[AgeRatingID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ShortMessageProvider] AS [sce_smp] ON [sce].[ShortMessageProviderID] = [sce_smp].[ShortMessageProviderID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ShortMessageProviderType] AS [sce_smp_smpt] ON [sce_smp].[ShortMessageProviderTypeID] = [sce_smp_smpt].[ShortMessageProviderTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ShortMessageProviderConfiguration] AS [sce_smp_smpc] ON [sce_smp].[ShortMessageProviderConfigurationID] = [sce_smp_smpc].[ShortMessageProviderConfigurationID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sce", "customload", "notfound"), "ServiceConfigurationEntry could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ServiceConfigurationEntryTable sceTable = new ServiceConfigurationEntryTable(query);
+				ServiceConfigurationTable sce_scTable = (this.Depth > 0) ? new ServiceConfigurationTable(query) : null;
+				InstanceTable sce_sc_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				CountryTable sce_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable sce_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				CurrencyTable sce_c_cTable = (this.Depth > 1) ? new CurrencyTable(query) : null;
+				MobileOperatorTable sce_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable sce_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				AgeRatingTable sce_arTable = (this.Depth > 0) ? new AgeRatingTable(query) : null;
+				ShortMessageProviderTable sce_smpTable = (this.Depth > 0) ? new ShortMessageProviderTable(query) : null;
+				ShortMessageProviderTypeTable sce_smp_smptTable = (this.Depth > 1) ? new ShortMessageProviderTypeTable(query) : null;
+				ShortMessageProviderConfigurationTable sce_smp_smpcTable = (this.Depth > 1) ? new ShortMessageProviderConfigurationTable(query) : null;
+
+        
+				Instance sce_sc_iObject = (this.Depth > 1) ? sce_sc_iTable.CreateInstance() : null;
+				ServiceConfiguration sce_scObject = (this.Depth > 0) ? sce_scTable.CreateInstance(sce_sc_iObject) : null;
+				Language sce_c_lObject = (this.Depth > 1) ? sce_c_lTable.CreateInstance() : null;
+				Currency sce_c_cObject = (this.Depth > 1) ? sce_c_cTable.CreateInstance() : null;
+				Country sce_cObject = (this.Depth > 0) ? sce_cTable.CreateInstance(sce_c_lObject, sce_c_cObject) : null;
+				Country sce_mo_cObject = (this.Depth > 1) ? sce_mo_cTable.CreateInstance() : null;
+				MobileOperator sce_moObject = (this.Depth > 0) ? sce_moTable.CreateInstance(sce_mo_cObject) : null;
+				AgeRating sce_arObject = (this.Depth > 0) ? sce_arTable.CreateInstance() : null;
+				ShortMessageProviderType sce_smp_smptObject = (this.Depth > 1) ? sce_smp_smptTable.CreateInstance() : null;
+				ShortMessageProviderConfiguration sce_smp_smpcObject = (this.Depth > 1) ? sce_smp_smpcTable.CreateInstance() : null;
+				ShortMessageProvider sce_smpObject = (this.Depth > 0) ? sce_smpTable.CreateInstance(sce_smp_smptObject, sce_smp_smpcObject) : null;
+				ServiceConfigurationEntry sceObject = sceTable.CreateInstance(sce_scObject, sce_cObject, sce_moObject, sce_arObject, sce_smpObject);
+				sqlReader.Close();
+
+				return sceObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sce", "customload", "exception"), "ServiceConfigurationEntry could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ServiceConfigurationEntry", "Exception while loading (custom/single) ServiceConfigurationEntry object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ServiceConfigurationEntry> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ServiceConfigurationEntryTable.GetColumnNames("[sce]") + 
+							(this.Depth > 0 ? "," + ServiceConfigurationTable.GetColumnNames("[sce_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[sce_sc_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[sce_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[sce_c_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CurrencyTable.GetColumnNames("[sce_c_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[sce_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[sce_mo_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + AgeRatingTable.GetColumnNames("[sce_ar]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ShortMessageProviderTable.GetColumnNames("[sce_smp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ShortMessageProviderTypeTable.GetColumnNames("[sce_smp_smpt]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ShortMessageProviderConfigurationTable.GetColumnNames("[sce_smp_smpc]") : string.Empty) +  
+					" FROM [core].[ServiceConfigurationEntry] AS [sce] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [sce_sc] ON [sce].[ServiceConfigurationID] = [sce_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [sce_sc_i] ON [sce_sc].[IntstanceID] = [sce_sc_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [sce_c] ON [sce].[CountryID] = [sce_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [sce_c_l] ON [sce_c].[LanguageID] = [sce_c_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Currency] AS [sce_c_c] ON [sce_c].[CurrencyID] = [sce_c_c].[CurrencyID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [sce_mo] ON [sce].[MobileOperatorID] = [sce_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [sce_mo_c] ON [sce_mo].[CountryID] = [sce_mo_c].[CountryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [sce_ar] ON [sce].[AgeRatingID] = [sce_ar].[AgeRatingID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ShortMessageProvider] AS [sce_smp] ON [sce].[ShortMessageProviderID] = [sce_smp].[ShortMessageProviderID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ShortMessageProviderType] AS [sce_smp_smpt] ON [sce_smp].[ShortMessageProviderTypeID] = [sce_smp_smpt].[ShortMessageProviderTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ShortMessageProviderConfiguration] AS [sce_smp_smpc] ON [sce_smp].[ShortMessageProviderConfigurationID] = [sce_smp_smpc].[ShortMessageProviderConfigurationID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sce", "customloadmany", "notfound"), "ServiceConfigurationEntry list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ServiceConfigurationEntry>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ServiceConfigurationEntryTable sceTable = new ServiceConfigurationEntryTable(query);
+				ServiceConfigurationTable sce_scTable = (this.Depth > 0) ? new ServiceConfigurationTable(query) : null;
+				InstanceTable sce_sc_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				CountryTable sce_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable sce_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				CurrencyTable sce_c_cTable = (this.Depth > 1) ? new CurrencyTable(query) : null;
+				MobileOperatorTable sce_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable sce_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				AgeRatingTable sce_arTable = (this.Depth > 0) ? new AgeRatingTable(query) : null;
+				ShortMessageProviderTable sce_smpTable = (this.Depth > 0) ? new ShortMessageProviderTable(query) : null;
+				ShortMessageProviderTypeTable sce_smp_smptTable = (this.Depth > 1) ? new ShortMessageProviderTypeTable(query) : null;
+				ShortMessageProviderConfigurationTable sce_smp_smpcTable = (this.Depth > 1) ? new ShortMessageProviderConfigurationTable(query) : null;
+
+        List<ServiceConfigurationEntry> result = new List<ServiceConfigurationEntry>();
+        do
+        {
+          
+					Instance sce_sc_iObject = (this.Depth > 1) ? sce_sc_iTable.CreateInstance() : null;
+					ServiceConfiguration sce_scObject = (this.Depth > 0) ? sce_scTable.CreateInstance(sce_sc_iObject) : null;
+					Language sce_c_lObject = (this.Depth > 1) ? sce_c_lTable.CreateInstance() : null;
+					Currency sce_c_cObject = (this.Depth > 1) ? sce_c_cTable.CreateInstance() : null;
+					Country sce_cObject = (this.Depth > 0) ? sce_cTable.CreateInstance(sce_c_lObject, sce_c_cObject) : null;
+					Country sce_mo_cObject = (this.Depth > 1) ? sce_mo_cTable.CreateInstance() : null;
+					MobileOperator sce_moObject = (this.Depth > 0) ? sce_moTable.CreateInstance(sce_mo_cObject) : null;
+					AgeRating sce_arObject = (this.Depth > 0) ? sce_arTable.CreateInstance() : null;
+					ShortMessageProviderType sce_smp_smptObject = (this.Depth > 1) ? sce_smp_smptTable.CreateInstance() : null;
+					ShortMessageProviderConfiguration sce_smp_smpcObject = (this.Depth > 1) ? sce_smp_smpcTable.CreateInstance() : null;
+					ShortMessageProvider sce_smpObject = (this.Depth > 0) ? sce_smpTable.CreateInstance(sce_smp_smptObject, sce_smp_smpcObject) : null;
+					ServiceConfigurationEntry sceObject = (this.Depth > -1) ? sceTable.CreateInstance(sce_scObject, sce_cObject, sce_moObject, sce_arObject, sce_smpObject) : null;
+					result.Add(sceObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sce", "customloadmany", "exception"), "ServiceConfigurationEntry list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ServiceConfigurationEntry", "Exception while loading (custom/many) ServiceConfigurationEntry object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ServiceConfigurationEntry data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ServiceConfigurationEntry] ([ServiceConfigurationID],[CountryID],[MobileOperatorID],[LookupModeID],[AgeVerificationModeID],[AgeRatingID],[AgeRatingSelectionModeID],[ShortMessageProviderID],[HasSmsPayment],[IsAgeVerificationRequired],[IsWelcomePageRequired],[IsLandingPageRequired],[IsPaymentEnabled],[Shortcode],[Keyword]) VALUES(@ServiceConfigurationID,@CountryID,@MobileOperatorID,@LookupModeID,@AgeVerificationModeID,@AgeRatingID,@AgeRatingSelectionModeID,@ShortMessageProviderID,@HasSmsPayment,@IsAgeVerificationRequired,@IsWelcomePageRequired,@IsLandingPageRequired,@IsPaymentEnabled,@Shortcode,@Keyword); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceConfigurationID", data.ServiceConfiguration.ID);
+				sqlCmd.Parameters.AddWithValue("@CountryID", data.Country.ID);
+				sqlCmd.Parameters.AddWithValue("@MobileOperatorID", data.MobileOperator == null ? DBNull.Value : (object)data.MobileOperator.ID);
+				sqlCmd.Parameters.AddWithValue("@LookupModeID", (int)data.LookupMode);
+				sqlCmd.Parameters.AddWithValue("@AgeVerificationModeID", (int)data.AgeVerificationMode);
+				sqlCmd.Parameters.AddWithValue("@AgeRatingID", data.AgeRating.ID);
+				sqlCmd.Parameters.AddWithValue("@AgeRatingSelectionModeID", (int)data.AgeRatingSelectionMode);
+				sqlCmd.Parameters.AddWithValue("@ShortMessageProviderID", data.ShortMessageProvider.ID);
+				sqlCmd.Parameters.AddWithValue("@HasSmsPayment", data.HasSmsPayment).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsAgeVerificationRequired", data.IsAgeVerificationRequired).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsWelcomePageRequired", data.IsWelcomePageRequired).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsLandingPageRequired", data.IsLandingPageRequired).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsPaymentEnabled", data.IsPaymentEnabled).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Shortcode", !string.IsNullOrEmpty(data.Shortcode) ? (object)data.Shortcode : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Keyword", !string.IsNullOrEmpty(data.Keyword) ? (object)data.Keyword : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sce", "insert", "noprimarykey"), "ServiceConfigurationEntry could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ServiceConfigurationEntry", "Exception while inserting ServiceConfigurationEntry object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sce", "insert", "exception"), "ServiceConfigurationEntry could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ServiceConfigurationEntry", "Exception while inserting ServiceConfigurationEntry object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ServiceConfigurationEntry data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ServiceConfigurationEntry] SET " +
+												"[ServiceConfigurationID] = @ServiceConfigurationID, " + 
+												"[CountryID] = @CountryID, " + 
+												"[MobileOperatorID] = @MobileOperatorID, " + 
+												"[LookupModeID] = @LookupModeID, " + 
+												"[AgeVerificationModeID] = @AgeVerificationModeID, " + 
+												"[AgeRatingID] = @AgeRatingID, " + 
+												"[AgeRatingSelectionModeID] = @AgeRatingSelectionModeID, " + 
+												"[ShortMessageProviderID] = @ShortMessageProviderID, " + 
+												"[HasSmsPayment] = @HasSmsPayment, " + 
+												"[IsAgeVerificationRequired] = @IsAgeVerificationRequired, " + 
+												"[IsWelcomePageRequired] = @IsWelcomePageRequired, " + 
+												"[IsLandingPageRequired] = @IsLandingPageRequired, " + 
+												"[IsPaymentEnabled] = @IsPaymentEnabled, " + 
+												"[Shortcode] = @Shortcode, " + 
+												"[Keyword] = @Keyword, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ServiceConfigurationEntryID] = @ServiceConfigurationEntryID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceConfigurationID", data.ServiceConfiguration.ID);
+				sqlCmd.Parameters.AddWithValue("@CountryID", data.Country.ID);
+				sqlCmd.Parameters.AddWithValue("@MobileOperatorID", data.MobileOperator == null ? DBNull.Value : (object)data.MobileOperator.ID);
+				sqlCmd.Parameters.AddWithValue("@LookupModeID", (int)data.LookupMode);
+				sqlCmd.Parameters.AddWithValue("@AgeVerificationModeID", (int)data.AgeVerificationMode);
+				sqlCmd.Parameters.AddWithValue("@AgeRatingID", data.AgeRating.ID);
+				sqlCmd.Parameters.AddWithValue("@AgeRatingSelectionModeID", (int)data.AgeRatingSelectionMode);
+				sqlCmd.Parameters.AddWithValue("@ShortMessageProviderID", data.ShortMessageProvider.ID);
+				sqlCmd.Parameters.AddWithValue("@HasSmsPayment", data.HasSmsPayment).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsAgeVerificationRequired", data.IsAgeVerificationRequired).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsWelcomePageRequired", data.IsWelcomePageRequired).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsLandingPageRequired", data.IsLandingPageRequired).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsPaymentEnabled", data.IsPaymentEnabled).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Shortcode", !string.IsNullOrEmpty(data.Shortcode) ? (object)data.Shortcode : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Keyword", !string.IsNullOrEmpty(data.Keyword) ? (object)data.Keyword : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ServiceConfigurationEntryID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sce", "update", "norecord"), "ServiceConfigurationEntry could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ServiceConfigurationEntry", "Exception while updating ServiceConfigurationEntry object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sce", "update", "morerecords"), "ServiceConfigurationEntry was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ServiceConfigurationEntry", "Exception while updating ServiceConfigurationEntry object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sce", "update", "exception"), "ServiceConfigurationEntry could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ServiceConfigurationEntry", "Exception while updating ServiceConfigurationEntry object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ServiceConfigurationEntry data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ServiceConfigurationEntry] WHERE ServiceConfigurationEntryID = @ServiceConfigurationEntryID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ServiceConfigurationEntryID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sce", "delete", "norecord"), "ServiceConfigurationEntry could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ServiceConfigurationEntry", "Exception while deleting ServiceConfigurationEntry object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sce", "delete", "exception"), "ServiceConfigurationEntry could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ServiceConfigurationEntry", "Exception while deleting ServiceConfigurationEntry object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

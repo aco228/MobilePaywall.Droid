@@ -1,0 +1,240 @@
+﻿@model QualityAssuranceModel
+@{
+  ViewBag.Title = "Report Upload";
+  MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+
+  if (Model.QualityAssuranceReportScreenshotMaps.Count == 0)
+  {
+    QualityAssuranceReportScreenshotMap qarsmInitial = new QualityAssuranceReportScreenshotMap();
+    qarsmInitial.QualityAssuranceReportScreenshotModels = new List<QualityAssuranceReportScreenshotModel>();
+    qarsmInitial.QualityAssuranceReportScreenshotModels.Add(new QualityAssuranceReportScreenshotModel());
+    Model.QualityAssuranceReportScreenshotMaps.Add(qarsmInitial);
+  }
+}
+
+<!-- BEGIN PAGE HEADER-->
+<div class="page-bar">
+  <ul class="page-breadcrumb">
+    <li>
+      <i class="icon-diamond"></i>
+      <a href="javascript:;">Quality Assurance</a>
+      <i class="fa fa-angle-right"></i>
+    </li>
+    <li>
+      <a href="#">@ViewBag.Title</a>
+    </li>
+  </ul>
+</div>
+<!-- END PAGE HEADER-->
+
+<div class="report-editor-wrapper">
+  @using (Html.BeginRouteForm("SaveReport", FormMethod.Post, new { id = "fileupload", @class = "form-horizontal dropzone", enctype = "multipart/form-data" }))
+  {
+    <div class="row filters">
+      <div class="col-sm-6 col-md-4 col-lg-2 filter">
+        @{int? serviceID = Model.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel != null ? Model.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.QualityAssuranceReport.Service.ID : -1; }
+        @Html.DropDownListFor(x => x.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.ServiceModel.ServiceID, MerchantHelper.ServicesSelected(serviceID != -1 ? serviceID : null), "", new { @class = "form-control select2", id = "select_service" })
+      </div>
+      <div class="col-sm-6 col-md-4 col-lg-2 filter">
+        @{int? operatorID = Model.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel != null ? Model.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.QualityAssuranceReport.MobileOperator.ID : -1; }
+        @Html.DropDownListFor(x => x.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.MobileOperatorModel.MobileOperatorID, MerchantHelper.ActiveOperatorsByCountrySelected(operatorID != -1 ? operatorID : null), "", new { @class = "form-control select2", id = "select_operator" })
+      </div>
+      <div class="col-sm-6 col-md-4 col-lg-2 filter">
+        @Html.TextBoxFor(x => x.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.ReportUrl, "", new { @class = "form-control form-control-inline", id = "report_url", placeholder = "Report Url" })
+      </div>
+      <div class="col-sm-6 col-md-3 col-lg-2 filter date-tested">
+        @Html.TextBoxFor(x => x.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.Tested, "{0:MMMM dd, yyyy HH:mm}", new { @class = "form-control form-control-inline input-medium date-picker", id = "select_date", placeholder = "Testing date" }) @*, data_date_format = "dd/mm/yyyy"*@
+      </div>
+      <div class="col-sm-12 filter general-note">
+        @Html.TextBoxFor(x => x.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.Remark, "", new { @class = "form-control", id = "remark", placeholder = "Note" })
+      </div>
+      @*<div class="col-sm-12 test-delete">
+          <input class="box__file" type="file" name="files" id="fileID" data-multiple-caption="files selected" />
+          <label for="fileID"><strong>Choose a file</strong><span class="box__dragndrop"> or drag it here</span>.</label>
+          <div id="dropItHere">Drop here</div>
+        </div>*@
+      @if (Model.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel != null)
+      {
+        @Html.HiddenFor(x => x.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.QualityAssuranceReportID, new { @class = "form-control", id = "reportId", visible = "false" })
+      }
+
+      <div class="alert alert-danger display-none">
+        @*<button class="close" data-dismiss="alert"></button>*@
+        You have some form errors. Please ensure you filled all the fields correctly.
+      </div>
+      <div class="alert alert-success display-none">
+        <button class="close" data-dismiss="alert"></button>
+        Your form validation is successful!
+      </div>
+    </div>
+    <div class="row" id="screenshots-container">
+      @{
+      int index = 0;
+      foreach (QualityAssuranceReportScreenshotModel qarsm in Model.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportScreenshotModels)
+      {
+        string imgSrc = string.Empty;
+
+        //if (qarsm.QualityAssuranceReportScreenshot != null)
+        //{
+        //  var base64 = Convert.ToBase64String(qarsm.QualityAssuranceReportScreenshot.Data);
+        //  imgSrc = String.Format("data:image/gif;base64,{0}", base64);
+        //}
+        if (qarsm.Data != null)
+        {
+          var base64 = Convert.ToBase64String(qarsm.Data);
+          imgSrc = String.Format("data:image/gif;base64,{0}", base64);
+        }
+
+        <div class="col-sm-6 col-md-4 col-lg-3 screenshot" id="screenshot@(index)">
+
+
+          @*<div id="status_test">Drag the files from a folder to a selected area ...</div>
+            <div id="drop_test">Drop files here.</div>
+            <div id="list_test"></div>
+            <input id="file_test" type="file" />*@
+
+          @if (index > 0)
+          {
+            <a href="" class="remove-screenshot tooltips" data-container="body" data-placement="top" data-original-title="Remove"><i class="fa fa-times fa-2x"></i></a>
+          }
+          <div class="image-wrapper @(!string.IsNullOrEmpty(imgSrc) ? "file-selected" : null)">
+            <img id="image_upload_preview@(index)" class="image-preview" src="@(!string.IsNullOrEmpty(imgSrc) ? imgSrc : "/Images/metronic/pages/transparent.png")" alt="" />
+            <label for="content@(index)" class="content-upload-label btn @(!string.IsNullOrEmpty(imgSrc) ? "purple-wisteria" : "red-sunglo")"><i class="fa fa-upload"></i> Choose file</label>
+          </div>
+
+
+          @Html.TextBoxFor(x => x.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportScreenshotModels[index].File, "", new { id = "content" + index, @class = "form-control content", type = "file", placeholder = "File", accept = "image/*" })
+          @Html.TextBoxFor(x => x.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportScreenshotModels[index].Title, "", new { id = "title" + index, @class = "form-control scr-title", placeholder = "Title" })
+          @Html.TextBoxFor(x => x.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportScreenshotModels[index].Url, "", new { id = "url" + index, @class = "form-control scr-url", placeholder = "Url" })
+          @Html.TextBoxFor(x => x.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportScreenshotModels[index].Remark, "", new { id = "remark" + index, @class = "form-control", placeholder = "Remark" })
+          
+          <div class="md-checkbox">
+            @Html.CheckBoxFor(x => x.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportScreenshotModels[index].HasError, new { id = "haserror" + index, @class = "form-control error-check md-check" })
+            <label for="haserror0">
+              <span></span>
+              <span class="check"></span>
+              <span class="box"></span>
+              Has error
+            </label>
+          </div>
+          @if (Model.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportScreenshotModels[index] != null)
+          {
+            @Html.HiddenFor(x => x.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportScreenshotModels[index].QualityAssuranceReportScreenshotID, new { @class = "form-control", id = "scr_id" + index, visible = "false" })
+          }
+
+        </div>
+
+          index++;
+      }
+      }
+      <div class="col-sm-12 report-actions">
+        <button id="add_screenshot" class="btn green add-section"><i class="fa fa-plus"></i></button>
+        <a href="/qa" class="btn grey-silver cancel">Cancel</a>
+        <button type="submit" class="btn blue submit">Save</button>
+      </div>
+    </div>
+  }
+</div>
+
+@section PageStyles{
+  @Styles.Render("~/pages/report-editor/css")
+}
+
+
+@section PageScripts{
+  @Scripts.Render("~/pages/reportEditor/js")
+}
+
+@section CustomScripts {
+  <script src="~/Scripts/metronic/pages/custom/report-editor.js"></script>
+}
+
+
+@*<style>
+  #drop_test {
+    min-height: 150px;
+    width: 250px;
+    border: 1px solid blue;
+    margin: 10px;
+    padding: 10px;
+  }
+</style>
+<script>
+  if (window.FileReader) {
+    var drop;
+    addEventHandler(window, 'load', function () {
+      var status = document.getElementById('status_test');
+      drop = document.getElementById('drop_test');
+      var list = document.getElementById('list_test');
+
+      function cancel(e) {
+        if (e.preventDefault) { e.preventDefault(); }
+        return false;
+      }
+
+      // Tells the browser that we *can* drop on this target
+      addEventHandler(drop, 'dragover', cancel);
+      addEventHandler(drop, 'dragenter', cancel);
+
+      addEventHandler(drop, 'drop', function (e) {
+        e = e || window.event; // get window.event if e argument missing (in IE)
+        if (e.preventDefault) { e.preventDefault(); } // stops the browser from redirecting off to the image.
+
+        var dt = e.dataTransfer;
+        var files = dt.files;
+        for (var i = 0; i < files.length; i++) {
+          var file = files[i];
+          var reader = new FileReader();
+
+          //attach event handlers here...
+
+          reader.readAsDataURL(file);
+
+          addEventHandler(reader, 'loadend', function (e, file) {
+            var bin = this.result;
+            var newFile = document.createElement('div');
+            newFile.innerHTML = 'Loaded : ' + file.name + ' size ' + file.size + ' B';
+            list.appendChild(newFile);
+            var fileNumber = list.getElementsByTagName('div').length;
+
+            status.innerHTML = fileNumber < files.length
+                             ? 'Loaded 100% of file ' + fileNumber + ' of ' + files.length + '...'
+                             : 'Done loading. processed ' + fileNumber + ' files.';
+
+            var img = document.createElement("img");
+            //img.file = file;
+            input.value = file;
+            console.log(file);
+            img.src = bin;
+            list.appendChild(img);
+          }.bindToEventHandler(file));
+        }
+        return false;
+      });
+      Function.prototype.bindToEventHandler = function bindToEventHandler() {
+        var handler = this;
+        var boundParameters = Array.prototype.slice.call(arguments);
+        //create closure
+        return function (e) {
+          e = e || window.event; // get window.event if e argument missing (in IE)
+          boundParameters.unshift(e);
+          handler.apply(this, boundParameters);
+        }
+      };
+    });
+  } else {
+    document.getElementById('status_test').innerHTML = 'Your browser does not support the HTML5 FileReader.';
+  }
+  function addEventHandler(obj, evt, handler) {
+    if (obj.addEventListener) {
+      // W3C method
+      obj.addEventListener(evt, handler, false);
+    } else if (obj.attachEvent) {
+      // IE method.
+      obj.attachEvent('on' + evt, handler);
+    } else {
+      // Old school method.
+      obj['on' + evt] = handler;
+    }
+  }
+</script>*@

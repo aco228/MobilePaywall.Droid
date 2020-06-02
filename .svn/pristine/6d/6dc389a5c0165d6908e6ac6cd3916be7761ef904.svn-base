@@ -1,0 +1,152 @@
+﻿@model MobilePaywall.Web.Models.DefaultTranslationsViewModel
+@{
+  Layout = "~/Views/Template/_Layout/_Layout.cshtml";
+  string price = PaywallHttpContext.Current.Service.ServiceInfo != null ? PaywallHttpContext.Current.Service.ServiceInfo.Price : string.Empty;
+  string type = PaywallHttpContext.Current.Service.ServiceInfo != null ? PaywallHttpContext.Current.Service.ServiceInfo.TemplateServiceType.ToString() : string.Empty; 
+}
+
+<style>
+  #wildcards{ margin-bottom:40px; font-size: 11px; }
+  .wildcard{ font-weight:bold; color: #B10000; }
+  .wildcard_value{ color: #00008E; }
+</style>
+
+<div class="md-card" id="wildcards">
+  <div class="md-card-content">
+    <h3 class="heading_a">Translation wildcards</h3>
+
+    <div class="uk-grid">
+      <div class="uk-width-medium-6-6">
+        <span class="wildcard">[Service.ID]</span> = <span class="wildcard_value">@PaywallHttpContext.Current.Service.ServiceData.ID.ToString()</span><br>
+        <span class="wildcard">[Service.Name]</span> = <span class="wildcard_value">@PaywallHttpContext.Current.Service.ServiceData.Name</span><br>
+        <span class="wildcard">[Service.Url]</span> = <span class="wildcard_value">@string.Format("http://{0}", PaywallHttpContext.Current.Service.ServiceData.Name)</span><br>
+        <span class="wildcard">[Service.Price]</span> = <span class="wildcard_value">@price</span><br>
+        <span class="wildcard">[Service.Type]</span> = <span class="wildcard_value">@type</span><br />
+        <span class="wildcard">[Service.Country]</span> = <span class="wildcard_value">@PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.GlobalName</span><br>
+        <span class="wildcard">[Merchant.Name]</span> = <span class="wildcard_value">@PaywallHttpContext.Current.Service.ServiceData.Merchant.Name</span><br>
+        <span class="wildcard">[Merchant.Address]</span> = <span class="wildcard_value">@PaywallHttpContext.Current.Service.ServiceData.Merchant.Address</span><br>
+        <span class="wildcard">[PaymentProvider.Name]</span> = <span class="wildcard_value">@PaywallHttpContext.Current.Service.PaymentProvider.Name</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<div class="md-card-list-wrapper" id="mailbox">
+  <div class="uk-width-large-8-10 uk-container-center">
+    <div class="md-card-list">
+      <div class="md-card-list-header heading_list">Default translations</div>
+      <ul class="hierarchical_slide">
+
+        @foreach (TranslationValueTemplate value in Model.Values)
+        {
+          string avatarColor = !string.IsNullOrEmpty(value.Text) ? "green" : "gray";
+
+          <li class="translationKey" valueid="@value.ID" translationkeyid="@value.TranslationKey.ID" groupkeyid="@value.GroupID" groupkeyname="@value.Name" groupname="@value.TranslationGroupKey.TranslationGroup.Name">
+            <span class="md-card-list-item-date translationUpdated">@value.Updated</span>
+            <div class="md-card-list-item-avatar-wrapper">
+              <span class="md-card-list-item-avatar md-bg-light-@avatarColor">@value.TranslationGroupKey.TranslationGroup.Name.Substring(0, 2).ToUpper()</span>
+            </div>
+            <div class="md-card-list-item-sender">
+              <span>@value.TranslationGroupKey.TranslationGroup.Name</span>
+            </div>
+            <div class="md-card-list-item-subject">
+              <div class="md-card-list-item-sender-small">
+                <span>@value.Name</span>
+              </div>
+              <span>@value.Comment</span>
+            </div>
+            <div class="md-card-list-item-content-wrapper">
+              <div class="md-card-list-item-content originalText"></div>
+              @*<label for="mailbox_reply_5925">Ovdje treba da stoji vjerovatno fallback informacije</label>*@
+              <textarea class="md-input md-input-full translationValue" name="mailbox_reply_5925" id="mailbox_reply_5925" cols="30" rows="12">@value.Text</textarea>
+              <button class="md-btn md-btn-flat md-btn-flat-primary btnUpdate" inuse="false">Update</button>
+              <button class="md-btn md-btn-flat md-btn-flat-primary btnDelete" inuse="false" style="margin-top:10px">Delete</button>
+            </div>
+          </li>
+        }
+
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  
+  document.addEventListener("DOMContentLoaded", function(){
+    onClick();
+  });
+
+  function onClick(){
+    $('.btnUpdate').click(function (event) {
+      if ($(this).attr('inuse') == 'true')
+        return;
+
+      var parent = $(this).closest('.translationKey');
+      visual.Confirm("Are you sure you want to make this change?", "Yes", "No", function () {
+        var btn = $(this);
+
+        var data = {
+          translationValueKeyID: parent.attr('valueID'),
+          translationKeyID: parent.attr('translationKeyID'),
+          translationGroupKeyID: parent.attr('groupKeyID'),
+          groupName: parent.attr('groupName'),
+          groupKey: parent.attr('groupKeyName'),
+          value: encodeURIComponent(parent.find('.translationValue').val())
+        };
+
+        var textTmpl = btn.text();
+        btn.text('...');
+        btn.attr('inuse', 'true');
+
+        template.call('ApiUpdateTranslationValue', data, function (response) {
+          btn.text(textTmpl);
+          btn.attr('inuse', 'false');
+
+          console.log(response);
+
+          if (response.status) {
+            visual.Alert(response.message, 'Close');
+            parent.attr('valueID', response.id);
+            parent.find('.translationUpdated').text(response.Updated);
+
+            var avatar = parent.find('.md-card-list-item-avatar');
+            if (avatar.hasClass('md-bg-light-gray')) {
+              avatar.removeClass('md-bg-light-gray');
+              avatar.addClass('md-bg-light-green');
+            }
+          }
+          else
+            visual.Alert(response.message, 'Close');
+        });
+
+      });
+    });
+
+
+    $('.btnDelete').click(function () {
+      if ($(this).attr('inuse') == 'true')
+        return;
+
+      var btn = $(this);
+      var parent = $(this).closest('.translationKey');
+      var groupName = parent.attr('groupName');
+      var groupKey = parent.attr('groupKeyName');
+      var translationValueID = parent.attr('valueID');
+      if (translationValueID == '-1') {
+        visual.Toast('This entry does not exists in database');
+        return;
+      }
+
+      visual.Confirm("ARE YOU SURE YOU WANT TO DELETE THIS TranslationKey?", "Yes", "No", function () {
+        template.call('ApiDeleteTranslationValue', { translationValue: translationValueID }, function (response) {
+          visual.Alert(response.message);
+        });
+      });
+    });
+  }
+
+
+</script>

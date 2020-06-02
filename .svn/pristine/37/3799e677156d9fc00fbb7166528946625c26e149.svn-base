@@ -1,0 +1,434 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(AuctionCreditHistory))] 
+  public partial class AuctionCreditHistoryManager : MobilePaywall.Data.Sql.SqlManagerBase<AuctionCreditHistory>, IAuctionCreditHistoryManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override AuctionCreditHistory LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							AuctionCreditHistoryTable.GetColumnNames("[ach]") + 
+							(this.Depth > 0 ? "," + AuctionCreditTable.GetColumnNames("[ach_ac]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[ach_ac_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + AuctionCreditPolicyTable.GetColumnNames("[ach_acp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[ach_acp_so]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CustomerTable.GetColumnNames("[ach_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[ach_c_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[ach_c_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[ach_c_mo]") : string.Empty) + 
+					" FROM [core].[AuctionCreditHistory] AS [ach] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AuctionCredit] AS [ach_ac] ON [ach].[AuctionCreditID] = [ach_ac].[AuctionCreditID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [ach_ac_c] ON [ach_ac].[CustomerID] = [ach_ac_c].[CustomerID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AuctionCreditPolicy] AS [ach_acp] ON [ach].[AuctionCreditPolicyID] = [ach_acp].[AuctionCreditPolicyID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceOffer] AS [ach_acp_so] ON [ach_acp].[ServiceOfferID] = [ach_acp_so].[ServiceOfferID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [ach_c] ON [ach].[CustomerID] = [ach_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [ach_c_s] ON [ach_c].[ServiceID] = [ach_c_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [ach_c_c] ON [ach_c].[CountryID] = [ach_c_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [ach_c_mo] ON [ach_c].[MobileOperatorID] = [ach_c_mo].[MobileOperatorID] ";
+				sqlCmdText += "WHERE [ach].[AuctionCreditHistoryID] = @AuctionCreditHistoryID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AuctionCreditHistoryID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ach", "loadinternal", "notfound"), "AuctionCreditHistory could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AuctionCreditHistoryTable achTable = new AuctionCreditHistoryTable(query);
+				AuctionCreditTable ach_acTable = (this.Depth > 0) ? new AuctionCreditTable(query) : null;
+				CustomerTable ach_ac_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				AuctionCreditPolicyTable ach_acpTable = (this.Depth > 0) ? new AuctionCreditPolicyTable(query) : null;
+				ServiceOfferTable ach_acp_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				CustomerTable ach_cTable = (this.Depth > 0) ? new CustomerTable(query) : null;
+				ServiceTable ach_c_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				CountryTable ach_c_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable ach_c_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+
+        
+				Customer ach_ac_cObject = (this.Depth > 1) ? ach_ac_cTable.CreateInstance() : null;
+				AuctionCredit ach_acObject = (this.Depth > 0) ? ach_acTable.CreateInstance(ach_ac_cObject) : null;
+				ServiceOffer ach_acp_soObject = (this.Depth > 1) ? ach_acp_soTable.CreateInstance() : null;
+				AuctionCreditPolicy ach_acpObject = (this.Depth > 0) ? ach_acpTable.CreateInstance(ach_acp_soObject) : null;
+				Service ach_c_sObject = (this.Depth > 1) ? ach_c_sTable.CreateInstance() : null;
+				Country ach_c_cObject = (this.Depth > 1) ? ach_c_cTable.CreateInstance() : null;
+				MobileOperator ach_c_moObject = (this.Depth > 1) ? ach_c_moTable.CreateInstance() : null;
+				Customer ach_cObject = (this.Depth > 0) ? ach_cTable.CreateInstance(ach_c_sObject, ach_c_cObject, ach_c_moObject) : null;
+				AuctionCreditHistory achObject = achTable.CreateInstance(ach_acObject, ach_acpObject, ach_cObject);
+				sqlReader.Close();
+
+				return achObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ach", "loadinternal", "exception"), "AuctionCreditHistory could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AuctionCreditHistory", "Exception while loading AuctionCreditHistory object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public AuctionCreditHistory Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AuctionCreditHistoryTable.GetColumnNames("[ach]") + 
+							(this.Depth > 0 ? "," + AuctionCreditTable.GetColumnNames("[ach_ac]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[ach_ac_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + AuctionCreditPolicyTable.GetColumnNames("[ach_acp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[ach_acp_so]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CustomerTable.GetColumnNames("[ach_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[ach_c_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[ach_c_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[ach_c_mo]") : string.Empty) +  
+					" FROM [core].[AuctionCreditHistory] AS [ach] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AuctionCredit] AS [ach_ac] ON [ach].[AuctionCreditID] = [ach_ac].[AuctionCreditID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [ach_ac_c] ON [ach_ac].[CustomerID] = [ach_ac_c].[CustomerID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AuctionCreditPolicy] AS [ach_acp] ON [ach].[AuctionCreditPolicyID] = [ach_acp].[AuctionCreditPolicyID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceOffer] AS [ach_acp_so] ON [ach_acp].[ServiceOfferID] = [ach_acp_so].[ServiceOfferID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [ach_c] ON [ach].[CustomerID] = [ach_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [ach_c_s] ON [ach_c].[ServiceID] = [ach_c_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [ach_c_c] ON [ach_c].[CountryID] = [ach_c_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [ach_c_mo] ON [ach_c].[MobileOperatorID] = [ach_c_mo].[MobileOperatorID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ach", "customload", "notfound"), "AuctionCreditHistory could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AuctionCreditHistoryTable achTable = new AuctionCreditHistoryTable(query);
+				AuctionCreditTable ach_acTable = (this.Depth > 0) ? new AuctionCreditTable(query) : null;
+				CustomerTable ach_ac_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				AuctionCreditPolicyTable ach_acpTable = (this.Depth > 0) ? new AuctionCreditPolicyTable(query) : null;
+				ServiceOfferTable ach_acp_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				CustomerTable ach_cTable = (this.Depth > 0) ? new CustomerTable(query) : null;
+				ServiceTable ach_c_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				CountryTable ach_c_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable ach_c_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+
+        
+				Customer ach_ac_cObject = (this.Depth > 1) ? ach_ac_cTable.CreateInstance() : null;
+				AuctionCredit ach_acObject = (this.Depth > 0) ? ach_acTable.CreateInstance(ach_ac_cObject) : null;
+				ServiceOffer ach_acp_soObject = (this.Depth > 1) ? ach_acp_soTable.CreateInstance() : null;
+				AuctionCreditPolicy ach_acpObject = (this.Depth > 0) ? ach_acpTable.CreateInstance(ach_acp_soObject) : null;
+				Service ach_c_sObject = (this.Depth > 1) ? ach_c_sTable.CreateInstance() : null;
+				Country ach_c_cObject = (this.Depth > 1) ? ach_c_cTable.CreateInstance() : null;
+				MobileOperator ach_c_moObject = (this.Depth > 1) ? ach_c_moTable.CreateInstance() : null;
+				Customer ach_cObject = (this.Depth > 0) ? ach_cTable.CreateInstance(ach_c_sObject, ach_c_cObject, ach_c_moObject) : null;
+				AuctionCreditHistory achObject = achTable.CreateInstance(ach_acObject, ach_acpObject, ach_cObject);
+				sqlReader.Close();
+
+				return achObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ach", "customload", "exception"), "AuctionCreditHistory could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AuctionCreditHistory", "Exception while loading (custom/single) AuctionCreditHistory object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<AuctionCreditHistory> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AuctionCreditHistoryTable.GetColumnNames("[ach]") + 
+							(this.Depth > 0 ? "," + AuctionCreditTable.GetColumnNames("[ach_ac]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[ach_ac_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + AuctionCreditPolicyTable.GetColumnNames("[ach_acp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[ach_acp_so]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CustomerTable.GetColumnNames("[ach_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[ach_c_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[ach_c_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[ach_c_mo]") : string.Empty) +  
+					" FROM [core].[AuctionCreditHistory] AS [ach] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AuctionCredit] AS [ach_ac] ON [ach].[AuctionCreditID] = [ach_ac].[AuctionCreditID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [ach_ac_c] ON [ach_ac].[CustomerID] = [ach_ac_c].[CustomerID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AuctionCreditPolicy] AS [ach_acp] ON [ach].[AuctionCreditPolicyID] = [ach_acp].[AuctionCreditPolicyID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceOffer] AS [ach_acp_so] ON [ach_acp].[ServiceOfferID] = [ach_acp_so].[ServiceOfferID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [ach_c] ON [ach].[CustomerID] = [ach_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [ach_c_s] ON [ach_c].[ServiceID] = [ach_c_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [ach_c_c] ON [ach_c].[CountryID] = [ach_c_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [ach_c_mo] ON [ach_c].[MobileOperatorID] = [ach_c_mo].[MobileOperatorID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ach", "customloadmany", "notfound"), "AuctionCreditHistory list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<AuctionCreditHistory>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AuctionCreditHistoryTable achTable = new AuctionCreditHistoryTable(query);
+				AuctionCreditTable ach_acTable = (this.Depth > 0) ? new AuctionCreditTable(query) : null;
+				CustomerTable ach_ac_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				AuctionCreditPolicyTable ach_acpTable = (this.Depth > 0) ? new AuctionCreditPolicyTable(query) : null;
+				ServiceOfferTable ach_acp_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				CustomerTable ach_cTable = (this.Depth > 0) ? new CustomerTable(query) : null;
+				ServiceTable ach_c_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				CountryTable ach_c_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable ach_c_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+
+        List<AuctionCreditHistory> result = new List<AuctionCreditHistory>();
+        do
+        {
+          
+					Customer ach_ac_cObject = (this.Depth > 1) ? ach_ac_cTable.CreateInstance() : null;
+					AuctionCredit ach_acObject = (this.Depth > 0) ? ach_acTable.CreateInstance(ach_ac_cObject) : null;
+					ServiceOffer ach_acp_soObject = (this.Depth > 1) ? ach_acp_soTable.CreateInstance() : null;
+					AuctionCreditPolicy ach_acpObject = (this.Depth > 0) ? ach_acpTable.CreateInstance(ach_acp_soObject) : null;
+					Service ach_c_sObject = (this.Depth > 1) ? ach_c_sTable.CreateInstance() : null;
+					Country ach_c_cObject = (this.Depth > 1) ? ach_c_cTable.CreateInstance() : null;
+					MobileOperator ach_c_moObject = (this.Depth > 1) ? ach_c_moTable.CreateInstance() : null;
+					Customer ach_cObject = (this.Depth > 0) ? ach_cTable.CreateInstance(ach_c_sObject, ach_c_cObject, ach_c_moObject) : null;
+					AuctionCreditHistory achObject = (this.Depth > -1) ? achTable.CreateInstance(ach_acObject, ach_acpObject, ach_cObject) : null;
+					result.Add(achObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ach", "customloadmany", "exception"), "AuctionCreditHistory list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AuctionCreditHistory", "Exception while loading (custom/many) AuctionCreditHistory object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, AuctionCreditHistory data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[AuctionCreditHistory] ([AuctionCreditID],[AuctionCreditPolicyID],[CustomerID],[Amount]) VALUES(@AuctionCreditID,@AuctionCreditPolicyID,@CustomerID,@Amount); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@AuctionCreditID", data.AuctionCredit.ID);
+				sqlCmd.Parameters.AddWithValue("@AuctionCreditPolicyID", data.AuctionCreditPolicy == null ? DBNull.Value : (object)data.AuctionCreditPolicy.ID);
+				sqlCmd.Parameters.AddWithValue("@CustomerID", data.Customer.ID);
+				sqlCmd.Parameters.AddWithValue("@Amount", data.Amount).SqlDbType = SqlDbType.Decimal;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ach", "insert", "noprimarykey"), "AuctionCreditHistory could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "AuctionCreditHistory", "Exception while inserting AuctionCreditHistory object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ach", "insert", "exception"), "AuctionCreditHistory could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "AuctionCreditHistory", "Exception while inserting AuctionCreditHistory object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, AuctionCreditHistory data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[AuctionCreditHistory] SET " +
+												"[AuctionCreditID] = @AuctionCreditID, " + 
+												"[AuctionCreditPolicyID] = @AuctionCreditPolicyID, " + 
+												"[CustomerID] = @CustomerID, " + 
+												"[Amount] = @Amount, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [AuctionCreditHistoryID] = @AuctionCreditHistoryID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@AuctionCreditID", data.AuctionCredit.ID);
+				sqlCmd.Parameters.AddWithValue("@AuctionCreditPolicyID", data.AuctionCreditPolicy == null ? DBNull.Value : (object)data.AuctionCreditPolicy.ID);
+				sqlCmd.Parameters.AddWithValue("@CustomerID", data.Customer.ID);
+				sqlCmd.Parameters.AddWithValue("@Amount", data.Amount).SqlDbType = SqlDbType.Decimal;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@AuctionCreditHistoryID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ach", "update", "norecord"), "AuctionCreditHistory could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "AuctionCreditHistory", "Exception while updating AuctionCreditHistory object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ach", "update", "morerecords"), "AuctionCreditHistory was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "AuctionCreditHistory", "Exception while updating AuctionCreditHistory object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ach", "update", "exception"), "AuctionCreditHistory could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "AuctionCreditHistory", "Exception while updating AuctionCreditHistory object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, AuctionCreditHistory data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[AuctionCreditHistory] WHERE AuctionCreditHistoryID = @AuctionCreditHistoryID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AuctionCreditHistoryID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ach", "delete", "norecord"), "AuctionCreditHistory could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "AuctionCreditHistory", "Exception while deleting AuctionCreditHistory object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ach", "delete", "exception"), "AuctionCreditHistory could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "AuctionCreditHistory", "Exception while deleting AuctionCreditHistory object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

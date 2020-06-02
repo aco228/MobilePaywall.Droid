@@ -1,0 +1,113 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Merchant.Filters;
+using MobilePaywall.Merchant.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Merchant.Controllers
+{
+  [Authentication(Required = false)]
+  public class LoginController : PaywallController
+  {
+    public ActionResult Index()
+    {
+      if (this.PaywallContext.ClientSession == null ||
+        this.PaywallContext.ClientSession.Client == null ||
+        !this.PaywallContext.ClientSession.IsActive ||
+        this.PaywallContext.ClientSession.ValidUntil <= DateTime.Now)
+      {
+        ViewBag.OriginalRequestUrl = "/dashboard";
+        return View();
+      }
+      else
+        return this.Redirect("/");
+    }
+
+    public ActionResult Login(string username, string password)
+    {
+      if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+        return null;
+
+      IClientManager cManager = Client.CreateManager();
+      Client client = cManager.Load(username, password);
+
+      if (client == null)
+        return this.Json(new { status = false, message = "Wrong credentials", redirect = string.Empty });
+      else if (client.ClientStatus == ClientStatus.Inactive)
+        return this.Json(new { status = false, message = "Account is inactive", redirect = string.Empty });
+      else
+      {
+        this.PaywallContext.ClientSession.ValidUntil.AddMinutes(20);
+        this.PaywallContext.ClientSession.IsActive = true;
+        this.PaywallContext.ClientSession.Client = client;
+
+        if (this.PaywallContext.ClientSession.Update())
+        {
+          //this.PaywallContext.ClientSession.Client.FilterServices();
+          return this.Json(new { status = true, message = "OK", redirect = "/" });
+        }
+        else
+          return this.Json(new { status = false, message = "Error updating session", redirect = string.Empty });
+      }
+    }
+
+    public ActionResult Logout()
+    {
+      if (this.PaywallContext.ClientSession != null)
+      {
+        this.PaywallContext.ClientSession.IsActive = false;
+        this.PaywallContext.ClientSession.ValidUntil = DateTime.Now;
+        this.PaywallContext.ClientSession.Update();
+      }
+
+      return RedirectToAction("Index");
+    }
+
+    public ActionResult Lock()
+    {
+      if (this.PaywallContext.ClientSession == null || this.PaywallContext.ClientSession.Client == null)
+        return RedirectToAction("Index");
+
+      if (this.PaywallContext.ClientSession.IsActive)
+      {
+        this.PaywallContext.ClientSession.IsActive = false;
+        this.PaywallContext.ClientSession.Update();
+        this.PaywallContext.ClientSession.ValidUntil = DateTime.Now;
+      }
+
+
+      LockModel model = new LockModel(this.PaywallContext.ClientSession.Client, Request.UrlReferrer.AbsoluteUri.ToString());
+      return View("~/Views/Login/Lock.cshtml", model);
+    }
+
+    public ActionResult Lockin(string password, string username)
+    {
+      Client client = Client.CreateManager().Load(username, password);
+      if (client == null)
+        return this.Json(new { status = false, redirect = "/", message = "Wrong credentials" });
+
+      this.PaywallContext.ClientSession.Client = client;
+      this.PaywallContext.ClientSession.IsActive = true;
+      this.PaywallContext.ClientSession.Update();
+
+      return this.Json(new { status = true, redirect = "/", message = "OK" });
+    }
+
+    [HttpGet]
+    public ActionResult KeepAlive()
+    {
+      ClientSession session = PaywallHttpContext.Current.ClientSession;
+      if (session.Client != null && session.ValidUntil < DateTime.Now.AddMinutes(10))
+      {
+        session.ValidUntil = DateTime.Now.AddMinutes(20);
+        session.Update();
+        System.Diagnostics.Debug.WriteLine("blah");
+      }
+
+      return new ContentResult { Content = "OK", ContentType = "text/plain" };
+    }
+  }
+} 

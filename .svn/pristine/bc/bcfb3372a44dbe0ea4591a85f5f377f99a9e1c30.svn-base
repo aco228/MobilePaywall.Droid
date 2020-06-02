@@ -1,0 +1,67 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class QuizQuestionManager : IQuizQuestionManager
+  {
+
+    public List<QuizQuestion> Load(QuizContent content, Language language)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, content, language);
+    }
+
+    public List<QuizQuestion> Load(IConnectionInfo connection, QuizContent content, Language language)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, content, language);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, content, language);
+    }
+
+    public List<QuizQuestion> Load(ISqlConnectionInfo connection, QuizContent content, Language language)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[qq].QuizContentID=@QuizContentID AND [qq].LanguageID=@LanguageID";
+      parameters.Arguments.Add("QuizContentID", content.ID);
+      parameters.Arguments.Add("LanguageID", language.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+
+    public List<QuizQuestion> Load(QuizContent content)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, content);
+    }
+
+    public List<QuizQuestion> Load(IConnectionInfo connection, QuizContent content)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, content);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, content);
+    }
+
+    public List<QuizQuestion> Load(ISqlConnectionInfo connection, QuizContent content)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[qq].QuizContentID=@QuizContentID";
+      parameters.Arguments.Add("QuizContentID", content.ID);
+      return this.LoadMany(connection, parameters);
+    }
+  }
+}
+

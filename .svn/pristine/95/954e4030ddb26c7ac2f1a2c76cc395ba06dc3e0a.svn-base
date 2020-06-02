@@ -1,0 +1,101 @@
+﻿@model MobilePaywall.Web.Models.ContentListViewModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+}
+
+@Scripts.Render("~/Script/Home")
+
+<div class="pageBreak"></div>
+<h3 class="pageTitle pageTitleHome">@Translations.Web.Home.Header1</h3> 
+
+<div class="sliderWrapper">
+  <div class="mainSlider" id="mainSlider">
+
+    @{
+        List<int> randomIndexes = new List<int>();
+        int numberOfRandomContent = 3;
+        Random rnd = new Random();
+
+        for (int i = 0; i < numberOfRandomContent; i++)
+        {
+            int index = rnd.Next(0, Model.Content.Count - 1);
+            if (randomIndexes.Contains(index))
+            {
+                i--; continue;
+            }
+            randomIndexes.Add(index);
+            MobilePaywall.IContent content = Model.Content.ElementAt(index);
+
+            <a href="@Model.AppendSessionID(content)" class="___clink">
+                <img class="randomVideos" src="@content.GetThumbnailUrl(this.Request.UserAgent)" alt="" />
+            </a>
+        }
+    }
+
+  </div>
+</div>
+
+
+<div class="pageBreak"></div>
+<h3 class="pageTitle pageTitleHome">@Translations.Web.Home.Header2</h3> 
+
+<div class="pageWrapper homePageWrapper">
+
+
+  <div id="contentVideoContainer" class="quickLinksWrapper">
+    @foreach (MobilePaywall.IContent item in Model.Content)
+    {
+        <a href="@Model.AppendSessionID(item)" class="quickLink ___clink">
+            <div class="videoPlayButton @item.ContentIconClass"></div>
+            <span class="quickLinkIcon" style="background-image:url('@item.GetThumbnailUrl(this.Request.UserAgent)')"></span>
+        </a>
+    }
+
+  </div>
+
+
+  <div id="contentVideoControls" class="row">
+    <div class="content_videoControl" id="controlLoadMore">@Translations.Web.Controls.More</div>
+  </div>
+
+</div>
+
+<script>
+  var _videoController = null;
+
+
+  $(document).ready(function () {
+    _videoController = new VideoController();
+    _videoController.TextPending = '@Translations.Web.Pending.PleaseWait';
+
+    @if(Model.Category != null)
+    {
+      @Html.Raw(Server.HtmlDecode("_homeVideoControler.CategoryID = '" + Model.Category.ID + "';"));
+    }
+
+    @*
+      // Copy of method located in Darkley/Js/custom.js for calculating height and width of video class
+      // Mathod is triggered after ajax gets video results
+    *@
+    _videoController.OnAppendFunc = function () {
+      $('.quickLink').css('height', ($('.quickLinksWrapper').outerWidth()) / 2);
+      $('.quickLinkIcon').css('height', $('.quickLink').height());
+    };
+
+
+    // RANDOM VIDEO GOTO LINK
+    $('body').on('click', '.nivo-main-image', function () {
+      var href = $(this).attr('hreflink');
+      window.location = href;
+    });
+    $('body').on('click', '.nivo-slice img', function () {
+      var href = $('.nivo-main-image').attr('hreflink');
+      window.location = href;
+    });
+    $('body').on('click', '.nivo-box img', function () {
+      var href = $('.nivo-main-image').attr('hreflink');
+      window.location = href;
+    });
+
+  });
+</script>

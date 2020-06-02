@@ -1,0 +1,494 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(LoginAttempt))] 
+  public partial class LoginAttemptManager : MobilePaywall.Data.Sql.SqlManagerBase<LoginAttempt>, ILoginAttemptManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override LoginAttempt LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							LoginAttemptTable.GetColumnNames("[la]") + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[la_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[la_us_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[la_us_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + DomainTable.GetColumnNames("[la_us_d]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[la_us_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[la_us_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[la_us_mo]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CustomerTable.GetColumnNames("[la_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[la_c_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[la_c_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[la_c_mo]") : string.Empty) + 
+					" FROM [core].[LoginAttempt] AS [la] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [la_us] ON [la].[UserSessionID] = [la_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [la_us_ust] ON [la_us].[UserSessionTypeID] = [la_us_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [la_us_s] ON [la_us].[ServiceID] = [la_us_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Domain] AS [la_us_d] ON [la_us].[DomainID] = [la_us_d].[DomainID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [la_us_c] ON [la_us].[CustomerID] = [la_us_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c1] ON [la_us].[CountryID] = [c1].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [la_us_l] ON [la_us].[LanguageID] = [la_us_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [la_us_mo] ON [la_us].[MobileOperatorID] = [la_us_mo].[MobileOperatorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [la_c] ON [la].[CustomerID] = [la_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [la_c_s] ON [la_c].[ServiceID] = [la_c_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [la_c_c] ON [la_c].[CountryID] = [la_c_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [la_c_mo] ON [la_c].[MobileOperatorID] = [la_c_mo].[MobileOperatorID] ";
+				sqlCmdText += "WHERE [la].[LoginAttemptID] = @LoginAttemptID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@LoginAttemptID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("la", "loadinternal", "notfound"), "LoginAttempt could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				LoginAttemptTable laTable = new LoginAttemptTable(query);
+				UserSessionTable la_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+				UserSessionTypeTable la_us_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				ServiceTable la_us_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				DomainTable la_us_dTable = (this.Depth > 1) ? new DomainTable(query) : null;
+				CustomerTable la_us_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				CountryTable c1Table = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable la_us_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				MobileOperatorTable la_us_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				CustomerTable la_cTable = (this.Depth > 0) ? new CustomerTable(query) : null;
+				ServiceTable la_c_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				CountryTable la_c_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable la_c_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+
+        
+				UserSessionType la_us_ustObject = (this.Depth > 1) ? la_us_ustTable.CreateInstance() : null;
+				Service la_us_sObject = (this.Depth > 1) ? la_us_sTable.CreateInstance() : null;
+				Domain la_us_dObject = (this.Depth > 1) ? la_us_dTable.CreateInstance() : null;
+				Customer la_us_cObject = (this.Depth > 1) ? la_us_cTable.CreateInstance() : null;
+				Country c1Object = (this.Depth > 1) ? c1Table.CreateInstance() : null;
+				Language la_us_lObject = (this.Depth > 1) ? la_us_lTable.CreateInstance() : null;
+				MobileOperator la_us_moObject = (this.Depth > 1) ? la_us_moTable.CreateInstance() : null;
+				UserSession la_usObject = (this.Depth > 0) ? la_usTable.CreateInstance(la_us_ustObject, la_us_sObject, la_us_dObject, la_us_cObject, c1Object, la_us_lObject, la_us_moObject) : null;
+				Service la_c_sObject = (this.Depth > 1) ? la_c_sTable.CreateInstance() : null;
+				Country la_c_cObject = (this.Depth > 1) ? la_c_cTable.CreateInstance() : null;
+				MobileOperator la_c_moObject = (this.Depth > 1) ? la_c_moTable.CreateInstance() : null;
+				Customer la_cObject = (this.Depth > 0) ? la_cTable.CreateInstance(la_c_sObject, la_c_cObject, la_c_moObject) : null;
+				LoginAttempt laObject = laTable.CreateInstance(la_usObject, la_cObject);
+				sqlReader.Close();
+
+				return laObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("la", "loadinternal", "exception"), "LoginAttempt could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "LoginAttempt", "Exception while loading LoginAttempt object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public LoginAttempt Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							LoginAttemptTable.GetColumnNames("[la]") + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[la_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[la_us_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[la_us_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + DomainTable.GetColumnNames("[la_us_d]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[la_us_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[la_us_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[la_us_mo]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CustomerTable.GetColumnNames("[la_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[la_c_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[la_c_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[la_c_mo]") : string.Empty) +  
+					" FROM [core].[LoginAttempt] AS [la] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [la_us] ON [la].[UserSessionID] = [la_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [la_us_ust] ON [la_us].[UserSessionTypeID] = [la_us_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [la_us_s] ON [la_us].[ServiceID] = [la_us_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Domain] AS [la_us_d] ON [la_us].[DomainID] = [la_us_d].[DomainID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [la_us_c] ON [la_us].[CustomerID] = [la_us_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c1] ON [la_us].[CountryID] = [c1].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [la_us_l] ON [la_us].[LanguageID] = [la_us_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [la_us_mo] ON [la_us].[MobileOperatorID] = [la_us_mo].[MobileOperatorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [la_c] ON [la].[CustomerID] = [la_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [la_c_s] ON [la_c].[ServiceID] = [la_c_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [la_c_c] ON [la_c].[CountryID] = [la_c_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [la_c_mo] ON [la_c].[MobileOperatorID] = [la_c_mo].[MobileOperatorID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("la", "customload", "notfound"), "LoginAttempt could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				LoginAttemptTable laTable = new LoginAttemptTable(query);
+				UserSessionTable la_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+				UserSessionTypeTable la_us_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				ServiceTable la_us_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				DomainTable la_us_dTable = (this.Depth > 1) ? new DomainTable(query) : null;
+				CustomerTable la_us_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				CountryTable c1Table = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable la_us_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				MobileOperatorTable la_us_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				CustomerTable la_cTable = (this.Depth > 0) ? new CustomerTable(query) : null;
+				ServiceTable la_c_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				CountryTable la_c_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable la_c_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+
+        
+				UserSessionType la_us_ustObject = (this.Depth > 1) ? la_us_ustTable.CreateInstance() : null;
+				Service la_us_sObject = (this.Depth > 1) ? la_us_sTable.CreateInstance() : null;
+				Domain la_us_dObject = (this.Depth > 1) ? la_us_dTable.CreateInstance() : null;
+				Customer la_us_cObject = (this.Depth > 1) ? la_us_cTable.CreateInstance() : null;
+				Country c1Object = (this.Depth > 1) ? c1Table.CreateInstance() : null;
+				Language la_us_lObject = (this.Depth > 1) ? la_us_lTable.CreateInstance() : null;
+				MobileOperator la_us_moObject = (this.Depth > 1) ? la_us_moTable.CreateInstance() : null;
+				UserSession la_usObject = (this.Depth > 0) ? la_usTable.CreateInstance(la_us_ustObject, la_us_sObject, la_us_dObject, la_us_cObject, c1Object, la_us_lObject, la_us_moObject) : null;
+				Service la_c_sObject = (this.Depth > 1) ? la_c_sTable.CreateInstance() : null;
+				Country la_c_cObject = (this.Depth > 1) ? la_c_cTable.CreateInstance() : null;
+				MobileOperator la_c_moObject = (this.Depth > 1) ? la_c_moTable.CreateInstance() : null;
+				Customer la_cObject = (this.Depth > 0) ? la_cTable.CreateInstance(la_c_sObject, la_c_cObject, la_c_moObject) : null;
+				LoginAttempt laObject = laTable.CreateInstance(la_usObject, la_cObject);
+				sqlReader.Close();
+
+				return laObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("la", "customload", "exception"), "LoginAttempt could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "LoginAttempt", "Exception while loading (custom/single) LoginAttempt object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<LoginAttempt> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							LoginAttemptTable.GetColumnNames("[la]") + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[la_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[la_us_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[la_us_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + DomainTable.GetColumnNames("[la_us_d]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[la_us_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[la_us_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[la_us_mo]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CustomerTable.GetColumnNames("[la_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[la_c_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[la_c_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[la_c_mo]") : string.Empty) +  
+					" FROM [core].[LoginAttempt] AS [la] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [la_us] ON [la].[UserSessionID] = [la_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [la_us_ust] ON [la_us].[UserSessionTypeID] = [la_us_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [la_us_s] ON [la_us].[ServiceID] = [la_us_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Domain] AS [la_us_d] ON [la_us].[DomainID] = [la_us_d].[DomainID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [la_us_c] ON [la_us].[CustomerID] = [la_us_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c1] ON [la_us].[CountryID] = [c1].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [la_us_l] ON [la_us].[LanguageID] = [la_us_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [la_us_mo] ON [la_us].[MobileOperatorID] = [la_us_mo].[MobileOperatorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [la_c] ON [la].[CustomerID] = [la_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [la_c_s] ON [la_c].[ServiceID] = [la_c_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [la_c_c] ON [la_c].[CountryID] = [la_c_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [la_c_mo] ON [la_c].[MobileOperatorID] = [la_c_mo].[MobileOperatorID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("la", "customloadmany", "notfound"), "LoginAttempt list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<LoginAttempt>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				LoginAttemptTable laTable = new LoginAttemptTable(query);
+				UserSessionTable la_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+				UserSessionTypeTable la_us_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				ServiceTable la_us_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				DomainTable la_us_dTable = (this.Depth > 1) ? new DomainTable(query) : null;
+				CustomerTable la_us_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				CountryTable c1Table = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable la_us_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				MobileOperatorTable la_us_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				CustomerTable la_cTable = (this.Depth > 0) ? new CustomerTable(query) : null;
+				ServiceTable la_c_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				CountryTable la_c_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable la_c_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+
+        List<LoginAttempt> result = new List<LoginAttempt>();
+        do
+        {
+          
+					UserSessionType la_us_ustObject = (this.Depth > 1) ? la_us_ustTable.CreateInstance() : null;
+					Service la_us_sObject = (this.Depth > 1) ? la_us_sTable.CreateInstance() : null;
+					Domain la_us_dObject = (this.Depth > 1) ? la_us_dTable.CreateInstance() : null;
+					Customer la_us_cObject = (this.Depth > 1) ? la_us_cTable.CreateInstance() : null;
+					Country c1Object = (this.Depth > 1) ? c1Table.CreateInstance() : null;
+					Language la_us_lObject = (this.Depth > 1) ? la_us_lTable.CreateInstance() : null;
+					MobileOperator la_us_moObject = (this.Depth > 1) ? la_us_moTable.CreateInstance() : null;
+					UserSession la_usObject = (this.Depth > 0) ? la_usTable.CreateInstance(la_us_ustObject, la_us_sObject, la_us_dObject, la_us_cObject, c1Object, la_us_lObject, la_us_moObject) : null;
+					Service la_c_sObject = (this.Depth > 1) ? la_c_sTable.CreateInstance() : null;
+					Country la_c_cObject = (this.Depth > 1) ? la_c_cTable.CreateInstance() : null;
+					MobileOperator la_c_moObject = (this.Depth > 1) ? la_c_moTable.CreateInstance() : null;
+					Customer la_cObject = (this.Depth > 0) ? la_cTable.CreateInstance(la_c_sObject, la_c_cObject, la_c_moObject) : null;
+					LoginAttempt laObject = (this.Depth > -1) ? laTable.CreateInstance(la_usObject, la_cObject) : null;
+					result.Add(laObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("la", "customloadmany", "exception"), "LoginAttempt list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "LoginAttempt", "Exception while loading (custom/many) LoginAttempt object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, LoginAttempt data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[LoginAttempt] ([UserSessionID],[CustomerID],[EnteredUsername],[IsSuccessful]) VALUES(@UserSessionID,@CustomerID,@EnteredUsername,@IsSuccessful); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@UserSessionID", data.UserSession.ID);
+				sqlCmd.Parameters.AddWithValue("@CustomerID", data.Customer == null ? DBNull.Value : (object)data.Customer.ID);
+				sqlCmd.Parameters.AddWithValue("@EnteredUsername", data.EnteredUsername).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@IsSuccessful", data.IsSuccessful).SqlDbType = SqlDbType.Bit;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("la", "insert", "noprimarykey"), "LoginAttempt could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "LoginAttempt", "Exception while inserting LoginAttempt object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("la", "insert", "exception"), "LoginAttempt could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "LoginAttempt", "Exception while inserting LoginAttempt object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, LoginAttempt data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[LoginAttempt] SET " +
+												"[UserSessionID] = @UserSessionID, " + 
+												"[CustomerID] = @CustomerID, " + 
+												"[EnteredUsername] = @EnteredUsername, " + 
+												"[IsSuccessful] = @IsSuccessful, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [LoginAttemptID] = @LoginAttemptID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@UserSessionID", data.UserSession.ID);
+				sqlCmd.Parameters.AddWithValue("@CustomerID", data.Customer == null ? DBNull.Value : (object)data.Customer.ID);
+				sqlCmd.Parameters.AddWithValue("@EnteredUsername", data.EnteredUsername).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@IsSuccessful", data.IsSuccessful).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@LoginAttemptID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("la", "update", "norecord"), "LoginAttempt could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "LoginAttempt", "Exception while updating LoginAttempt object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("la", "update", "morerecords"), "LoginAttempt was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "LoginAttempt", "Exception while updating LoginAttempt object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("la", "update", "exception"), "LoginAttempt could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "LoginAttempt", "Exception while updating LoginAttempt object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, LoginAttempt data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[LoginAttempt] WHERE LoginAttemptID = @LoginAttemptID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@LoginAttemptID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("la", "delete", "norecord"), "LoginAttempt could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "LoginAttempt", "Exception while deleting LoginAttempt object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("la", "delete", "exception"), "LoginAttempt could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "LoginAttempt", "Exception while deleting LoginAttempt object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

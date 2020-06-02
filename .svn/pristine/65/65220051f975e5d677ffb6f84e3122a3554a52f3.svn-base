@@ -1,0 +1,1188 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+
+using Cashflow.Client;
+using Cashflow.Message;
+using Cashflow.Message.Mobile;
+
+using MobilePaywall.Data;
+
+using Senti.Security;
+using Senti.Diagnostics.Log;
+
+using log4net;
+using System.Web;
+
+namespace MobilePaywall
+{
+  public class PaymentManagerBase : IPaymentManager
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (PaymentManagerBase._log == null)
+          PaymentManagerBase._log = LogManager.GetLogger(typeof(PaymentManagerBase));
+        return PaymentManagerBase._log;
+      }
+    }
+    #endregion
+
+    private IUserSession _session = null;
+
+    public IUserSession Session { get { return this._session; } }
+    public virtual bool IgnoreRestrictedAccessAttribute { get { return false; } }
+
+    public PaymentManagerBase(IUserSession session)
+    {
+      this._session = session;
+    }
+
+    public virtual bool IsInitiateCallback(string requestRawUrl)
+    {
+      return !string.IsNullOrEmpty(requestRawUrl) && requestRawUrl.Contains(MobilePaywall.Constants.PaymentID + "/");
+    }
+
+    public virtual PaymentRequest InitiatePayment(LookupSession lookupSession, ServiceOffer serviceOffer, IContent content, string requestRawUrl)
+    {
+      LogMessageBuilder builder = null;
+      LookupSessionResult lookupResult = null;
+      if (lookupSession == null)
+      {
+        ILookupManager lookupManager = this.Session.CreateLookupManager();
+        lookupResult = lookupManager.TryGetLookupSessionResult();
+        if (lookupResult == null)
+        {
+          // TODO: We need a lookup session result or?
+          this.Session.InitiateLookup(requestRawUrl);
+          //throw new InvalidOperationException("A lookup session result must exist before invoking InitiatePayment.");
+          Log.Error(new LogMessageBuilder(new LogErrorCode("paywall.core", "paymentmanagerbase", "initiatepayment"),
+            "A lookup session result must exist before invoking InitiatePayment for " + this.Session.Service.ServiceData.Name));
+          return null;
+        }
+
+        if ( !this.Session.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("PL") && 
+          !lookupResult.IdentificationResultGuid.HasValue)
+        {
+          throw new InvalidOperationException("A IdentificationResultGuid must exist before invoking InitiatePayment.");
+        }
+
+        lookupSession = lookupResult.LookupSession;
+      }
+
+      //INFO: In case of FirstTelecom we are not able to redirect customer again to payment page url which we previously got from
+      //			InitiateSubscriptionResponse. We need to slightly modify url based on data which we have in redirect url or to invoke IntitiateSubscription again.
+      IPaymentRequestManager prManager = PaymentRequest.CreateManager();
+      PaymentRequest request = prManager.Load(this.Session.SessionData);
+      if (request != null && DateTime.Now.Subtract(request.Updated).TotalMinutes < 10)
+      {
+        if (serviceOffer.PaymentConfiguration.PaymentProvider.ID != 2)
+          return request;
+
+        if (serviceOffer.PaymentConfiguration.PaymentProvider.ID == 2)
+        {
+          if ((this.Session.SessionData.MobileOperator.ID == 375 ||
+              this.Session.SessionData.MobileOperator.ID == 379 ||
+              this.Session.SessionData.MobileOperator.ID == 388 ||
+              this.Session.SessionData.MobileOperator.ID == 383 ||
+              this.Session.SessionData.MobileOperator.ID == 380))
+          {
+            if (request.PaymentRedirectUrl.Contains("http://pgw.wap.net-m.net/pgw/io/cp/detect/"))
+            {
+              Uri requestRawUri = new Uri(request.PaymentRedirectUrl);
+              if (!string.IsNullOrEmpty(requestRawUri.Query))
+                request.PaymentRedirectUrl = request.PaymentRedirectUrl.Replace(requestRawUri.Query, string.Empty);
+
+              string netmID = request.PaymentRedirectUrl.Split('/').Skip(request.PaymentRedirectUrl.Split('/').Count() - 2).Take(1).FirstOrDefault();
+              string netmMAC = request.PaymentRedirectUrl.Split('/').Skip(request.PaymentRedirectUrl.Split('/').Count() - 1).Take(1).FirstOrDefault();
+              request.PaymentRedirectUrl = string.Format("http://pgw.wap.net-m.net/pgw/io/cp/confirm?id={0}&mac={1}", netmID, netmMAC);
+              request.Update();
+              return request;
+            }
+            if (request.PaymentRedirectUrl.Contains("http://pgw.wap.net-m.net/pgw/io/cp/confirm"))
+              return request;
+          }
+        }
+      }
+
+      Customer customer = null;
+      if (this.Session.SessionData.Customer != null)
+        customer = this.Session.SessionData.Customer;
+      else
+      {
+        string password = "";
+        customer = new Customer(-1,
+                                Guid.NewGuid(),
+                                CustomerStatus.Pending,
+                                this.Session.Service.ServiceData,
+                                lookupResult.MobileOperator != null ? lookupResult.MobileOperator.Country : serviceOffer.Service.FallbackCountry,
+                                lookupResult.MobileOperator,
+                                null,
+                                lookupResult.Msisdn,
+                                lookupResult.EncryptedMsisdn,
+                                !string.IsNullOrEmpty(lookupResult.Msisdn) ? lookupResult.Msisdn : string.Format("user{0}", Guid.NewGuid().ToString().Split('-')[4].Substring(0, 6)),
+                                null,
+                                DateTime.Now,
+                                DateTime.Now);
+        customer.Insert();
+        customer.SetUsernameAndPassword();
+        this.Session.SessionData.Customer = customer;
+        this.Session.SessionData.Update();
+      }
+
+      UserHttpRequest userHttpRequest = new UserHttpRequest(-1, Guid.NewGuid(), this._session.SessionData, content.ContentData, requestRawUrl, DateTime.Now, DateTime.Now);
+      userHttpRequest.Insert();
+
+      PaymentRequest paymentRequest = new PaymentRequest(-1,
+                                                        Guid.NewGuid(),
+                                                        serviceOffer.PaymentConfiguration.PaymentType,
+                                                        PaymentRequestStatus.Initialized,
+                                                        lookupSession,
+                                                        customer,
+                                                        this.Session.SessionData,
+                                                        serviceOffer,
+                                                        serviceOffer.BusinessModelEntry,
+                                                        null,
+                                                        userHttpRequest,
+                                                        null,
+                                                        DateTime.Now,
+                                                        DateTime.Now);
+      paymentRequest.Insert();
+
+      PaymentResult paymentResult = new PaymentResult(-1,
+                                                      paymentRequest,
+                                                      null,
+                                                      null,
+                                                      DateTime.Now.AddMinutes(2),
+                                                      DateTime.Now,
+                                                      DateTime.Now);
+      paymentResult.Insert();
+
+      // this is not okay because we need to provide placeholder which Cashflow will change on their side after receiving LookupMsisdnRequest: {{identificationsessionid}}
+      // Do we need to have placeholder at all because it worked without it?
+      string paymentRequestPath = MobilePaywall.Constants.PaymentID + "/" + paymentRequest.Guid.ToString().Replace("-", "");
+      requestRawUrl = UrlManager.PrepareRedirectUrl(requestRawUrl, paymentRequestPath, true);
+
+      InitiateCallback initiateCallback = new InitiateCallback(-1, Guid.NewGuid(), paymentRequest, false, DateTime.Now.AddMinutes(5), DateTime.Now, DateTime.Now);
+      initiateCallback.Insert();
+      paymentRequest.Callback = initiateCallback;
+
+      bool mustRemoveQueryString = true; // TODO: find switch here - only necessary for first telecom...
+      if (mustRemoveQueryString)
+      {
+        Uri requestRawUri = new Uri(requestRawUrl);
+        if (!string.IsNullOrEmpty(requestRawUri.Query))
+          requestRawUrl = requestRawUrl.Replace(requestRawUri.Query, string.Empty);
+      }
+
+      if (serviceOffer.PaymentConfiguration.PaymentType == PaymentType.Subscription)
+      {
+        Guid referenceGuid = Guid.NewGuid();
+
+        Guid externalBehaviorModelGuid = serviceOffer.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid;
+
+        #region # DIMOCO INSTANT FLOW BehaviorModel FIX #
+        //TODO: (MPE) This should be changed. The best would be to add column in PaymentConfiguration "IsAutomated" and based on than to load by that argument instead of changing code each time.
+        //............So, if type is instant load ServiceOffer where IsAutomated in PaymentConfiguration is "true". If there is no any proceed with regular.
+        if (this.Session.SessionData.EntranceUrl.Contains("&type=instant"))
+        {
+          if (this.Session.Service.ServiceData.Name.Equals("erotikclips.mobi"))
+            externalBehaviorModelGuid = Guid.Parse("011F4214-DE1E-4A0A-8BAF-AB3C534647F1");
+          else if (this.Session.Service.ServiceData.Name.Equals("wilde-erovids.me"))
+            externalBehaviorModelGuid = Guid.Parse("b209d107-e00d-4c6f-892d-7b6ed9f09006");
+          else if (this.Session.Service.ServiceData.Name.Equals("erotischvids.mobi"))
+            externalBehaviorModelGuid = Guid.Parse("68D982F9-3D3B-4130-89C8-2B7917CEB948");
+          else if (this.Session.Service.ServiceData.Name.Equals("freche-clips.mobi"))
+            externalBehaviorModelGuid = Guid.Parse("8974152E-541E-4ADA-B557-7C12CD8D561A");
+					else if (this.Session.Service.ServiceData.Name.Equals("xxxmadchen.mobi"))
+						externalBehaviorModelGuid = Guid.Parse("A2B3391E-37C5-490C-BB9D-BC3E97B9A0DF");
+					else if (this.Session.Service.ServiceData.Name.Equals("xxxvogue.mobi"))
+						externalBehaviorModelGuid = Guid.Parse("f63e1730-9e26-44d5-8c18-46834410abc1");
+					else if (this.Session.Service.ServiceData.Name.Equals("lachenfilme.mobi"))
+						externalBehaviorModelGuid = Guid.Parse("D9F096C5-D966-4602-A143-EF79B7C97429");
+					else
+            externalBehaviorModelGuid = Session.Service.GetSpecificBehaviorModel("type=instant");
+
+          Log.Debug(new LogMessageBuilder(new LogErrorCode("paywall.core", "paymentmanagerbase", "initiatepayment"),
+            "# DIMOCO INSTANT FLOW BehaviorModel FIX # for " + this.Session.Service.ServiceData.Name));
+        }
+        #endregion
+        
+        SubscriptionClient subscriptionClient = CashflowClientPaywallManager.GetSubscriptionClient(this._session.Service.ServiceData);
+        subscriptionClient.AttachLogWriter(new CashflowLog(this._session.Service.ServiceData));
+        
+        TestArguments testArguments = new TestArguments();
+        testArguments.IsTest = this.Session.SessionData.EntranceParameterExists("pxid") == false;
+
+        MobileSubscriberArguments mobileSubscriberArguments = new MobileSubscriberArguments();
+        mobileSubscriberArguments.Msisdn = (this.Session.SessionData.Customer != null ? this.Session.SessionData.Customer.Msisdn : "");
+        mobileSubscriberArguments.OperatorCode = (this.Session.SessionData.MobileOperator != null ? this.Session.SessionData.MobileOperator.ExternalMobileOperatorID.ToString() : string.Empty);
+        mobileSubscriberArguments.Language = this.Session.Service.ServiceData.FallbackLanguage.TwoLetterIsoCode;
+
+        // QUICKFIX: We should not send this arguments in case of NTH PT and Dimoco CH
+        if ( this.Session.Service.PaymentProvider.ID == 6
+          || (this.Session.Service.PaymentProvider.ID == 22 && this.Session.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("PL"))
+          || this.Session.Service.PaymentProvider.ID == 3 && this.Session.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("AT")
+          || this.Session.Service.PaymentProvider.ID == 3 && this.Session.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("BE")
+          || this.Session.Service.PaymentProvider.ID == 3 && this.Session.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("CH")
+          || this.Session.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("DE"))
+        {
+          Log.Debug("mobileSubscriberArguments are set null for PT");
+          mobileSubscriberArguments = null;
+        }
+
+        #region # CH NTH (should be without mobileSubscriberArguments) #
+
+        if (this.Session.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("CH") && this.Session.Service.PaymentProvider.ID == 6)
+          mobileSubscriberArguments = null;
+        
+        if (this.Session.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("CH") && this.Session.Service.PaymentProvider.ID == 6)
+          mobileSubscriberArguments = null;
+
+        #endregion
+
+        #region # QUICKFIX: Fortumo redirect to payment page #
+
+        if (this.Session.Service.PaymentProvider.ID == 26)
+          requestRawUrl = string.Format("http://{0}/welcome?paymentRequestGuid={1}", this.Session.Service.ServiceData.Name, paymentRequest.Guid.ToString());
+
+        #endregion
+
+        IArgument argument = new Argument(content, this._session.Service, this.Session, request);
+        InitiateSubscriptionResponse initiateResponse = CashflowClientPaywallManager.GetInitiateSubscriptionResponse(this.Session, requestRawUrl,
+          new IdentificationResultArguments { IdentificationResultID = lookupResult.IdentificationResultGuid.Value },
+          //argument.WapTemplateArguments, argument.FirstTelecomTemplateArguments, argument.MobileTanArguments, testArguments, mobileSubscriberArguments);
+          argument.WapTemplateArguments, argument.MobileTanArguments, testArguments, mobileSubscriberArguments);
+
+        MobileOperator notificationOperator = null;
+        #region Check MobileOperator from InitiateSubscriptionResponse (example Mobicom DE NTH)
+
+        if (initiateResponse.Arguments != null && initiateResponse.Arguments.Length > 0)
+          foreach (MessageArgument ms in initiateResponse.Arguments)
+            if (ms.Key.Equals("MobileOperator"))
+            {
+              Log.Debug(new LogMessageBuilder(new LogErrorCode("paywall.core", "paymentmanagerbase", "initiatepayment"),
+                "OVERRIDE_MOBILEOPERATOR - We received mobileOperator from cashflow."));
+
+              notificationOperator = MobileOperator.CreateManager().Load(Int32.Parse(ms.Value), IDType.External);
+              break;
+            }
+        #endregion
+
+        switch (initiateResponse.Status.Code)
+        {
+          case MessageStatusCode.Redirect:
+          case MessageStatusCode.Success:
+            paymentRequest.PaymentRedirectUrl = initiateResponse.RedirectUrl;
+            paymentRequest.ExternalPaymentRequestGuid = initiateResponse.SubscriptionRequestID;
+            paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Complete;
+            if (customer.ExternalCustomerGuid != null &&
+              customer.ExternalCustomerGuid != initiateResponse.CustomerID)
+            {
+              customer.CustomerStatus = CustomerStatus.Obsolete;
+              customer.Update();
+              customer = new Customer(-1,
+                                      Guid.NewGuid(),
+                                      CustomerStatus.Pending,
+                                      this.Session.Service.ServiceData,
+                                      lookupResult.MobileOperator.Country,
+                                      notificationOperator != null ? notificationOperator : lookupResult.MobileOperator,
+                                      null,
+                                      lookupResult.Msisdn,
+                                      lookupResult.EncryptedMsisdn,
+                                      !string.IsNullOrEmpty(lookupResult.Msisdn) ? lookupResult.Msisdn : string.Format("user{0}", Guid.NewGuid().ToString().Split('-')[4].Substring(0, 6)),
+                                      null,
+                                      DateTime.Now,
+                                      DateTime.Now);
+              customer.Insert();
+              customer.SetUsernameAndPassword();
+              this.Session.SessionData.Customer = customer;
+              if (notificationOperator != null)
+                this.Session.SessionData.MobileOperator = notificationOperator;
+              this.Session.SessionData.Update();
+
+              Log.Fatal(new LogMessageBuilder(new LogErrorCode("paywall.core", "paymentmanagerbase", "initiatepayment"),
+                  "ExternalCustomerGUID is null or different than CustomerID from initiate response", initiateResponse, customer));
+              //INFO: In general it could not happened but for security reasons we check does ExternalCustomerGuid matches, if not we creating new customer.
+            }
+            customer.ExternalCustomerGuid = initiateResponse.CustomerID;
+            if (notificationOperator != null) customer.MobileOperator = notificationOperator;
+            customer.Update();
+            paymentRequest.Update();
+            return paymentRequest;
+          case MessageStatusCode.Failure:
+            //DESC: In case of Failure we should redirect customer to error page.
+            paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Failure;
+            paymentRequest.Update();
+
+            #region # In case when there is active session on provider side #
+
+            if (initiateResponse.Status.SubCode == MessageStatusSubCode.ActiveSubscriptionExists && initiateResponse.SubscriptionRequestID.HasValue)
+            {
+              PaymentRequest originalPaymentRequest = PaymentRequest.CreateManager().Load(initiateResponse.SubscriptionRequestID.Value, GuidType.External);
+              if (originalPaymentRequest != null)
+              {
+                originalPaymentRequest.PaymentRequestStatus = PaymentRequestStatus.PaymentExists;
+                paymentRequest = originalPaymentRequest;
+              }
+            }
+
+            #endregion
+
+            break;
+          case MessageStatusCode.Pending:
+            //DESC: In case of Pending we should redirect customer to pending page.
+            paymentRequest.ExternalPaymentRequestGuid = initiateResponse.SubscriptionRequestID;
+            paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Pending;
+            paymentRequest.Update();
+            break;
+          default:
+            break;
+        }
+        return paymentRequest;
+      }
+      else if (serviceOffer.PaymentConfiguration.PaymentType == PaymentType.Purchase)
+      {
+
+        Guid externalBehaviorModelGuid = serviceOffer.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid;
+
+        #region # DIMOCO INSTANT FLOW BehaviorModel FIX #
+        if (this.Session.SessionData.EntranceUrl.Contains("&type=instant"))
+        {
+          if (this.Session.Service.ServiceData.Name.Equals("erotikclips.mobi"))
+            externalBehaviorModelGuid = Guid.Parse("011F4214-DE1E-4A0A-8BAF-AB3C534647F1");
+          else if (this.Session.Service.ServiceData.Name.Equals("wilde-erovids.me"))
+            externalBehaviorModelGuid = Guid.Parse("b209d107-e00d-4c6f-892d-7b6ed9f09006");
+          else if (this.Session.Service.ServiceData.Name.Equals("erotischvids.mobi"))
+            externalBehaviorModelGuid = Guid.Parse("68D982F9-3D3B-4130-89C8-2B7917CEB948");
+          else if (this.Session.Service.ServiceData.Name.Equals("freche-clips.mobi"))
+            externalBehaviorModelGuid = Guid.Parse("8974152E-541E-4ADA-B557-7C12CD8D561A");
+          else if (this.Session.Service.ServiceData.Name.Equals("xxxmadchen.mobi"))
+            externalBehaviorModelGuid = Guid.Parse("A2B3391E-37C5-490C-BB9D-BC3E97B9A0DF");
+          else
+            externalBehaviorModelGuid = Session.Service.GetSpecificBehaviorModel("type=instant");
+
+          Log.Debug(new LogMessageBuilder(new LogErrorCode("paywall.core", "paymentmanagerbase", "initiatepayment"),
+            "# DIMOCO INSTANT FLOW BehaviorModel FIX # for " + this.Session.Service.ServiceData.Name));
+        }
+        #endregion
+
+        TestArguments testArguments = new TestArguments();
+        testArguments.IsTest = this.Session.SessionData.EntranceParameterExists("pxid") == false;
+
+        PurchaseClient purchaseClient = CashflowClientPaywallManager.GetPurchaseClient(serviceOffer.Service);
+        purchaseClient.AttachLogWriter(new CashflowLog(this._session.Service.ServiceData));
+        InitiatePurchaseRequest initiateRequest = new InitiatePurchaseRequest(RequestMode.Default,
+                                                                              this.Session.SessionData.Guid.ToString(),
+                                                                              serviceOffer.PaymentConfiguration.PaymentCredentials.Username,
+                                                                              serviceOffer.PaymentConfiguration.PaymentCredentials.Password,
+                                                                              serviceOffer.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+                                                                              externalBehaviorModelGuid,
+                                                                              serviceOffer.Service.FallbackCountry.TwoLetterIsoCode,
+                                                                              serviceOffer.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+                                                                              customer.ExternalCustomerGuid,
+                                                                              customer.Guid.ToString(),
+                                                                              null,
+                                                                              null,
+                                                                              this.Session.SessionData.IPAddress,
+                                                                              requestRawUrl,
+                                                                              null,
+                                                                              testArguments.ToMessageArguments());
+        initiateRequest.ReferenceIntID = this.Session.SessionData.ID;
+
+        // QUICKFIX: for United Kingdom
+        if (initiateRequest.Country.Equals("UK"))
+          initiateRequest.Country = "GB";
+
+        IArgument argument = new Argument(content, this._session.Service, this.Session, request);
+
+        // QUICKFIX: FI Blondit porno description fix (aco)
+        if (this._session.Service.ServiceData.Name.Equals("blonditporno.mobi"))
+          argument.WapTemplateArguments.Description = "24h käyttöoikeus sivulle";
+
+        InitiatePurchaseResponse initiateResponse = purchaseClient.InitiatePurchase(initiateRequest, new IdentificationResultArguments { IdentificationResultID = lookupResult.IdentificationResultGuid.Value },
+            argument.WapTemplateArguments, argument.FirstTelecomTemplateArguments, argument.MobileTanArguments);
+
+        switch (initiateResponse.Status.Code)
+        {
+          case MessageStatusCode.Redirect:
+          case MessageStatusCode.Success:
+            paymentRequest.PaymentRedirectUrl = initiateResponse.RedirectUrl;
+            paymentRequest.ExternalPaymentRequestGuid = initiateResponse.PurchaseRequestID;
+            paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Complete;
+            if (customer.ExternalCustomerGuid != null &&
+                    customer.ExternalCustomerGuid != initiateResponse.CustomerID)
+            {
+              customer.CustomerStatus = CustomerStatus.Obsolete;
+              customer.Update();
+              customer = new Customer(-1,
+                                      Guid.NewGuid(),
+                                      CustomerStatus.Pending,
+                                      this.Session.Service.ServiceData,
+                                      lookupResult.MobileOperator.Country,
+                                      lookupResult.MobileOperator,
+                                      null,
+                                      lookupResult.Msisdn,
+                                      lookupResult.EncryptedMsisdn,
+                                      !string.IsNullOrEmpty(lookupResult.Msisdn) ? lookupResult.Msisdn : string.Format("user{0}", Guid.NewGuid().ToString().Split('-')[4].Substring(0, 6)),
+                                      null,
+                                      DateTime.Now,
+                                      DateTime.Now);
+              customer.Insert();
+              customer.SetUsernameAndPassword();
+              this.Session.SessionData.Customer = customer;
+              this.Session.SessionData.Update();
+
+              builder = new LogMessageBuilder(new LogErrorCode("paywall.core", "paymentmanagerbase", "initiatepayment"),
+                  "ExternalCustomerGUID is null or different than CustomerID from initiate response", initiateRequest, initiateResponse, customer);
+              if (Log.IsFatalEnabled)
+                Log.Fatal(builder);
+              //INFO: In general it could not happened but for security reasons we check does ExternalCustomerGuid matches, if not we creating new customer.
+            }
+            customer.ExternalCustomerGuid = initiateResponse.CustomerID;
+            customer.Update();
+            paymentRequest.Update();
+            return paymentRequest;
+          case MessageStatusCode.Failure:
+            //DESC: In case of Failure we should redirect customer to error page.
+            paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Failure;
+            paymentRequest.Update();
+            break;
+          case MessageStatusCode.Pending:
+            //DESC: In case of Pending we should redirect customer to pending page.
+            paymentRequest.ExternalPaymentRequestGuid = initiateResponse.PurchaseRequestID;
+            paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Pending;
+            paymentRequest.Update();
+            break;
+          default:
+            break;
+        }
+        return paymentRequest;
+      }
+      else
+      {
+        // this will never happen.
+        throw new InvalidOperationException("PaymentType must be Subscription or Purchase.");
+      }
+    }
+
+    public virtual InitiatePaymentResult ProcessInitiateCallbackResult(string url)
+    {
+      
+      LogMessageBuilder builder = null;
+      Regex paymentRegex = new Regex(string.Format("{0}/{1}", MobilePaywall.Constants.PaymentID, MobilePaywall.Constants.RegexGuid), RegexOptions.None);
+      Match paymentMatch = paymentRegex.Match(url);
+      if (!paymentMatch.Success)
+        return null;
+      string paymentRequestID = paymentMatch.Groups[1].Value;
+      Guid paymentRequestGuid = Guid.Empty;
+
+      if (string.IsNullOrEmpty(paymentRequestID) ||
+              !Guid.TryParseExact(paymentRequestID, "N", out paymentRequestGuid))
+      {
+        // We can't do anything here because there is no way to get PaymentRequest for that session/customer.
+        builder = new LogMessageBuilder(new LogErrorCode("paywall.core", "paymentmanagerbase", "processinitiatecallbackresult"),
+                "Unable to parse payment request GUID", paymentRequestID, url);
+        if (Log.IsErrorEnabled)
+          Log.Error(builder);
+
+        //return new InitiatePaymentResult(null, null);
+        return null;
+      }
+
+      IPaymentRequestManager prManager = PaymentRequest.CreateManager(2);
+      PaymentRequest paymentRequest = prManager.Load(paymentRequestGuid, GuidType.Internal);
+      if (paymentRequest == null)
+      {
+        // We can't do anything here because there is no way to get PaymentRequest for that session/customer.
+        builder = new LogMessageBuilder(new LogErrorCode("paywall.core", "paymentmanagerbase", "processinitiatecallbackresult"),
+            "PaymentRequest can't be loaded from database.", paymentRequestGuid);
+        if (Log.IsErrorEnabled)
+          Log.Error(builder);
+
+        //return new InitiatePaymentResult(null, null);
+        return null;
+      }
+
+      IPaymentResultManager pResultManager = PaymentResult.CreateManager();
+      PaymentResult paymentResult = pResultManager.Load(paymentRequest);
+
+      Customer customer = paymentRequest.Customer;
+      customer.CustomerStatus = CustomerStatus.Active;
+      customer.Update();
+
+      IPaymentConfigurationManager pcManager = PaymentConfiguration.CreateManager();
+      PaymentConfiguration paymentConfiguration = pcManager.Load(paymentRequest.ServiceOffer.PaymentConfiguration.ID);
+
+      //if(paymentConfiguration.PaymentProvider.ID == 7)
+      //{
+      //  Uri uri = new Uri(url);
+      //  string pin = HttpUtility.ParseQueryString(uri.Query).Get("pin");
+      //  if (string.IsNullOrEmpty(pin))
+      //    return new InitiatePaymentResult(paymentRequest, null, null, false);
+      //}
+
+      IPaymentCallbackManager pcaManager = PaymentCallback.CreateManager();
+      PaymentCallback paymentCallback = pcaManager.Load(paymentRequest);
+      if (paymentCallback == null)
+      {
+        paymentCallback = new PaymentCallback(-1, Guid.NewGuid(), paymentRequest, null, false, DateTime.Now.AddMinutes(5), DateTime.Now, DateTime.Now);
+        paymentCallback.Insert();
+      }
+
+      if (paymentResult.Payment != null)
+        return new InitiatePaymentResult(paymentResult.PaymentRequest, paymentResult.Payment, paymentCallback);
+
+      #region #subscription#
+
+      if (paymentRequest.PaymentType == PaymentType.Subscription)
+      {
+        PaymentStatus status = PaymentStatus.Failed;
+        bool shouldGrantTemporaryAccess = false;
+        Guid? paymentGuid = null;
+
+        SubscriptionClient subscriptionClient = CashflowClientPaywallManager.GetSubscriptionClient(this._session.Service.ServiceData);
+        subscriptionClient.AttachLogWriter(new CashflowLog(this._session.Service.ServiceData));
+        SetupSubscriptionResponse setupResponse = null;
+
+        try
+        {
+          #region #setupsubscription#
+
+          PaymentPageArguments setupSubscriptionPaymentArguments = null;
+
+          #region # Centili specific #
+          // Because cashflow does not have direct communication with centili, in some cases centili will inform us about status
+          // of payment through entrance url ( 'content/blabla?status=failed&blabla' ), so we need to send that status back to cashflow
+          if (paymentConfiguration.PaymentProvider.Name.Equals("Centili") && url.Contains('?'))
+          {
+            string parameterUrl = '&' + url.Split('?')[1];
+            setupSubscriptionPaymentArguments = new PaymentPageArguments()
+            {
+              TransactionId = System.Web.HttpUtility.ParseQueryString(parameterUrl).Get("trid"),
+              UserId = System.Web.HttpUtility.ParseQueryString(parameterUrl).Get("userid"),
+              Status = System.Web.HttpUtility.ParseQueryString(parameterUrl).Get("status"),
+              Reference = System.Web.HttpUtility.ParseQueryString(parameterUrl).Get("reference"),
+              MobileOperator = System.Web.HttpUtility.ParseQueryString(parameterUrl).Get("operator"),
+              SubscriptionId = System.Web.HttpUtility.ParseQueryString(parameterUrl).Get("subscriptionid"),
+              ActiveSub = System.Web.HttpUtility.ParseQueryString(parameterUrl).Get("activesub"),
+              ValidSub = System.Web.HttpUtility.ParseQueryString(parameterUrl).Get("validsub"),
+              Timestamp = System.Web.HttpUtility.ParseQueryString(parameterUrl).Get("timestamp"),
+              Sign = System.Web.HttpUtility.ParseQueryString(parameterUrl).Get("sign")
+            };
+          }
+          #endregion
+
+          #region # CHECK if PaymentRequest has ExternalPaymentRequestGuid value #
+          if (!paymentRequest.ExternalPaymentRequestGuid.HasValue)
+          {
+            Log.Fatal(new LogMessageBuilder(new LogErrorCode("paywall.core", "paymentmanagerbase", "processinitiatecallbackresult"),
+            "FATAL!! PaymentRequest.ExternalPaymentRequestGuid does not have value. Please check this!", paymentRequest));
+            return new InitiatePaymentResult(null, null, null);
+          }
+          #endregion
+
+          SetupSubscriptionRequest setupRequest = new SetupSubscriptionRequest(RequestMode.Default,
+            this.Session.SessionData.Guid.ToString(),
+            paymentConfiguration.PaymentCredentials.Username,
+            paymentConfiguration.PaymentCredentials.Password,
+            paymentRequest.ExternalPaymentRequestGuid.Value,
+            null,
+            setupSubscriptionPaymentArguments != null ? setupSubscriptionPaymentArguments.ToMessageArguments() : null);
+          setupRequest.ReferenceIntID = this.Session.SessionData.ID;
+
+          setupResponse = subscriptionClient.SetupSubscription(setupRequest, new ProviderReturnedArguments { UrlParameters = url });
+
+          status = PaymentStatus.Failed;
+          shouldGrantTemporaryAccess = false;
+          paymentGuid = setupResponse.SubscriptionID.HasValue ? setupResponse.SubscriptionID.Value : (Guid?)null;
+          
+          #region # load mobile opearor from Setup #
+
+          int _mobileOperatorID;
+          MessageArgument operatorArgument = (from a in setupResponse.Arguments where a.Key.ToLower().Equals("operator") select a).FirstOrDefault();
+          if (operatorArgument != null && int.TryParse(operatorArgument.Value, out _mobileOperatorID))
+          {
+            MobileOperator mno = MobileOperator.CreateManager().Load(_mobileOperatorID, IDType.External);
+            if (mno != null)
+            {
+              this.Session.SessionData.MobileOperator = mno;
+              this.Session.SessionData.Update();
+              if (this.Session.SessionData.Customer != null)
+              {
+                this.Session.SessionData.Customer.MobileOperator = mno;
+                this.Session.SessionData.Customer.Update();
+              }
+            }
+          }
+
+          #endregion
+
+          switch (setupResponse.Status.Code)
+          {
+            case MessageStatusCode.Success:
+              status = PaymentStatus.Successful;
+              shouldGrantTemporaryAccess = paymentRequest.ServiceOffer.ContentAccessPolicy.TemporarySetupAccessMode != TemporarySetupAccessMode.None;
+              break;
+            case MessageStatusCode.Redirect:
+              status = PaymentStatus.Successful;
+              shouldGrantTemporaryAccess = paymentRequest.ServiceOffer.ContentAccessPolicy.TemporarySetupAccessMode != TemporarySetupAccessMode.None;
+              break;
+            case MessageStatusCode.Pending:
+              //QUESTION: In case of pending for Germany NTH we do not get SubscriptionID. 
+              //BRAINSTORMING: In case of Belgium we should get 1014 detail code on that point we should not create payment we should wait for setup notification. 
+              //							 Check for full flow before making any change to flow.
+              status = PaymentStatus.Pending;
+              shouldGrantTemporaryAccess = paymentRequest.ServiceOffer.ContentAccessPolicy.TemporarySetupAccessMode == TemporarySetupAccessMode.OnPending;
+              break;
+            case MessageStatusCode.Failure:
+              #region # Check if payment exists on provider side #
+
+              if (setupResponse.Status.SubCode == MessageStatusSubCode.ActiveSubscriptionExists)
+              {
+                if (!setupResponse.SubscriptionID.HasValue)
+                  Log.Fatal(new LogMessageBuilder(new LogErrorCode(this.Session.SessionData.Guid.ToString(), "paywall.core", "paymentmanagerbase", "setupsubscription"),
+                    " - ActiveSubscriptionExists - FATAL - SubscriptionID from SubscriptionResponse is null"));
+                else
+                {
+                  Payment originalPayment = Payment.CreateManager().Load(setupResponse.SubscriptionID.Value, GuidType.External);
+                  if (originalPayment == null)
+                    Log.Error(new LogMessageBuilder(new LogErrorCode(this.Session.SessionData.Guid.ToString(), "paywall.core", "paymentmanagerbase", "setupsubscription"),
+                      " - ActiveSubscriptionExists - ERROR - There is no originalPayment with SubscriptionID from SetupSubscriptionResponse (probably will be set later)  ", setupResponse.SubscriptionID));
+                  else
+                  {
+                    Log.Debug(new LogMessageBuilder(new LogErrorCode(this.Session.SessionData.Guid.ToString(), "paywall.core", "paymentmanagerbase", "setupsubscription"),
+                      " - ActiveSubscriptionExists - EXISTS - There is active subscription on provider side for this request!", setupResponse.SubscriptionID));
+                    return new InitiatePaymentResult(originalPayment.PaymentRequest, originalPayment, null);
+                  }
+                }
+              }
+
+              #endregion
+
+              if (setupResponse.Status.SubCode != MessageStatusSubCode.InvalidOperation && setupResponse.Status.SubCode != MessageStatusSubCode.ActiveSubscriptionExists)
+                return new InitiatePaymentResult(paymentRequest, null, null);
+              break;
+            default:
+              break;
+          }
+          
+        }
+        catch (Exception ex)
+        {
+          Log.Fatal(new LogMessageBuilder(new LogErrorCode(this.Session.SessionData.Guid.ToString(), "paywall.core", "paymentmanagerbase", "setupsubscription"),
+            "Exception occured while processing SetupSubscription. Check immidiatelly!"), ex);
+          return new InitiatePaymentResult(paymentRequest, null, null);
+        }
+
+        try
+        {
+          if (paymentGuid.HasValue && status == PaymentStatus.Successful)
+            goto Resolve;
+
+          if (paymentGuid.HasValue)
+          {
+            QuerySubscriptionRequest queryRequest = new QuerySubscriptionRequest(RequestMode.Default,
+                                                                              this.Session.SessionData.Guid.ToString(),
+                                                                              paymentConfiguration.PaymentCredentials.Username,
+                                                                              paymentConfiguration.PaymentCredentials.Password,
+                                                                              setupResponse.SubscriptionID.Value,
+                                                                              null);
+
+            QuerySubscriptionResponse queryResponse = subscriptionClient.QuerySubscription(queryRequest);
+            paymentGuid = paymentGuid.HasValue ? paymentGuid.Value : queryResponse.Subscription != null ? queryResponse.Subscription.SubscriptionID : (Guid?)null;
+            switch (queryResponse.Status.Code)
+            {
+              case MessageStatusCode.Success:
+              case MessageStatusCode.Redirect:
+                if (queryResponse.Subscription.Status == Cashflow.Message.Data.SubscriptionStatus.Active)
+                {
+                  paymentGuid = paymentGuid.HasValue ? paymentGuid.Value : queryResponse.Subscription != null ? queryResponse.Subscription.SubscriptionID : (Guid?)null;
+                  status = PaymentStatus.Successful;
+                  shouldGrantTemporaryAccess = paymentRequest.ServiceOffer.ContentAccessPolicy.TemporarySetupAccessMode != TemporarySetupAccessMode.None;
+                }
+                else if (queryResponse.Subscription.Status == Cashflow.Message.Data.SubscriptionStatus.Uninitialized)
+                {
+                  paymentGuid = paymentGuid.HasValue ? paymentGuid.Value : queryResponse.Subscription != null ? queryResponse.Subscription.SubscriptionID : (Guid?)null;
+                  shouldGrantTemporaryAccess = paymentRequest.ServiceOffer.ContentAccessPolicy.TemporarySetupAccessMode == TemporarySetupAccessMode.OnPending;
+                  status = PaymentStatus.Pending;
+
+
+                  // QUICKFIX: For NTH Portugal
+                  if (Session.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("PT") && Session.Service.PaymentProvider.ID == 6)
+                  {
+                    shouldGrantTemporaryAccess = false;
+                    status = PaymentStatus.Failed;
+                  }
+
+                }
+                else
+                  status = PaymentStatus.Failed;
+                break;
+              case MessageStatusCode.Pending:
+                status = PaymentStatus.Pending;
+                shouldGrantTemporaryAccess = paymentRequest.ServiceOffer.ContentAccessPolicy.TemporarySetupAccessMode == TemporarySetupAccessMode.OnPending;
+                break;
+              case MessageStatusCode.Failure:
+                status = PaymentStatus.Failed;
+                break;
+              default:
+                break;
+            }
+          }
+        }
+        catch (Exception ex)
+        {
+          Log.Fatal(new LogMessageBuilder(new LogErrorCode(this.Session.SessionData.Guid.ToString(), "paywall.core", "paymentmanagerbase", "querysubscription"),
+            "Exception occured while processing QuerySubscription. Check immidiatelly!"), ex);
+          return new InitiatePaymentResult(paymentRequest, null, null);
+        }
+      #endregion
+
+      #region #resolveencryptedmsisdn#
+      Resolve:
+        try
+        {
+          if (string.IsNullOrEmpty(customer.Msisdn) || customer.MobileOperator == null)
+          {
+            MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(this.Session.Service.ServiceData);
+            mobileClient.AttachLogWriter(new CashflowLog(this.Session.Service.ServiceData));
+            ResolveEncryptedMsisdnRequest resolveRequest =
+              new ResolveEncryptedMsisdnRequest(RequestMode.Default,
+                                                this.Session.SessionData.Guid.ToString(),
+                                                paymentConfiguration.PaymentCredentials.Username,
+                                                paymentConfiguration.PaymentCredentials.Password,
+                                                customer.EncryptedMsisdn,
+                                                paymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+                                                customer.Country.TwoLetterIsoCode.ToLower(),
+                                                paymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+                                                null,
+                                                null);
+            resolveRequest.ReferenceIntID = this.Session.SessionData.ID;
+
+            ResolveEncryptedMsisdnResponse resolveResponse = mobileClient.ResolveEncryptedMsisdn(resolveRequest, null);
+            switch (resolveResponse.Status.Code)
+            {
+              case MessageStatusCode.Success:
+                IMobileOperatorManager moManager = MobileOperator.CreateManager();
+                MobileOperator mobileOperator = null;
+                if (resolveResponse.MobileSubscriber.MobileOperatorID.HasValue)
+                  mobileOperator = moManager.Load(resolveResponse.MobileSubscriber.MobileOperatorID.Value, IDType.External);
+
+                if (!string.IsNullOrEmpty(resolveResponse.MobileSubscriber.Msisdn))
+                  customer.Msisdn = resolveResponse.MobileSubscriber.Msisdn;
+
+                customer.Update();
+                this.Session.SessionData.Customer = customer;
+                this.Session.SessionData.Update();
+
+                break;
+              default:
+                break;
+            }
+          }
+        }
+        catch (Exception ex)
+        {
+          Log.Fatal(new LogMessageBuilder(new LogErrorCode(this.Session.SessionData.Guid.ToString(), "paywall.core", "paymentmanagerbase", "resolveencryptedmsisdn"),
+            "Exception occured while processing ResolveEncryptedMsisdn. Check immidiatelly!"), ex);
+          return new InitiatePaymentResult(paymentRequest, null, null);
+        }
+        #endregion
+
+
+        MobilePaywall.Data.IPaymentManager pManager = Payment.CreateManager();
+        Payment payment = null;
+        if (paymentGuid.HasValue)
+          payment = pManager.Load(paymentGuid.Value, GuidType.External);
+        if (payment == null)
+          payment = pManager.Load(paymentRequest);
+        if (payment != null)
+        {
+          paymentResult.Payment = payment;
+          paymentResult.Update();
+          return new InitiatePaymentResult(paymentRequest, payment, paymentCallback);
+        }
+
+        payment = new Payment(-1,
+                              Guid.NewGuid(),
+                              paymentRequest.PaymentType,
+                              paymentGuid,
+                              status,
+                              paymentRequest,
+                              customer,
+                              paymentRequest.ServiceOffer,
+                              paymentRequest.BusinessModelEntry,
+                              DateTime.Now,
+                              DateTime.Now);
+        payment.Insert();
+
+        paymentResult.Payment = payment;
+        paymentResult.Update();
+
+        if (shouldGrantTemporaryAccess)
+        {
+          PaymentContentAccessPolicyMap paymentContentAccessPolicyMap =
+              new PaymentContentAccessPolicyMap(-1,
+                                                payment,
+                                                paymentRequest.UserHttpRequest.Content,
+                                                paymentRequest.ServiceOffer.ContentAccessPolicy,
+                                                null, // transaction
+                                                true,
+                                                true,
+                                                DateTime.Now,
+                                                (status == PaymentStatus.Successful || (status == PaymentStatus.Pending && (setupResponse.Status.Code == MessageStatusCode.Success || setupResponse.Status.Code == MessageStatusCode.Redirect))) && paymentRequest.ServiceOffer.ContentAccessPolicy.IntervalInSeconds.HasValue ? DateTime.Now.AddSeconds(paymentRequest.ServiceOffer.ContentAccessPolicy.IntervalInSeconds.Value) : DateTime.Now.AddSeconds(paymentRequest.ServiceOffer.ContentAccessPolicy.TemporaryAccessInSeconds.Value),
+                                                DateTime.Now,
+                                                DateTime.Now);
+          paymentContentAccessPolicyMap.Insert();
+        }
+
+        return new InitiatePaymentResult(paymentRequest, payment, paymentCallback);
+      }
+      #endregion
+
+      #region #purchase#
+
+      else if (paymentRequest.PaymentType == PaymentType.Purchase)
+      {
+        PaymentStatus status = PaymentStatus.Failed;
+        bool shouldGrantTemporaryAccess = false;
+        Guid? paymentGuid = null;
+
+        PurchaseClient purchaseClient = CashflowClientPaywallManager.GetPurchaseClient(this._session.Service.ServiceData);
+        purchaseClient.AttachLogWriter(new CashflowLog(this._session.Service.ServiceData));
+        ExecutePurchaseResponse executeResponse = null;
+
+        try
+        {
+          #region #executepurchase#
+
+          PaymentPageArguments paymentPageArguments = null;
+          #region # Centili specific #
+          // Because cashflow does not have direct communication with centili, in some cases centili will inform us about status
+          // of payment through entrance url ( 'content/blabla?status=failed&blabla' ), so we need to send that status back to cashflow
+          if (paymentConfiguration.PaymentProvider.Name.Equals("Centili") && url.Contains('?'))
+          {
+            string parameterUrl = '&' + url.Split('?')[1];
+            paymentPageArguments = new PaymentPageArguments()
+            {
+              TransactionId = System.Web.HttpUtility.ParseQueryString(parameterUrl).Get("trid"),
+              UserId = System.Web.HttpUtility.ParseQueryString(parameterUrl).Get("userid"),
+              Status = System.Web.HttpUtility.ParseQueryString(parameterUrl).Get("status"),
+              Reference = System.Web.HttpUtility.ParseQueryString(parameterUrl).Get("reference"),
+              MobileOperator = System.Web.HttpUtility.ParseQueryString(parameterUrl).Get("operator"),
+              SubscriptionId = System.Web.HttpUtility.ParseQueryString(parameterUrl).Get("subscriptionid"),
+              ActiveSub = System.Web.HttpUtility.ParseQueryString(parameterUrl).Get("activesub"),
+              ValidSub = System.Web.HttpUtility.ParseQueryString(parameterUrl).Get("validsub"),
+              Timestamp = System.Web.HttpUtility.ParseQueryString(parameterUrl).Get("timestamp"),
+              Sign = System.Web.HttpUtility.ParseQueryString(parameterUrl).Get("sign")
+            };
+          }
+          #endregion
+
+          ExecutePurchaseRequest executeRequest = new ExecutePurchaseRequest(RequestMode.Default,
+                                                                             this.Session.SessionData.Guid.ToString(),
+                                                                             paymentConfiguration.PaymentCredentials.Username,
+                                                                             paymentConfiguration.PaymentCredentials.Password,
+                                                                             paymentRequest.ExternalPaymentRequestGuid.Value,
+                                                                             null,
+                                                                             paymentPageArguments != null ? paymentPageArguments.ToMessageArguments() : null);
+          executeRequest.ReferenceIntID = this.Session.SessionData.ID;
+
+          executeResponse = purchaseClient.ExecutePurchase(executeRequest, new ProviderReturnedArguments { UrlParameters = url });
+
+          status = PaymentStatus.Failed;
+          shouldGrantTemporaryAccess = false;
+          paymentGuid = executeResponse.PurchaseID.HasValue ? executeResponse.PurchaseID.Value : (Guid?)null;
+
+          switch (executeResponse.Status.Code)
+          {
+            case MessageStatusCode.Success:
+              status = PaymentStatus.Successful;
+              shouldGrantTemporaryAccess = paymentRequest.ServiceOffer.ContentAccessPolicy.TemporarySetupAccessMode != TemporarySetupAccessMode.None;
+              break;
+            case MessageStatusCode.Redirect:
+              status = PaymentStatus.Successful;
+              shouldGrantTemporaryAccess = paymentRequest.ServiceOffer.ContentAccessPolicy.TemporarySetupAccessMode != TemporarySetupAccessMode.None;
+              break;
+            case MessageStatusCode.Pending:
+              //QUESTION: In case of pending for Germany NTH we do not get SubscriptionID. 
+              //BRAINSTORMING: In case of Belgium we should get 1014 detail code on that point we should not create payment we should wait for setup notification. 
+              //							 Check for full flow before making any change to flow.
+              status = PaymentStatus.Pending;
+              shouldGrantTemporaryAccess = paymentRequest.ServiceOffer.ContentAccessPolicy.TemporarySetupAccessMode == TemporarySetupAccessMode.OnPending;
+              break;
+            case MessageStatusCode.Failure:
+              if (executeResponse.Status.SubCode != MessageStatusSubCode.InvalidOperation)
+                return new InitiatePaymentResult(paymentRequest, null, null);
+              break;
+            default:
+              break;
+          }
+        }
+        catch (Exception ex)
+        {
+          Log.Fatal(new LogMessageBuilder(new LogErrorCode(this.Session.SessionData.Guid.ToString(), "paywall.core", "paymentmanagerbase", "executepurchase"),
+            "Exception occured while processing ExecutePurchase. Check immidiatelly!"), ex);
+          return new InitiatePaymentResult(paymentRequest, null, null);
+        }
+
+        try
+        {
+          if (paymentGuid.HasValue && status == PaymentStatus.Successful)
+            goto Resolve;
+
+          if (paymentGuid.HasValue)
+          {
+            QueryPurchaseRequest queryRequest = new QueryPurchaseRequest(RequestMode.Default,
+                                                                         this.Session.SessionData.Guid.ToString(),
+                                                                         paymentConfiguration.PaymentCredentials.Username,
+                                                                         paymentConfiguration.PaymentCredentials.Password,
+                                                                         executeResponse.PurchaseID.Value,
+                                                                         null);
+
+            QueryPurchaseResponse queryResponse = purchaseClient.QueryPurchase(queryRequest);
+            paymentGuid = paymentGuid.HasValue ? paymentGuid.Value : queryResponse.Purchase != null ? queryResponse.Purchase.PurchaseID : (Guid?)null;
+            switch (queryResponse.Status.Code)
+            {
+              case MessageStatusCode.Success:
+              case MessageStatusCode.Redirect:
+                if (queryResponse.Purchase.Status == Cashflow.Message.Data.PurchaseStatus.Executed)
+                {
+                  paymentGuid = paymentGuid.HasValue ? paymentGuid.Value : queryResponse.Purchase != null ? queryResponse.Purchase.PurchaseID : (Guid?)null;
+                  status = PaymentStatus.Successful;
+                  shouldGrantTemporaryAccess = paymentRequest.ServiceOffer.ContentAccessPolicy.TemporarySetupAccessMode != TemporarySetupAccessMode.None;
+                  break;
+                }
+                else
+                {
+                  status = PaymentStatus.Failed;
+                  break;
+                }
+              case MessageStatusCode.Pending:
+                status = PaymentStatus.Pending;
+                shouldGrantTemporaryAccess = paymentRequest.ServiceOffer.ContentAccessPolicy.TemporarySetupAccessMode == TemporarySetupAccessMode.OnPending;
+                break;
+              case MessageStatusCode.Failure:
+                status = PaymentStatus.Failed;
+                break;
+              default:
+                break;
+            }
+          }
+        }
+        catch (Exception ex)
+        {
+          Log.Fatal(new LogMessageBuilder(new LogErrorCode(this.Session.SessionData.Guid.ToString(), "paywall.core", "paymentmanagerbase", "querypurchase"),
+            "Exception occured while processing QueryPurchase. Check immidiatelly!"), ex);
+          return new InitiatePaymentResult(paymentRequest, null, null);
+        }
+      #endregion
+
+      #region #resolveencryptedmsisdn#
+      Resolve:
+        try
+        {
+          if (string.IsNullOrEmpty(customer.Msisdn) || customer.MobileOperator == null)
+          {
+            MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(this.Session.SessionData.Service);
+            mobileClient.AttachLogWriter(new CashflowLog(this.Session.Service.ServiceData));
+            ResolveEncryptedMsisdnRequest resolveRequest =
+              new ResolveEncryptedMsisdnRequest(RequestMode.Default,
+                                                this.Session.SessionData.Guid.ToString(),
+                                                paymentConfiguration.PaymentCredentials.Username,
+                                                paymentConfiguration.PaymentCredentials.Password,
+                                                customer.EncryptedMsisdn,
+                                                paymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+                                                customer.Country.TwoLetterIsoCode.ToLower(),
+                                                paymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+                                                null,
+                                                null);
+            resolveRequest.ReferenceIntID = this.Session.SessionData.ID;
+
+            ResolveEncryptedMsisdnResponse resolveResponse = mobileClient.ResolveEncryptedMsisdn(resolveRequest, null);
+            switch (resolveResponse.Status.Code)
+            {
+              case MessageStatusCode.Success:
+                IMobileOperatorManager moManager = MobileOperator.CreateManager();
+                MobileOperator mobileOperator = null;
+                if (resolveResponse.MobileSubscriber.MobileOperatorID.HasValue)
+                  mobileOperator = moManager.Load(resolveResponse.MobileSubscriber.MobileOperatorID.Value, IDType.External);
+
+                if (!string.IsNullOrEmpty(resolveResponse.MobileSubscriber.Msisdn))
+                  customer.Msisdn = resolveResponse.MobileSubscriber.Msisdn;
+
+                customer.Update();
+                this.Session.SessionData.Customer = customer;
+                this.Session.SessionData.Update();
+
+                break;
+              default:
+                break;
+            }
+          }
+        }
+        catch (Exception ex)
+        {
+          Log.Fatal(new LogMessageBuilder(new LogErrorCode(this.Session.SessionData.Guid.ToString(), "paywall.core", "paymentmanagerbase", "resolveencryptedmsisdn"),
+            "Exception occured while processing ResolveEncryptedMsisdn. Check immidiatelly!"), ex);
+          return new InitiatePaymentResult(paymentRequest, null, null);
+        }
+        #endregion
+
+        MobilePaywall.Data.IPaymentManager pManager = Payment.CreateManager();
+        Payment payment = null;
+        if (paymentGuid.HasValue)
+          payment = pManager.Load(paymentGuid.Value, GuidType.External);
+        if (payment == null)
+          payment = pManager.Load(paymentRequest);
+        if (payment != null)
+        {
+          paymentResult.Payment = payment;
+          paymentResult.Update();
+          return new InitiatePaymentResult(paymentRequest, payment, paymentCallback);
+        }
+
+        payment = new Payment(-1,
+                                Guid.NewGuid(),
+                              paymentRequest.PaymentType,
+                              paymentGuid,
+                              status,
+                              paymentRequest,
+                              customer,
+                              paymentRequest.ServiceOffer,
+                              paymentRequest.BusinessModelEntry,
+                              DateTime.Now,
+                              DateTime.Now);
+        payment.Insert();
+
+        paymentResult.Payment = payment;
+        paymentResult.Update();
+
+        try
+        {
+          if (shouldGrantTemporaryAccess)
+          {
+            IPaymentContentAccessPolicyMapManager pcapmManager = PaymentContentAccessPolicyMap.CreateManager();
+            PaymentContentAccessPolicyMap paymentContentAccessPolicyMap = (from p in pcapmManager.Load(payment) where p.IsTemporary == true select p).FirstOrDefault();
+
+            UserHttpRequest uhr = null;
+            if (paymentRequest.UserHttpRequest.Content == null)
+              uhr = UserHttpRequest.CreateManager().Load(this.Session.SessionData.Customer).LastOrDefault();
+            else
+              uhr = paymentRequest.UserHttpRequest;
+
+            if (paymentContentAccessPolicyMap == null)
+            {
+              paymentContentAccessPolicyMap =
+                  new PaymentContentAccessPolicyMap(-1,
+                                                  payment,
+                                                  uhr.Content,
+                                                  paymentRequest.ServiceOffer.ContentAccessPolicy,
+                                                  null, // transaction
+                                                  true,
+                                                  true,
+                                                  DateTime.Now,
+                                                  DateTime.Now.AddSeconds(paymentRequest.ServiceOffer.ContentAccessPolicy.TemporaryAccessInSeconds.Value),
+                                                  DateTime.Now,
+                                                  DateTime.Now);
+              paymentContentAccessPolicyMap.Insert();
+            }
+          }
+        }
+        catch (Exception ex)
+        {
+          Log.Warn(new LogMessageBuilder(new LogErrorCode(this.Session.SessionData.Guid.ToString(), "paywall.core", "paymentmanagerbase", "paymentcontentaccesspolicy"),
+            "Exception occured while processing PaymentContentAccessPolicy. Check immidiatelly!"), ex);
+        }
+
+        return new InitiatePaymentResult(paymentRequest, payment, paymentCallback);
+      }
+      #endregion
+
+      else
+      {
+        // INFO: this will never happen.
+        throw new InvalidOperationException("PaymentType must be Subscription or Purchase.");
+      }
+    }
+
+    public PaymentConfiguration GetPaymentConfiguration(string requestRawUrl)
+    {
+      Regex paymentRegex = new Regex(string.Format("{0}/{1}", MobilePaywall.Constants.PaymentID, MobilePaywall.Constants.RegexGuid), RegexOptions.None);
+      Match paymentMatch = paymentRegex.Match(requestRawUrl);
+      if (!paymentMatch.Success)
+        return null;
+      string paymentRequestID = paymentMatch.Groups[1].Value;
+      Guid paymentRequestGuid = Guid.Empty;
+
+      if (string.IsNullOrEmpty(paymentRequestID) ||
+              !Guid.TryParseExact(paymentRequestID, "N", out paymentRequestGuid))
+      {
+        // We can't do anything here because there is no way to get PaymentRequest for that session/customer.
+        Log.Error(new LogMessageBuilder(new LogErrorCode("paywall.core", "paymentmanagerbase", "processinitiatecallbackresult"),
+                "Unable to parse payment request GUID", paymentRequestID, requestRawUrl));
+
+        //return new InitiatePaymentResult(null, null);
+        return null;
+      }
+
+      IPaymentRequestManager prManager = PaymentRequest.CreateManager(2);
+      PaymentRequest paymentRequest = prManager.Load(paymentRequestGuid, GuidType.Internal);
+      if (paymentRequest == null)
+      {
+        // We can't do anything here because there is no way to get PaymentRequest for that session/customer.
+        Log.Error(new LogMessageBuilder(new LogErrorCode("paywall.core", "paymentmanagerbase", "processinitiatecallbackresult"),
+            "PaymentRequest can't be loaded from database.", paymentRequestGuid));
+
+        //return new InitiatePaymentResult(null, null);
+        return null;
+      }
+
+      PaymentConfiguration paymentConfiguration = PaymentConfiguration.CreateManager().Load(paymentRequest.ServiceOffer.PaymentConfiguration.ID);
+      return paymentConfiguration;
+    }
+
+    public PaymentRequest GetRequest(string requestRawUrl)
+    {
+      Regex paymentRegex = new Regex(string.Format("{0}/{1}", MobilePaywall.Constants.PaymentID, MobilePaywall.Constants.RegexGuid), RegexOptions.None);
+      Match paymentMatch = paymentRegex.Match(requestRawUrl);
+      if (!paymentMatch.Success)
+        return null;
+      string paymentRequestID = paymentMatch.Groups[1].Value;
+      Guid paymentRequestGuid = Guid.Empty;
+
+      if (string.IsNullOrEmpty(paymentRequestID) ||
+              !Guid.TryParseExact(paymentRequestID, "N", out paymentRequestGuid))
+      {
+        // We can't do anything here because there is no way to get PaymentRequest for that session/customer.
+        Log.Error(new LogMessageBuilder(new LogErrorCode("paywall.core", "paymentmanagerbase", "processinitiatecallbackresult"),
+                "Unable to parse payment request GUID", paymentRequestID, requestRawUrl));
+
+        //return new InitiatePaymentResult(null, null);
+        return null;
+      }
+
+      IPaymentRequestManager prManager = PaymentRequest.CreateManager(2);
+      PaymentRequest paymentRequest = prManager.Load(paymentRequestGuid, GuidType.Internal);
+      if (paymentRequest == null)
+      {
+        // We can't do anything here because there is no way to get PaymentRequest for that session/customer.
+        Log.Error(new LogMessageBuilder(new LogErrorCode("paywall.core", "paymentmanagerbase", "processinitiatecallbackresult"),
+            "PaymentRequest can't be loaded from database.", paymentRequestGuid));
+
+        //return new InitiatePaymentResult(null, null);
+        return null;
+      }
+
+      return paymentRequest;
+    }
+  }
+}

@@ -1,0 +1,94 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class AutomationManager : IAutomationManager
+  {    
+    public Automation Load(Service service, MobileOperator mobileOperator)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, service, mobileOperator);
+    }
+
+    public Automation Load(IConnectionInfo connection, Service service, MobileOperator mobileOperator)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, service, mobileOperator);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, service, mobileOperator);
+    }
+
+    public Automation Load(ISqlConnectionInfo connection, Service service, MobileOperator mobileOperator)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      string mobileOperatorSql = mobileOperator == null ? " IS NULL " : "=" + mobileOperator.ID;
+
+      parameters.Where = "[a].ServiceID=@ServiceID AND [a].MobileOperatorID" + mobileOperatorSql;
+      parameters.Arguments.Add("ServiceID", service.ID);
+      return this.Load(connection, parameters);
+    }
+
+
+    public List<Automation> Load(Service service)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, service);
+    }
+
+    public List<Automation> Load(IConnectionInfo connection, Service service)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, service);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, service);
+    }
+
+    public List<Automation> Load(ISqlConnectionInfo connection, Service service)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[a].ServiceID=@ServiceID";
+      parameters.Arguments.Add("ServiceID", service.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+    public List<Automation> Load(AutomationGroup automationGroup)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, automationGroup);
+    }
+
+    public List<Automation> Load(IConnectionInfo connection, AutomationGroup automationGroup)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, automationGroup);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, automationGroup);
+    }
+
+    public List<Automation> Load(ISqlConnectionInfo connection, AutomationGroup automationGroup)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[a].AutomationGroupID = @AutomationGroupID";
+      parameters.OrderBy = "[a].[Index]";
+      parameters.Arguments.Add("AutomationGroupID", automationGroup.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+
+
+  }
+}
+

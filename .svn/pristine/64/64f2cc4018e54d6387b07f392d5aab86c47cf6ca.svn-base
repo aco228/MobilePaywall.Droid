@@ -1,0 +1,131 @@
+﻿using Cashflow.Client;
+using Cashflow.Message;
+using Cashflow.Message.Mobile;
+using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Service.Callback.Log;
+using MobilePaywall.Web;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+
+namespace MobilePaywall.Service.Callback.Handlers
+{
+  public class GRShopVouchersHandler : NotificationHandlerBase
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (GRShopVouchersHandler._log == null)
+          GRShopVouchersHandler._log = log4net.LogManager.GetLogger(typeof(GRShopVouchersHandler));
+        return GRShopVouchersHandler._log;
+      }
+    }
+    #endregion
+
+    protected override void ProcessInitiateSubscription(Cashflow.Message.InitiateSubscriptionNotification notification)
+    {
+      CallbackLog CLog = new CallbackLog(notification, Log);
+
+      try
+      {
+        if (CLog.UserSession == null || !CLog.UserSession.Service.FallbackCountry.TwoLetterIsoCode.Equals("GR") || CLog.UserSession.Customer == null)
+        {
+          return;
+        }
+
+        bool? isLpFlow = CLog.UserSession.Customer.Storage.GetBool(GreeceUserSession.CustomerStorageKeys.IsLPFlow.ToString());
+        if (isLpFlow == null && !isLpFlow.Value)
+        {
+          CLog.Error("This is not LP flow");
+          return;
+        }
+
+        string pin = CLog.UserSession.Customer.Storage.GetString(GreeceUserSession.CustomerStorageKeys.Pin.ToString());
+        ServiceConfigurationEntry serviceConfigurationEntry = (from sc in ServiceConfigurationEntry.CreateManager().Load(CLog.UserSession.Service.ServiceConfiguration) select sc).FirstOrDefault();
+        ServiceOffer serviceOffer = (from so in ServiceOffer.CreateManager().Load(CLog.UserSession.Service) where so.IsDefault && so.IsActive select so).FirstOrDefault();
+        PaymentInterface paymentInterface = Data.PaymentInterface.CreateManager().Load(3);
+
+        string message = string.Format("ΕΙΣΑΙ ΜΕΛΟΣ ΣΤΗ ΣΥΝΔΡΟΜΗΤΙΚΗ ΥΠΗΡΕΣΙΑ SHOPVOUCHERS.MOBI. DIMOCO EUROPE ΤΗΛ:8017007675 ΧΡ.:2.08Ex3SMS= 6.24E/ΕΒΔ. ΔΙΑΓΡΑΦΗ: {0} STOP ΣΤΟ {1}",
+          serviceConfigurationEntry.Keyword,
+          serviceConfigurationEntry.Shortcode);
+
+        if (serviceConfigurationEntry == null)
+        {
+          CLog.Error("Could not load serviceConfigurationEntry for service");
+          return;
+        }
+
+        if (serviceOffer == null)
+        {
+          CLog.Error("Could not load serviceOffer for service");
+          return;
+        }
+
+        Guid? previousSmsGuid = CLog.UserSession.Customer.Storage.GetGuid(GreeceUserSession.CustomerStorageKeys.SmsID.ToString());
+        Guid? subscriptionGuid = CLog.UserSession.Customer.Storage.GetGuid(GreeceUserSession.CustomerStorageKeys.SubscriptionRequestID.ToString());
+
+        if (!previousSmsGuid.HasValue && !subscriptionGuid.HasValue)
+        {
+          CLog.Error("Could not load PreviousSms AND subscriptionGuid before welcome message... Please check this!!!");
+          return;
+        }
+
+        SmsArguments smsArguments = new SmsArguments();
+        smsArguments.IsWelcomeSms = "true";
+        smsArguments.Username = CLog.UserSession.Customer.Msisdn;
+        smsArguments.Password = CLog.UserSession.Customer.Storage.GetString("password");
+        smsArguments.Tan = CLog.UserSession.Customer.Storage.GetString(GreeceUserSession.CustomerStorageKeys.Pin.ToString());
+        smsArguments.PreviousSmsId = previousSmsGuid.HasValue ? previousSmsGuid.Value.ToString() : null;
+        smsArguments.SubscriptionRequestID = subscriptionGuid.HasValue ? subscriptionGuid.Value.ToString() : null;
+        smsArguments.Shortcode = serviceConfigurationEntry.Shortcode;
+        smsArguments.Keyword = serviceConfigurationEntry.Keyword;
+        smsArguments.Msisdn = CLog.UserSession.Customer.Msisdn;
+        smsArguments.Operator = CLog.UserSession.Customer.MobileOperator.ExternalMobileOperatorID.ToString();
+
+        SendSmsRequest request = new SendSmsRequest(RequestMode.Synchronous,
+          CLog.UserSession.Guid.ToString(),
+          serviceOffer.PaymentConfiguration.PaymentCredentials.Username,
+          serviceOffer.PaymentConfiguration.PaymentCredentials.Password,
+          serviceOffer.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+          CLog.UserSession.Service.Product.ExternalProductGuid,
+          paymentInterface.ExternalPaymentInterfaceGuid,
+          CLog.UserSession.Service.FallbackCountry.TwoLetterIsoCode,
+          serviceOffer.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid.Value,
+          CLog.UserSession.Customer.MobileOperator.ExternalMobileOperatorID.ToString(), // operatorCode
+          CLog.UserSession.Customer.Msisdn,
+          message, // messageTest
+          CLog.UserSession.Guid.ToString(),
+          "", // notificationUrl
+          smsArguments.ToMessageArguments());
+        request.ReferenceIntID = CLog.UserSessionID;
+
+        MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(CLog.UserSession.Service);
+        mobileClient.AttachLogWriter(new CashflowLog(CLog.UserSession.Service));
+        SendSmsResponse smsResponse = mobileClient.SendSms(request);
+
+        switch (smsResponse.Status.Code)
+        {
+          case MessageStatusCode.Success:
+            CLog.UserSession.Customer.Storage.PutBool(GreeceUserSession.CustomerStorageKeys.PinConfirmed.ToString(), true);
+            CLog.Debug("Welcome message send success");
+            break;
+          default:
+            CLog.Error("Greece payment: Error occured sending Welcome message + " + smsResponse.Status.Message);
+            break;
+        }
+      }
+      catch(Exception e)
+      {
+        CLog.Fatal("Greece:: FATAL", e);
+      }
+    }
+
+  }
+}

@@ -1,0 +1,88 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class QuizContentManager : IQuizContentManager
+  {
+    public List<QuizContent> Load()
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection);
+    }
+
+    public List<QuizContent> Load(IConnectionInfo connection)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection);
+    }
+
+    public List<QuizContent> Load(ISqlConnectionInfo connection)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      return this.LoadMany(connection, parameters);
+    }
+
+    public QuizContent Load(Content content)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, content);
+    }
+
+    public QuizContent Load(IConnectionInfo connection, Content content)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, content);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, content);
+    }
+
+    public QuizContent Load(ISqlConnectionInfo connection, Content content)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[qc].ContentID = @ContentID";
+      parameters.Arguments.Add("ContentID", content.ID);
+      return this.Load(connection, parameters);
+    }
+
+
+    public List<QuizContent> Load(ContentGroup contentGroup)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, contentGroup);
+    }
+
+    public List<QuizContent> Load(IConnectionInfo connection, ContentGroup contentGroup)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, contentGroup);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, contentGroup);
+    }
+
+    public List<QuizContent> Load(ISqlConnectionInfo connection, ContentGroup contentGroup)
+    {
+      if (this.Depth < 2)
+        this.Depth = 2;
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[qc_c_cg].ContentGroupID = @ContentGroupID";
+      parameters.Arguments.Add("ContentGroupID", contentGroup.ID);
+      return this.LoadMany(connection, parameters);
+    }
+  }
+}
+

@@ -1,0 +1,58 @@
+﻿@model ITask
+
+@{
+  Client client = PaywallHttpContext.Current.ClientSession.Client;
+}
+
+<div class="modal-dialog modal-sm">
+  <div class="modal-content" id="modal_content@(Model.TaskData.ID)">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true"></button>
+        <h4 class="modal-title">Choose client</h4>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <div class="col-md-12">
+            @Html.DropDownListFor(x => x.TaskData.Resolver.ID, MerchantHelper.AdminsWithConfigureRights, new { @class = "form-control select2", id = "resolver" + Model.TaskData.ID, data_none_selected_text = "" })
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" data-dismiss="modal" class="btn default">Cancel</button>
+        <button type="button" id="btn_send@(Model.TaskData.ID)" class="btn blue button-submit">Assign</button>
+      </div>
+  </div>
+</div>
+
+<script>
+  jQuery(document).ready(function () {
+    var taskId = '@Model.TaskData.ID';
+
+    $('#btn_send' + taskId).click(function () {
+      assignTask(taskId);
+    });
+
+    $('#send_task_modal' + taskId).on('hidden.bs.modal', function () {
+      loadTasks();
+    })
+  });
+
+  function assignTask(taskId) {
+    $.ajax({
+      url: '/assign',
+      data: {
+        taskId: taskId,
+        resolverId: $('#resolver' + taskId).val()
+      },
+      cache: false,
+      method: 'POST',
+      success: function (response) {
+        $('#modal_content' + taskId + ' .modal-header .modal-title').html('Success');
+        $('#modal_content' + taskId + ' .modal-body').html(response);
+        $('#modal_content' + taskId + ' .modal-footer').html('<button type="button" data-dismiss="modal" class="btn default close-modal">Close</button>');
+      },
+      error: function () {
+      }
+    });
+  }
+</script>

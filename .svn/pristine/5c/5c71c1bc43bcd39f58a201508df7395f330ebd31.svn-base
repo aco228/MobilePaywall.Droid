@@ -1,0 +1,29 @@
+SELECT 
+	p.PaymentID,
+	p.PaymentGuid,
+	pType.Name AS 'PaymentType',
+	pStatus.Name AS 'PaymentStatus',
+	p.PaymentRequestID,
+	p.CustomerID,
+	c.Msisdn,
+	cc.GlobalName AS 'Country',
+	p.ServiceOfferID,
+	so.ServiceID,
+	p.BusinessModelEntryID,
+	p.Created
+FROM
+	MobilePaywall.core.Payment AS p
+LEFT JOIN MobilePaywall.core.PaymentType AS pType ON p.PaymentTypeID = pType.PaymentTypeID
+LEFT JOIN MobilePaywall.core.PaymentStatus AS pStatus ON p.PaymentStatusID = pStatus.PaymentStatusID
+LEFT JOIN MobilePaywall.core.ServiceOffer AS so ON p.ServiceOfferID = so.ServiceOfferID
+LEFT JOIN MobilePaywall.core.Customer AS c ON p.CustomerID = c.CustomerID
+LEFT JOIN MobilePaywall.core.Country AS cc ON c.CountryID = cc.CountryID
+WHERE
+	@input = '{{input}}' OR
+	(
+		CAST(p.PaymentID AS NVARCHAR(MAX)) = @input OR
+		CAST(p.PaymentGuid AS NVARCHAR(MAX)) = @input OR
+		CAST(p.ExternalPaymentGuid AS NVARCHAR(MAX)) = @input
+	)
+ORDER BY
+	p.PaymentID DESC

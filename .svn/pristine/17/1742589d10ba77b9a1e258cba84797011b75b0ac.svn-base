@@ -1,0 +1,111 @@
+﻿@model MobilePaywall.Web.Models.ContentListViewModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);         
+}
+
+@Scripts.Render("~/Script/Home")
+
+@{
+  //Change it to take random content!
+  Random rnd = new Random();
+
+  List<int> indexes = new List<int>();
+  for (int i = 0; i < 3; i++ )
+  {
+    int index = rnd.Next(0, Model.Content.Count - 1);
+    if(indexes.Contains(index))
+    {
+      i--;
+      continue;
+    }
+    indexes.Add(index);
+  }
+  
+}
+
+@* TODO: Implement Play btn on Content  *@
+
+<div class="sliderOuterWrapper">
+  <div class="sliderWrapper">
+
+    <div class="mainSlider" id="mainSlider">
+      @foreach (int index in indexes)
+      {
+          MobilePaywall.IContent content = Model.Content.ElementAt(index);
+        <a href="@Model.AppendSessionID(content)" class="___clink">
+            <div class="playBtn @content.ContentIconClass"></div>
+            <img src="@content.GetThumbnailUrl(this.Request.UserAgent)" alt="" />
+        </a>
+      }
+    </div>
+
+  </div>
+</div>
+<!-- slider wrapper ends -->
+
+<div class="pageBreak sliderBreak"></div>
+@*<div class="homeQuote">
+  <h3>"A simple portfolio template for mobile devices, buy it, install it, enjoy it!"</h3>
+</div>*@
+
+<div class="pageWrapper homePageWrapper">
+  <div class="recentProjectsOuterWrapper">
+    <div class="recentProjectsWrapper">
+      <h4 class="recentProjectsTitle">@Translations.Web.Home.Header2</h4>
+      <div class="recentProjects" id="contentVideoContainer">
+        @foreach (MobilePaywall.IContent item in Model.Content)
+        {
+            MobilePaywall.ContentInformations info = item.GetInformations(PaywallHttpContext.Current.Service.ServiceData, PaywallHttpContext.Current.Service.ServiceData.FallbackLanguage);
+
+            <a href="@Model.AppendSessionID(item)" class="recentProject ___clink">
+                <div class="playBtn @item.ContentIconClass"></div>
+                <img src="@item.GetThumbnailUrl(this.Request.UserAgent)" class="recentProjectImage" alt="" />
+                <h4 class="recentProjectTitle">@info.Title</h4>
+            </a>
+        }
+      </div>
+
+      <div id="controlLoadMoreContainer">
+        <input type="submit" class="buttonWrapper commentSubmitButton" id="controlLoadMore" value="@Translations.Web.Controls.More">
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<script>
+  var _videoController = null;
+
+  $(document).ready(function () {
+    _videoController = new VideoController();
+    _videoController.TextPending = '@Translations.Web.Pending.PleaseWait';
+    _videoController.OnAppendFunc = function () {
+      adaptPortfolio();
+    };
+
+    @{
+      if(Model.Category != null)
+      {
+        @Html.Raw(Server.HtmlDecode("_homeVideoControler.CategoryID = '" + Model.Category.ID + "';"));
+      }
+    }
+
+    // Same funcion as in custom.js:60
+    function adaptPortfolio()
+    {
+      $('.portfolioTwoWrapper').css('width', $('.portfolioTwoPageWrapper').width() - 12);
+      $('.portfolioTwoFilterableWrapper .portfolioFilterableItemsWrapper').css('width', $('.portfolioTwoFilterablePageWrapper').width() - 12);
+      $('.recentProjects').css('width', $('.recentProjectsOuterWrapper').width() - 12);
+
+      var portfolioTwoItemWidth = ($('.portfolioTwoPageWrapper').width() - 48 - 36) / 2;
+      var portfolioTwoFilterableItemWidth = ($('.portfolioTwoFilterablePageWrapper').width() - 48 - 36) / 2;
+      var recentProjectItemWidth = ($('.recentProjectsOuterWrapper').width() - 48 - 36) / 2;
+
+      $('.portfolioTwoItemWrapper').css('width', portfolioTwoItemWidth);
+      $('.portfolioTwoFilterableWrapper .portfolioFilterableItemWrapper').css('width', portfolioTwoFilterableItemWidth);
+      $('.recentProject').css('width', recentProjectItemWidth);
+    }
+
+  });
+</script>

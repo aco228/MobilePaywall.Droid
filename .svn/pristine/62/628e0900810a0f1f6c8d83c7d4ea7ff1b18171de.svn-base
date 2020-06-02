@@ -1,0 +1,214 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using MobilePaywall.Data;
+using System.Net;
+using System.Xml;
+using System.IO;
+using System.Web;
+using log4net;
+using Senti.Diagnostics.Log;
+
+namespace MobilePaywall.Core
+{
+	public class Clickatell : ShortMessageProviderBase
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (Clickatell._log == null)
+          Clickatell._log = log4net.LogManager.GetLogger(typeof(Clickatell));
+        return Clickatell._log;
+      }
+    }
+    #endregion
+
+    private string _requestData = string.Empty;
+    private string _responseData = string.Empty;
+
+    public override string RequestData { get { return this._requestData; } }
+    public override string ResponseData { get { return this._responseData; } }
+
+		public Clickatell(ShortMessageProvider shortMessageProvider, ShortMessage shortMessage)
+			: base(shortMessageProvider, shortMessage)
+		{
+
+		}
+
+		public override HttpWebRequest Prepare()
+		{
+      StringBuilder request = new StringBuilder();
+      XmlWriterSettings xmlWriterSettings = new XmlWriterSettings();
+      xmlWriterSettings.Indent = true;
+      xmlWriterSettings.ConformanceLevel = ConformanceLevel.Document;
+      xmlWriterSettings.OmitXmlDeclaration = true;
+
+      string data = string.Empty;
+
+      using (MemoryStream memoryStream = new MemoryStream())
+      {
+        #region Xml example for sending message
+        /*
+          <clickAPI>
+            <sendMsg>
+              <api_id>3558684</api_id>
+              <user>demo</user>
+              <password>demo</password>
+              <to>123456567890123</to>
+              <text>Initial text message</text>
+              <from>me</from>
+            </sendMsg>
+          </clickAPI>
+        */
+        #endregion
+
+        #region Old xml #
+        /*
+        using (XmlWriter xmlWriter = XmlWriter.Create(memoryStream, xmlWriterSettings))
+        {
+          xmlWriter.WriteStartDocument();
+
+          xmlWriter.WriteStartElement("clickAPI");
+          xmlWriter.WriteStartElement("sendMsg");
+
+          xmlWriter.WriteStartElement("api_id");
+          xmlWriter.WriteString(this.ShortMessageProvider.ShortMessageProviderConfiguration.Key);
+          xmlWriter.WriteEndElement();
+
+          xmlWriter.WriteStartElement("user");
+          xmlWriter.WriteString(this.ShortMessageProvider.ShortMessageProviderConfiguration.Username);
+          xmlWriter.WriteEndElement();
+
+          xmlWriter.WriteStartElement("password");
+          xmlWriter.WriteString(this.ShortMessageProvider.ShortMessageProviderConfiguration.Password);
+          xmlWriter.WriteEndElement();
+
+          xmlWriter.WriteStartElement("to");
+          xmlWriter.WriteString(this.ShortMessage.Customer.Msisdn);
+          xmlWriter.WriteEndElement();
+
+          xmlWriter.WriteStartElement("text");
+          xmlWriter.WriteString(this.ShortMessage.Text);
+          xmlWriter.WriteEndElement();
+
+          xmlWriter.WriteStartElement("from");
+          xmlWriter.WriteString(this.ShortMessage.Customer.Service.Name);
+          xmlWriter.WriteEndElement();
+
+          xmlWriter.WriteFullEndElement(); // sendMsg
+          xmlWriter.WriteFullEndElement(); // clickAPI
+
+          xmlWriter.WriteEndDocument();
+
+          xmlWriter.Flush();
+          xmlWriter.Close();
+
+          data = System.Uri.EscapeDataString(data);
+          //this._requestData = Encoding.GetEncoding("ISO-8859-1").GetString(memoryStream.ToArray());
+        }
+        */
+        #endregion
+      }
+
+
+      string xml = " <clickAPI> " +
+                    " <sendMsg> " +
+                      " <api_id>" + this.ShortMessageProvider.ShortMessageProviderConfiguration.Key + "</api_id> " +
+                      " <user>" + this.ShortMessageProvider.ShortMessageProviderConfiguration.Username + "</user> " +
+                      " <password>" + this.ShortMessageProvider.ShortMessageProviderConfiguration.Password + "</password> " +
+                      " <to>" + this.ShortMessage.Customer.Msisdn + "</to> " +
+                      " <text>"+ this.ShortMessage.Text +"</text> " +
+                      " <from>"+ this.ShortMessage.Customer.Service.Name +"</from> " +
+                    " </sendMsg> " +
+                  " </clickAPI> ";
+      data = System.Uri.EscapeDataString(xml);
+
+      string url = string.Format("{0}?data={1}", this.ShortMessageProvider.ShortMessageProviderConfiguration.Url, data);
+      Log.Debug(new LogMessageBuilder(new LogErrorCode("shortmessage", "clickatell", "prepare"), "", "Url to for sending: " + url));
+      HttpWebRequest httpWebRequest = HttpWebRequest.Create(url) as HttpWebRequest;
+      httpWebRequest.Method = "POST";
+      httpWebRequest.ContentType = "text/xml";
+
+      return httpWebRequest;
+		}
+
+		public override void Send()
+    {
+      HttpWebRequest httpWebRequest = this.Prepare();
+
+      string response = string.Empty;
+
+      //if(smsProvider == SmsProviderType.Dimoco)
+      //  ServicePointManager.ServerCertificateValidationCallback += new RemoteCertificateValidationCallback(ValidateServerCertificate);
+
+      Encoding encoding = Encoding.GetEncoding("ISO-8859-1");
+      try
+      {
+        HttpWebResponse httpWebResponse = null;
+        using (Stream httpWebRequestStream = httpWebRequest.GetRequestStream())
+        {
+        
+          try
+          {
+            httpWebResponse = httpWebRequest.GetResponse() as HttpWebResponse;
+            using (Stream httpWebResponseStream = httpWebResponse.GetResponseStream())
+            {
+              using (StreamReader httpWebResponseStreamReader = new StreamReader(httpWebResponseStream))
+              {
+                response = httpWebResponseStreamReader.ReadToEnd();
+                httpWebResponse.Close();
+                httpWebResponseStreamReader.Close();
+
+                StringBuilder httpWebResponseStringBuilder = new StringBuilder(response.Length);
+                httpWebResponseStringBuilder.Append(response);
+              }
+            }
+          }
+          catch (Exception ex)
+          {
+            ShortMessageStatusHistory shortMessageStatusHistory = new ShortMessageStatusHistory(-1, this.ShortMessage, this.ShortMessage.ShortMessageStatus, ShortMessageStatus.Failure, DateTime.Now, DateTime.Now);
+            shortMessageStatusHistory.Insert();
+
+            Log.Error(new LogMessageBuilder(new LogErrorCode("shortmessage", "clickatell", "error"), "", "FATAL ERROR 1: " + ex.Message + " "));
+                                               
+            this.ShortMessage.ShortMessageStatus = ShortMessageStatus.Failure;
+            this.ShortMessage.Update();
+            return;                      
+          }
+        }
+      }
+      catch (Exception ex)
+      {
+        ShortMessageStatusHistory shortMessageStatusHistory = new ShortMessageStatusHistory(-1, this.ShortMessage, this.ShortMessage.ShortMessageStatus, ShortMessageStatus.Failure, DateTime.Now, DateTime.Now);
+        shortMessageStatusHistory.Insert();
+
+        Log.Error(new LogMessageBuilder(new LogErrorCode("shortmessage", "clickatell", "error"), "", "FATAL ERROR 2: " + ex.Message + " "));
+
+        this.ShortMessage.ShortMessageStatus = ShortMessageStatus.Failure;
+        this.ShortMessage.Update();
+      }
+
+      this._responseData = response;
+      this.ProcessResponse();
+		}
+
+    public override void ProcessNotification()
+    {
+      throw new NotImplementedException();
+    }
+
+    public override void ProcessResponse()
+    {
+      // TODO: Finish this
+      Log.Debug(new LogMessageBuilder(new LogErrorCode("shortmessage", "clickatell", "response"), "", "Response: " + this._responseData));
+    }
+
+	}
+}

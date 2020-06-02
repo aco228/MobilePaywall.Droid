@@ -1,0 +1,75 @@
+using MobilePaywall.MobilePaywallDirect;
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IPaymentContentAccessPolicyMapManager
+  {
+    T Load<T>(Customer customer, ContentGroup contentGroup, Content content);
+    T Load<T>(IConnectionInfo connection, Customer customer, ContentGroup contentGroup, Content content);
+		List<PaymentContentAccessPolicyMap> Load(Payment payment);
+		List<PaymentContentAccessPolicyMap> Load(IConnectionInfo connection, Payment payment);
+		List<PaymentContentAccessPolicyMap> Load(Customer customer);
+		List<PaymentContentAccessPolicyMap> Load(IConnectionInfo connection, Customer customer);
+    PaymentContentAccessPolicyMap Load(Payment payment, Transaction transaction);
+    PaymentContentAccessPolicyMap Load(IConnectionInfo connection, Payment payment, Transaction transaction);
+    
+		//PaymentContentAccessPolicyMap Load(Payment payment);
+		//PaymentContentAccessPolicyMap Load(IConnectionInfo connection, Payment payment);
+		//List<PaymentContentAccessPolicyMap> Load(Payment payment, Content content);
+		//List<PaymentContentAccessPolicyMap> Load(IConnectionInfo connection, Payment payment, Content content);
+		//List<PaymentContentAccessPolicyMap> Load(List<Payment> payments, Content content);
+		//List<PaymentContentAccessPolicyMap> Load(IConnectionInfo connection, List<Payment> payments, Content content);
+		//List<PaymentContentAccessPolicyMap> Load(Customer customer);
+		//List<PaymentContentAccessPolicyMap> Load(IConnectionInfo connection, Customer customer);
+  }
+
+  public partial class PaymentContentAccessPolicyMap
+  {
+
+
+
+		public static List<PaymentContentAccessPolicyMap> LoadByCustomer(Customer customer)
+		{
+			List<PaymentContentAccessPolicyMap> paymentContentAccessPolicyMap = null;
+			using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+			{
+				connection.Transaction.Begin();
+				IPaymentContentAccessPolicyMapManager pcapmManager = PaymentContentAccessPolicyMap.CreateManager(2);
+				paymentContentAccessPolicyMap = pcapmManager.Load(connection, customer);
+				connection.Transaction.Commit();
+			}
+
+			return paymentContentAccessPolicyMap;
+		}
+
+    public static List<PaymentContentAccessPolicyMap> LoadByCustomerContentAndContentGroup(Customer customer, ContentGroup contentGroup, Content content)
+    {
+      List<PaymentContentAccessPolicyMap> paymentContentAccessPolicyMap = null;
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        connection.Transaction.Begin();
+        IPaymentContentAccessPolicyMapManager pcapmManager = PaymentContentAccessPolicyMap.CreateManager(2);
+        paymentContentAccessPolicyMap = pcapmManager.Load<List<PaymentContentAccessPolicyMap>>(connection, customer, contentGroup, content);
+        connection.Transaction.Commit();
+      }
+
+      return paymentContentAccessPolicyMap;
+    }
+
+    public override bool Insert()
+    {
+      bool result = base.Insert();
+      new OLCacher().Synchronize(this);
+      return result;
+    }
+  }
+}
+

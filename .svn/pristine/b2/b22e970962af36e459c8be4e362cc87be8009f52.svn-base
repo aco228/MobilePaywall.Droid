@@ -1,0 +1,371 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(VideoConversionProfileEntry))] 
+  public partial class VideoConversionProfileEntryManager : MobilePaywall.Data.Sql.SqlManagerBase<VideoConversionProfileEntry>, IVideoConversionProfileEntryManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override VideoConversionProfileEntry LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							VideoConversionProfileEntryTable.GetColumnNames("[vcpe]") + 
+							(this.Depth > 0 ? "," + VideoConversionProfileTable.GetColumnNames("[vcpe_vcp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + VisualMediaDimensionsTable.GetColumnNames("[vcpe_vmd]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[vcpe_vmd_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + VideoCodecTable.GetColumnNames("[vcpe_vc]") : string.Empty) + 
+					" FROM [core].[VideoConversionProfileEntry] AS [vcpe] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[VideoConversionProfile] AS [vcpe_vcp] ON [vcpe].[VideoConversionProfileID] = [vcpe_vcp].[VideoConversionProfileID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[VisualMediaDimensions] AS [vcpe_vmd] ON [vcpe].[VisualMediaDimensionsID] = [vcpe_vmd].[VisualMediaDimensionsID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [vcpe_vmd_i] ON [vcpe_vmd].[InstanceID] = [vcpe_vmd_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[VideoCodec] AS [vcpe_vc] ON [vcpe].[VideoCodecID] = [vcpe_vc].[VideoCodecID] ";
+				sqlCmdText += "WHERE [vcpe].[VideoConversionProfileEntryID] = @VideoConversionProfileEntryID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@VideoConversionProfileEntryID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vcpe", "loadinternal", "notfound"), "VideoConversionProfileEntry could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				VideoConversionProfileEntryTable vcpeTable = new VideoConversionProfileEntryTable(query);
+				VideoConversionProfileTable vcpe_vcpTable = (this.Depth > 0) ? new VideoConversionProfileTable(query) : null;
+				VisualMediaDimensionsTable vcpe_vmdTable = (this.Depth > 0) ? new VisualMediaDimensionsTable(query) : null;
+				InstanceTable vcpe_vmd_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				VideoCodecTable vcpe_vcTable = (this.Depth > 0) ? new VideoCodecTable(query) : null;
+
+        
+				VideoConversionProfile vcpe_vcpObject = (this.Depth > 0) ? vcpe_vcpTable.CreateInstance() : null;
+				Instance vcpe_vmd_iObject = (this.Depth > 1) ? vcpe_vmd_iTable.CreateInstance() : null;
+				VisualMediaDimensions vcpe_vmdObject = (this.Depth > 0) ? vcpe_vmdTable.CreateInstance(vcpe_vmd_iObject) : null;
+				VideoCodec vcpe_vcObject = (this.Depth > 0) ? vcpe_vcTable.CreateInstance() : null;
+				VideoConversionProfileEntry vcpeObject = vcpeTable.CreateInstance(vcpe_vcpObject, vcpe_vmdObject, vcpe_vcObject);
+				sqlReader.Close();
+
+				return vcpeObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vcpe", "loadinternal", "exception"), "VideoConversionProfileEntry could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "VideoConversionProfileEntry", "Exception while loading VideoConversionProfileEntry object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public VideoConversionProfileEntry Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							VideoConversionProfileEntryTable.GetColumnNames("[vcpe]") + 
+							(this.Depth > 0 ? "," + VideoConversionProfileTable.GetColumnNames("[vcpe_vcp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + VisualMediaDimensionsTable.GetColumnNames("[vcpe_vmd]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[vcpe_vmd_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + VideoCodecTable.GetColumnNames("[vcpe_vc]") : string.Empty) +  
+					" FROM [core].[VideoConversionProfileEntry] AS [vcpe] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[VideoConversionProfile] AS [vcpe_vcp] ON [vcpe].[VideoConversionProfileID] = [vcpe_vcp].[VideoConversionProfileID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[VisualMediaDimensions] AS [vcpe_vmd] ON [vcpe].[VisualMediaDimensionsID] = [vcpe_vmd].[VisualMediaDimensionsID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [vcpe_vmd_i] ON [vcpe_vmd].[InstanceID] = [vcpe_vmd_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[VideoCodec] AS [vcpe_vc] ON [vcpe].[VideoCodecID] = [vcpe_vc].[VideoCodecID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vcpe", "customload", "notfound"), "VideoConversionProfileEntry could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				VideoConversionProfileEntryTable vcpeTable = new VideoConversionProfileEntryTable(query);
+				VideoConversionProfileTable vcpe_vcpTable = (this.Depth > 0) ? new VideoConversionProfileTable(query) : null;
+				VisualMediaDimensionsTable vcpe_vmdTable = (this.Depth > 0) ? new VisualMediaDimensionsTable(query) : null;
+				InstanceTable vcpe_vmd_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				VideoCodecTable vcpe_vcTable = (this.Depth > 0) ? new VideoCodecTable(query) : null;
+
+        
+				VideoConversionProfile vcpe_vcpObject = (this.Depth > 0) ? vcpe_vcpTable.CreateInstance() : null;
+				Instance vcpe_vmd_iObject = (this.Depth > 1) ? vcpe_vmd_iTable.CreateInstance() : null;
+				VisualMediaDimensions vcpe_vmdObject = (this.Depth > 0) ? vcpe_vmdTable.CreateInstance(vcpe_vmd_iObject) : null;
+				VideoCodec vcpe_vcObject = (this.Depth > 0) ? vcpe_vcTable.CreateInstance() : null;
+				VideoConversionProfileEntry vcpeObject = vcpeTable.CreateInstance(vcpe_vcpObject, vcpe_vmdObject, vcpe_vcObject);
+				sqlReader.Close();
+
+				return vcpeObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vcpe", "customload", "exception"), "VideoConversionProfileEntry could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "VideoConversionProfileEntry", "Exception while loading (custom/single) VideoConversionProfileEntry object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<VideoConversionProfileEntry> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							VideoConversionProfileEntryTable.GetColumnNames("[vcpe]") + 
+							(this.Depth > 0 ? "," + VideoConversionProfileTable.GetColumnNames("[vcpe_vcp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + VisualMediaDimensionsTable.GetColumnNames("[vcpe_vmd]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[vcpe_vmd_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + VideoCodecTable.GetColumnNames("[vcpe_vc]") : string.Empty) +  
+					" FROM [core].[VideoConversionProfileEntry] AS [vcpe] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[VideoConversionProfile] AS [vcpe_vcp] ON [vcpe].[VideoConversionProfileID] = [vcpe_vcp].[VideoConversionProfileID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[VisualMediaDimensions] AS [vcpe_vmd] ON [vcpe].[VisualMediaDimensionsID] = [vcpe_vmd].[VisualMediaDimensionsID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [vcpe_vmd_i] ON [vcpe_vmd].[InstanceID] = [vcpe_vmd_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[VideoCodec] AS [vcpe_vc] ON [vcpe].[VideoCodecID] = [vcpe_vc].[VideoCodecID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vcpe", "customloadmany", "notfound"), "VideoConversionProfileEntry list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<VideoConversionProfileEntry>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				VideoConversionProfileEntryTable vcpeTable = new VideoConversionProfileEntryTable(query);
+				VideoConversionProfileTable vcpe_vcpTable = (this.Depth > 0) ? new VideoConversionProfileTable(query) : null;
+				VisualMediaDimensionsTable vcpe_vmdTable = (this.Depth > 0) ? new VisualMediaDimensionsTable(query) : null;
+				InstanceTable vcpe_vmd_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				VideoCodecTable vcpe_vcTable = (this.Depth > 0) ? new VideoCodecTable(query) : null;
+
+        List<VideoConversionProfileEntry> result = new List<VideoConversionProfileEntry>();
+        do
+        {
+          
+					VideoConversionProfile vcpe_vcpObject = (this.Depth > 0) ? vcpe_vcpTable.CreateInstance() : null;
+					Instance vcpe_vmd_iObject = (this.Depth > 1) ? vcpe_vmd_iTable.CreateInstance() : null;
+					VisualMediaDimensions vcpe_vmdObject = (this.Depth > 0) ? vcpe_vmdTable.CreateInstance(vcpe_vmd_iObject) : null;
+					VideoCodec vcpe_vcObject = (this.Depth > 0) ? vcpe_vcTable.CreateInstance() : null;
+					VideoConversionProfileEntry vcpeObject = (this.Depth > -1) ? vcpeTable.CreateInstance(vcpe_vcpObject, vcpe_vmdObject, vcpe_vcObject) : null;
+					result.Add(vcpeObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vcpe", "customloadmany", "exception"), "VideoConversionProfileEntry list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "VideoConversionProfileEntry", "Exception while loading (custom/many) VideoConversionProfileEntry object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, VideoConversionProfileEntry data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[VideoConversionProfileEntry] ([VideoConversionProfileID],[VisualMediaDimensionsID],[VideoCodecID]) VALUES(@VideoConversionProfileID,@VisualMediaDimensionsID,@VideoCodecID); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@VideoConversionProfileID", data.VideoConversionProfile.ID);
+				sqlCmd.Parameters.AddWithValue("@VisualMediaDimensionsID", data.VisualMediaDimensions.ID);
+				sqlCmd.Parameters.AddWithValue("@VideoCodecID", data.VideoCodec.ID);
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vcpe", "insert", "noprimarykey"), "VideoConversionProfileEntry could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "VideoConversionProfileEntry", "Exception while inserting VideoConversionProfileEntry object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vcpe", "insert", "exception"), "VideoConversionProfileEntry could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "VideoConversionProfileEntry", "Exception while inserting VideoConversionProfileEntry object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, VideoConversionProfileEntry data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[VideoConversionProfileEntry] SET " +
+												"[VideoConversionProfileID] = @VideoConversionProfileID, " + 
+												"[VisualMediaDimensionsID] = @VisualMediaDimensionsID, " + 
+												"[VideoCodecID] = @VideoCodecID, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [VideoConversionProfileEntryID] = @VideoConversionProfileEntryID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@VideoConversionProfileID", data.VideoConversionProfile.ID);
+				sqlCmd.Parameters.AddWithValue("@VisualMediaDimensionsID", data.VisualMediaDimensions.ID);
+				sqlCmd.Parameters.AddWithValue("@VideoCodecID", data.VideoCodec.ID);
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@VideoConversionProfileEntryID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vcpe", "update", "norecord"), "VideoConversionProfileEntry could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "VideoConversionProfileEntry", "Exception while updating VideoConversionProfileEntry object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vcpe", "update", "morerecords"), "VideoConversionProfileEntry was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "VideoConversionProfileEntry", "Exception while updating VideoConversionProfileEntry object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vcpe", "update", "exception"), "VideoConversionProfileEntry could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "VideoConversionProfileEntry", "Exception while updating VideoConversionProfileEntry object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, VideoConversionProfileEntry data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[VideoConversionProfileEntry] WHERE VideoConversionProfileEntryID = @VideoConversionProfileEntryID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@VideoConversionProfileEntryID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vcpe", "delete", "norecord"), "VideoConversionProfileEntry could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "VideoConversionProfileEntry", "Exception while deleting VideoConversionProfileEntry object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vcpe", "delete", "exception"), "VideoConversionProfileEntry could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "VideoConversionProfileEntry", "Exception while deleting VideoConversionProfileEntry object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

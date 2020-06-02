@@ -1,0 +1,80 @@
+﻿using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Merchant.Controllers
+{
+  public class TaskController : PaywallController
+  {
+    public ActionResult Index()
+    {
+      return View("~/Views/Task/Index.cshtml");
+    }
+
+    [HttpPost]
+    public PartialViewResult Render(string location)
+    {
+      Client client = PaywallHttpContext.Current.ClientSession.Client;
+      bool isMerchant = client.ClientType.Name.Equals("Merchant") || client.ClientType.Name.Equals("MerchantUser");
+      ITaskManager tManager = Data.Task.CreateManager();
+      List<Task> tLoaded = new List<Task>();
+
+      string view = string.Empty;
+      if (location.Equals("page"))
+      {
+        view = "_Table";
+        if (isMerchant)
+          tLoaded = (from t in tManager.Load() where t.Creator.ID == client.ID orderby t.Created descending select t).ToList();
+        else
+          tLoaded = (from t in tManager.Load() orderby t.Created descending select t).ToList();
+      }
+      else if (location.Equals("header"))
+      {
+        view = "_List";
+        tLoaded = (from t in tManager.Load() where t.Resolver == client && (t.TaskStatus != TaskStatus.Done || t.TaskStatus != TaskStatus.Declined) orderby t.Created descending select t).ToList();
+      }
+      else if (location.Equals("header-new"))
+      {
+        view = "_New";
+        tLoaded = (from t in tManager.Load() where t.TaskStatus == TaskStatus.Waiting || t.TaskStatus == TaskStatus.Requested orderby t.Created descending select t).ToList();
+      }
+      else
+        return null;
+      
+      List<ITask> tasks = new List<ITask>();
+      foreach (Task t in tLoaded)
+        tasks.Add(t.Instantiate());
+      //List<ITask> tasks = (from t in tManager.Load() select t.Instantiate()).ToList();
+
+      return PartialView(view, tasks);
+    }
+
+    [HttpPost]
+    public string Assign()
+    {
+      int taskId = -1;
+      int resolverId = -1;
+
+      taskId = Int32.Parse(this.Request.Form["taskId"]);
+      resolverId = Int32.Parse(this.Request.Form["resolverId"]);
+      
+      ITaskManager tManager = Task.CreateManager();
+      Task task = tManager.Load(taskId);
+
+      IClientManager cManager = Client.CreateManager();
+      Client client = cManager.Load(resolverId);
+
+      task.Resolver = client;
+      task.Updated = DateTime.Now;
+      task.TaskStatus = TaskStatus.Processing;
+
+      task.Update();
+
+      string message = "Task assigned to " + client.Username;
+      return message;
+    }
+  }
+}

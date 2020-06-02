@@ -1,0 +1,380 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(AndroidPremiumCustomer))] 
+  public partial class AndroidPremiumCustomerManager : MobilePaywall.Data.Sql.SqlManagerBase<AndroidPremiumCustomer>, IAndroidPremiumCustomerManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override AndroidPremiumCustomer LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							AndroidPremiumCustomerTable.GetColumnNames("[apc]") + 
+							(this.Depth > 0 ? "," + AndroidPremiumAplicationTable.GetColumnNames("[apc_apa]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[apc_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[apc_c_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CurrencyTable.GetColumnNames("[apc_c_c]") : string.Empty) + 
+					" FROM [core].[AndroidPremiumCustomer] AS [apc] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidPremiumAplication] AS [apc_apa] ON [apc].[AndroidPremiumAplicationID] = [apc_apa].[AndroidPremiumAplicationID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [apc_c] ON [apc].[CountryID] = [apc_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [apc_c_l] ON [apc_c].[LanguageID] = [apc_c_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Currency] AS [apc_c_c] ON [apc_c].[CurrencyID] = [apc_c_c].[CurrencyID] ";
+				sqlCmdText += "WHERE [apc].[AndroidPremiumCustomerID] = @AndroidPremiumCustomerID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AndroidPremiumCustomerID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apc", "loadinternal", "notfound"), "AndroidPremiumCustomer could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AndroidPremiumCustomerTable apcTable = new AndroidPremiumCustomerTable(query);
+				AndroidPremiumAplicationTable apc_apaTable = (this.Depth > 0) ? new AndroidPremiumAplicationTable(query) : null;
+				CountryTable apc_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable apc_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				CurrencyTable apc_c_cTable = (this.Depth > 1) ? new CurrencyTable(query) : null;
+
+        
+				AndroidPremiumAplication apc_apaObject = (this.Depth > 0) ? apc_apaTable.CreateInstance() : null;
+				Language apc_c_lObject = (this.Depth > 1) ? apc_c_lTable.CreateInstance() : null;
+				Currency apc_c_cObject = (this.Depth > 1) ? apc_c_cTable.CreateInstance() : null;
+				Country apc_cObject = (this.Depth > 0) ? apc_cTable.CreateInstance(apc_c_lObject, apc_c_cObject) : null;
+				AndroidPremiumCustomer apcObject = apcTable.CreateInstance(apc_apaObject, apc_cObject);
+				sqlReader.Close();
+
+				return apcObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apc", "loadinternal", "exception"), "AndroidPremiumCustomer could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AndroidPremiumCustomer", "Exception while loading AndroidPremiumCustomer object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public AndroidPremiumCustomer Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AndroidPremiumCustomerTable.GetColumnNames("[apc]") + 
+							(this.Depth > 0 ? "," + AndroidPremiumAplicationTable.GetColumnNames("[apc_apa]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[apc_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[apc_c_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CurrencyTable.GetColumnNames("[apc_c_c]") : string.Empty) +  
+					" FROM [core].[AndroidPremiumCustomer] AS [apc] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidPremiumAplication] AS [apc_apa] ON [apc].[AndroidPremiumAplicationID] = [apc_apa].[AndroidPremiumAplicationID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [apc_c] ON [apc].[CountryID] = [apc_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [apc_c_l] ON [apc_c].[LanguageID] = [apc_c_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Currency] AS [apc_c_c] ON [apc_c].[CurrencyID] = [apc_c_c].[CurrencyID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apc", "customload", "notfound"), "AndroidPremiumCustomer could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AndroidPremiumCustomerTable apcTable = new AndroidPremiumCustomerTable(query);
+				AndroidPremiumAplicationTable apc_apaTable = (this.Depth > 0) ? new AndroidPremiumAplicationTable(query) : null;
+				CountryTable apc_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable apc_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				CurrencyTable apc_c_cTable = (this.Depth > 1) ? new CurrencyTable(query) : null;
+
+        
+				AndroidPremiumAplication apc_apaObject = (this.Depth > 0) ? apc_apaTable.CreateInstance() : null;
+				Language apc_c_lObject = (this.Depth > 1) ? apc_c_lTable.CreateInstance() : null;
+				Currency apc_c_cObject = (this.Depth > 1) ? apc_c_cTable.CreateInstance() : null;
+				Country apc_cObject = (this.Depth > 0) ? apc_cTable.CreateInstance(apc_c_lObject, apc_c_cObject) : null;
+				AndroidPremiumCustomer apcObject = apcTable.CreateInstance(apc_apaObject, apc_cObject);
+				sqlReader.Close();
+
+				return apcObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apc", "customload", "exception"), "AndroidPremiumCustomer could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AndroidPremiumCustomer", "Exception while loading (custom/single) AndroidPremiumCustomer object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<AndroidPremiumCustomer> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AndroidPremiumCustomerTable.GetColumnNames("[apc]") + 
+							(this.Depth > 0 ? "," + AndroidPremiumAplicationTable.GetColumnNames("[apc_apa]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[apc_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[apc_c_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CurrencyTable.GetColumnNames("[apc_c_c]") : string.Empty) +  
+					" FROM [core].[AndroidPremiumCustomer] AS [apc] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidPremiumAplication] AS [apc_apa] ON [apc].[AndroidPremiumAplicationID] = [apc_apa].[AndroidPremiumAplicationID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [apc_c] ON [apc].[CountryID] = [apc_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [apc_c_l] ON [apc_c].[LanguageID] = [apc_c_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Currency] AS [apc_c_c] ON [apc_c].[CurrencyID] = [apc_c_c].[CurrencyID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apc", "customloadmany", "notfound"), "AndroidPremiumCustomer list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<AndroidPremiumCustomer>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AndroidPremiumCustomerTable apcTable = new AndroidPremiumCustomerTable(query);
+				AndroidPremiumAplicationTable apc_apaTable = (this.Depth > 0) ? new AndroidPremiumAplicationTable(query) : null;
+				CountryTable apc_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable apc_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				CurrencyTable apc_c_cTable = (this.Depth > 1) ? new CurrencyTable(query) : null;
+
+        List<AndroidPremiumCustomer> result = new List<AndroidPremiumCustomer>();
+        do
+        {
+          
+					AndroidPremiumAplication apc_apaObject = (this.Depth > 0) ? apc_apaTable.CreateInstance() : null;
+					Language apc_c_lObject = (this.Depth > 1) ? apc_c_lTable.CreateInstance() : null;
+					Currency apc_c_cObject = (this.Depth > 1) ? apc_c_cTable.CreateInstance() : null;
+					Country apc_cObject = (this.Depth > 0) ? apc_cTable.CreateInstance(apc_c_lObject, apc_c_cObject) : null;
+					AndroidPremiumCustomer apcObject = (this.Depth > -1) ? apcTable.CreateInstance(apc_apaObject, apc_cObject) : null;
+					result.Add(apcObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apc", "customloadmany", "exception"), "AndroidPremiumCustomer list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AndroidPremiumCustomer", "Exception while loading (custom/many) AndroidPremiumCustomer object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, AndroidPremiumCustomer data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[AndroidPremiumCustomer] ([AndroidCustomerUniqueID],[AndroidPremiumAplicationID],[CountryID],[IPAddress],[Msisdn],[Referrer]) VALUES(@AndroidCustomerUniqueID,@AndroidPremiumAplicationID,@CountryID,@IPAddress,@Msisdn,@Referrer); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@AndroidCustomerUniqueID", data.AndroidCustomerUniqueID).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@AndroidPremiumAplicationID", data.AndroidPremiumAplication.ID);
+				sqlCmd.Parameters.AddWithValue("@CountryID", data.Country.ID);
+				sqlCmd.Parameters.AddWithValue("@IPAddress", data.IPAddress).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Msisdn", !string.IsNullOrEmpty(data.Msisdn) ? (object)data.Msisdn : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Referrer", data.Referrer).SqlDbType = SqlDbType.NVarChar;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apc", "insert", "noprimarykey"), "AndroidPremiumCustomer could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "AndroidPremiumCustomer", "Exception while inserting AndroidPremiumCustomer object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apc", "insert", "exception"), "AndroidPremiumCustomer could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "AndroidPremiumCustomer", "Exception while inserting AndroidPremiumCustomer object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, AndroidPremiumCustomer data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[AndroidPremiumCustomer] SET " +
+												"[AndroidCustomerUniqueID] = @AndroidCustomerUniqueID, " + 
+												"[AndroidPremiumAplicationID] = @AndroidPremiumAplicationID, " + 
+												"[CountryID] = @CountryID, " + 
+												"[IPAddress] = @IPAddress, " + 
+												"[Msisdn] = @Msisdn, " + 
+												"[Referrer] = @Referrer, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [AndroidPremiumCustomerID] = @AndroidPremiumCustomerID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@AndroidCustomerUniqueID", data.AndroidCustomerUniqueID).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@AndroidPremiumAplicationID", data.AndroidPremiumAplication.ID);
+				sqlCmd.Parameters.AddWithValue("@CountryID", data.Country.ID);
+				sqlCmd.Parameters.AddWithValue("@IPAddress", data.IPAddress).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Msisdn", !string.IsNullOrEmpty(data.Msisdn) ? (object)data.Msisdn : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Referrer", data.Referrer).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@AndroidPremiumCustomerID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apc", "update", "norecord"), "AndroidPremiumCustomer could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "AndroidPremiumCustomer", "Exception while updating AndroidPremiumCustomer object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apc", "update", "morerecords"), "AndroidPremiumCustomer was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "AndroidPremiumCustomer", "Exception while updating AndroidPremiumCustomer object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apc", "update", "exception"), "AndroidPremiumCustomer could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "AndroidPremiumCustomer", "Exception while updating AndroidPremiumCustomer object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, AndroidPremiumCustomer data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[AndroidPremiumCustomer] WHERE AndroidPremiumCustomerID = @AndroidPremiumCustomerID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AndroidPremiumCustomerID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apc", "delete", "norecord"), "AndroidPremiumCustomer could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "AndroidPremiumCustomer", "Exception while deleting AndroidPremiumCustomer object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apc", "delete", "exception"), "AndroidPremiumCustomer could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "AndroidPremiumCustomer", "Exception while deleting AndroidPremiumCustomer object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

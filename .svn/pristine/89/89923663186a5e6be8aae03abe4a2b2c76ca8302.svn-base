@@ -1,0 +1,159 @@
+﻿@{
+  Client client = PaywallHttpContext.Current.ClientSession.Client;
+  bool isAdministrator = client.ClientType.Name.Equals("Administrator");
+  bool isMerchant = (client.ClientType.Name.Equals("Merchant") || client.ClientType.Name.Equals("MerchantUser")) ? true : false;
+  IClientComponentAccessPolicyManager ccapManager = ClientComponentAccessPolicy.CreateManager();
+  IComponentManager cManager = Component.CreateManager();
+  ClientComponentAccessPolicy payoutComponent = ccapManager.Load(client, cManager.Load(5)); //Payout Component ID = 5
+  ClientComponentAccessPolicy pricesComponent = ccapManager.Load(client, cManager.Load(7)); //Service Prices Component ID = 5
+  bool allowPayout = (payoutComponent != null && payoutComponent.AccessMode == AccessMode.Allowed);
+  bool allowPrices = (pricesComponent != null && pricesComponent.AccessMode == AccessMode.Allowed);
+}
+
+<!-- BEGIN SIDEBAR MENU -->
+<div class="page-sidebar-wrapper">
+  <!-- DOC: Set data-auto-scroll="false" to disable the sidebar from auto scrolling/focusing -->
+  <!-- DOC: Change data-auto-speed="200" to adjust the sub menu slide up/down speed -->
+  <div class="page-sidebar navbar-collapse collapse">
+    <!-- BEGIN SIDEBAR MENU -->
+    <!-- DOC: Apply "page-sidebar-menu-light" class right after "page-sidebar-menu" to enable light sidebar menu style(without borders) -->
+    <!-- DOC: Apply "page-sidebar-menu-hover-submenu" class right after "page-sidebar-menu" to enable hoverable(hover vs accordion) sub menu mode -->
+    <!-- DOC: Apply "page-sidebar-menu-closed" class right after "page-sidebar-menu" to collapse("page-sidebar-closed" class must be applied to the body element) the sidebar sub menu mode -->
+    <!-- DOC: Set data-auto-scroll="false" to disable the sidebar from auto scrolling/focusing -->
+    <!-- DOC: Set data-keep-expand="true" to keep the submenues expanded -->
+    <!-- DOC: Set data-auto-speed="200" to adjust the sub menu slide up/down speed -->
+    <ul class="page-sidebar-menu" data-keep-expanded="false" data-auto-scroll="true" data-slide-speed="200">
+      <!-- DOC: To remove the sidebar toggler from the sidebar you just need to completely remove the below "sidebar-toggler-wrapper" LI element -->
+      <li class="sidebar-toggler-wrapper">
+        <!-- BEGIN SIDEBAR TOGGLER BUTTON -->
+        <div class="sidebar-toggler">
+        </div>
+        <!-- END SIDEBAR TOGGLER BUTTON -->
+      </li>
+      <li class="menu-link start @Html.IsSelected(actions: "Index", controllers: "Dashboard")">
+        <a href="@Url.Action("Index", "Dashboard")">
+          <i class="icon-home"></i>
+          <span class="title">Dashboard</span>
+          <span class="selected"></span>
+        </a>
+      </li>
+      <li class="menu-link @Html.IsSelected(actions: "Index", controllers: "Statistic") @Html.IsSelected(actions: "Chart", controllers: "Chart")">
+        <a href="javascript:;">
+          <i class="icon-bar-chart"></i>
+          <span class="title">Statistics</span>
+          <span class="selected"></span>
+        </a>
+        <ul class="sub-menu">
+          <li class="menu-link @Html.IsSelected(actions: "Index", controllers: "Statistic")">
+            <a href="@Url.Action("Index", "Statistic")">
+              Table
+            </a>
+          </li>
+          <li class="menu-link @Html.IsSelected(actions: "Chart", controllers: "Chart")">
+            <a href="@Url.Action("Chart", "Chart")">
+              Chart
+            </a>
+          </li>
+          @if (allowPayout)
+          {
+            <li class="menu-link @Html.IsSelected(actions: "Revenue", controllers: "Statistic")">
+              <a href="@Url.Action("Revenue", "Statistic")">
+                Revenue
+              </a>
+            </li>
+          }
+        </ul>
+      </li>
+      <li class="menu-link @Html.IsSelected(actions: "Index", controllers: "Merchant") @Html.IsSelected(actions: "Index", controllers: "ServiceConfiguration")">
+        <a href="javascript:;">
+          <i class="icon-settings"></i>
+          <span class="title">Configuration</span>
+          <span class="selected"></span>
+        </a>
+        <ul class="sub-menu">
+          <li class="menu-link @Html.IsSelected(actions: "Index", controllers: "Merchant")">
+            <a href="@Url.Action("Index", "Merchant")">
+              @(isMerchant ? "Companies" : "Merchants")
+            </a>
+          </li>
+          @if (isAdministrator)
+          {
+            <li class="menu-link @Html.IsSelected(actions: "Index", controllers: "ServiceConfiguration")">
+              <a href="@Url.Action("Index", "ServiceConfiguration")">
+                Services
+              </a>
+            </li>
+          }
+          @if (allowPrices)
+          {
+            <li class="menu-link @Html.IsSelected(actions: "Index", controllers: "ServicePrice")">
+              <a href="@Url.Action("Index", "ServicePrice")">
+                Service Prices
+              </a>
+            </li>
+          }
+        </ul>
+      </li>
+      <li class="menu-link @Html.IsSelected(actions: "Index", controllers: "Task") @Html.IsSelected(actions: "Index", controllers: "ServiceTask")">
+        <a href="javascript:;">
+          <i class="icon-note"></i>
+          <span class="title">Tasks</span>
+          <span class="selected"></span>
+        </a>
+        <ul class="sub-menu">
+          <li class="menu-link @Html.IsSelected(actions: "Index", controllers: "Task")">
+            <a href="@Url.Action("Index", "Task")">
+              All Tasks
+            </a>
+          </li>
+          <li class="menu-link @Html.IsSelected(actions: "Index", controllers: "ServiceTask")">
+            <a href="/task">
+              @(isMerchant ? "Request New Service" : "Create Service Task")
+            </a>
+          </li>
+        </ul>
+      </li>
+      <li class="menu-link @Html.IsSelected(actions: "Index", controllers: "Timeline")">
+        <a href="@Url.Action("Index", "Timeline")">
+          <i class="icon-paper-plane"></i>
+          <span class="title">Timeline</span>
+          <span class="selected"></span>
+        </a>
+      </li>
+      <li class="menu-link @Html.IsSelected(actions: "Index", controllers: "QualityAssurance") @Html.IsSelected(actions: "Report", controllers: "QualityAssurance") @Html.IsSelected(actions: "ReportEditor", controllers: "QualityAssurance")">
+        <a href="@Url.Action("Index", "QualityAssurance")">
+          <i class="icon-diamond"></i>
+          <span class="title">Quality Assurance</span>
+          <span class="selected"></span>
+        </a>
+        <ul class="sub-menu">
+          <li class="menu-link  @Html.IsSelected(actions: "Index", controllers: "QualityAssurance")">
+            <a href="@Url.Action("Index", "QualityAssurance")">
+              All Reports
+            </a>
+          </li>
+          @if (isAdministrator)
+          {
+            <li class="menu-link @Html.IsSelected(actions: "ReportEditor", controllers: "QualityAssurance")">
+              <a href="@Url.Action("ReportEditor", "QualityAssurance", new { id = "" })">
+                New Test Report
+              </a>
+            </li>
+          }
+        </ul>
+      </li>
+      @if (PaywallHttpContext.Current.ClientSession.Client.Username != "mfi") //TODO!!!
+      {
+        <li class="menu-link @Html.IsSelected(actions: "Index", controllers: "BlackList")">
+          <a href="@Url.Action("Index", "BlackList")">
+            <i class="icon-ban"></i>
+            <span class="title">MSISDN Blacklist</span>
+            <span class="selected"></span>
+          </a>
+        </li>
+      }      
+    </ul>
+    <!-- END SIDEBAR MENU -->
+  </div>
+</div>
+<!-- END SIDEBAR -->

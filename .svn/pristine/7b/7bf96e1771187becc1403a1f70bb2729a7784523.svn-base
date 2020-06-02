@@ -1,0 +1,146 @@
+﻿@model MobilePaywall.Web.Models.PaywallViewModelBase
+
+<!DOCTYPE html>
+<html>
+<head>
+
+  <meta name="ViewName" content="@Model.GetViewName(this.ViewContext.View)" />
+  @{
+    Html.RenderPartial("~/Views/_Shared/Header.cshtml");
+    string viewExtension = "~/Views/_Shared/ViewsShared/" + Model.GetViewName(this.ViewContext.View);
+    if (File.Exists(Server.MapPath(viewExtension))) { Html.RenderPartial(viewExtension); }
+  }
+  
+  <link href='http://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,600,700,900,300italic,400italic,600italic,700italic|Raleway:400,200,300,700,800' rel='stylesheet' type='text/css'>
+
+  @Styles.Render("~/Style/Theia")
+  @Scripts.Render("~/Scripts/Theia")
+
+</head>
+<body>
+
+  <div data-role="page" data-theme='a'>
+
+    <div id="_sys_adjustFooter" headerid="templateHeader" contentid="templateContent" footerid="templateFooter" class="__sys"></div>
+
+    @{ Html.RenderPartial("_Menu"); }
+
+    <div data-role="header" data-tap-toggle="false" class="white" id="templateHeader">
+      @{                                                                                                                                          
+          
+        /* Logo */
+        if (IsSectionDefined("logo")) { @RenderSection("logo"); }
+        else
+        { 
+          <a href='#sidebar' data-role="none" data-ajax="false" data-transition="slide">
+            <img src="~/Images/Theia/menu-icon-wt.png" alt="sidebar" id="header-menu-icon" />
+          </a>
+          <h1 class="header-title">
+            <a href="@Model.AppendSessionID("/")" data-ajax="false" data-transition="slide">
+              <img id="logo_cont" src="@Model.Logo()" alt="@PaywallHttpContext.Current.Service.ServiceData.Name" />
+            </a>
+          </h1>
+        }
+
+        if (Model.PartialViewExists("_Header")) { Html.RenderPartial("_Header"); }
+
+        if (IsSectionDefined("_notification2"))
+        { @RenderSection("_notification2"); }
+        else if (Model.PartialViewExists("_Notification2")) { Html.RenderPartial("_Notification2"); }
+        else if (!string.IsNullOrEmpty(Translations.Web.Home.Notification2))
+        {
+          <h3 id="header_additionalInfo">
+            @Html.Raw(Server.HtmlDecode(ViewHelper.Prepare(Translations.Web.Home.Notification2)))
+            @RenderSection("belgium", required: false)
+          </h3>
+        }
+      }
+
+      
+      </div>
+
+      <div data-role="content" id="templateContent">
+        @RenderBody()
+      </div>
+
+    <div data-role="footer" data-theme="none" data-border="false" id="templateFooter">
+      @if (IsSectionDefined("footer")) { @RenderSection("footer", required: false); }
+      else
+      {
+        if (IsSectionDefined("_notification3"))  { @RenderSection("_notification3"); }
+        else if (Model.PartialViewExists("_Notification3")) { Html.RenderPartial("_Notification3"); }
+        else if (!string.IsNullOrEmpty(Translations.Web.Home.Notification3))
+        {
+          <h3 id="footer_aditionalInfo">
+            @Html.Raw(Server.HtmlDecode(ViewHelper.Prepare(Translations.Web.Home.Notification3)))
+          </h3>
+        }
+
+        if (Model.PartialViewExists("_Footer")) { Html.RenderPartial("_Footer"); }
+        else
+        {
+          <div> @{ Html.RenderPartial("_FooterUp"); } </div>
+          <div> @{ Html.RenderPartial("_FooterBase"); } </div>
+          <div> @{ Html.RenderPartial("_FooterDown"); } </div>
+        }
+      }
+    </div>
+
+    </div>
+
+  <script type="text/javascript">
+
+    $(document).bind('mobileinit', function () {
+      $.mobile.ajaxEnabled = false;
+      $.mobile.changePage.defaults.changeHash = false;
+      $.mobile.hashListeningEnabled = false;
+      $.mobile.pushStateEnabled = false;
+    });
+
+
+    $(document).ready(function () {
+      $.mobile.ajaxEnabled = false;
+
+      var time = 8; // time in seconds
+      var $progressBar,
+          $bar,
+          $elem,
+          isPause,
+          tick,
+          percentTime;
+      
+      function progressBar(elem) {
+        $elem = elem;
+        buildProgressBar();
+        start();
+      }
+      function buildProgressBar() {
+        $progressBar = $("<div>", { id: "progressBar" });
+        $bar = $("<div>", { id: "bar" });
+        $progressBar.append($bar).prependTo($elem);
+      }
+      function start() {
+        percentTime = 0;
+        isPause = false;
+        tick = setInterval(interval, 10);
+      };
+      function interval() {
+        if (isPause === false) {
+          percentTime += 1 / time;
+          $bar.css({ width: percentTime + "%" });
+          if (percentTime >= 100)  $elem.trigger('owl.next')
+        }
+      }
+      function pauseOnDragging() { isPause = true; }
+      function moved() {
+        clearTimeout(tick);
+        start();
+      }
+
+    });
+
+  </script>
+
+@{ Html.RenderPartial("~/Views/_Shared/Footer.cshtml"); }
+</body>
+</html>

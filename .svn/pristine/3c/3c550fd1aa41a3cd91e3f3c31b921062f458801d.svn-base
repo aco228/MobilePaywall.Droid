@@ -1,0 +1,54 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Data.Direct.MobilePaywall;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web.Models
+{
+    // SUMMARY:
+    public class TemplateFooterConfigurationModel : PaywallViewModelBase
+    {
+        private Service _service = null;
+        private List<TranslationGroup> _translationGroups = null;
+        private List<Route> _routes = null;
+        private List<MobileOperator> _mobileOperators = null;
+        private FooterLink _countryFooterLinks = null;
+        private FooterLink _providerFooterLink = null;
+        private FooterLink _serviceFooterLinks = null;
+
+        public List<TranslationGroup> TranslationGroups { get { return this._translationGroups; } }
+        public List<Route> Routes { get { return this._routes; } }
+        public List<MobileOperator> MobileOperators { get { return this._mobileOperators; } }
+        public string Country { get { return this._service.FallbackCountry != null ? this._service.FallbackCountry.GlobalName : ""; } }
+        public FooterLink CountryFooterlink { get { return this._countryFooterLinks; } }
+        public FooterLink ProviderFooterLink { get { return this._providerFooterLink; } }
+        public FooterLink ServiceFooterLink { get { return this._serviceFooterLinks; } }
+
+        public TemplateFooterConfigurationModel(PaywallHttpContext context)
+            : base(context)
+        {
+            this._service = context.Service.ServiceData;
+
+            IFooterLinkManager fManager = FooterLink.CreateManager();
+            this._serviceFooterLinks = fManager.Load(this._service);
+            this._providerFooterLink = fManager.Load(this._service.FallbackCountry, context.Service.PaymentProvider);
+            this._countryFooterLinks = fManager.Load(this._service.FallbackCountry);
+
+            this._translationGroups = TranslationGroup.CreateManager().Load();
+            List<ApplicationRouteSetMap> routeSets = ApplicationRouteSetMap.CreateManager().Load(context.Service.ServiceData.Application);
+            IRouteManager rManager = Route.CreateManager();
+            this._routes = new List<Route>();
+            foreach (ApplicationRouteSetMap arsm in routeSets)
+                this._routes.AddRange(rManager.Load(arsm.RouteSet));
+            this._routes = (from r in this._routes where (!r.IsEnabled.HasValue || r.IsEnabled.Value) && (!r.IsIgnore.HasValue || !r.IsIgnore.Value) && (r.IsSessionRoute) select r).ToList();
+
+            this._mobileOperators = MobileOperator.Filter(this._service.FallbackCountry != null ? MobileOperator.CreateManager().Load(this._service.FallbackCountry) : null);
+            this._service = context.Service.ServiceData;
+        }
+    }
+  
+}

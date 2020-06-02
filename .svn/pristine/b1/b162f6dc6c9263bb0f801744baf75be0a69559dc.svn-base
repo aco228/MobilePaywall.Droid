@@ -1,0 +1,236 @@
+﻿using Cashflow.Client;
+using Cashflow.Message;
+using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.MobilePaywallDirect;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers._Specific.TH.Allterco
+{
+  public class THAltercoController : Controller
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (THAltercoController._log == null)
+          THAltercoController._log = LogManager.GetLogger(typeof(THAltercoController));
+        return THAltercoController._log;
+      }
+    }
+    #endregion
+
+
+    // GET: THAlterco
+    public ActionResult Index()
+    {
+      string msisdn = Request["msisdn"] != null ? this.FixNumber(Request["msisdn"].ToString()) : "";
+      string ip = Request["ip"] != null ? this.FixNumber(Request["ip"].ToString()) : "";
+      string returnUrl = Request["returnUrl"] != null ? Request["returnUrl"].ToString() : "http://" + PaywallHttpContext.Current.Service.ServiceData.Name + "/";
+      char continueChar = returnUrl.Contains('?') ? '&' : '?';
+      this.UpdateIpAddress(ip);
+
+      if (string.IsNullOrEmpty(msisdn))
+      {
+        Log.Error("THAlterco::Input is empty");
+        returnUrl +=
+          continueChar + "sessionID=" + PaywallHttpContext.Current.Session.SessionData.Guid +
+          "&sessionIntID=" + PaywallHttpContext.Current.Session.SessionData.ID +
+          "&lang=" + PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode +
+          "&err=true";
+        return Redirect(returnUrl);
+      }
+      
+      PaywallHttpContext.Current.Session.SessionData.Referrer = Request.UrlReferrer != null ? Request.UrlReferrer.ToString() : null;
+      PaywallHttpContext.Current.Session.SessionData.Update();
+
+      Customer customer = Customer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData, msisdn, CustomerIdentifier.Msisdn).FirstOrDefault();
+      if (customer == null)
+      {
+        customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Pending, PaywallHttpContext.Current.Service.ServiceData,
+          PaywallHttpContext.Current.Service.ServiceData.FallbackCountry, null, null, msisdn, "", "", new byte[] { 0 }, DateTime.Now, DateTime.Now);
+        customer.Insert();
+        customer.SetUsernameAndPassword();
+      }
+      else if (customer.CustomerStatus == CustomerStatus.Active)
+        return this.Redirect("/");
+
+      PaywallHttpContext.Current.Session.SessionData.Customer = customer;
+      PaywallHttpContext.Current.Session.SessionData.Update();
+      (new OLCacher()).Synchronize(PaywallHttpContext.Current.Session.SessionData);
+
+      returnUrl +=
+        continueChar + "sessionID=" + PaywallHttpContext.Current.Session.SessionData.Guid +
+        "&sessionIntID=" + PaywallHttpContext.Current.Session.SessionData.ID +
+        "&lang=" + PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode +
+        "&customerID=" + customer.ID +
+        "&err=false";
+
+      return Redirect(returnUrl);
+    }
+
+    public ActionResult Setup()
+    {
+      string msisdn = Request["msisdn"] != null ? this.FixNumber(Request["msisdn"].ToString()) : string.Empty;
+      string userSessionID = Request["userSessionID"] != null ? Request["userSessionID"].ToString() : string.Empty;
+      string ip = Request["ip"] != null ? Request["ip"].ToString() : "";
+      this.SyncSession(userSessionID);
+      this.UpdateIpAddress(ip);
+      
+      //if (string.IsNullOrEmpty(msisdn))
+      //{
+      //  Log.Error("THAlterco::Input is empty");
+      //  return this.Json(new { status = false, message = "Msisdn is empty", redirectUrl = "" });
+      //}
+
+      if (msisdn.Equals("6633228"))
+        return this.Json(new { status = true, message = "", redirectUrl = "" });
+
+      PaywallDirect db = PaywallDirect.Instance;
+      Customer customer = Customer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData, msisdn, CustomerIdentifier.Msisdn).FirstOrDefault();
+      if (customer != null && customer.CustomerStatus == CustomerStatus.Active)
+      {
+        int? hasPaymentContentAccessPolicy = db.LoadInt(string.Format(@"SELECT COUNT(*) FROM MobilePaywall.core.PaymentContentAccessPolicyMap AS map
+          LEFT OUTER JOIN MobilePaywall.core.Payment AS p ON map.PaymentID=p.PaymentID
+          LEFT OUTER JOIN MobilePaywall.core.ServiceOffer AS so ON p.ServiceOfferID=so.ServiceOfferID
+          WHERE CustomerID={0}  AND so.ServiceID={1} AND map.IsValid=1 AND map.ValidTo>=GETDATE()", customer.ID, PaywallHttpContext.Current.Service.ServiceData.ID));
+
+        PaywallHttpContext.Current.Session.SessionData.Copy(customer.OriginalUserSession);
+        if (hasPaymentContentAccessPolicy.HasValue && hasPaymentContentAccessPolicy.Value > 0)
+          return this.Json(new { status = false, message = "You have valid subscription, please log in" });
+      }
+
+      if (customer == null)
+      {
+        Log.Debug("THAlterco::Customer doesn't exists and we create new one");
+        customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Pending, PaywallHttpContext.Current.Service.ServiceData, PaywallHttpContext.Current.Service.ServiceData.FallbackCountry,
+          null, null, msisdn, string.Empty, Guid.NewGuid().ToString(), null, DateTime.Now, DateTime.Now);
+        customer.Insert();
+        customer.SetUsernameAndPassword();
+        PaywallHttpContext.Current.Session.SessionData.Customer = customer;
+        PaywallHttpContext.Current.Session.SessionData.Update();
+      }
+
+      LookupSession ls = LookupSession.CreateManager().Load(PaywallHttpContext.Current.Session.SessionData);
+      UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), PaywallHttpContext.Current.Session.SessionData, null, "-nil-", DateTime.Now, DateTime.Now); uhr.Insert();
+      if (ls == null)
+      {
+        Log.Debug("THAlterco::LookupSession doesn't exists and we create new one");
+        ls = new LookupSession(-1, Guid.NewGuid(), LookupSessionStatus.Complete, PaywallHttpContext.Current.Session.SessionData, uhr, null, "-nil-", DateTime.Now, DateTime.Now); ls.Insert();
+        LookupSessionResult lsr = new LookupSessionResult(-1, ls, true, true, null, null, msisdn, string.Empty, DateTime.Now, DateTime.Now); lsr.Insert();
+      }
+
+      ServiceOffer so = (from s in ServiceOffer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData) where s.IsDefault && s.IsActive select s).FirstOrDefault();
+      PaymentRequest paymentRequest = new PaymentRequest(-1, Guid.NewGuid(), PaymentType.Subscription, PaymentRequestStatus.Initialized, ls, customer, PaywallHttpContext.Current.Session.SessionData, so, so.BusinessModelEntry,
+        null, uhr, string.Empty, DateTime.Now, DateTime.Now);
+      paymentRequest.Insert();
+
+      MobileSubscriberArguments msargument = new MobileSubscriberArguments();
+      msargument.Msisdn = msisdn;
+      
+      SubscriptionClient subscriptionClient = CashflowClientPaywallManager.GetSubscriptionClient(so.Service);
+      subscriptionClient.AttachLogWriter(new CashflowLog(so.Service)); // this line connects cashlow request/response to our log4net
+      InitiateSubscriptionResponse initiateResponse = CashflowClientPaywallManager.GetInitiateSubscriptionResponse(PaywallHttpContext.Current.Session, string.Empty, msargument);
+
+      switch (initiateResponse.Status.Code)
+      {
+        case MessageStatusCode.Redirect:
+        case MessageStatusCode.Success:
+        Log.Debug("THAlterco::MessageStatusCode is Redirect or Success");
+        paymentRequest.ExternalPaymentRequestGuid = initiateResponse.SubscriptionRequestID;
+          paymentRequest.PaymentRedirectUrl = initiateResponse.RedirectUrl;
+          paymentRequest.Update();
+          customer.ExternalCustomerGuid = initiateResponse.CustomerID;
+          
+          //SUMMARY:: This is for MobileOperator AIS and 3G
+          if (!string.IsNullOrEmpty(initiateResponse.RedirectUrl))
+          {
+            Log.Debug("THAlterco::RedirectUrl exists and we load AIS MobileOperator");
+            MobileOperator mo = MobileOperator.CreateManager().Load(407);
+            customer.MobileOperator = mo;
+            customer.Update();
+            PaywallHttpContext.Current.Session.SessionData.MobileOperator = mo;
+            PaywallHttpContext.Current.Session.SessionData.Update();
+            return this.Json(new { status = true, message = "", redirectUrl = initiateResponse.RedirectUrl });
+          }
+
+          Payment payment = new Payment(-1, Guid.NewGuid(), PaymentType.Subscription, null, PaymentStatus.Pending, paymentRequest, customer, so, so.BusinessModelEntry, DateTime.Now, DateTime.Now);
+          payment.Insert();
+
+          ContentAccessPolicy policy = ContentAccessPolicy.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData);
+          PaymentContentAccessPolicyMap map = new PaymentContentAccessPolicyMap(-1, payment, null, policy, null, true, true, DateTime.Now, DateTime.Now.AddMinutes(10), DateTime.Now, DateTime.Now);
+          map.Insert();
+          
+        return this.Json(new { status = true, message = "", redirectUrl = "" });
+        case MessageStatusCode.Pending:
+          Log.Debug("THAlterco::MessageStatusCode is pending");
+          paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Complete;
+          paymentRequest.Update();
+
+          Payment paymentPending = new Payment(-1, Guid.NewGuid(), PaymentType.Subscription, null, PaymentStatus.Pending, paymentRequest, customer, so, so.BusinessModelEntry, DateTime.Now, DateTime.Now);
+          paymentPending.Insert();
+
+          return this.Json(new { status = true, message = "", redirectUrl = "" });
+        default:
+          Log.Error("THAlterco:: Error occured communicating with cashflow");
+          return this.Json(new { status = false, message = "Internal error", redirectUrl = ""});
+      }
+    }
+
+    private void UpdateIpAddress(string ip)
+    {
+      if (string.IsNullOrEmpty(ip))
+        return;
+
+      PaywallHttpContext.Current.Session.SessionData.IPAddress = ip;
+
+      IPCountryMap countryMap = IPCountryMap.CreateManager().Load(ip);
+      if (countryMap != null && countryMap.Country != null)
+        PaywallHttpContext.Current.Session.SessionData.Country = countryMap.Country;
+
+      PaywallHttpContext.Current.Session.SessionData.Update();
+    }
+
+    // SUMMARY: For request comming from landing pages
+    private void SyncSession(string sessionID)
+    {
+      if (string.IsNullOrEmpty(sessionID))
+        return;
+
+      Guid sessionGuid;
+      if (!Guid.TryParse(sessionID, out sessionGuid))
+        return;
+
+      UserSession us = UserSession.CreateManager().Load(sessionGuid);
+      if (us == null)
+        return;
+      
+      IUserSession ius = us.Instantiate(PaywallHttpContext.Current.Service);
+      PaywallHttpContext.Current.SetTemplateSession(ius);
+    }
+
+    public string FixNumber(string msisdn)
+    {
+      msisdn = Regex.Replace(msisdn, "[^0-9]", "");
+      if (string.IsNullOrEmpty(msisdn))
+        return msisdn;
+
+      if (msisdn.StartsWith("00"))
+        msisdn = msisdn.Substring(2);
+      if (msisdn[0] == '0')
+        msisdn = msisdn.Substring(1);
+      if (!msisdn.StartsWith("66"))
+        msisdn = "66" + msisdn;
+      return msisdn;
+    }
+
+  }
+}

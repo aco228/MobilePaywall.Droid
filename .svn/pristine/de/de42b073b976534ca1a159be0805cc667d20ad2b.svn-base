@@ -1,0 +1,97 @@
+﻿@model List<MsisdnBlacklistModel>
+@{
+  foreach (MsisdnBlacklistModel m in Model)
+  {
+    m.ToInsert = m.DoesExist;
+  }
+  ClientType role = PaywallHttpContext.Current.ClientSession.Client.ClientType;
+  bool isMerchant = role.Name.Equals("Merchant") || role.Name.Equals("MerchantUser");
+}
+
+@if (TempData["Name"] != null)
+{
+  <span class="alert alert-danger">
+    @TempData["Name"]
+  </span>
+}
+
+@using (Html.BeginRouteForm("BlackListSave", FormMethod.Post, new { id = "blacklist_form" }))
+{
+  <table class="table table-striped table-hover table-bordered" id="table_add_new">
+    <thead>
+      <tr>
+        <th>
+          <div class="md-checkbox insert-all">
+            <input type="checkbox" id="select_all" class="md-check coll">
+            <label for="select_all">
+              <span></span>
+              <span class="check"></span>
+              <span class="box"></span>
+            </label>
+          </div>
+          To insert
+        </th>
+        @if (!isMerchant)
+        {
+          <th>Instance</th>
+        }
+        <th>@(!isMerchant ? "Merchant" : "Company")</th>
+        <th>Service</th>
+        <th>Msisdn</th>
+        <th>Description</th>
+        <th>Active</th>
+      </tr>
+    </thead>
+    <tbody>
+      @{
+        int index = 0;
+        foreach (MsisdnBlacklistModel mb in Model)
+        {
+          <tr id="somerow">
+            <td>
+              <div class="md-checkbox">
+                @Html.CheckBoxFor(x => Model[index].ToInsert, new { id = "checkbox_insert" + index, @class = "md-check coll ch to-insert" })
+                @*<input type="checkbox" id="checkbox_insert@(index)" class="md-check coll ch" @(Model[index].DoesExist ? "" : "checked")>*@
+                <label for="checkbox_insert@(index)">
+                  <span></span>
+                  <span class="check"></span>
+                  <span class="box"></span>
+                </label>
+              </div>
+            </td>
+            @if (!isMerchant)
+            {
+              <td class="instance">
+                @Html.DropDownListFor(x => Model[index].InstanceModel.InstanceID, MerchantHelper.AllowedInstances, new { @class = "form-control select2 instance-select", id = "instance" + index, data_none_selected_text = "" })
+              </td>
+            }
+            <td class="merchant">
+              @Html.DropDownListFor(x => Model[index].MerchantModel.MerchantID, (isMerchant ? MerchantHelper.AllowedMerchants : MerchantHelper.AllowedMerchantsGroupedByInstance), "All", new { @class = "form-control select2 merchant-select", id = "merchant" + index, data_none_selected_text = "" })
+            </td>
+            <td class="service">
+              @Html.DropDownListFor(x => Model[index].ServiceModel.ServiceID, MerchantHelper.AllowedServicesGroupedByMerchant, "All", new { @class = "form-control select2 service-select", id = "service" + index, data_none_selected_text = "" })
+            </td>
+            <td class="msisdn">@Html.TextBoxFor(x => Model[index].MSISDN, new { @readonly = "readonly", @class = "form-control input-small" })</td>
+            <td class="description">@Html.TextBoxFor(x => Model[index].Description, new { @class = "form-control input-small" })</td>
+            <td class="isactive">
+              <div class="md-checkbox">
+                @Html.CheckBoxFor(x => Model[index].IsActive, new { id = "checkbox_isactive" + index, @class = "md-check" })
+                <label for="checkbox_isactive@(index)">
+                  <span></span>
+                  <span class="check"></span>
+                  <span class="box"></span>
+                </label>
+              </div>
+            </td>
+          </tr>
+          index++;
+        }
+      }
+    </tbody>
+  </table>
+  <div class="modal-footer">
+    <span class="pull-left">* the ones that do not have "To insert" checked already exist in blacklist</span>
+    <button class="btn btn-success" type="submit">Insert Msisdns</button>
+  </div>
+  
+}

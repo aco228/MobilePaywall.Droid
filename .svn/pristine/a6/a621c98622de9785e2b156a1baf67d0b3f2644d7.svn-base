@@ -1,0 +1,67 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+namespace MobilePaywall.TrckdPaywall.Data.Sql
+{
+  public partial class ActionManager : IActionManager
+  {
+    public Action Load(Guid paymentGuid, Guid transactionGroupGuid, Guid transactionGuid)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, paymentGuid, transactionGroupGuid, transactionGuid);
+    }
+
+    public Action Load(IConnectionInfo connection, Guid paymentGuid, Guid transactionGroupGuid, Guid transactionGuid)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, paymentGuid, transactionGroupGuid, transactionGuid);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, paymentGuid, transactionGroupGuid, transactionGuid);
+    }
+
+    public Action Load(ISqlConnectionInfo connection, Guid paymentGuid, Guid transactionGroupGuid, Guid transactionGuid)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[a_p].ExternalPaymentGuid = @ExternalPaymentGuid AND [a_t].ExternalTransactionGroupGuid = @ExternalTransactionGroupGuid AND [a_t].ExternalTransactionGuid = @ExternalTransactionGuid";
+      parameters.Arguments.Add("ExternalPaymentGuid", paymentGuid);
+      parameters.Arguments.Add("ExternalTransactionGroupGuid", transactionGroupGuid);
+      parameters.Arguments.Add("ExternalTransactionGroupGuid", transactionGuid);
+      return this.Load(connection, parameters);
+    }
+
+    public List<Action> Load(Guid paymentGuid)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, paymentGuid);
+    }
+
+    public List<Action> Load(IConnectionInfo connection, Guid paymentGuid)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, paymentGuid);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, paymentGuid);
+    }
+
+    public List<Action> Load(ISqlConnectionInfo connection, Guid paymentGuid)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[a_p].ExternalPaymentGuid = @ExternalPaymentGuid";
+      parameters.Arguments.Add("ExternalPaymentGuid", paymentGuid);
+      return this.LoadMany(connection, parameters);
+    }
+  }
+}
+

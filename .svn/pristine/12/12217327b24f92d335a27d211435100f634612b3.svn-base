@@ -1,0 +1,476 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ServiceVideoConversionProfileMap))] 
+  public partial class ServiceVideoConversionProfileMapManager : MobilePaywall.Data.Sql.SqlManagerBase<ServiceVideoConversionProfileMap>, IServiceVideoConversionProfileMapManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ServiceVideoConversionProfileMap LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ServiceVideoConversionProfileMapTable.GetColumnNames("[svcpm]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[svcpm_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[svcpm_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[svcpm_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[svcpm_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[svcpm_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[svcpm_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[svcpm_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[svcpm_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[svcpm_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[svcpm_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + VideoConversionProfileTable.GetColumnNames("[svcpm_vcp]") : string.Empty) + 
+					" FROM [core].[ServiceVideoConversionProfileMap] AS [svcpm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [svcpm_s] ON [svcpm].[ServiceID] = [svcpm_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [svcpm_s_a] ON [svcpm_s].[ApplicationID] = [svcpm_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [svcpm_s_p] ON [svcpm_s].[ProductID] = [svcpm_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [svcpm_s_m] ON [svcpm_s].[MerchantID] = [svcpm_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [svcpm_s_st] ON [svcpm_s].[ServiceTypeID] = [svcpm_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [svcpm_s_ust] ON [svcpm_s].[UserSessionTypeID] = [svcpm_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [svcpm_s_c] ON [svcpm_s].[FallbackCountryID] = [svcpm_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [svcpm_s_sc] ON [svcpm_s].[ServiceConfigurationID] = [svcpm_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [svcpm_s_bm] ON [svcpm_s].[BusinessModelID] = [svcpm_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [svcpm_s_t] ON [svcpm_s].[TemplateID] = [svcpm_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[VideoConversionProfile] AS [svcpm_vcp] ON [svcpm].[VideoConversionProfileID] = [svcpm_vcp].[VideoConversionProfileID] ";
+				sqlCmdText += "WHERE [svcpm].[ServiceVideoConversionProfileMapID] = @ServiceVideoConversionProfileMapID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ServiceVideoConversionProfileMapID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svcpm", "loadinternal", "notfound"), "ServiceVideoConversionProfileMap could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ServiceVideoConversionProfileMapTable svcpmTable = new ServiceVideoConversionProfileMapTable(query);
+				ServiceTable svcpm_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable svcpm_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable svcpm_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable svcpm_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable svcpm_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable svcpm_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable svcpm_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				ServiceConfigurationTable svcpm_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable svcpm_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable svcpm_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				VideoConversionProfileTable svcpm_vcpTable = (this.Depth > 0) ? new VideoConversionProfileTable(query) : null;
+
+        
+				Application svcpm_s_aObject = (this.Depth > 1) ? svcpm_s_aTable.CreateInstance() : null;
+				Product svcpm_s_pObject = (this.Depth > 1) ? svcpm_s_pTable.CreateInstance() : null;
+				Merchant svcpm_s_mObject = (this.Depth > 1) ? svcpm_s_mTable.CreateInstance() : null;
+				ServiceType svcpm_s_stObject = (this.Depth > 1) ? svcpm_s_stTable.CreateInstance() : null;
+				UserSessionType svcpm_s_ustObject = (this.Depth > 1) ? svcpm_s_ustTable.CreateInstance() : null;
+				Country svcpm_s_cObject = (this.Depth > 1) ? svcpm_s_cTable.CreateInstance() : null;
+				ServiceConfiguration svcpm_s_scObject = (this.Depth > 1) ? svcpm_s_scTable.CreateInstance() : null;
+				BusinessModel svcpm_s_bmObject = (this.Depth > 1) ? svcpm_s_bmTable.CreateInstance() : null;
+				Template svcpm_s_tObject = (this.Depth > 1) ? svcpm_s_tTable.CreateInstance() : null;
+				Service svcpm_sObject = (this.Depth > 0) ? svcpm_sTable.CreateInstance(svcpm_s_aObject, svcpm_s_pObject, svcpm_s_mObject, svcpm_s_stObject, svcpm_s_ustObject, svcpm_s_cObject, svcpm_s_scObject, svcpm_s_bmObject, svcpm_s_tObject) : null;
+				VideoConversionProfile svcpm_vcpObject = (this.Depth > 0) ? svcpm_vcpTable.CreateInstance() : null;
+				ServiceVideoConversionProfileMap svcpmObject = svcpmTable.CreateInstance(svcpm_sObject, svcpm_vcpObject);
+				sqlReader.Close();
+
+				return svcpmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svcpm", "loadinternal", "exception"), "ServiceVideoConversionProfileMap could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ServiceVideoConversionProfileMap", "Exception while loading ServiceVideoConversionProfileMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ServiceVideoConversionProfileMap Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ServiceVideoConversionProfileMapTable.GetColumnNames("[svcpm]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[svcpm_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[svcpm_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[svcpm_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[svcpm_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[svcpm_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[svcpm_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[svcpm_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[svcpm_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[svcpm_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[svcpm_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + VideoConversionProfileTable.GetColumnNames("[svcpm_vcp]") : string.Empty) +  
+					" FROM [core].[ServiceVideoConversionProfileMap] AS [svcpm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [svcpm_s] ON [svcpm].[ServiceID] = [svcpm_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [svcpm_s_a] ON [svcpm_s].[ApplicationID] = [svcpm_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [svcpm_s_p] ON [svcpm_s].[ProductID] = [svcpm_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [svcpm_s_m] ON [svcpm_s].[MerchantID] = [svcpm_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [svcpm_s_st] ON [svcpm_s].[ServiceTypeID] = [svcpm_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [svcpm_s_ust] ON [svcpm_s].[UserSessionTypeID] = [svcpm_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [svcpm_s_c] ON [svcpm_s].[FallbackCountryID] = [svcpm_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [svcpm_s_sc] ON [svcpm_s].[ServiceConfigurationID] = [svcpm_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [svcpm_s_bm] ON [svcpm_s].[BusinessModelID] = [svcpm_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [svcpm_s_t] ON [svcpm_s].[TemplateID] = [svcpm_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[VideoConversionProfile] AS [svcpm_vcp] ON [svcpm].[VideoConversionProfileID] = [svcpm_vcp].[VideoConversionProfileID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svcpm", "customload", "notfound"), "ServiceVideoConversionProfileMap could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ServiceVideoConversionProfileMapTable svcpmTable = new ServiceVideoConversionProfileMapTable(query);
+				ServiceTable svcpm_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable svcpm_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable svcpm_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable svcpm_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable svcpm_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable svcpm_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable svcpm_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				ServiceConfigurationTable svcpm_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable svcpm_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable svcpm_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				VideoConversionProfileTable svcpm_vcpTable = (this.Depth > 0) ? new VideoConversionProfileTable(query) : null;
+
+        
+				Application svcpm_s_aObject = (this.Depth > 1) ? svcpm_s_aTable.CreateInstance() : null;
+				Product svcpm_s_pObject = (this.Depth > 1) ? svcpm_s_pTable.CreateInstance() : null;
+				Merchant svcpm_s_mObject = (this.Depth > 1) ? svcpm_s_mTable.CreateInstance() : null;
+				ServiceType svcpm_s_stObject = (this.Depth > 1) ? svcpm_s_stTable.CreateInstance() : null;
+				UserSessionType svcpm_s_ustObject = (this.Depth > 1) ? svcpm_s_ustTable.CreateInstance() : null;
+				Country svcpm_s_cObject = (this.Depth > 1) ? svcpm_s_cTable.CreateInstance() : null;
+				ServiceConfiguration svcpm_s_scObject = (this.Depth > 1) ? svcpm_s_scTable.CreateInstance() : null;
+				BusinessModel svcpm_s_bmObject = (this.Depth > 1) ? svcpm_s_bmTable.CreateInstance() : null;
+				Template svcpm_s_tObject = (this.Depth > 1) ? svcpm_s_tTable.CreateInstance() : null;
+				Service svcpm_sObject = (this.Depth > 0) ? svcpm_sTable.CreateInstance(svcpm_s_aObject, svcpm_s_pObject, svcpm_s_mObject, svcpm_s_stObject, svcpm_s_ustObject, svcpm_s_cObject, svcpm_s_scObject, svcpm_s_bmObject, svcpm_s_tObject) : null;
+				VideoConversionProfile svcpm_vcpObject = (this.Depth > 0) ? svcpm_vcpTable.CreateInstance() : null;
+				ServiceVideoConversionProfileMap svcpmObject = svcpmTable.CreateInstance(svcpm_sObject, svcpm_vcpObject);
+				sqlReader.Close();
+
+				return svcpmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svcpm", "customload", "exception"), "ServiceVideoConversionProfileMap could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ServiceVideoConversionProfileMap", "Exception while loading (custom/single) ServiceVideoConversionProfileMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ServiceVideoConversionProfileMap> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ServiceVideoConversionProfileMapTable.GetColumnNames("[svcpm]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[svcpm_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[svcpm_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[svcpm_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[svcpm_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[svcpm_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[svcpm_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[svcpm_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[svcpm_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[svcpm_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[svcpm_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + VideoConversionProfileTable.GetColumnNames("[svcpm_vcp]") : string.Empty) +  
+					" FROM [core].[ServiceVideoConversionProfileMap] AS [svcpm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [svcpm_s] ON [svcpm].[ServiceID] = [svcpm_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [svcpm_s_a] ON [svcpm_s].[ApplicationID] = [svcpm_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [svcpm_s_p] ON [svcpm_s].[ProductID] = [svcpm_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [svcpm_s_m] ON [svcpm_s].[MerchantID] = [svcpm_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [svcpm_s_st] ON [svcpm_s].[ServiceTypeID] = [svcpm_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [svcpm_s_ust] ON [svcpm_s].[UserSessionTypeID] = [svcpm_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [svcpm_s_c] ON [svcpm_s].[FallbackCountryID] = [svcpm_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [svcpm_s_sc] ON [svcpm_s].[ServiceConfigurationID] = [svcpm_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [svcpm_s_bm] ON [svcpm_s].[BusinessModelID] = [svcpm_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [svcpm_s_t] ON [svcpm_s].[TemplateID] = [svcpm_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[VideoConversionProfile] AS [svcpm_vcp] ON [svcpm].[VideoConversionProfileID] = [svcpm_vcp].[VideoConversionProfileID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svcpm", "customloadmany", "notfound"), "ServiceVideoConversionProfileMap list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ServiceVideoConversionProfileMap>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ServiceVideoConversionProfileMapTable svcpmTable = new ServiceVideoConversionProfileMapTable(query);
+				ServiceTable svcpm_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable svcpm_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable svcpm_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable svcpm_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable svcpm_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable svcpm_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable svcpm_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				ServiceConfigurationTable svcpm_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable svcpm_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable svcpm_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				VideoConversionProfileTable svcpm_vcpTable = (this.Depth > 0) ? new VideoConversionProfileTable(query) : null;
+
+        List<ServiceVideoConversionProfileMap> result = new List<ServiceVideoConversionProfileMap>();
+        do
+        {
+          
+					Application svcpm_s_aObject = (this.Depth > 1) ? svcpm_s_aTable.CreateInstance() : null;
+					Product svcpm_s_pObject = (this.Depth > 1) ? svcpm_s_pTable.CreateInstance() : null;
+					Merchant svcpm_s_mObject = (this.Depth > 1) ? svcpm_s_mTable.CreateInstance() : null;
+					ServiceType svcpm_s_stObject = (this.Depth > 1) ? svcpm_s_stTable.CreateInstance() : null;
+					UserSessionType svcpm_s_ustObject = (this.Depth > 1) ? svcpm_s_ustTable.CreateInstance() : null;
+					Country svcpm_s_cObject = (this.Depth > 1) ? svcpm_s_cTable.CreateInstance() : null;
+					ServiceConfiguration svcpm_s_scObject = (this.Depth > 1) ? svcpm_s_scTable.CreateInstance() : null;
+					BusinessModel svcpm_s_bmObject = (this.Depth > 1) ? svcpm_s_bmTable.CreateInstance() : null;
+					Template svcpm_s_tObject = (this.Depth > 1) ? svcpm_s_tTable.CreateInstance() : null;
+					Service svcpm_sObject = (this.Depth > 0) ? svcpm_sTable.CreateInstance(svcpm_s_aObject, svcpm_s_pObject, svcpm_s_mObject, svcpm_s_stObject, svcpm_s_ustObject, svcpm_s_cObject, svcpm_s_scObject, svcpm_s_bmObject, svcpm_s_tObject) : null;
+					VideoConversionProfile svcpm_vcpObject = (this.Depth > 0) ? svcpm_vcpTable.CreateInstance() : null;
+					ServiceVideoConversionProfileMap svcpmObject = (this.Depth > -1) ? svcpmTable.CreateInstance(svcpm_sObject, svcpm_vcpObject) : null;
+					result.Add(svcpmObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svcpm", "customloadmany", "exception"), "ServiceVideoConversionProfileMap list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ServiceVideoConversionProfileMap", "Exception while loading (custom/many) ServiceVideoConversionProfileMap object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ServiceVideoConversionProfileMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ServiceVideoConversionProfileMap] ([ServiceID],[VideoConversionProfileID],[IsEnabled]) VALUES(@ServiceID,@VideoConversionProfileID,@IsEnabled); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@VideoConversionProfileID", data.VideoConversionProfile.ID);
+				sqlCmd.Parameters.AddWithValue("@IsEnabled", data.IsEnabled).SqlDbType = SqlDbType.Bit;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svcpm", "insert", "noprimarykey"), "ServiceVideoConversionProfileMap could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ServiceVideoConversionProfileMap", "Exception while inserting ServiceVideoConversionProfileMap object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svcpm", "insert", "exception"), "ServiceVideoConversionProfileMap could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ServiceVideoConversionProfileMap", "Exception while inserting ServiceVideoConversionProfileMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ServiceVideoConversionProfileMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ServiceVideoConversionProfileMap] SET " +
+												"[ServiceID] = @ServiceID, " + 
+												"[VideoConversionProfileID] = @VideoConversionProfileID, " + 
+												"[IsEnabled] = @IsEnabled, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ServiceVideoConversionProfileMapID] = @ServiceVideoConversionProfileMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@VideoConversionProfileID", data.VideoConversionProfile.ID);
+				sqlCmd.Parameters.AddWithValue("@IsEnabled", data.IsEnabled).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ServiceVideoConversionProfileMapID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svcpm", "update", "norecord"), "ServiceVideoConversionProfileMap could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ServiceVideoConversionProfileMap", "Exception while updating ServiceVideoConversionProfileMap object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svcpm", "update", "morerecords"), "ServiceVideoConversionProfileMap was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ServiceVideoConversionProfileMap", "Exception while updating ServiceVideoConversionProfileMap object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svcpm", "update", "exception"), "ServiceVideoConversionProfileMap could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ServiceVideoConversionProfileMap", "Exception while updating ServiceVideoConversionProfileMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ServiceVideoConversionProfileMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ServiceVideoConversionProfileMap] WHERE ServiceVideoConversionProfileMapID = @ServiceVideoConversionProfileMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ServiceVideoConversionProfileMapID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svcpm", "delete", "norecord"), "ServiceVideoConversionProfileMap could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ServiceVideoConversionProfileMap", "Exception while deleting ServiceVideoConversionProfileMap object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("svcpm", "delete", "exception"), "ServiceVideoConversionProfileMap could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ServiceVideoConversionProfileMap", "Exception while deleting ServiceVideoConversionProfileMap object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

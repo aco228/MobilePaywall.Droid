@@ -1,0 +1,389 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(IPRange))] 
+  public partial class IPRangeManager : MobilePaywall.Data.Sql.SqlManagerBase<IPRange>, IIPRangeManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override IPRange LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							IPRangeTable.GetColumnNames("[ipr]") + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[ipr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[ipr_c_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CurrencyTable.GetColumnNames("[ipr_c_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[ipr_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[ipr_mo_c]") : string.Empty) + 
+					" FROM [core].[IPRange] AS [ipr] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [ipr_c] ON [ipr].[CountryID] = [ipr_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [ipr_c_l] ON [ipr_c].[LanguageID] = [ipr_c_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Currency] AS [ipr_c_c] ON [ipr_c].[CurrencyID] = [ipr_c_c].[CurrencyID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[MobileOperator] AS [ipr_mo] ON [ipr].[MobileOperatorID] = [ipr_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [ipr_mo_c] ON [ipr_mo].[CountryID] = [ipr_mo_c].[CountryID] ";
+				sqlCmdText += "WHERE [ipr].[IPRangeID] = @IPRangeID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@IPRangeID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ipr", "loadinternal", "notfound"), "IPRange could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				IPRangeTable iprTable = new IPRangeTable(query);
+				CountryTable ipr_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable ipr_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				CurrencyTable ipr_c_cTable = (this.Depth > 1) ? new CurrencyTable(query) : null;
+				MobileOperatorTable ipr_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable ipr_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+
+        
+				Language ipr_c_lObject = (this.Depth > 1) ? ipr_c_lTable.CreateInstance() : null;
+				Currency ipr_c_cObject = (this.Depth > 1) ? ipr_c_cTable.CreateInstance() : null;
+				Country ipr_cObject = (this.Depth > 0) ? ipr_cTable.CreateInstance(ipr_c_lObject, ipr_c_cObject) : null;
+				Country ipr_mo_cObject = (this.Depth > 1) ? ipr_mo_cTable.CreateInstance() : null;
+				MobileOperator ipr_moObject = (this.Depth > 0) ? ipr_moTable.CreateInstance(ipr_mo_cObject) : null;
+				IPRange iprObject = iprTable.CreateInstance(ipr_cObject, ipr_moObject);
+				sqlReader.Close();
+
+				return iprObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ipr", "loadinternal", "exception"), "IPRange could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "IPRange", "Exception while loading IPRange object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public IPRange Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							IPRangeTable.GetColumnNames("[ipr]") + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[ipr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[ipr_c_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CurrencyTable.GetColumnNames("[ipr_c_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[ipr_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[ipr_mo_c]") : string.Empty) +  
+					" FROM [core].[IPRange] AS [ipr] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [ipr_c] ON [ipr].[CountryID] = [ipr_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [ipr_c_l] ON [ipr_c].[LanguageID] = [ipr_c_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Currency] AS [ipr_c_c] ON [ipr_c].[CurrencyID] = [ipr_c_c].[CurrencyID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[MobileOperator] AS [ipr_mo] ON [ipr].[MobileOperatorID] = [ipr_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [ipr_mo_c] ON [ipr_mo].[CountryID] = [ipr_mo_c].[CountryID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ipr", "customload", "notfound"), "IPRange could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				IPRangeTable iprTable = new IPRangeTable(query);
+				CountryTable ipr_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable ipr_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				CurrencyTable ipr_c_cTable = (this.Depth > 1) ? new CurrencyTable(query) : null;
+				MobileOperatorTable ipr_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable ipr_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+
+        
+				Language ipr_c_lObject = (this.Depth > 1) ? ipr_c_lTable.CreateInstance() : null;
+				Currency ipr_c_cObject = (this.Depth > 1) ? ipr_c_cTable.CreateInstance() : null;
+				Country ipr_cObject = (this.Depth > 0) ? ipr_cTable.CreateInstance(ipr_c_lObject, ipr_c_cObject) : null;
+				Country ipr_mo_cObject = (this.Depth > 1) ? ipr_mo_cTable.CreateInstance() : null;
+				MobileOperator ipr_moObject = (this.Depth > 0) ? ipr_moTable.CreateInstance(ipr_mo_cObject) : null;
+				IPRange iprObject = iprTable.CreateInstance(ipr_cObject, ipr_moObject);
+				sqlReader.Close();
+
+				return iprObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ipr", "customload", "exception"), "IPRange could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "IPRange", "Exception while loading (custom/single) IPRange object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<IPRange> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							IPRangeTable.GetColumnNames("[ipr]") + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[ipr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[ipr_c_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CurrencyTable.GetColumnNames("[ipr_c_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[ipr_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[ipr_mo_c]") : string.Empty) +  
+					" FROM [core].[IPRange] AS [ipr] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [ipr_c] ON [ipr].[CountryID] = [ipr_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [ipr_c_l] ON [ipr_c].[LanguageID] = [ipr_c_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Currency] AS [ipr_c_c] ON [ipr_c].[CurrencyID] = [ipr_c_c].[CurrencyID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[MobileOperator] AS [ipr_mo] ON [ipr].[MobileOperatorID] = [ipr_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [ipr_mo_c] ON [ipr_mo].[CountryID] = [ipr_mo_c].[CountryID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ipr", "customloadmany", "notfound"), "IPRange list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<IPRange>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				IPRangeTable iprTable = new IPRangeTable(query);
+				CountryTable ipr_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable ipr_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				CurrencyTable ipr_c_cTable = (this.Depth > 1) ? new CurrencyTable(query) : null;
+				MobileOperatorTable ipr_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable ipr_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+
+        List<IPRange> result = new List<IPRange>();
+        do
+        {
+          
+					Language ipr_c_lObject = (this.Depth > 1) ? ipr_c_lTable.CreateInstance() : null;
+					Currency ipr_c_cObject = (this.Depth > 1) ? ipr_c_cTable.CreateInstance() : null;
+					Country ipr_cObject = (this.Depth > 0) ? ipr_cTable.CreateInstance(ipr_c_lObject, ipr_c_cObject) : null;
+					Country ipr_mo_cObject = (this.Depth > 1) ? ipr_mo_cTable.CreateInstance() : null;
+					MobileOperator ipr_moObject = (this.Depth > 0) ? ipr_moTable.CreateInstance(ipr_mo_cObject) : null;
+					IPRange iprObject = (this.Depth > -1) ? iprTable.CreateInstance(ipr_cObject, ipr_moObject) : null;
+					result.Add(iprObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ipr", "customloadmany", "exception"), "IPRange list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "IPRange", "Exception while loading (custom/many) IPRange object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, IPRange data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[IPRange] ([CountryID],[MobileOperatorID],[Name],[Value]) VALUES(@CountryID,@MobileOperatorID,@Name,@Value); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@CountryID", data.Country.ID);
+				sqlCmd.Parameters.AddWithValue("@MobileOperatorID", data.MobileOperator.ID);
+				sqlCmd.Parameters.AddWithValue("@Name", data.Name).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Value", data.Value).SqlDbType = SqlDbType.NVarChar;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ipr", "insert", "noprimarykey"), "IPRange could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "IPRange", "Exception while inserting IPRange object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ipr", "insert", "exception"), "IPRange could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "IPRange", "Exception while inserting IPRange object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, IPRange data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[IPRange] SET " +
+												"[CountryID] = @CountryID, " + 
+												"[MobileOperatorID] = @MobileOperatorID, " + 
+												"[Name] = @Name, " + 
+												"[Value] = @Value, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [IPRangeID] = @IPRangeID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@CountryID", data.Country.ID);
+				sqlCmd.Parameters.AddWithValue("@MobileOperatorID", data.MobileOperator.ID);
+				sqlCmd.Parameters.AddWithValue("@Name", data.Name).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Value", data.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@IPRangeID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ipr", "update", "norecord"), "IPRange could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "IPRange", "Exception while updating IPRange object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ipr", "update", "morerecords"), "IPRange was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "IPRange", "Exception while updating IPRange object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ipr", "update", "exception"), "IPRange could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "IPRange", "Exception while updating IPRange object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, IPRange data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[IPRange] WHERE IPRangeID = @IPRangeID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@IPRangeID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ipr", "delete", "norecord"), "IPRange could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "IPRange", "Exception while deleting IPRange object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ipr", "delete", "exception"), "IPRange could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "IPRange", "Exception while deleting IPRange object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

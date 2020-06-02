@@ -1,0 +1,269 @@
+﻿using Direct.Core;
+using log4net;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Data.SqlClient;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.MobilePaywallDirect
+{
+  public abstract class bck_DirectDatabaseBase
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (bck_DirectDatabaseBase._log == null)
+          bck_DirectDatabaseBase._log = LogManager.GetLogger(typeof(bck_DirectDatabaseBase));
+        return bck_DirectDatabaseBase._log;
+      }
+    }
+    #endregion
+
+    protected SqlConnection _connection = null;
+    protected SqlCommand _command = null;
+    protected SqlDataReader _reader = null;
+    protected SqlTransaction _transaction = null;
+
+    private string _databaseName = string.Empty;
+    private string _databaseSchema = string.Empty;
+    private int _timeout = -1;
+
+    private bool _error = false;
+    private bool _connected = false;
+    private string _connectionString = string.Empty;
+    private string _lastErrorMessage = string.Empty;
+
+    public bool IsConnected { get { return this._connected; } }
+
+    public bck_DirectDatabaseBase(string databaseName, string schemaName)
+    {
+      this._databaseName = databaseName;
+      this._databaseSchema = schemaName;
+    }
+
+    // SUMMARY: Setup connection string from child class
+    protected void SetConnectionString(string connectionString)
+    {
+      this._connectionString = connectionString;
+    }
+
+    // SUMMARY: Open Database connection
+    protected bool Connect()
+    {
+      this._lastErrorMessage = string.Empty;
+      this._error = false;
+
+      if (string.IsNullOrEmpty(this._connectionString))
+      {
+        this._error = true;
+        this._connectionString = "Connection string is empty";
+        return this._error;
+      }
+
+      try
+      {
+        this._connection = new SqlConnection(this._connectionString);
+        this._connection.Open();
+        this._error = false;
+        this._connected = true;
+        return this._error;
+      }
+      catch (Exception e)
+      {
+        Log.Error("DIRECT_DATABASE_FATAL: on Connect", e);
+        this._error = true;
+        this._lastErrorMessage = e.Message;
+        return this._error;
+      }
+    }
+
+    // SUMMARY: Close Database connection
+    protected bool Disconnect()
+    {
+      this._lastErrorMessage = string.Empty;
+      this._error = false;
+
+      if (!this._connected)
+      {
+        this._error = true;
+        this._lastErrorMessage = "Connection is not open";
+        return this._error;
+      }
+
+      if (string.IsNullOrEmpty(this._connectionString))
+      {
+        this._error = true;
+        this._lastErrorMessage = "Connection string is not set up";
+        return this._error;
+      }
+
+      try
+      {
+        this._connection.Close();
+        this._connected = false;
+        return this._error;
+      }
+      catch (Exception e)
+      {
+        Log.Error("DIRECT_DATABASE_FATAL: on Disconect", e);
+        this._error = true;
+        this._lastErrorMessage = e.Message;
+        return this._error;
+      }
+    }
+
+    // SUMMARY: Shared compose command
+    protected string ComposeCommand(string command)
+    {
+      return "SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED " + command;
+      //return command;
+    }
+
+    // SUMMARY: Manualy set timeout
+    public void SetTimeout(int timeout)
+    {
+      this._timeout = timeout;
+    }
+
+    // SUMMARY: Load table from database
+    public DataTable Load(string command)
+    {
+      if (this.Connect()) return null;
+      command = this.ComposeCommand(command);
+
+      try
+      {
+        this._command = new SqlCommand(command, this._connection);
+        this._transaction = this._connection.BeginTransaction(IsolationLevel.ReadUncommitted);
+        this._command.Transaction = this._transaction;
+        if (this._timeout != -1)
+        {
+          if (this._timeout > 30) this._timeout = 30;
+          this._command.CommandTimeout = this._timeout;
+        }
+        SqlDataAdapter adapter = new SqlDataAdapter(this._command);
+        DataTable table = new DataTable();
+        adapter.Fill(table);
+
+        this._transaction.Commit();
+        adapter.Dispose();
+        this.Disconnect();
+        return table;
+      }
+      catch (Exception e)
+      {
+        Log.Error("DIRECT_DATABASE_FATAL: on Load | " + command, e);
+        this._lastErrorMessage = e.Message;
+        return null;
+      }
+    }
+
+    public bool Execute(string command)
+    {
+      List<string> commands = new List<string>();
+      commands.Add(command);
+      return this.Execute(commands);
+    }
+
+    public bool Execute(List<string> commands)
+    {
+      if (this.Connect()) return false;
+
+      try
+      {
+        this._command = new SqlCommand();
+        this._command.Connection = this._connection;
+        this._command.CommandType = CommandType.Text;
+
+        this._transaction = this._connection.BeginTransaction(IsolationLevel.ReadUncommitted);
+        this._command.Transaction = this._transaction;
+        if (this._timeout != -1)
+        {
+          if (this._timeout > 30) this._timeout = 30;
+          this._command.CommandTimeout = this._timeout;
+        }
+
+        foreach (string command in commands)
+        {
+          this._command.CommandText = command;
+          this._command.ExecuteNonQuery();
+        }
+
+        this._transaction.Commit();
+        this.Disconnect();
+        return true;
+      }
+      catch (Exception e)
+      {
+        Log.Error("DIRECT_DATABASE_FATAL: on Execute | " + commands.ElementAt(0), e);
+        this._lastErrorMessage = e.Message;
+        return false;
+      }
+    }
+
+    public string Date(DateTime date)
+    {
+      return date.ToString("yyyy-MM-dd HH:mm:ss");
+    }
+
+
+    /*
+      Customs
+    */
+
+    public int? LoadInt(string command)
+    {
+      int result = -1;
+      if (Int32.TryParse(this.LoadString(command), out result))
+        return result;
+      return null;
+    }
+
+    public bool? LoadBool(string command)
+    {
+      string result = this.LoadString(command);
+      if (string.IsNullOrEmpty(result))
+        return null;
+      return result.Equals("1");
+    }
+
+    public Guid? LoadGuid(string command)
+    {
+      Guid result;
+      if (Guid.TryParse(this.LoadString(command), out result))
+        return result;
+      return null;
+    }
+
+    public DateTime? LoadDateTime(string command)
+    {
+      DateTime result;
+      if (DateTime.TryParse(this.LoadString(command), out result))
+        return result;
+      return null;
+    }
+
+    public string LoadString(string command)
+    {
+      DataTable table = this.Load(command);
+      if (table == null || table.Rows.Count == 0)
+        return string.Empty;
+      return table.Rows[0][0].ToString();
+    }
+
+    public DirectContainer LoadContainer(string command)
+    {
+      DataTable table = this.Load(command);
+      return new DirectContainer(table);
+    }
+
+  }
+}

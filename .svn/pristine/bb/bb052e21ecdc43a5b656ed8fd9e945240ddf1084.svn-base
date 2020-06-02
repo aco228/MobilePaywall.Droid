@@ -1,0 +1,407 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(BusinessModelEntry))] 
+  public partial class BusinessModelEntryManager : MobilePaywall.Data.Sql.SqlManagerBase<BusinessModelEntry>, IBusinessModelEntryManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override BusinessModelEntry LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							BusinessModelEntryTable.GetColumnNames("[bme]") + 
+							(this.Depth > 0 ? "," + BusinessModelTable.GetColumnNames("[bme_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[bme_bm_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[bme_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[bme_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[bme_mo_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + BusinessModelTypeTable.GetColumnNames("[bme_bmt]") : string.Empty) + 
+					" FROM [core].[BusinessModelEntry] AS [bme] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [bme_bm] ON [bme].[BusinessModelID] = [bme_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [bme_bm_i] ON [bme_bm].[InstanceID] = [bme_bm_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [bme_c] ON [bme].[CountryID] = [bme_c].[CountryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [bme_mo] ON [bme].[MobileOperatorID] = [bme_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [bme_mo_c] ON [bme_mo].[CountryID] = [bme_mo_c].[CountryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelType] AS [bme_bmt] ON [bme].[BusinessModelTypeID] = [bme_bmt].[BusinessModelTypeID] ";
+				sqlCmdText += "WHERE [bme].[BusinessModelEntryID] = @BusinessModelEntryID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@BusinessModelEntryID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("bme", "loadinternal", "notfound"), "BusinessModelEntry could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				BusinessModelEntryTable bmeTable = new BusinessModelEntryTable(query);
+				BusinessModelTable bme_bmTable = (this.Depth > 0) ? new BusinessModelTable(query) : null;
+				InstanceTable bme_bm_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				CountryTable bme_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				MobileOperatorTable bme_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable bme_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				BusinessModelTypeTable bme_bmtTable = (this.Depth > 0) ? new BusinessModelTypeTable(query) : null;
+
+        
+				Instance bme_bm_iObject = (this.Depth > 1) ? bme_bm_iTable.CreateInstance() : null;
+				BusinessModel bme_bmObject = (this.Depth > 0) ? bme_bmTable.CreateInstance(bme_bm_iObject) : null;
+				Country bme_cObject = (this.Depth > 0) ? bme_cTable.CreateInstance() : null;
+				Country bme_mo_cObject = (this.Depth > 1) ? bme_mo_cTable.CreateInstance() : null;
+				MobileOperator bme_moObject = (this.Depth > 0) ? bme_moTable.CreateInstance(bme_mo_cObject) : null;
+				BusinessModelType bme_bmtObject = (this.Depth > 0) ? bme_bmtTable.CreateInstance() : null;
+				BusinessModelEntry bmeObject = bmeTable.CreateInstance(bme_bmObject, bme_cObject, bme_moObject, bme_bmtObject);
+				sqlReader.Close();
+
+				return bmeObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("bme", "loadinternal", "exception"), "BusinessModelEntry could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "BusinessModelEntry", "Exception while loading BusinessModelEntry object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public BusinessModelEntry Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							BusinessModelEntryTable.GetColumnNames("[bme]") + 
+							(this.Depth > 0 ? "," + BusinessModelTable.GetColumnNames("[bme_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[bme_bm_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[bme_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[bme_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[bme_mo_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + BusinessModelTypeTable.GetColumnNames("[bme_bmt]") : string.Empty) +  
+					" FROM [core].[BusinessModelEntry] AS [bme] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [bme_bm] ON [bme].[BusinessModelID] = [bme_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [bme_bm_i] ON [bme_bm].[InstanceID] = [bme_bm_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [bme_c] ON [bme].[CountryID] = [bme_c].[CountryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [bme_mo] ON [bme].[MobileOperatorID] = [bme_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [bme_mo_c] ON [bme_mo].[CountryID] = [bme_mo_c].[CountryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelType] AS [bme_bmt] ON [bme].[BusinessModelTypeID] = [bme_bmt].[BusinessModelTypeID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("bme", "customload", "notfound"), "BusinessModelEntry could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				BusinessModelEntryTable bmeTable = new BusinessModelEntryTable(query);
+				BusinessModelTable bme_bmTable = (this.Depth > 0) ? new BusinessModelTable(query) : null;
+				InstanceTable bme_bm_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				CountryTable bme_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				MobileOperatorTable bme_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable bme_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				BusinessModelTypeTable bme_bmtTable = (this.Depth > 0) ? new BusinessModelTypeTable(query) : null;
+
+        
+				Instance bme_bm_iObject = (this.Depth > 1) ? bme_bm_iTable.CreateInstance() : null;
+				BusinessModel bme_bmObject = (this.Depth > 0) ? bme_bmTable.CreateInstance(bme_bm_iObject) : null;
+				Country bme_cObject = (this.Depth > 0) ? bme_cTable.CreateInstance() : null;
+				Country bme_mo_cObject = (this.Depth > 1) ? bme_mo_cTable.CreateInstance() : null;
+				MobileOperator bme_moObject = (this.Depth > 0) ? bme_moTable.CreateInstance(bme_mo_cObject) : null;
+				BusinessModelType bme_bmtObject = (this.Depth > 0) ? bme_bmtTable.CreateInstance() : null;
+				BusinessModelEntry bmeObject = bmeTable.CreateInstance(bme_bmObject, bme_cObject, bme_moObject, bme_bmtObject);
+				sqlReader.Close();
+
+				return bmeObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("bme", "customload", "exception"), "BusinessModelEntry could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "BusinessModelEntry", "Exception while loading (custom/single) BusinessModelEntry object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<BusinessModelEntry> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							BusinessModelEntryTable.GetColumnNames("[bme]") + 
+							(this.Depth > 0 ? "," + BusinessModelTable.GetColumnNames("[bme_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[bme_bm_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[bme_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[bme_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[bme_mo_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + BusinessModelTypeTable.GetColumnNames("[bme_bmt]") : string.Empty) +  
+					" FROM [core].[BusinessModelEntry] AS [bme] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [bme_bm] ON [bme].[BusinessModelID] = [bme_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [bme_bm_i] ON [bme_bm].[InstanceID] = [bme_bm_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [bme_c] ON [bme].[CountryID] = [bme_c].[CountryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [bme_mo] ON [bme].[MobileOperatorID] = [bme_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [bme_mo_c] ON [bme_mo].[CountryID] = [bme_mo_c].[CountryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelType] AS [bme_bmt] ON [bme].[BusinessModelTypeID] = [bme_bmt].[BusinessModelTypeID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("bme", "customloadmany", "notfound"), "BusinessModelEntry list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<BusinessModelEntry>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				BusinessModelEntryTable bmeTable = new BusinessModelEntryTable(query);
+				BusinessModelTable bme_bmTable = (this.Depth > 0) ? new BusinessModelTable(query) : null;
+				InstanceTable bme_bm_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				CountryTable bme_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				MobileOperatorTable bme_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable bme_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				BusinessModelTypeTable bme_bmtTable = (this.Depth > 0) ? new BusinessModelTypeTable(query) : null;
+
+        List<BusinessModelEntry> result = new List<BusinessModelEntry>();
+        do
+        {
+          
+					Instance bme_bm_iObject = (this.Depth > 1) ? bme_bm_iTable.CreateInstance() : null;
+					BusinessModel bme_bmObject = (this.Depth > 0) ? bme_bmTable.CreateInstance(bme_bm_iObject) : null;
+					Country bme_cObject = (this.Depth > 0) ? bme_cTable.CreateInstance() : null;
+					Country bme_mo_cObject = (this.Depth > 1) ? bme_mo_cTable.CreateInstance() : null;
+					MobileOperator bme_moObject = (this.Depth > 0) ? bme_moTable.CreateInstance(bme_mo_cObject) : null;
+					BusinessModelType bme_bmtObject = (this.Depth > 0) ? bme_bmtTable.CreateInstance() : null;
+					BusinessModelEntry bmeObject = (this.Depth > -1) ? bmeTable.CreateInstance(bme_bmObject, bme_cObject, bme_moObject, bme_bmtObject) : null;
+					result.Add(bmeObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("bme", "customloadmany", "exception"), "BusinessModelEntry list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "BusinessModelEntry", "Exception while loading (custom/many) BusinessModelEntry object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, BusinessModelEntry data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[BusinessModelEntry] ([BusinessModelEntryStatusID],[BusinessModelID],[CountryID],[MobileOperatorID],[BusinessModelTypeID]) VALUES(@BusinessModelEntryStatusID,@BusinessModelID,@CountryID,@MobileOperatorID,@BusinessModelTypeID); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@BusinessModelEntryStatusID", (int)data.BusinessModelEntryStatus);
+				sqlCmd.Parameters.AddWithValue("@BusinessModelID", data.BusinessModel.ID);
+				sqlCmd.Parameters.AddWithValue("@CountryID", data.Country.ID);
+				sqlCmd.Parameters.AddWithValue("@MobileOperatorID", data.MobileOperator == null ? DBNull.Value : (object)data.MobileOperator.ID);
+				sqlCmd.Parameters.AddWithValue("@BusinessModelTypeID", data.BusinessModelType.ID);
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("bme", "insert", "noprimarykey"), "BusinessModelEntry could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "BusinessModelEntry", "Exception while inserting BusinessModelEntry object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("bme", "insert", "exception"), "BusinessModelEntry could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "BusinessModelEntry", "Exception while inserting BusinessModelEntry object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, BusinessModelEntry data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[BusinessModelEntry] SET " +
+												"[BusinessModelEntryStatusID] = @BusinessModelEntryStatusID, " + 
+												"[BusinessModelID] = @BusinessModelID, " + 
+												"[CountryID] = @CountryID, " + 
+												"[MobileOperatorID] = @MobileOperatorID, " + 
+												"[BusinessModelTypeID] = @BusinessModelTypeID, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [BusinessModelEntryID] = @BusinessModelEntryID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@BusinessModelEntryStatusID", (int)data.BusinessModelEntryStatus);
+				sqlCmd.Parameters.AddWithValue("@BusinessModelID", data.BusinessModel.ID);
+				sqlCmd.Parameters.AddWithValue("@CountryID", data.Country.ID);
+				sqlCmd.Parameters.AddWithValue("@MobileOperatorID", data.MobileOperator == null ? DBNull.Value : (object)data.MobileOperator.ID);
+				sqlCmd.Parameters.AddWithValue("@BusinessModelTypeID", data.BusinessModelType.ID);
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@BusinessModelEntryID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("bme", "update", "norecord"), "BusinessModelEntry could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "BusinessModelEntry", "Exception while updating BusinessModelEntry object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("bme", "update", "morerecords"), "BusinessModelEntry was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "BusinessModelEntry", "Exception while updating BusinessModelEntry object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("bme", "update", "exception"), "BusinessModelEntry could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "BusinessModelEntry", "Exception while updating BusinessModelEntry object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, BusinessModelEntry data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[BusinessModelEntry] WHERE BusinessModelEntryID = @BusinessModelEntryID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@BusinessModelEntryID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("bme", "delete", "norecord"), "BusinessModelEntry could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "BusinessModelEntry", "Exception while deleting BusinessModelEntry object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("bme", "delete", "exception"), "BusinessModelEntry could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "BusinessModelEntry", "Exception while deleting BusinessModelEntry object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

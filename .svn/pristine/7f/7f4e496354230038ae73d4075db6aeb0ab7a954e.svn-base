@@ -1,0 +1,70 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class ServiceStorageManager : IServiceStorageManager
+  {
+
+    public List<ServiceStorage> Load(Service service)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, service);
+    }
+
+    public List<ServiceStorage> Load(IConnectionInfo connection, Service service)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, service);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, service);
+    }
+
+    public List<ServiceStorage> Load(ISqlConnectionInfo connection, Service service)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[ss].ServiceID=@ServiceID";
+      parameters.OrderBy = "[ss].ServiceStorageID ASC";
+      parameters.Arguments.Add("ServiceID", service.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+
+    public ServiceStorage Load(Service service, string key)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, service, key);
+    }
+
+    public ServiceStorage Load(IConnectionInfo connection, Service service, string key)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, service, key);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, service, key);
+    }
+
+    public ServiceStorage Load(ISqlConnectionInfo connection, Service service, string key)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[ss].ServiceID=@ServiceID AND [ss].[Key]=@Key";
+      parameters.Arguments.Add("ServiceID", service.ID);
+      parameters.Arguments.Add("Key", key);
+      return this.Load(connection, parameters);
+    }
+
+
+  }
+}
+

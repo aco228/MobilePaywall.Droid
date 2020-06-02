@@ -1,0 +1,47 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IHtml5ContentManager 
+  {
+
+    List<Html5Content> Load();
+    List<Html5Content> Load(IConnectionInfo connection);
+    Html5Content Load(Content content);
+    Html5Content Load(IConnectionInfo connection, Content content);
+    List<Html5Content> Load(ContentGroup contentGroup);
+    List<Html5Content> Load(IConnectionInfo connection, ContentGroup contentGroup);
+  }
+
+  public partial class Html5Content
+  {
+    public void UpdateWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void UpdateWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void InsertWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void InsertWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void DeleteWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+    public void DeleteWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+
+    public static List<Html5Content> LoadByContentGroup(ContentGroup contentGroup)
+    {
+      List<Html5Content> htmlContent = null;
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        connection.Transaction.Begin();
+        IHtml5ContentManager hcManager = Html5Content.CreateManager();
+        htmlContent = hcManager.Load(connection, contentGroup);
+        connection.Transaction.Commit();
+      }
+      return htmlContent;
+    }
+
+  }
+}
+

@@ -1,0 +1,73 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IVideoContentManager 
+  {
+    
+    List<VideoContent> Load();
+    List<VideoContent> Load(IConnectionInfo connection);
+    VideoContent Load(Content content);
+		VideoContent Load(IConnectionInfo connection, Content content);
+		List<VideoContent> Load(ContentGroup contentGroup);
+		List<VideoContent> Load(IConnectionInfo connection, ContentGroup contentGroup);
+  }
+
+  public partial class VideoContent
+  {
+    public void UpdateWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void UpdateWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void InsertWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void InsertWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void DeleteWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+    public void DeleteWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+
+		public static VideoContent LoadByVideoContentID(int videoContentID)
+		{
+			VideoContent videoContent = null;
+			using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+			{
+				connection.Transaction.Begin();
+				IVideoContentManager vcManager = VideoContent.CreateManager();
+				videoContent = vcManager.Load(connection, videoContentID);
+				connection.Transaction.Commit();
+			}
+
+			return videoContent;
+		}
+
+		public static List<VideoContent> LoadByContentGroup(ContentGroup contentGroup)
+		{
+			List<VideoContent> videoContent = null;
+			using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+			{
+				connection.Transaction.Begin();
+				IVideoContentManager vcManager = VideoContent.CreateManager();
+				videoContent = vcManager.Load(connection, contentGroup);
+				connection.Transaction.Commit();
+			}
+			return videoContent;
+		}
+
+    public static List<VideoContent> LoadAll()
+    {
+      List<VideoContent> videoContent = null;
+      using(ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        connection.Transaction.Begin();
+        IVideoContentManager vcManager = VideoContent.CreateManager();
+        videoContent = vcManager.Load(connection);
+        connection.Transaction.Commit();
+      }
+      return videoContent;
+    }
+  }
+}
+

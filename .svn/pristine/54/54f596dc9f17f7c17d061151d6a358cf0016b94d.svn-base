@@ -1,0 +1,52 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Data.Direct.MobilePaywall;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web.Models
+{
+  public class TemplateRouteManagementModel : PaywallViewModelBase
+  {
+    private List<RouteSet> _routeSets = null;
+    private List<Route> _routes = null;
+    private List<RouteParameter> _routeParameters = null;
+    
+
+    public List<RouteSet> RouteSets { get { return this._routeSets != null ? this._routeSets : new List<RouteSet>(); } }
+    public List<Route> Routes { get { return this._routes != null ? this._routes : new List<Route>(); } }
+    public List<RouteParameter> RouteParameters { get { return this._routeParameters != null ? this._routeParameters : new List<RouteParameter>(); } }
+
+    public TemplateRouteManagementModel(PaywallHttpContext context)
+      : base(context)
+    {
+      Instance instance = Instance.CreateManager().Load(1);
+      _routeSets = GetRoutes();
+      _routes = Route.CreateManager().Load();
+      _routeParameters = RouteParameter.CreateManager().Load();
+    }
+
+    public List<RouteSet> GetRoutes()
+    {
+      List<RouteSet> routeSets = new List<RouteSet>();
+      List<ApplicationRouteSetMap> applicationRouteSets = ApplicationRouteSetMap.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData.Application);
+      foreach (ApplicationRouteSetMap appRouteSetMap in applicationRouteSets)
+        routeSets.Add(appRouteSetMap.RouteSet);
+
+      return routeSets;
+    }
+
+    public bool HaveParams(int routeID)
+    {
+      foreach (RouteParameter routeParams in _routeParameters)
+      {
+        if (routeParams.Route.ID == routeID)
+          return true;
+      }
+      return false;
+    }
+  }
+}

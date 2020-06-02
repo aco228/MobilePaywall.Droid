@@ -1,0 +1,506 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(TemplateServiceInfo))] 
+  public partial class TemplateServiceInfoManager : MobilePaywall.Data.Sql.SqlManagerBase<TemplateServiceInfo>, ITemplateServiceInfoManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override TemplateServiceInfo LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							TemplateServiceInfoTable.GetColumnNames("[tsi]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[tsi_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[tsi_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[tsi_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[tsi_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[tsi_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[tsi_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[tsi_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[tsi_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[tsi_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[tsi_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[tsi_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[tsi_s_t]") : string.Empty) + 
+					" FROM [core].[TemplateServiceInfo] AS [tsi] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [tsi_s] ON [tsi].[ServiceID] = [tsi_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [tsi_s_a] ON [tsi_s].[ApplicationID] = [tsi_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [tsi_s_p] ON [tsi_s].[ProductID] = [tsi_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [tsi_s_m] ON [tsi_s].[MerchantID] = [tsi_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [tsi_s_st] ON [tsi_s].[ServiceTypeID] = [tsi_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [tsi_s_ust] ON [tsi_s].[UserSessionTypeID] = [tsi_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tsi_s_c] ON [tsi_s].[FallbackCountryID] = [tsi_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [tsi_s_l] ON [tsi_s].[FallbackLanguageID] = [tsi_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [tsi_s_ar] ON [tsi_s].[FallbackAgeRatingID] = [tsi_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [tsi_s_sc] ON [tsi_s].[ServiceConfigurationID] = [tsi_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [tsi_s_bm] ON [tsi_s].[BusinessModelID] = [tsi_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [tsi_s_t] ON [tsi_s].[TemplateID] = [tsi_s_t].[TemplateID] ";
+				sqlCmdText += "WHERE [tsi].[TemplateServiceInfoID] = @TemplateServiceInfoID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@TemplateServiceInfoID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsi", "loadinternal", "notfound"), "TemplateServiceInfo could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				TemplateServiceInfoTable tsiTable = new TemplateServiceInfoTable(query);
+				ServiceTable tsi_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable tsi_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable tsi_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable tsi_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable tsi_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable tsi_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable tsi_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable tsi_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable tsi_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable tsi_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable tsi_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable tsi_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        
+				Application tsi_s_aObject = (this.Depth > 1) ? tsi_s_aTable.CreateInstance() : null;
+				Product tsi_s_pObject = (this.Depth > 1) ? tsi_s_pTable.CreateInstance() : null;
+				Merchant tsi_s_mObject = (this.Depth > 1) ? tsi_s_mTable.CreateInstance() : null;
+				ServiceType tsi_s_stObject = (this.Depth > 1) ? tsi_s_stTable.CreateInstance() : null;
+				UserSessionType tsi_s_ustObject = (this.Depth > 1) ? tsi_s_ustTable.CreateInstance() : null;
+				Country tsi_s_cObject = (this.Depth > 1) ? tsi_s_cTable.CreateInstance() : null;
+				Language tsi_s_lObject = (this.Depth > 1) ? tsi_s_lTable.CreateInstance() : null;
+				AgeRating tsi_s_arObject = (this.Depth > 1) ? tsi_s_arTable.CreateInstance() : null;
+				ServiceConfiguration tsi_s_scObject = (this.Depth > 1) ? tsi_s_scTable.CreateInstance() : null;
+				BusinessModel tsi_s_bmObject = (this.Depth > 1) ? tsi_s_bmTable.CreateInstance() : null;
+				Template tsi_s_tObject = (this.Depth > 1) ? tsi_s_tTable.CreateInstance() : null;
+				Service tsi_sObject = (this.Depth > 0) ? tsi_sTable.CreateInstance(tsi_s_aObject, tsi_s_pObject, tsi_s_mObject, tsi_s_stObject, tsi_s_ustObject, tsi_s_cObject, tsi_s_lObject, tsi_s_arObject, tsi_s_scObject, tsi_s_bmObject, tsi_s_tObject) : null;
+				TemplateServiceInfo tsiObject = tsiTable.CreateInstance(tsi_sObject);
+				sqlReader.Close();
+
+				return tsiObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsi", "loadinternal", "exception"), "TemplateServiceInfo could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "TemplateServiceInfo", "Exception while loading TemplateServiceInfo object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public TemplateServiceInfo Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							TemplateServiceInfoTable.GetColumnNames("[tsi]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[tsi_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[tsi_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[tsi_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[tsi_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[tsi_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[tsi_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[tsi_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[tsi_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[tsi_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[tsi_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[tsi_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[tsi_s_t]") : string.Empty) +  
+					" FROM [core].[TemplateServiceInfo] AS [tsi] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [tsi_s] ON [tsi].[ServiceID] = [tsi_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [tsi_s_a] ON [tsi_s].[ApplicationID] = [tsi_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [tsi_s_p] ON [tsi_s].[ProductID] = [tsi_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [tsi_s_m] ON [tsi_s].[MerchantID] = [tsi_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [tsi_s_st] ON [tsi_s].[ServiceTypeID] = [tsi_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [tsi_s_ust] ON [tsi_s].[UserSessionTypeID] = [tsi_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tsi_s_c] ON [tsi_s].[FallbackCountryID] = [tsi_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [tsi_s_l] ON [tsi_s].[FallbackLanguageID] = [tsi_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [tsi_s_ar] ON [tsi_s].[FallbackAgeRatingID] = [tsi_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [tsi_s_sc] ON [tsi_s].[ServiceConfigurationID] = [tsi_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [tsi_s_bm] ON [tsi_s].[BusinessModelID] = [tsi_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [tsi_s_t] ON [tsi_s].[TemplateID] = [tsi_s_t].[TemplateID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsi", "customload", "notfound"), "TemplateServiceInfo could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				TemplateServiceInfoTable tsiTable = new TemplateServiceInfoTable(query);
+				ServiceTable tsi_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable tsi_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable tsi_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable tsi_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable tsi_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable tsi_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable tsi_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable tsi_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable tsi_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable tsi_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable tsi_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable tsi_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        
+				Application tsi_s_aObject = (this.Depth > 1) ? tsi_s_aTable.CreateInstance() : null;
+				Product tsi_s_pObject = (this.Depth > 1) ? tsi_s_pTable.CreateInstance() : null;
+				Merchant tsi_s_mObject = (this.Depth > 1) ? tsi_s_mTable.CreateInstance() : null;
+				ServiceType tsi_s_stObject = (this.Depth > 1) ? tsi_s_stTable.CreateInstance() : null;
+				UserSessionType tsi_s_ustObject = (this.Depth > 1) ? tsi_s_ustTable.CreateInstance() : null;
+				Country tsi_s_cObject = (this.Depth > 1) ? tsi_s_cTable.CreateInstance() : null;
+				Language tsi_s_lObject = (this.Depth > 1) ? tsi_s_lTable.CreateInstance() : null;
+				AgeRating tsi_s_arObject = (this.Depth > 1) ? tsi_s_arTable.CreateInstance() : null;
+				ServiceConfiguration tsi_s_scObject = (this.Depth > 1) ? tsi_s_scTable.CreateInstance() : null;
+				BusinessModel tsi_s_bmObject = (this.Depth > 1) ? tsi_s_bmTable.CreateInstance() : null;
+				Template tsi_s_tObject = (this.Depth > 1) ? tsi_s_tTable.CreateInstance() : null;
+				Service tsi_sObject = (this.Depth > 0) ? tsi_sTable.CreateInstance(tsi_s_aObject, tsi_s_pObject, tsi_s_mObject, tsi_s_stObject, tsi_s_ustObject, tsi_s_cObject, tsi_s_lObject, tsi_s_arObject, tsi_s_scObject, tsi_s_bmObject, tsi_s_tObject) : null;
+				TemplateServiceInfo tsiObject = tsiTable.CreateInstance(tsi_sObject);
+				sqlReader.Close();
+
+				return tsiObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsi", "customload", "exception"), "TemplateServiceInfo could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "TemplateServiceInfo", "Exception while loading (custom/single) TemplateServiceInfo object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<TemplateServiceInfo> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							TemplateServiceInfoTable.GetColumnNames("[tsi]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[tsi_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[tsi_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[tsi_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[tsi_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[tsi_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[tsi_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[tsi_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[tsi_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[tsi_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[tsi_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[tsi_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[tsi_s_t]") : string.Empty) +  
+					" FROM [core].[TemplateServiceInfo] AS [tsi] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [tsi_s] ON [tsi].[ServiceID] = [tsi_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [tsi_s_a] ON [tsi_s].[ApplicationID] = [tsi_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [tsi_s_p] ON [tsi_s].[ProductID] = [tsi_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [tsi_s_m] ON [tsi_s].[MerchantID] = [tsi_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [tsi_s_st] ON [tsi_s].[ServiceTypeID] = [tsi_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [tsi_s_ust] ON [tsi_s].[UserSessionTypeID] = [tsi_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tsi_s_c] ON [tsi_s].[FallbackCountryID] = [tsi_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [tsi_s_l] ON [tsi_s].[FallbackLanguageID] = [tsi_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [tsi_s_ar] ON [tsi_s].[FallbackAgeRatingID] = [tsi_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [tsi_s_sc] ON [tsi_s].[ServiceConfigurationID] = [tsi_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [tsi_s_bm] ON [tsi_s].[BusinessModelID] = [tsi_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [tsi_s_t] ON [tsi_s].[TemplateID] = [tsi_s_t].[TemplateID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsi", "customloadmany", "notfound"), "TemplateServiceInfo list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<TemplateServiceInfo>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				TemplateServiceInfoTable tsiTable = new TemplateServiceInfoTable(query);
+				ServiceTable tsi_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable tsi_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable tsi_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable tsi_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable tsi_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable tsi_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable tsi_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable tsi_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable tsi_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable tsi_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable tsi_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable tsi_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        List<TemplateServiceInfo> result = new List<TemplateServiceInfo>();
+        do
+        {
+          
+					Application tsi_s_aObject = (this.Depth > 1) ? tsi_s_aTable.CreateInstance() : null;
+					Product tsi_s_pObject = (this.Depth > 1) ? tsi_s_pTable.CreateInstance() : null;
+					Merchant tsi_s_mObject = (this.Depth > 1) ? tsi_s_mTable.CreateInstance() : null;
+					ServiceType tsi_s_stObject = (this.Depth > 1) ? tsi_s_stTable.CreateInstance() : null;
+					UserSessionType tsi_s_ustObject = (this.Depth > 1) ? tsi_s_ustTable.CreateInstance() : null;
+					Country tsi_s_cObject = (this.Depth > 1) ? tsi_s_cTable.CreateInstance() : null;
+					Language tsi_s_lObject = (this.Depth > 1) ? tsi_s_lTable.CreateInstance() : null;
+					AgeRating tsi_s_arObject = (this.Depth > 1) ? tsi_s_arTable.CreateInstance() : null;
+					ServiceConfiguration tsi_s_scObject = (this.Depth > 1) ? tsi_s_scTable.CreateInstance() : null;
+					BusinessModel tsi_s_bmObject = (this.Depth > 1) ? tsi_s_bmTable.CreateInstance() : null;
+					Template tsi_s_tObject = (this.Depth > 1) ? tsi_s_tTable.CreateInstance() : null;
+					Service tsi_sObject = (this.Depth > 0) ? tsi_sTable.CreateInstance(tsi_s_aObject, tsi_s_pObject, tsi_s_mObject, tsi_s_stObject, tsi_s_ustObject, tsi_s_cObject, tsi_s_lObject, tsi_s_arObject, tsi_s_scObject, tsi_s_bmObject, tsi_s_tObject) : null;
+					TemplateServiceInfo tsiObject = (this.Depth > -1) ? tsiTable.CreateInstance(tsi_sObject) : null;
+					result.Add(tsiObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsi", "customloadmany", "exception"), "TemplateServiceInfo list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "TemplateServiceInfo", "Exception while loading (custom/many) TemplateServiceInfo object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, TemplateServiceInfo data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[TemplateServiceInfo] ([ServiceID],[TemplateServiceTypeID],[Progress],[Color],[Contact],[Price],[TrckdEnabled],[IsPremiumSms]) VALUES(@ServiceID,@TemplateServiceTypeID,@Progress,@Color,@Contact,@Price,@TrckdEnabled,@IsPremiumSms); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@TemplateServiceTypeID", (int)data.TemplateServiceType);
+				sqlCmd.Parameters.AddWithValue("@Progress", data.Progress).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Color", data.Color.HasValue ? (object)data.Color.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Contact", !string.IsNullOrEmpty(data.Contact) ? (object)data.Contact : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Price", !string.IsNullOrEmpty(data.Price) ? (object)data.Price : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@TrckdEnabled", data.TrckdEnabled).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsPremiumSms", data.IsPremiumSms).SqlDbType = SqlDbType.Bit;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsi", "insert", "noprimarykey"), "TemplateServiceInfo could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "TemplateServiceInfo", "Exception while inserting TemplateServiceInfo object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsi", "insert", "exception"), "TemplateServiceInfo could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "TemplateServiceInfo", "Exception while inserting TemplateServiceInfo object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, TemplateServiceInfo data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[TemplateServiceInfo] SET " +
+												"[ServiceID] = @ServiceID, " + 
+												"[TemplateServiceTypeID] = @TemplateServiceTypeID, " + 
+												"[Progress] = @Progress, " + 
+												"[Color] = @Color, " + 
+												"[Contact] = @Contact, " + 
+												"[Price] = @Price, " + 
+												"[TrckdEnabled] = @TrckdEnabled, " + 
+												"[IsPremiumSms] = @IsPremiumSms, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [TemplateServiceInfoID] = @TemplateServiceInfoID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@TemplateServiceTypeID", (int)data.TemplateServiceType);
+				sqlCmd.Parameters.AddWithValue("@Progress", data.Progress).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Color", data.Color.HasValue ? (object)data.Color.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Contact", !string.IsNullOrEmpty(data.Contact) ? (object)data.Contact : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Price", !string.IsNullOrEmpty(data.Price) ? (object)data.Price : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@TrckdEnabled", data.TrckdEnabled).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsPremiumSms", data.IsPremiumSms).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@TemplateServiceInfoID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsi", "update", "norecord"), "TemplateServiceInfo could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "TemplateServiceInfo", "Exception while updating TemplateServiceInfo object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsi", "update", "morerecords"), "TemplateServiceInfo was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "TemplateServiceInfo", "Exception while updating TemplateServiceInfo object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsi", "update", "exception"), "TemplateServiceInfo could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "TemplateServiceInfo", "Exception while updating TemplateServiceInfo object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, TemplateServiceInfo data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[TemplateServiceInfo] WHERE TemplateServiceInfoID = @TemplateServiceInfoID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@TemplateServiceInfoID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsi", "delete", "norecord"), "TemplateServiceInfo could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "TemplateServiceInfo", "Exception while deleting TemplateServiceInfo object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsi", "delete", "exception"), "TemplateServiceInfo could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "TemplateServiceInfo", "Exception while deleting TemplateServiceInfo object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

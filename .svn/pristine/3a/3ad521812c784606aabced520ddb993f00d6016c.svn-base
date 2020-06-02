@@ -1,0 +1,475 @@
+﻿using System;
+using System.Linq;
+using System.Web;
+using System.Collections.Generic;
+
+using MobilePaywall.Data;
+
+using Senti.Localization;
+using Senti.Diagnostics.Log;
+
+using log4net;
+using MobilePaywall.Web.Trckd;
+using MobilePaywall.Web.WebTrack;
+using MobilePaywall.Web.Log;
+using System.Web.Mvc;
+using MobilePaywall.Localization;
+using System.Text.RegularExpressions;
+using System.Net;
+using System.IO;
+using MobilePaywall.MobilePaywallDirectWebCore;
+using Trckd.Message;
+
+namespace MobilePaywall.Web
+{
+  public class PaywallHttpContext : PaywallHttpContextBase
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (PaywallHttpContext._log == null)
+          PaywallHttpContext._log = LogManager.GetLogger(typeof(PaywallHttpContext));
+        return PaywallHttpContext._log;
+      }
+    }
+    #endregion
+
+    protected static readonly string PaywallHttpContextItemKey = "PaywallHttpContextItemKey";
+    protected static readonly string PaywallLocalizationItemKey = "PaywallLocalizationItemKey";
+
+    public static PaywallHttpContext Current
+    {
+      get
+      {
+        HttpContext httpContext = HttpContext.Current;
+        return PaywallHttpContext.GetCurrent(httpContext);
+      }
+    }
+
+    public static PaywallHttpContext GetExisting()
+    {
+      HttpContext httpContext = HttpContext.Current;
+      return httpContext != null ? httpContext.Items[PaywallHttpContextItemKey] as PaywallHttpContext : null;
+    }
+    
+    public static PaywallHttpContext GetCurrent(HttpContext httpContext)
+    {
+      lock (httpContext.Request)
+      {
+        PaywallHttpContext paywallContext = httpContext.Items[PaywallHttpContextItemKey] as PaywallHttpContext;
+        if (paywallContext != null)
+          return paywallContext as PaywallHttpContext;
+
+        paywallContext = new PaywallHttpContext(httpContext, PaywallHttpApplication.GetRuntime(httpContext));
+        httpContext.Items[PaywallHttpContextItemKey] = paywallContext;
+        return paywallContext;
+      }
+    }
+
+
+    public PaywallHttpContext(HttpContext context, IPaywallRuntime runtime)
+      : base(context, runtime)
+    {
+
+      string hostName = context.Request.Url.Host; //httpContext.Request.ServerVariables["HTTP_HOST"]; 
+      //if (hostName.Equals("localhost"))
+      //{
+      //  hostName = PaywallLocalSimulator.SERVICE_NAME;
+      //  PaywallLocalSimulator.IsLocal = true;
+      //}
+
+      this._domain = this.Runtime.GetDomain(hostName);
+
+      if (this._domain == null)
+        throw new InvalidOperationException(string.Format("Domain name '{0}' is not registered in database. {1} {2}", hostName, this.Runtime.ApplicationData.ApplicationName, this.Runtime.ApplicationData.Name));
+
+      this._service = this.Runtime.GetService(hostName);
+
+      /// IGNORE SESSION INITIALIZATION WITH THIS ROUTE NAMES
+      if (!this.HttpContext.Request.Url.ToString().Contains("/thumbnail/") ||
+        ( !this.HttpContext.Request.Url.ToString().Contains("/logo/") && !this.HttpContext.Request.Url.ToString().EndsWith("/logo")) ||
+        ( !this.HttpContext.Request.Url.ToString().Contains("/ping") ))
+        this.InitializeSession(context);
+
+    }
+
+    private IService _service = null;
+    private IUserSession _session = null;
+    private Domain _domain = null;
+    private bool _mustVerifyUserAge = false;
+
+    public IService Service { get { return this._service; } }
+    public IUserSession Session { get { return this._session; } }
+    public Domain Domain { get { return this._domain; } }
+    public bool MustVerifyUserAge { get { return this._mustVerifyUserAge; } set { this._mustVerifyUserAge = value; } }
+    public int MobileOperatorID { get { return this._session.SessionData.MobileOperator != null ? this._session.SessionData.MobileOperator.ID : -1; } }
+
+    protected virtual void InitializeSession(HttpContext httpContext)
+    {
+      if (httpContext.Request.Url.ToString().Contains("/logo/") || httpContext.Request.Url.ToString().EndsWith("/logo") ||
+        httpContext.Request.Url.ToString().Contains("/thumbnail/") ||
+        httpContext.Request.Url.ToString().Contains("/ping/"))
+        return;
+
+      string sessionID = httpContext.Session.SessionID;
+      Guid sessionGuid = Guid.Empty;
+      if (!Guid.TryParseExact(sessionID, "N", out sessionGuid))
+      {
+        PLog.Error("Invalid session ID" + sessionGuid);
+        #region # Try get user session from /sid/ parameter #
+        if (httpContext.Request.Url.ToString().Contains(Constants.SessionID))
+        {
+          string[] split = httpContext.Request.Url.ToString().Split('/');
+          string sessionGuidString = string.Empty;
+          for(int i = 0; i < split.Length; i++)
+            if(split[i].Equals(Constants.SessionID))
+            {
+              int nextInt = i++;
+              if (nextInt < split.Length)
+                break;
+
+              sessionGuidString = split[nextInt];
+            }
+
+          if (!string.IsNullOrEmpty(sessionGuidString))
+            Guid.TryParse(sessionGuidString, out sessionGuid);
+        }
+        #endregion
+
+      }
+      
+      IUserSessionManager usManager = UserSession.CreateManager();
+      UserSession session = usManager.Load(this.Service.ServiceData, sessionGuid);
+
+      //if (session != null && this.Service.ServiceData.ID == 9 && httpContext.Request.UrlReferrer != null && httpContext.Request.UrlReferrer.ToString().Contains("pxid"))
+      //  session = null;
+
+      if (session != null && session.IPAddress != httpContext.Request.UserHostAddress)
+        PLog.Error("Possible session hijack! Session IP address different than specified in request");
+      
+      bool isNewSession = false;
+
+      if (session == null)
+      {
+        // see if there is implemented method in service to get stored session saved on cookie
+        IUserSession storedSession = this._service.TryGetUserSessionByCookie(httpContext);
+        if(storedSession !=null)
+        {
+          PLog.Debug("StoredSession: " + storedSession.SessionData.ID);
+          httpContext.Session["someValue"] = "bla";
+          this._session = storedSession;
+          return;
+        }
+
+        IIPCountryMapManager ipcmManager = IPCountryMap.CreateManager();
+        IPCountryMap countryMap = ipcmManager.Load(httpContext.Request.UserHostAddress);
+        Country sessionCountry = countryMap != null && countryMap.Country != null ? countryMap.Country : null;
+        Guid? fingerprint = this.GetFingerprint();
+                
+        #region # check if country is null, and this is accessed from local network to local application #
+
+        if ( sessionCountry == null && (this._service.ServiceData.Application.ID == 208 ||
+          this._service.ServiceData.Application.ID == 209 ||
+          this._service.ServiceData.Application.ID == 210 ||
+          this._service.ServiceData.Application.ID == 211))
+          sessionCountry = Country.CreateManager().Load(141);
+
+        #endregion
+
+        session = new UserSession(-1,
+                                  sessionGuid,
+                                  this.Service.ServiceData.UserSessionType,
+                                  this.Service.ServiceData,
+                                  this.Domain,
+                                  null, // customer
+                                  sessionCountry,
+                                  null,
+                                  null, // mobile operator
+                                  this.GetPcid().HasValue ? this.GetPcid() : null, // trackingID
+                                  fingerprint.HasValue ? fingerprint : null,
+                                  false, // Has verified age
+                                  false, // Is welcome page shown
+                                  httpContext.Request.UserHostAddress,
+                                  IPAddressType.IPv4,
+                                  httpContext.Request.UserAgent,
+                                  httpContext.Request.Url.ToString().Replace(" ", string.Empty), // TODO: EntranceUrl... is this OK?
+                                  httpContext.Request.UrlReferrer != null ? httpContext.Request.UrlReferrer.ToString() : null,
+                                  DateTime.Now.AddMinutes(httpContext.Session.Timeout),
+                                  DateTime.Now,
+                                  DateTime.Now);
+
+
+        #region # _sc param #
+
+        string _sc = httpContext.Request["_sc"] != null ? httpContext.Request["_sc"] : string.Empty;
+        if (!string.IsNullOrEmpty(_sc) && !string.IsNullOrEmpty(session.Referrer))
+          session.Referrer = session.Referrer + (session.Referrer.Contains("?") ? "&_sc=" + _sc : "&_sc=" + _sc);
+
+        #endregion
+
+        //try
+        //{
+        //  DeviceInformationRequest request = new DeviceInformationRequest(RequestMode.Synchronous, "test", "test", "test", this._session.SessionData.FingerprintID.Value, null);
+        //  DeviceInformationResponse response = request.Detect(request);
+        //  if (response != null)
+        //  {
+
+        //  }
+        //}
+        //catch (Exception e) { }
+
+        // TODO: Make this dynamic
+        // 188.214.128.107 is clickenzi servser 
+        if ( !session.IPAddress.Equals("188.214.128.107") && !session.EntranceUrl.EndsWith("/ping") && !session.EntranceUrl.Contains("/thumbnail") &&
+          !session.EntranceUrl.EndsWith("/logo"))
+        {
+          session.Insert();
+          isNewSession = true;
+        }
+
+        // store sessionID in cookie, in case we need it sometime
+        HttpCookie cookie = new HttpCookie(Constants.UserSessionCookie, session.ID.ToString());
+        cookie.Expires = DateTime.Now.AddDays(30);
+        cookie.Path = "/";
+        httpContext.Response.Cookies.Add(cookie);
+        
+        //INFO: DO NOT DO ANYTHING WITH THIS LINE BELOW!!!
+        httpContext.Session["someValue"] = "bla";
+      }
+
+      this._session = session.Instantiate(this.Service);
+      //if (isNewSession && this._session.SessionData.Country != null && this._session.SessionData.Country.TwoLetterIsoCode.Equals("GR"))
+      //  this._session.CollectHeaders(this.HttpContext);
+    }
+
+    // SUMMARY: For cache purposes, load Country by IP with Direct
+    private long IPAddressToLong(string addressText)
+    {
+      IPAddress address = IPAddress.None;
+      if (!IPAddress.TryParse(addressText, out address))
+        throw new InvalidOperationException();
+      byte[] addressBytes = address.GetAddressBytes();
+      long ipnum = 0;
+      for (int i = 0; i < 4; ++i)
+      {
+        long y = addressBytes[i];
+        if (y < 0)
+        {
+          y += 256;
+        }
+        ipnum += y << ((3 - i) * 8);
+      }
+      return ipnum;
+    }
+
+    public ServiceConfigurationEntry GetConfiguration()
+    {
+      ServiceConfigurationEntry configEntry = null;
+
+      configEntry = this.Service.GetConfiguration(this.Session.SessionData.Country, this.Session.SessionData.MobileOperator);
+      if (configEntry == null) // use default configuration in case that this service has Country free mode
+        configEntry = this.Service.GetConfiguration(this.Service.ServiceData.FallbackCountry, null);
+      
+      if (configEntry == null)
+      {
+        PLog.Debug(string.Format("Configuration for user session '{0}' on service '{1}' (ID: {2}) with domain '{3}' was not founded.",
+            this.Session.SessionData.Guid,
+            this.Service.ServiceData.Name,
+            this.Session.SessionData.Service.ID,
+            this.Session.SessionData.Domain.DomainName));
+      }
+      
+      return configEntry;
+    }
+
+    public BusinessModelEntry GetBusinessModel()
+    {
+      try
+      {
+        // Country country = this._session.GetUserSessionCountry(); we are not using this anyway
+        BusinessModelEntry modelEntry = this.Service.GetBusinessModel(this.Session.SessionData.Country, this.Session.SessionData.MobileOperator);
+        if (modelEntry == null && this.Service.ServiceData.FallbackCountry != null)
+          modelEntry = this.Service.GetBusinessModel(this.Service.ServiceData.FallbackCountry, this.Session.SessionData.MobileOperator);
+
+        if (modelEntry == null && Log.IsWarnEnabled)
+        {
+          PLog.Error("BusinessModelEntry not found for specified country and mobile operator");
+        }
+
+        return modelEntry;
+      }
+      catch (Exception e)
+      {
+        if (Log.IsErrorEnabled)
+        {
+          PLog.Error("Exception occured while geting BusinessModelEntry");
+        }
+        return null;
+      }
+    }
+
+    public ILocalization GetLocalization()
+    {
+      return this.Service.Localization;
+      //try
+      //{
+      //  string itemKey = string.Format("{0}_{1}", PaywallLocalizationItemKey, this.Service.ServiceData.ID);
+      //  ILocalization localization = this.HttpContext.Items[itemKey] as ILocalization;
+      //  if (localization != null)
+      //    return localization;
+        
+      //  Language language = this.Session.GetUserSessionLanguage();
+      //  KeyValuePair<MobilePaywall.Data.Localization, ILocalizationProvider> translationMapKeyEntry = (from tmk in this.Runtime.LocalizationProviders
+      //                                                                                                 where tmk.Key.Application.ID == this.Runtime.ApplicationData.ID && tmk.Key.Product.ID == this.Service.ServiceData.Product.ID
+      //                                                                                                 select tmk).FirstOrDefault();
+      //  if (translationMapKeyEntry.Value == null)
+      //    translationMapKeyEntry = (from tmk in this.Runtime.LocalizationProviders where tmk.Key.Application.ID == this.Runtime.ApplicationData.ID select tmk).FirstOrDefault();
+
+      //  if(translationMapKeyEntry.Value == null)
+      //  {
+      //    Log.Fatal("This application '"+ this.Runtime.ApplicationData.Name +"' does not have any Localization provided!");
+      //    return null;
+      //  }
+
+      //  TranslationKey translationKey = new TranslationKey(translationMapKeyEntry.Key, language, this.Service.ServiceData);
+      //  if(translationKey == null)
+      //  {
+      //    Log.Fatal("This service '"+ this.Service.ServiceData.Name + "' does not have translation key");
+      //    return null;
+      //  }
+
+
+      //  localization = translationMapKeyEntry.Value.GetLocalization(translationKey);
+      //  localization = this.ConfigureTranslationWildcards(localization);
+      //  this.HttpContext.Items[itemKey] = localization;
+
+      //  return localization;
+      //}
+      //catch (Exception ex)
+      //{
+      //  Log.Fatal( new LogMessageBuilder(new PaywallLogErrorCode("paywallcontext", "getlocalization", "exception"), ""), ex);
+      //  return null;
+      //}
+    }
+
+    // SUMMARY: Replace wildcards from translations with values refering service
+    //public ILocalization ConfigureTranslationWildcards(ILocalization localization)
+    //{
+    //  MobilePaywallLocalization mobilePaywallTranslation = localization as MobilePaywallLocalization;
+    //  List<TranslationGroup> translationGroups = TranslationGroup.CreateManager().Load(Translation.CreateManager().Load(1));
+    //  List<MobilePaywall.Base.StorageEntry> storageEntries = this._service.Storage.EntriesList;
+
+    //  foreach(TranslationGroup tg in translationGroups)
+    //  {
+    //    ILocalizationGroup groupItem = mobilePaywallTranslation.GetGroup(tg.Name);
+    //    if (groupItem == null)
+    //      continue;
+
+    //    foreach(TranslationGroupKey tgk in tg.Keys)
+    //    {
+    //      string groupKeyText = groupItem.GetValue(tgk.Name);
+    //      if (string.IsNullOrEmpty(groupKeyText))
+    //        continue;
+
+    //      groupKeyText = TranslationValue.Conditions(groupKeyText, PaywallHttpContext.Current.Service);
+    //      groupKeyText = groupKeyText.Replace("[Service.ID]", PaywallHttpContext.Current.Service.ServiceData.ID.ToString());
+    //      groupKeyText = groupKeyText.Replace("[Service.Name]", PaywallHttpContext.Current.Service.ServiceData.Name);
+    //      groupKeyText = groupKeyText.Replace("[Service.Url]", string.Format("http://{0}", PaywallHttpContext.Current.Service.ServiceData.Name));
+    //      groupKeyText = groupKeyText.Replace("[Service.Price]", PaywallHttpContext.Current.Service.ServiceInfo != null ? PaywallHttpContext.Current.Service.ServiceInfo.DynamicPrice() : string.Empty);
+    //      groupKeyText = groupKeyText.Replace("[Service.Type]", PaywallHttpContext.Current.Service.ServiceInfo != null ? PaywallHttpContext.Current.Service.ServiceInfo.TemplateServiceType.ToString() : string.Empty);
+    //      groupKeyText = groupKeyText.Replace("[Service.Country]", PaywallHttpContext.Current.Service.ServiceData.FallbackLanguage.GlobalName);
+    //      groupKeyText = groupKeyText.Replace("[Merchant.Name]", PaywallHttpContext.Current.Service.ServiceData.Merchant.Name);
+    //      groupKeyText = groupKeyText.Replace("[Merchant.Address]", PaywallHttpContext.Current.Service.ServiceData.Merchant.Address);
+    //      groupKeyText = groupKeyText.Replace("[PaymentProvider.Name]", PaywallHttpContext.Current.Service.PaymentProvider.Name);
+
+    //      foreach(MobilePaywall.Base.StorageEntry entry in storageEntries)
+    //        groupKeyText = groupKeyText.Replace(string.Format("[Storage.{0}]", entry.Key), entry.Value);
+
+    //      //PWLog.Debug(Log, new LogMessageBuilder(new PaywallLogErrorCode("paywallcontext", "getlocalization", "exception"), string.Format(" - WILDCARD TRANSLATION - Change has been made in Group: {0}, Key: {1}, Value: {2}", group, groupKey, groupKeyText)));
+    //      mobilePaywallTranslation.GetGroup(tg.Name).AssignValue(tgk.Name, groupKeyText);
+    //    }
+    //  }
+
+    //  return mobilePaywallTranslation;
+    //}
+
+    public void UpdateTranslationsWildcars()
+    {
+      //this.HttpContext.Items[PaywallLocalizationItemKey] = this.ConfigureTranslationWildcards((this.HttpContext.Items[PaywallLocalizationItemKey] as ILocalization));
+    }
+
+    public void SetTemplateSession(IUserSession session)
+    {
+      this._session = session;
+    }
+
+    public static string AppendSessionID(string url)
+    {
+      PaywallHttpContext paywallContext = Current;
+      string sessionID = paywallContext.Session.SessionData.Guid.ToString().Replace("-", "");
+      string sessionPath = MobilePaywall.Constants.SessionID + "/" + sessionID;
+
+      if (url.Contains(MobilePaywall.Constants.SessionID + "/"))
+      {
+        if (url.Contains(sessionPath))
+        {
+          //INFO: Session in URL matches session in context.
+          return url;
+        }
+        else
+        {
+          //INFO: Session in URL does NOT match session in context.
+          return "/";
+        }
+      }
+      else
+      {
+        //INFO: Session is not provided in URL. So append it.
+        url = PrepareUrl(url, sessionPath);
+      }
+
+      if (!url.StartsWith("/"))
+        url = "/" + url;
+
+      return url;
+    }
+
+    private static string PrepareUrl(string url, string sessionPath)
+    {
+      if (url.Contains("?"))
+      {
+        string[] parts = url.Split('?');
+        if (parts[0].EndsWith("/"))
+          url = url.Replace("?", sessionPath + "?");
+        else
+          url = url.Replace("?", "/" + sessionPath + "?");
+      }
+      else
+        if (!url.EndsWith("/"))
+          url += "/" + sessionPath;
+        else
+          url += sessionPath;
+
+      return url;
+    }
+
+    public Guid? GetFingerprint()
+    {
+      if (PaywallTrckdContext.GetCurrent<PaywallTrckdContext>().FingerprintID.HasValue)
+        return PaywallTrckdContext.GetCurrent<PaywallTrckdContext>().FingerprintID.Value;
+      return null;
+    }
+
+    public int? GetPcid()
+    {
+      if (PaywallWebTrackContext.GetCurrent<PaywallWebTrackContext>().Pcid.HasValue)
+        return PaywallWebTrackContext.GetCurrent<PaywallWebTrackContext>().Pcid.Value;
+      return null;
+    }
+
+  }
+}

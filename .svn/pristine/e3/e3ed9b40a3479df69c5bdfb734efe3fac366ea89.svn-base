@@ -1,0 +1,84 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using MobilePaywall.Data;
+using MobilePaywall.Direct;
+
+namespace MobilePaywall
+{
+  public class InitiatePaymentResult
+  {
+    private PaymentRequest _request = null;
+    private Payment _payment = null;
+    private PaymentCallback _callback = null;
+    private bool _pinConfirmed = false;
+
+    public PaymentRequest Request { get { return this._request; } }
+    public Payment Payment { get { return this._payment; } }
+    public PaymentCallback Callback { get { return this._callback; } }
+    // TODO: This needs to be changed as this check wont be sufficient.
+
+    public bool IsSuccessful
+		{
+			get
+			{
+				if (this.Payment == null)
+					return false;
+
+				if(this.Payment.PaymentStatus == PaymentStatus.Cancelled)
+				{
+					int? count = MobilePaywallDirect.Instance.LoadInt(
+						string.Format("SELECT COUNT(*) FROM MobilePaywall.core.PaymentContentAccessPolicyMap WHERE PaymentID={0} AND IsValid=1 AND ValidTo>'{1}'",
+							this.Payment.ID, MobilePaywallDirect.Instance.Date(DateTime.Now)));
+					return count > 0;
+				}
+				
+				return this.Payment.PaymentStatus == PaymentStatus.Successful;
+			}
+		}
+		public bool SubscriptionAlreadyExists { get; set; } = false;
+		public bool AccessPolicyExists
+		{
+			get
+			{
+				if (this.Payment == null)
+					return false;
+
+				int? count = MobilePaywallDirect.Instance.LoadInt(
+						string.Format("SELECT COUNT(*) FROM MobilePaywall.core.PaymentContentAccessPolicyMap WHERE PaymentID={0} AND IsValid=1 AND ValidTo>'{1}'",
+							this.Payment.ID, MobilePaywallDirect.Instance.Date(DateTime.Now)));
+				return count > 0;
+			}
+		}
+
+    // TODO: This one should also be changed.
+    //public bool IsFinalResult { get { return this.Request.PaymentRequestStatus == PaymentRequestStatus.Pending; } }
+    public bool IsFinalResult
+    {
+      get
+      {
+        return this.Payment != null && this.Payment.PaymentStatus != PaymentStatus.Pending;
+      }
+    }
+
+    public bool PinConfirmed { get { return this._pinConfirmed; } set { this._pinConfirmed = value; } }
+
+    public InitiatePaymentResult(PaymentRequest request, Payment payment, PaymentCallback callback)
+    {
+      this._request = request;
+      this._payment = payment;
+      this._callback = callback;
+    }
+
+    public InitiatePaymentResult(PaymentRequest request, Payment payment, PaymentCallback callback, bool pinConfirmed)
+    {
+      this._request = request;
+      this._payment = payment;
+      this._callback = callback;
+      this._pinConfirmed = pinConfirmed;
+    }
+  }
+}

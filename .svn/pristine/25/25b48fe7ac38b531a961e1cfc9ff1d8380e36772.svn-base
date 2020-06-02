@@ -1,0 +1,103 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using Cashflow.Data;
+using Cashflow.Data.Sql;
+using Senti.Data;
+using System.Data;
+
+namespace MobilePaywall.Migrator
+{
+  public class Program
+  {
+    public static void Main(string[] args)
+    {
+      MobilePaywall.Data.Sql.Database dbPaywall = null;
+      Cashflow.Data.Sql.Database dbCashflow = null;
+      MobileMafia.Portal.Sql.Database dbMafia = null;
+      Senti.Data.DataLayerRuntime runtime = new Senti.Data.DataLayerRuntime();
+
+      //PaywallItem paywallItem = new PaywallItem();
+      //paywallItem.UpdatePassword();
+      //paywallItem.UpdateTrackingInformations();
+
+      List<Guid> behaviorModels = new List<Guid>();
+      behaviorModels.Add(new Guid("7694D149-9CEA-46A9-8791-B87F8D536728"));
+      behaviorModels.Add(new Guid("D0BA7829-3D53-49F4-AB73-D933F2E4D33A"));
+      behaviorModels.Add(new Guid("2462417E-BE1D-4555-A770-F89903F306BA"));
+
+
+      foreach(Guid bm in behaviorModels)
+      {
+        Guid modelGuid = bm;
+
+        IBehaviorModelManager bmManager = BehaviorModel.CreateManager();
+        BehaviorModel model = bmManager.Load(modelGuid);
+        Console.WriteLine("Starti with: " + model.Guid.ToString());
+
+        List<CashflowItem> cashflowItems = new List<CashflowItem>();
+        ISubscriptionManager sManager = Subscription.CreateManager();
+        List<Subscription> subscriptions = null;
+        using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+        {
+          try
+          {
+            connection.Transaction.Begin();
+            subscriptions = sManager.Load(connection, model);
+            connection.Transaction.Commit();
+          }
+          catch (Exception ex)
+          {
+            connection.Transaction.Rollback();
+          }
+        }
+
+        subscriptions = (from s in subscriptions where s.SubscriptionStatus == SubscriptionStatus.Active select s).ToList();
+        foreach (Subscription subscription in subscriptions)
+        {
+          sManager.Depth = 2;
+          Subscription temporary = sManager.Load(subscription.ID);
+
+
+          ITransactionManager tManager = Transaction.CreateManager();
+          List<Transaction> transactions = tManager.Load(temporary.TransactionGroup);
+          Transaction transaction = (from t in transactions
+                                     where t.TransactionStatus == TransactionStatus.Executed &&
+                                           t.Created >= DateTime.Now.AddDays(-14d)
+                                     select t).FirstOrDefault();
+
+          if (transaction == null)
+            continue;
+
+          ISubscriptionRequestIdentificationResultMapManager srirmManager = SubscriptionRequestIdentificationResultMap.CreateManager(2);
+          SubscriptionRequestIdentificationResultMap subscriptionRequestIdentificationResultMap = srirmManager.Load(temporary.SubscriptionRequest);
+
+          IMobileCustomerManager mcManager = MobileCustomer.CreateManager();
+          MobileCustomer mobileCustomer = mcManager.Load(temporary.SubscriptionRequest.Customer);
+
+          //IMobileSubscriberManager msManager = MobileSubscriber.CreateManager();
+          //MobileSubscriber mobileSubscriber = msManager.Load(mobileCustomer.MobileSubscriber);
+
+          cashflowItems.Add(new CashflowItem(temporary, subscriptionRequestIdentificationResultMap, transaction, mobileCustomer, mobileCustomer.MobileSubscriber));
+        }
+
+        Console.WriteLine(string.Format("Casflow: {0}/{1}", subscriptions.Count, cashflowItems.Count));
+        PaywallItem paywallItem = new PaywallItem(model.Guid, cashflowItems);
+        paywallItem.Initialize();
+        Console.WriteLine(string.Format("Paywall: {0}", paywallItem.PaywallEntries.Count));
+        paywallItem.Migrate();
+
+        Console.WriteLine("Done with " + model.Guid.ToString());
+      }
+
+      Console.WriteLine("Done.");
+
+
+      Console.ReadLine();
+    }
+  }
+}
+ 

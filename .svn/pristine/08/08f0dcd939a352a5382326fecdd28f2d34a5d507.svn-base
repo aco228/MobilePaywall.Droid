@@ -1,0 +1,103 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using Senti.Data.Sql;
+using System.Data;
+
+
+namespace MobilePaywall.Data
+{
+  public partial interface IVideoContentDetailManager
+  {
+
+    List<VideoContentDetail> Load(VideoContent videoContent);
+    List<VideoContentDetail> Load(IConnectionInfo connection, VideoContent videoContent);
+    List<VideoContentDetail> Load(Service service);
+    List<VideoContentDetail> Load(IConnectionInfo connection, Service service);
+    List<VideoContentDetail> Load(Service service, Language language);
+    List<VideoContentDetail> Load(IConnectionInfo connection, Service service, Language language);    
+    VideoContentDetail Load(VideoContent videoContent, Language language);
+    VideoContentDetail Load(IConnectionInfo connection, VideoContent videoContent, Language language);
+    // VideoContentDetail Load(VideoContent videoContent, Service service, Language language);
+    T Load<T>(VideoContent videoContent, Service service, Language language);
+    T Load<T>(IConnectionInfo connection, VideoContent videoContent, Service service, Language language);
+
+    
+
+
+  }
+
+  public partial class VideoContentDetail
+  {
+
+    public void UpdateWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void UpdateWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void InsertWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void InsertWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void DeleteWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+    public void DeleteWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+
+    public override bool IsDeletable { get { return true; } }
+
+		public static VideoContentDetail LoadByVideoContent(VideoContent videoContent)
+		{
+			VideoContentDetail detail;
+			using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+			{
+				connection.Transaction.Begin();
+				detail = VideoContentDetail.CreateManager().Load(connection, videoContent).FirstOrDefault();
+				connection.Transaction.Commit();
+			}
+			return detail;
+		}
+
+		public static List<VideoContentDetail> LoadByService(Service service)
+		{
+			List<VideoContentDetail> details;
+			using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+			{
+				connection.Transaction.Begin();
+				details = VideoContentDetail.CreateManager().Load(connection, service);
+				connection.Transaction.Commit();
+			}
+			return details;
+		}
+
+		public static List<VideoContentDetail> LoadByServiceAndLanguage(Service service, Language language)
+		{
+			List<VideoContentDetail> details;
+			using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+			{
+				connection.Transaction.Begin();
+				details = VideoContentDetail.CreateManager().Load(connection, service, language);
+				connection.Transaction.Commit();
+			}
+			return details;
+		}
+
+
+		public static VideoContentDetail LoadByVideoContentServiceAndLanguage(VideoContent videoContent, Service service, Language language)
+		{
+			VideoContentDetail detail;
+			using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+			{
+				connection.Transaction.Begin();
+
+        IVideoContentDetailManager vcdManager = VideoContentDetail.CreateManager();
+				detail = vcdManager.Load<VideoContentDetail>(connection, videoContent, service, language);
+        if (detail == null)
+          detail = vcdManager.Load(connection, videoContent, language);
+        if (detail == null)
+          detail = vcdManager.Load(videoContent).FirstOrDefault();
+
+				connection.Transaction.Commit();
+			}
+			return detail;
+		}
+
+  }
+}
+

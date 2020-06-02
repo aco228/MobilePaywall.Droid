@@ -1,0 +1,567 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using MobilePaywall.Data;
+using log4net;
+using Senti.Diagnostics.Log;
+using System.Web;
+using MobilePaywall.Implementation.Service;
+using MobilePaywall.Direct;
+using Senti.Localization;
+using MobilePaywall.Localization;
+
+namespace MobilePaywall
+{
+  public abstract class ServiceBase : IService
+  {
+
+    #region #LOG#
+    private static ILog _log = null;
+    protected static ILog Log
+    {
+      get
+      {
+        if (ServiceBase._log == null)
+          ServiceBase._log = LogManager.GetLogger(typeof(ServiceBase));
+        return ServiceBase._log;
+      }
+    }
+    #endregion
+
+    private Service _serviceData = null;
+    private IPaywallRuntime _runtime = null;
+    private List<Domain> _domains = null;
+    private Dictionary<ServiceConfigurationEntryKey, ServiceConfigurationEntry> _configurationEntries = null;
+    private Dictionary<BusinessModelEntryKey, BusinessModelEntry> _businessModelEntries = null;
+    private Template _template = null;
+    private FooterLink _footerLinks = null;
+    private PaymentProvider _paymentProvider = null;
+    private ServiceLogo _serviceLogo = null;
+    private TemplateServiceInfo _serviceInfo = null;
+    private Dictionary<string, Guid> _specificBehaviorModel = null;
+    private List<TemplateModification> _templateModifications = null;
+    private ServiceStorageManager _storageManager = null;
+    private LookupManagerType _lookupManagerType = null;
+    private PaymentManagerType _paymentManagerType = null;
+    private ServiceOffer _defaultServiceOffer = null;
+    private ILocalization _localization = null;
+
+    public Service ServiceData { get { return this._serviceData; } }
+    public IPaywallRuntime Runtime { get { return this._runtime; } }
+    public ReadOnlyCollection<Domain> Domains { get { return this._domains.AsReadOnly(); } }
+    public Template Template { get { return this._template;  } }
+    public FooterLink FooterLinks { get { return this._footerLinks; } }
+    public PaymentProvider PaymentProvider { get { return this._paymentProvider; } }
+    public ServiceLogo ServiceLogo { get { return this._serviceLogo; } }
+    public List<TemplateModification> TemplateModifications { get { return this._templateModifications; } }
+    
+    public ServiceStorageManager Storage
+    {
+      get
+      {
+        if (this._storageManager != null)
+          return this._storageManager;
+        this._storageManager = new ServiceStorageManager(this._serviceData);
+        return this._storageManager;
+      }
+    }
+
+    public TemplateServiceInfo ServiceInfo 
+    { 
+      get 
+      {
+        if (this._serviceInfo == null)
+          this._serviceInfo = new TemplateServiceInfo(-1, this._serviceData, TemplateServiceType.Unknown, 0, null, string.Empty, string.Empty, false, false, DateTime.Now, DateTime.Now);
+        return this._serviceInfo;
+      } 
+    }
+
+    public ServiceOffer DefaultServiceOffer 
+    { 
+      get 
+      {
+        if (this._defaultServiceOffer != null)
+          return this._defaultServiceOffer;
+        this._defaultServiceOffer = (from s in ServiceOffer.CreateManager().Load(this._serviceData) where s.IsActive && s.IsDefault select s).FirstOrDefault(); 
+        return this._defaultServiceOffer;
+      } 
+    }
+    
+    public ILocalization Localization
+    {
+      get
+      {
+        try
+        {
+          if (this._localization != null)
+            return this._localization;
+
+          KeyValuePair<MobilePaywall.Data.Localization, ILocalizationProvider> translationMapKeyEntry =
+            (from tmk in this.Runtime.LocalizationProviders where tmk.Key.Application.ID == this._serviceData.Application.ID && tmk.Key.Product.ID == this._serviceData.Product.ID select tmk).FirstOrDefault();
+          if (translationMapKeyEntry.Value == null)
+            translationMapKeyEntry = (from tmk in this.Runtime.LocalizationProviders where tmk.Key.Application.ID == this._serviceData.Application.ID select tmk).FirstOrDefault();
+
+          if (translationMapKeyEntry.Value == null)
+          {
+            Log.Fatal("This application '" + this.Runtime.ApplicationData.Name + "' does not have any Localization provided!");
+            return null;
+          }
+
+          TranslationKey translationKey = new TranslationKey(translationMapKeyEntry.Key, this._serviceData.FallbackLanguage, this._serviceData);
+          if (translationKey == null)
+          {
+            Log.Fatal("This service '" + this._serviceData.Name + "' does not have translation key");
+            return null;
+          }
+
+          this._localization = translationMapKeyEntry.Value.GetLocalization(translationKey);
+          this._localization = this.ConfigureTranslationWildcards(this._localization);
+          return this._localization;
+        }
+        catch(Exception e)
+        {
+          Log.Fatal("SERVICE:Localization FATAL", e);
+          return null;
+        }
+      }
+    }
+    
+    public string LogoUrl
+    {
+      get
+      {
+        //if (this._serviceLogo != null)
+          return "/logo";
+        //return string.Format("/lg/{0}.png", this._serviceData.ID);
+      }
+    }
+
+
+
+    public ServiceBase(Service serviceData, IPaywallRuntime runtime)
+    {
+      this._serviceData = serviceData;
+      this._runtime = runtime;
+      this.LoadDomains();
+      this.LoadServiceConfigurationEntries();
+      this.LoadBusinessModelEntries();
+      this._template = this.ServiceData.Template != null ? this.ServiceData.Template : this.ServiceData.Merchant.Template;
+      this._serviceInfo = TemplateServiceInfo.CreateManager().Load(this._serviceData);
+      this.Init();
+
+      Log.Debug(new LogMessageBuilder(
+                  new LogErrorCode("servicebase", "instantiation", "debug"),
+                  string.Format("Instantiated Service '{0}' (ID: {1}). Domains: {2} // Configuration: {3} // Configurations: {4} // Business Models: {5}",
+                                serviceData.Name,
+                                serviceData.ID,
+                                string.Concat(from Domain d in this._domains select d.DomainName + ","),
+                                serviceData.ServiceConfiguration.ID,
+                                string.Concat(from ServiceConfigurationEntry sce in this._configurationEntries.Values select sce.ID + ","),
+                                string.Concat(from BusinessModelEntry bme in this._businessModelEntries.Values select bme.ID + ","))));
+    }
+
+    public void Init()
+    {
+      ServiceOffer so = ServiceOffer.CreateManager().Load(this._serviceData).FirstOrDefault();
+      if (so != null && so.PaymentConfiguration != null && so.PaymentConfiguration.PaymentProvider != null)
+        this._paymentProvider = so.PaymentConfiguration.PaymentProvider;
+
+      if (this._serviceData.FallbackCountry != null)
+      {
+        IFooterLinkManager flManager = FooterLink.CreateManager();
+        this._footerLinks = null;
+        this._footerLinks = flManager.Load(this._serviceData); // (where PaymentProvider is null, based on Service OR Service.FallbackCountry
+
+        if (this._footerLinks == null)
+          this._footerLinks = flManager.Load(this._serviceData.FallbackCountry, this._paymentProvider);
+
+        //if (this._footerLinks != null && _footerLinks.Service == null && this._paymentProvider != null)
+        //  this._footerLinks = flManager.Load(this._serviceData.FallbackCountry, this._paymentProvider);
+        //else if (this._footerLinks == null && this._paymentProvider != null)
+        //  this._footerLinks = flManager.Load(this._serviceData.FallbackCountry, this._paymentProvider);
+      }
+
+      this._templateModifications = TemplateModification.CreateManager().Load(this._serviceData.Template);
+      if(this._templateModifications != null && this._templateModifications.Count > 0)
+        this._templateModifications = (from t in this._templateModifications where (t.PaymentProvider == null || t.PaymentProvider.ID == this.PaymentProvider.ID) && (t.Country == null || t.Country.ID == this._serviceData.FallbackCountry.ID) select t).ToList();
+
+      this._serviceLogo = ServiceLogo.CreateManager().Load(this._serviceData);
+
+    }
+
+    public virtual ILookupManager CreateLookupManager(IUserSession session)
+    {
+      try
+      {
+        if (this._lookupManagerType != null)
+          return this._lookupManagerType.Instantiate(session);
+
+        int? _lookupManagerTypeID = MobilePaywallDirect.Instance.LoadInt(string.Format(@"
+          SELECT TOP 1 LookupManagerTypeID FROM MobilePaywall.core.LookupManagerConfiguration AS pmc
+          WHERE pmc.CountryID = {0} AND ((pmc.ServiceID IS NOT NULL AND pmc.ServiceID={1}) OR (pmc.ServiceID IS NULL)) 
+                AND ((pmc.PaymentProviderID IS NOT NULL AND pmc.PaymentProviderID={2}) OR (pmc.PaymentProviderID IS NULL))
+          ORDER BY pmc.ServiceID DESC, pmc.PaymentProviderID DESC", this._serviceData.FallbackCountry.ID, this._serviceData.ID, this.PaymentProvider.ID));
+
+        if (!_lookupManagerTypeID.HasValue)
+        {
+          Log.Info(string.Format("ServiceBase:: Service '{0}' has no custom Lookupmanager. DefaultLookupManager created", this._serviceData.Name));
+          this._lookupManagerType = LookupManagerType.CreateManager().Load(1);
+          return this._lookupManagerType.Instantiate(session);
+        }
+
+        this._lookupManagerType = LookupManagerType.CreateManager().Load(_lookupManagerTypeID.Value);
+        if (this._lookupManagerType == null)
+        {
+          Log.Info(string.Format("ServiceBase:: Service '{0}' has no custom Lookupmanager. DefaultLookupManager created (ID)", this._serviceData.Name));
+          this._lookupManagerType = LookupManagerType.CreateManager().Load(1);
+          return this._lookupManagerType.Instantiate(session);
+        }
+
+        Log.Info(string.Format("ServiceBase:: Created '{0}' lookup manager for service '{1}'", this._lookupManagerType.Name, this._serviceData.Name));
+        return this._lookupManagerType.Instantiate(session);
+
+      }
+      catch (Exception e)
+      {
+        Log.Fatal(string.Format("ServiceBas.CreateLookupManagere:: FATAL"), e);
+        this._lookupManagerType = LookupManagerType.CreateManager().Load(1);
+        return this._lookupManagerType.Instantiate(session);
+      }
+
+      //if (this.ServiceData.FallbackCountry.ID == 65)
+      //  return new WebLookupManager(session);
+      //if (this.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("TH") && this.PaymentProvider.ID == 10)
+      //  return new MyPayLookupManager(session);
+      //if (this.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("UK"))
+      //  return new MobilePaywall.Implementation.Payment.UK.UKLookupManager(session);
+      //if (this.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("IR"))
+      //  return new MobilePaywall.Implementation.Payment.IR.IRLookupManager(session);
+      //if (this.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("PL") && this.PaymentProvider.ID == 22) // poland mobiltek
+      //  return new MobilePaywall.Implementation.Payment.Specific.PL.PLMobiltekLookupManager(session);
+      //if (this.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("PT") && this.PaymentProvider.ID == 17) // Portugal Go4Mobility
+      //  return new MobilePaywall.Implementation.Payment.Specific.PT.PTGoForMobilityLookupManager(session);
+      //if (this.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("ES") && this.PaymentProvider.ID == 17) // Spain Go4Mobility
+      //  return new MobilePaywall.Implementation.Payment.Specific.ES.ESGoForMobilityLookupManager(session);
+      //if (this.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("MY") && this.PaymentProvider.ID == 13) // Malyasia Alterco
+      //  return new MobilePaywall.Implementation.Payment.Specific.MY.MYAltercoLookupManager(session);
+
+      //return new DefaultLookupManager(session);
+    }
+
+    public virtual IPaymentManager CreatePaymentManager(IUserSession session)
+    {
+      try
+      {
+        if (this._paymentManagerType != null)
+          return this._paymentManagerType.Instantiate(session);
+
+        int? _paymentManagerTypeID = MobilePaywallDirect.Instance.LoadInt(string.Format(@"
+          SELECT TOP 1 PaymentManagerTypeID FROM MobilePaywall.core.PaymentManagerConfiguration AS pmc
+          WHERE pmc.CountryID = {0} AND ((pmc.ServiceID IS NOT NULL AND pmc.ServiceID={1}) OR (pmc.ServiceID IS NULL)) 
+                AND ((pmc.PaymentProviderID IS NOT NULL AND pmc.PaymentProviderID={2}) OR (pmc.PaymentProviderID IS NULL))
+          ORDER BY pmc.ServiceID DESC, pmc.PaymentProviderID DESC", this._serviceData.FallbackCountry.ID, this._serviceData.ID, this.PaymentProvider.ID));
+
+        if (!_paymentManagerTypeID.HasValue)
+        {
+          Log.Info(string.Format("ServiceBase:: Service '{0}' has no custom Paymentmanager. DefaultPaymentManager created", this._serviceData.Name));
+          this._paymentManagerType = PaymentManagerType.CreateManager().Load(1);
+          return this._paymentManagerType.Instantiate(session);
+        }
+
+        this._paymentManagerType = PaymentManagerType.CreateManager().Load(_paymentManagerTypeID.Value);
+        if (this._paymentManagerType == null)
+        {
+          Log.Info(string.Format("ServiceBase:: Service '{0}' has no custom Payment manager. DefaultPaymentManager created (ID)", this._serviceData.Name));
+          this._paymentManagerType = PaymentManagerType.CreateManager().Load(1);
+          return this._paymentManagerType.Instantiate(session);
+        }
+
+        Log.Info(string.Format("ServiceBase:: Created '{0}' payment manager for service '{1}'", this._paymentManagerType.Name, this._serviceData.Name));
+        return this._paymentManagerType.Instantiate(session);
+
+      }
+      catch (Exception e)
+      {
+        Log.Fatal(string.Format("ServiceBas.CreatePaymentManagere:: FATAL"), e);
+        this._paymentManagerType = PaymentManagerType.CreateManager().Load(1);
+        return this._paymentManagerType.Instantiate(session);
+      }
+
+      //if (this.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("TH") && this.PaymentProvider.ID == 10)
+      //  return new MyPayPaymentManager(session);
+      //if (this.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("UK"))
+      //  return new MobilePaywall.Implementation.Payment.UK.UKPaymentManager(session);
+      //if (this.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("GR"))
+      //  return new GreekPaymentManager(session);
+      //if (this.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("IR"))
+      //  return new MobilePaywall.Implementation.Payment.Specific.IR.IRPaymentManager(session);
+      //return new DefaultPaymentManager(session);
+    }
+
+    private void LoadDomains()
+    {
+      IDomainManager domainManager = Domain.CreateManager();
+      this._domains = domainManager.Load(this.ServiceData);
+    }
+
+    private void LoadServiceConfigurationEntries()
+    {
+      IServiceConfigurationEntryManager sceManager = ServiceConfigurationEntry.CreateManager();
+      List<ServiceConfigurationEntry> testList = sceManager.Load(this.ServiceData.ServiceConfiguration);
+      this._configurationEntries = (from ServiceConfigurationEntry sce in sceManager.Load(this.ServiceData.ServiceConfiguration) select sce)
+                                    .ToDictionary(entry => new ServiceConfigurationEntryKey(entry), entry => entry);
+    }
+
+    private void LoadBusinessModelEntries()
+    {
+      IBusinessModelEntryManager bmeManager = BusinessModelEntry.CreateManager();
+      this._businessModelEntries = (from BusinessModelEntry bme in bmeManager.Load(this.ServiceData.BusinessModel) select bme)
+                                   .ToDictionary(entry => new BusinessModelEntryKey(entry), entry => entry);
+    }
+
+    public ServiceConfigurationEntry GetConfiguration(Country country, MobileOperator mobileOperator)
+    {
+      try
+      {
+        if (country == null)
+          throw new ArgumentException("GetConfiguration() Country is not provided!");
+
+        ServiceConfigurationEntryKey specificKey = new ServiceConfigurationEntryKey(country, mobileOperator);
+        if (this._configurationEntries.ContainsKey(specificKey))
+          return this._configurationEntries[specificKey];
+        ServiceConfigurationEntryKey fallbackKey = new ServiceConfigurationEntryKey(country, null);
+        if (this._configurationEntries.ContainsKey(fallbackKey))
+          return this._configurationEntries[fallbackKey];
+
+        if (Log.IsWarnEnabled)
+        {
+          Log.Warn(new LogMessageBuilder(
+            new LogErrorCode("servicebase", "getconfiguration", "error"),
+              string.Format("GetConfiguration() for Country: {0} // MobileOperator: {1} // Service: {2} are not found in Configurations:", 
+              country != null ? country.GlobalName : "#none",
+              mobileOperator != null ? mobileOperator.Name : "#none", 
+              this.ServiceData.Name,
+              string.Concat(from ServiceConfigurationEntry sce in this._configurationEntries.Values select sce.ID + ","))));
+        }
+
+        return null;
+      }
+      catch (Exception ex)
+      {
+        if (Log.IsFatalEnabled)
+        {
+          Log.Error(new LogMessageBuilder(
+            new LogErrorCode("servicebase", "getconfiguration", "exception"),
+              "GetConfiguration() for Country: {0} // MobileOperator: {1} // Service: {2} are not found in Configurations:",
+              country != null ? country.GlobalName : "#none",
+              mobileOperator != null ? mobileOperator.Name : "#none",
+              this.ServiceData.Name,
+              string.Concat(from ServiceConfigurationEntry sce in this._configurationEntries.Values select sce.ID + ",")));
+        }
+        return null;
+      }
+    }
+
+    public BusinessModelEntry GetBusinessModel(Country country, MobileOperator mobileOperator)
+    {
+      try
+      {
+        if (country == null)
+          throw new ArgumentException("GetBusinessModel() Country is not provided!");
+
+        BusinessModelEntryKey specificKey = new BusinessModelEntryKey(country, mobileOperator);
+        if (this._businessModelEntries == null) this._businessModelEntries = new Dictionary<BusinessModelEntryKey, BusinessModelEntry>();
+        if (this._businessModelEntries.ContainsKey(specificKey))
+          return this._businessModelEntries[specificKey];
+        BusinessModelEntryKey fallbackKey = new BusinessModelEntryKey(country, null);
+        if (this._businessModelEntries.ContainsKey(fallbackKey))
+          return this._businessModelEntries[fallbackKey];
+
+        if (Log.IsWarnEnabled)
+        {
+          Log.Warn(new LogMessageBuilder(
+            new LogErrorCode("servicebase", "getbusinessmodel", "error"),
+              "GetBusinessModel() for Country: {0} // MobileOperator: {1} // Service: {2} are not found in Configurations:",
+              country != null ? country.GlobalName : "#none",
+              mobileOperator != null ? mobileOperator.Name : "#none",
+              this.ServiceData.Name,
+              string.Concat(from ServiceConfigurationEntry sce in this._configurationEntries.Values select sce.ID + ",")));
+        }
+
+        return null;
+      }
+      catch (Exception ex)
+      {
+        if (Log.IsFatalEnabled)
+        {
+          Log.Error(new LogMessageBuilder(
+            new LogErrorCode("servicebase", "getbusinessmodel", "exception"),
+               "GetBusinessModel() for Country: {0} // MobileOperator: {1} // Service: {2} are not found in Configurations:",
+              country != null ? country.GlobalName : "#none",
+              mobileOperator != null ? mobileOperator.Name : "#none",
+              this.ServiceData.Name,
+              string.Concat(from ServiceConfigurationEntry sce in this._configurationEntries.Values select sce.ID + ",")));
+        }
+        return null;
+      }
+    }
+
+    // SUMMARY: Upate ServiceInfo with new or database ServiceInfo
+    public void UpdateInfo(TemplateServiceInfo info = null)
+    {
+      if(info != null)
+        this._serviceInfo = info;
+      else
+        this._serviceInfo = TemplateServiceInfo.CreateManager().Load(this._serviceData);
+    }
+
+    // SUMMARY: Get specific Behaviror model based on type in description (example: instant flow on dimoco DE services)
+    public Guid GetSpecificBehaviorModel(string searchPattern)
+    {
+      if (this._specificBehaviorModel != null && this._specificBehaviorModel.ContainsKey(searchPattern))
+        return this._specificBehaviorModel[searchPattern];
+
+      if (this._specificBehaviorModel == null)
+        this._specificBehaviorModel = new Dictionary<string, Guid>();
+
+      List<BehaviorModel> bms = BehaviorModel.CreateManager().Load(this._serviceData.Name);
+      if(bms == null || bms.Count >= 2)
+      {
+        Guid externalBehaviorModelGuid = Guid.Empty;
+
+        foreach(BehaviorModel bm in bms)
+          if(bm.Description.Contains(searchPattern))
+          {
+            externalBehaviorModelGuid = bm.ExternalBehaviorModelGuid;
+            break;
+          }
+
+        if(externalBehaviorModelGuid == Guid.Empty)
+          Log.Error(new LogMessageBuilder(new LogErrorCode("servicebase", "specifibehaviormodel", "alert"),
+             "SPECIFIC_BEHAVIOR_MODEL: ERROR - Could not find " + this._serviceData.Name + " with search patter " + searchPattern));
+        else
+        {
+          Log.Debug(new LogMessageBuilder(new LogErrorCode("servicebase", "specifibehaviormodel", "alert"),
+             "SPECIFIC_BEHAVIOR_MODEL: ADDED - Added new Specific behavior model for service " + this._serviceData.Name + " with search patter " + searchPattern));
+          this._specificBehaviorModel[searchPattern] = externalBehaviorModelGuid;
+          return externalBehaviorModelGuid;
+        }
+      }
+      else
+        Log.Error(new LogMessageBuilder(new LogErrorCode("servicebase", "specifibehaviormodel", "alert"),
+            "SPECIFIC_BEHAVIOR_MODEL: ERROR - Could not load specific behavior model for  " + this._serviceData.Name + "  - with search patter " + searchPattern));
+
+      return Guid.Empty;
+    }
+
+    // SUMMARY: This method will be called from Context, to see if there is implemented identification based on cookie
+    public virtual IUserSession TryGetUserSessionByCookie(HttpContext context)
+    {
+      return null;
+    }
+
+    public virtual void OnChargeSubscription(Payment payment)
+    {
+      return;
+    }
+
+    public virtual void OnChargePurchase(Payment payment)
+    {
+      return;
+    }
+
+    protected virtual ILocalization ConfigureTranslationWildcards(ILocalization localization)
+    {
+      MobilePaywallLocalization mobilePaywallTranslation = localization as MobilePaywallLocalization;
+      List<TranslationGroup> translationGroups = TranslationGroup.CreateManager().Load(Translation.CreateManager().Load(1));
+      List<MobilePaywall.Base.StorageEntry> storageEntries = this.Storage.EntriesList;
+
+      foreach (TranslationGroup tg in translationGroups)
+      {
+        ILocalizationGroup groupItem = mobilePaywallTranslation.GetGroup(tg.Name);
+        if (groupItem == null)
+          continue;
+
+        foreach (TranslationGroupKey tgk in tg.Keys)
+        {
+          string groupKeyText = groupItem.GetValue(tgk.Name);
+          if (string.IsNullOrEmpty(groupKeyText))
+            continue;
+          
+          groupKeyText = groupKeyText.Replace("[Service.ID]", this._serviceData.ID.ToString());
+          groupKeyText = groupKeyText.Replace("[Service.Name]", this._serviceData.Name);
+          groupKeyText = groupKeyText.Replace("[Service.Url]", string.Format("http://{0}", this._serviceData.Name));
+          groupKeyText = groupKeyText.Replace("[Service.Price]", this.ServiceInfo.Price);
+          groupKeyText = groupKeyText.Replace("[Service.Country]", this._serviceData.FallbackLanguage.GlobalName);
+          groupKeyText = groupKeyText.Replace("[Merchant.Name]", this._serviceData.Merchant.Name);
+          groupKeyText = groupKeyText.Replace("[Merchant.Address]", this._serviceData.Merchant.Address);
+          groupKeyText = groupKeyText.Replace("[PaymentProvider.Name]", this.PaymentProvider.Name);
+
+          foreach (MobilePaywall.Base.StorageEntry entry in storageEntries)
+            groupKeyText = groupKeyText.Replace(string.Format("[Storage.{0}]", entry.Key), entry.Value);
+          
+          mobilePaywallTranslation.GetGroup(tg.Name).AssignValue(tgk.Name, groupKeyText);
+        }
+      }
+
+      return mobilePaywallTranslation;
+    }
+
+
+    private string _defaultCashflowServicePrice = string.Empty;
+    public string GetCashflowPrice(MobileOperator mobileOperator)
+    {
+      if (mobileOperator == null && !string.IsNullOrEmpty(this._defaultCashflowServicePrice))
+        return this._defaultCashflowServicePrice;
+
+      CashflowDirect db = CashflowDirect.Instance;
+
+      if(mobileOperator != null)
+      {
+        #region # sql #
+
+        string price = db.LoadString(string.Format(@"SELECT 
+	        CONVERT(DECIMAL(10, 2), scpe.Amount) as 'Price' 
+        FROM Cashflow.core.BehaviorModel as bm
+        INNER JOIN Cashflow.core.SubscriptionBehavior as sb on sb.BehaviorModelID = bm.BehaviorModelID
+        INNER JOIN Cashflow.core.SubscriptionBehaviorType as sbt on sbt.SubscriptionBehaviorTypeID = sb.SubscriptionBehaviorTypeID
+        INNER JOIN Cashflow.core.SubscriptionChargingPolicy as scp on scp.SubscriptionBehaviorID = sb.SubscriptionBehaviorID
+        INNER JOIN Cashflow.core.SubscriptionChargingPolicyEntry as scpe on scpe.SubscriptionChargingPolicyID = scp.SubscriptionChargingPolicyID
+        INNER JOIN Cashflow.core.MobileOperatorSubscriptionChargingPolicyMap as map on map.SubscriptionChargingPolicyID = scpe.SubscriptionChargingPolicyID
+        LEFT JOIN Cashflow.core.MobileOperator as mo on mo.MobileOperatorID = map.MobileOperatorID
+        LEFT JOIN Cashflow.core.Country as c on c.CountryID = mo.CountryID
+        WHERE bm.BehaviorModelGuid='{0}'
+	        AND mo.MobileOperatorID={1}", 
+          this.DefaultServiceOffer.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid, mobileOperator.ExternalMobileOperatorID.ToString()));
+
+        #endregion
+        
+        if (!string.IsNullOrEmpty(price))
+          return price;
+      }
+
+      #region # sql #
+
+      this._defaultCashflowServicePrice = db.LoadString(string.Format(@"SELECT 
+	        CONVERT(DECIMAL(10, 2), scpe.Amount) as 'Price' 
+        FROM Cashflow.core.BehaviorModel as bm
+        INNER JOIN Cashflow.core.SubscriptionBehavior as sb on sb.BehaviorModelID = bm.BehaviorModelID
+        INNER JOIN Cashflow.core.SubscriptionBehaviorType as sbt on sbt.SubscriptionBehaviorTypeID = sb.SubscriptionBehaviorTypeID
+        INNER JOIN Cashflow.core.SubscriptionChargingPolicy as scp on scp.SubscriptionBehaviorID = sb.SubscriptionBehaviorID
+        INNER JOIN Cashflow.core.SubscriptionChargingPolicyEntry as scpe on scpe.SubscriptionChargingPolicyID = scp.SubscriptionChargingPolicyID
+        INNER JOIN Cashflow.core.MobileOperatorSubscriptionChargingPolicyMap as map on map.SubscriptionChargingPolicyID = scpe.SubscriptionChargingPolicyID
+        LEFT JOIN Cashflow.core.MobileOperator as mo on mo.MobileOperatorID = map.MobileOperatorID
+        LEFT JOIN Cashflow.core.Country as c on c.CountryID = mo.CountryID
+        WHERE bm.BehaviorModelGuid='{0}'",
+          this.DefaultServiceOffer.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid));
+
+      #endregion
+
+      return this._defaultCashflowServicePrice;
+    }
+  }
+}

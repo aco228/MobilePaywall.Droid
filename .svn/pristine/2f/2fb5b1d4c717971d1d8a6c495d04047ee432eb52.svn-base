@@ -1,0 +1,104 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+
+
+namespace MobilePaywall.Data
+{
+	public partial interface IVideoContentDataManager
+	{
+		VideoContentData Load(VideoContent videoContent);
+		VideoContentData Load(IConnectionInfo connection, VideoContent videoContent);
+		VideoContentData Load(VideoContent videoContent, string mimeType);
+		VideoContentData Load(IConnectionInfo connection, VideoContent videoContent, string mimeType);
+		VideoContentData Load(VideoContent videoContent, VideoCodec videoCodec);
+		VideoContentData Load(IConnectionInfo connection, VideoContent videoContent, VideoCodec videoCodec);
+    VideoContentData LoadWithoutData(int videoContentDataID);
+    VideoContentData LoadWithoutData(IConnectionInfo connection, int videoContentDataID);
+    List<VideoContentData> LoadWithoutData(VideoContent videoContent);
+		List<VideoContentData> LoadWithoutData(IConnectionInfo connection, VideoContent videoContent);    
+    List<VideoContentData> Load(VideoContent videoContent, VideoConversionProfile conversionProfile, bool isOriginal);
+    List<VideoContentData> Load(IConnectionInfo connection, VideoContent videoContent, VideoConversionProfile conversionProfile, bool isOriginal);
+  }
+
+	public partial class VideoContentData
+	{
+		private string _dataFilePath;
+		public string DataFilePath { get { return this._dataFilePath; } set { this._dataFilePath = value; } }
+
+		public static VideoContentData LoadByID(int id)
+		{
+			VideoContentData videoContentData = null;
+			using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+			{
+				connection.Transaction.Begin();
+				IVideoContentDataManager vcdManager = VideoContentData.CreateManager(2);
+				videoContentData = vcdManager.Load(connection, id);
+				connection.Transaction.Commit();
+			}
+
+			return videoContentData;
+		}
+
+    public static VideoContentData LoadByVideoContent(VideoContent videoContent)
+    {
+      VideoContentData videoContentData = null;
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        connection.Transaction.Begin();
+        IVideoContentDataManager vcdManager = VideoContentData.CreateManager(2);
+        videoContentData = vcdManager.Load(connection, videoContent);
+        connection.Transaction.Commit();
+      }
+
+      return videoContentData;
+    }
+
+    public static List<VideoContentData> LoadWithoutDataByVideoContent(VideoContent videoContent)
+    {
+      List<VideoContentData> videoContentData = null;
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        connection.Transaction.Begin();
+        IVideoContentDataManager vcdManager = VideoContentData.CreateManager(2);
+        videoContentData = vcdManager.LoadWithoutData(connection, videoContent);
+        connection.Transaction.Commit();
+      }
+
+      return videoContentData;
+    }
+
+    public static VideoContentData LoadWitoutDataWithID(int videoContentDataID)
+    {
+      VideoContentData videoContentData = null;
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        connection.Transaction.Begin();
+        IVideoContentDataManager vcdManager = VideoContentData.CreateManager(2);
+        videoContentData = vcdManager.LoadWithoutData(videoContentDataID);
+        connection.Transaction.Commit();
+      }
+      return videoContentData;
+    }
+
+    public static List<VideoContentData> LoadAllByVideoContentAndConversionProfile(VideoContent videoContent, VideoConversionProfile conversionProfile, bool isOriginal)
+    {
+      List<VideoContentData> videoContentData = null;
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        connection.Transaction.Begin();
+        IVideoContentDataManager vcdManager = VideoContentData.CreateManager();
+        videoContentData = vcdManager.Load(connection, videoContent, conversionProfile, isOriginal);
+        connection.Transaction.Commit();
+      }
+
+      return videoContentData;
+    }
+
+	}
+}
+

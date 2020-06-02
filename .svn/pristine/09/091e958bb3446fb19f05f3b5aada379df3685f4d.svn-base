@@ -1,0 +1,362 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(Version))] 
+  public partial class VersionManager : MobilePaywall.Data.Sql.SqlManagerBase<Version>, IVersionManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override Version LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							VersionTable.GetColumnNames("[v]") + 
+							(this.Depth > 0 ? "," + PlatformTable.GetColumnNames("[v_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + VendorTable.GetColumnNames("[v_p_v]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ArchitectureTypeTable.GetColumnNames("[v_at]") : string.Empty) + 
+					" FROM [core].[Version] AS [v] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Platform] AS [v_p] ON [v].[PlatformID] = [v_p].[PlatformID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Vendor] AS [v_p_v] ON [v_p].[VendorID] = [v_p_v].[VendorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ArchitectureType] AS [v_at] ON [v].[ArchitectureTypeID] = [v_at].[ArchitectureTypeID] ";
+				sqlCmdText += "WHERE [v].[VersionID] = @VersionID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@VersionID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("v", "loadinternal", "notfound"), "Version could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				VersionTable vTable = new VersionTable(query);
+				PlatformTable v_pTable = (this.Depth > 0) ? new PlatformTable(query) : null;
+				VendorTable v_p_vTable = (this.Depth > 1) ? new VendorTable(query) : null;
+				ArchitectureTypeTable v_atTable = (this.Depth > 0) ? new ArchitectureTypeTable(query) : null;
+
+        
+				Vendor v_p_vObject = (this.Depth > 1) ? v_p_vTable.CreateInstance() : null;
+				Platform v_pObject = (this.Depth > 0) ? v_pTable.CreateInstance(v_p_vObject) : null;
+				ArchitectureType v_atObject = (this.Depth > 0) ? v_atTable.CreateInstance() : null;
+				Version vObject = vTable.CreateInstance(v_pObject, v_atObject);
+				sqlReader.Close();
+
+				return vObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("v", "loadinternal", "exception"), "Version could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Version", "Exception while loading Version object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public Version Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							VersionTable.GetColumnNames("[v]") + 
+							(this.Depth > 0 ? "," + PlatformTable.GetColumnNames("[v_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + VendorTable.GetColumnNames("[v_p_v]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ArchitectureTypeTable.GetColumnNames("[v_at]") : string.Empty) +  
+					" FROM [core].[Version] AS [v] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Platform] AS [v_p] ON [v].[PlatformID] = [v_p].[PlatformID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Vendor] AS [v_p_v] ON [v_p].[VendorID] = [v_p_v].[VendorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ArchitectureType] AS [v_at] ON [v].[ArchitectureTypeID] = [v_at].[ArchitectureTypeID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("v", "customload", "notfound"), "Version could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				VersionTable vTable = new VersionTable(query);
+				PlatformTable v_pTable = (this.Depth > 0) ? new PlatformTable(query) : null;
+				VendorTable v_p_vTable = (this.Depth > 1) ? new VendorTable(query) : null;
+				ArchitectureTypeTable v_atTable = (this.Depth > 0) ? new ArchitectureTypeTable(query) : null;
+
+        
+				Vendor v_p_vObject = (this.Depth > 1) ? v_p_vTable.CreateInstance() : null;
+				Platform v_pObject = (this.Depth > 0) ? v_pTable.CreateInstance(v_p_vObject) : null;
+				ArchitectureType v_atObject = (this.Depth > 0) ? v_atTable.CreateInstance() : null;
+				Version vObject = vTable.CreateInstance(v_pObject, v_atObject);
+				sqlReader.Close();
+
+				return vObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("v", "customload", "exception"), "Version could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Version", "Exception while loading (custom/single) Version object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<Version> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							VersionTable.GetColumnNames("[v]") + 
+							(this.Depth > 0 ? "," + PlatformTable.GetColumnNames("[v_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + VendorTable.GetColumnNames("[v_p_v]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ArchitectureTypeTable.GetColumnNames("[v_at]") : string.Empty) +  
+					" FROM [core].[Version] AS [v] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Platform] AS [v_p] ON [v].[PlatformID] = [v_p].[PlatformID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Vendor] AS [v_p_v] ON [v_p].[VendorID] = [v_p_v].[VendorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ArchitectureType] AS [v_at] ON [v].[ArchitectureTypeID] = [v_at].[ArchitectureTypeID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("v", "customloadmany", "notfound"), "Version list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<Version>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				VersionTable vTable = new VersionTable(query);
+				PlatformTable v_pTable = (this.Depth > 0) ? new PlatformTable(query) : null;
+				VendorTable v_p_vTable = (this.Depth > 1) ? new VendorTable(query) : null;
+				ArchitectureTypeTable v_atTable = (this.Depth > 0) ? new ArchitectureTypeTable(query) : null;
+
+        List<Version> result = new List<Version>();
+        do
+        {
+          
+					Vendor v_p_vObject = (this.Depth > 1) ? v_p_vTable.CreateInstance() : null;
+					Platform v_pObject = (this.Depth > 0) ? v_pTable.CreateInstance(v_p_vObject) : null;
+					ArchitectureType v_atObject = (this.Depth > 0) ? v_atTable.CreateInstance() : null;
+					Version vObject = (this.Depth > -1) ? vTable.CreateInstance(v_pObject, v_atObject) : null;
+					result.Add(vObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("v", "customloadmany", "exception"), "Version list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Version", "Exception while loading (custom/many) Version object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, Version data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[Version] ([PlatformID],[ArchitectureTypeID],[Name],[Code],[Index]) VALUES(@PlatformID,@ArchitectureTypeID,@Name,@Code,@Index); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@PlatformID", data.Platform.ID);
+				sqlCmd.Parameters.AddWithValue("@ArchitectureTypeID", data.ArchitectureType == null ? DBNull.Value : (object)data.ArchitectureType.ID);
+				sqlCmd.Parameters.AddWithValue("@Name", !string.IsNullOrEmpty(data.Name) ? (object)data.Name : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Code", !string.IsNullOrEmpty(data.Code) ? (object)data.Code : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Index", data.Index).SqlDbType = SqlDbType.Int;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("v", "insert", "noprimarykey"), "Version could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "Version", "Exception while inserting Version object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("v", "insert", "exception"), "Version could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "Version", "Exception while inserting Version object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, Version data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[Version] SET " +
+												"[PlatformID] = @PlatformID, " + 
+												"[ArchitectureTypeID] = @ArchitectureTypeID, " + 
+												"[Name] = @Name, " + 
+												"[Code] = @Code, " + 
+												"[Index] = @Index, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [VersionID] = @VersionID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@PlatformID", data.Platform.ID);
+				sqlCmd.Parameters.AddWithValue("@ArchitectureTypeID", data.ArchitectureType == null ? DBNull.Value : (object)data.ArchitectureType.ID);
+				sqlCmd.Parameters.AddWithValue("@Name", !string.IsNullOrEmpty(data.Name) ? (object)data.Name : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Code", !string.IsNullOrEmpty(data.Code) ? (object)data.Code : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Index", data.Index).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@VersionID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("v", "update", "norecord"), "Version could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "Version", "Exception while updating Version object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("v", "update", "morerecords"), "Version was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "Version", "Exception while updating Version object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("v", "update", "exception"), "Version could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "Version", "Exception while updating Version object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, Version data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[Version] WHERE VersionID = @VersionID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@VersionID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("v", "delete", "norecord"), "Version could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "Version", "Exception while deleting Version object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("v", "delete", "exception"), "Version could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "Version", "Exception while deleting Version object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

@@ -1,0 +1,219 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Merchant.Helpers;
+using MobilePaywall.Merchant.Models;
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Net;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Merchant.Controllers
+{
+  public class BlackListController : PaywallController
+  {
+    public ActionResult Index()
+    {
+      return View();
+    }
+
+
+    [HttpPost]
+    public PartialViewResult Table()
+    {
+      IMsisdnBlacklistManager mbManager = MsisdnBlacklist.CreateManager();
+      Client client = PaywallHttpContext.Current.ClientSession.Client;
+      Dictionary<int, Instance> allowedInstances = client.AllowedInstances;
+      Dictionary<int, Data.Merchant> allowedMerchants = client.AllowedMerchants;
+      Dictionary<int, Service> allowedServices = client.AllowedServices;
+      List<MsisdnBlacklist> msisdnBlacklist = (from m in mbManager.Load()
+                                               where (allowedInstances.Values.Contains(m.Instance) && m.Merchant == null && m.Service == null) ||
+                                                      (allowedMerchants.Values.Contains(m.Merchant) && m.Service == null) ||
+                                                      allowedServices.Values.Contains(m.Service)
+                                               select m).ToList();
+      //List<MsisdnBlacklist> msisdnBlacklist = mbManager.Load().OrderByDescending(x => x.ID).ToList();
+
+
+
+      return PartialView("_Table", msisdnBlacklist);
+    }
+
+    //When button Generate is clicked
+    [HttpPost]
+    public PartialViewResult TableAddNew(string[] msisdns)
+    {
+      List<string> errorList = new List<string>(); //list of errors
+      List<MsisdnBlacklistModel> mbList = new List<MsisdnBlacklistModel>(); //list of "good ones"
+      foreach (string k in msisdns)
+      {
+        long number1 = 0;
+        if (!long.TryParse(k, out number1))
+          errorList.Add(k);
+        else
+          mbList.Add(new MsisdnBlacklistModel(k));
+      }
+
+      if (errorList.Count > 0)
+        TempData["Name"] = errorList.Count + (errorList.Count == 1 ? " error" : " errors") + " in input of MSISDN (format is not correct)";
+
+      //List<MsisdnBlacklistModel> mbList = new List<MsisdnBlacklistModel>(); //list of "good ones"
+      //foreach (string s in msisdns)
+      //   mbList.Add(new MsisdnBlacklistModel(s));
+
+      return PartialView("_TableAddNew", mbList);
+    }
+
+
+    [HttpPost]
+    public ActionResult BlackListEdit(string id, string instanceId, string merchantId, string serviceId, string msisdn, string description, string isactive)
+    {
+
+      Data.MsisdnBlacklist msisdnBlacklist = null;
+      IMsisdnBlacklistManager mbManager = MsisdnBlacklist.CreateManager();
+
+      Instance instance = Instance.CreateManager().Load(Int32.Parse(instanceId));
+      Data.Merchant merchant = Data.Merchant.CreateManager().Load(Int32.Parse(merchantId));
+      Service service = Service.CreateManager().Load(Int32.Parse(serviceId));
+
+
+      MsisdnBlacklist mbEntry = mbManager.Load(instance, merchant, service, msisdn).FirstOrDefault();
+      if (mbEntry != null)
+        return this.Json(new { success = false, message = "This MSISDN is already on blacklist", redirect = string.Empty }); // return error here 
+
+      if (string.IsNullOrEmpty(id))
+        msisdnBlacklist = new Data.MsisdnBlacklist(-1);
+      else
+        msisdnBlacklist = mbManager.Load(Int32.Parse(id));
+      
+      
+
+      msisdnBlacklist.Instance = instance != null ? instance : merchant != null ? merchant.Instance : service != null ? service.Merchant.Instance : null;
+      msisdnBlacklist.Merchant = merchant != null ? merchant : null;
+      msisdnBlacklist.Service = service != null ? service : null;
+      msisdnBlacklist.Msisdn = msisdn;
+      msisdnBlacklist.Description = description;
+      msisdnBlacklist.IsActive = Convert.ToBoolean(isactive);
+      msisdnBlacklist.Updated = DateTime.Now;
+      msisdnBlacklist.UpdateOrInsert();
+      
+      return this.Json(new { success = true, message = "OK", redirect = "/" });
+    }
+
+
+    //public ActionResult BlackListCreate()
+    //{
+    //  return View();
+    //}
+
+    //[HttpPost]
+    //public ActionResult BlackListCreate(MsisdnBlacklist msisdn)
+    //{
+    //  IMsisdnBlacklistManager mbManager = MsisdnBlacklist.CreateManager();
+    //  List<Data.MsisdnBlacklist> msisdnBlacklist = mbManager.Load().ToList();
+
+    //  return View();
+    //}
+
+
+    //[HttpPost]
+    //public ActionResult BlackListGenerate(string[] msisdns)
+    //{
+    //  IMsisdnBlacklistManager mbManager = MsisdnBlacklist.CreateManager();
+    //  BlacklistGenerateModel model = new BlacklistGenerateModel();
+
+    //  foreach (string msisdn in msisdns)
+    //  {
+    //    string msidn2 = msisdn.Trim().Replace(" ", string.Empty);
+
+    //    List<MsisdnBlacklist> block = mbManager.Load(msidn2);
+
+    //    model.Entries.Add(new BlacklistGenerateMsisdnEntry(msisdn, true));
+    //  }
+
+    //  //  return PartialView("~/View/BlackListBlackListGenerate.cshtml", model);
+    //  return Redirect(Request.UrlReferrer.ToString());
+    //}
+
+    [HttpPost]
+    public JsonResult GenerateDropdowns(string instanceName, string merchantName, string serviceName)
+    {
+      List<SelectListItem> instanceList = (from i in Data.Instance.CreateManager().Load()
+                                           select new SelectListItem()
+                                           {
+                                             Text = i.Name,
+                                             Value = i.ID.ToString(),
+                                             Selected = (i.Name.Equals(instanceName, StringComparison.Ordinal) ? true : false)
+                                           }).ToList();
+      List<SelectListItem> merchantList = (from m in Data.Merchant.CreateManager().Load()
+                                          select new SelectListItem()
+                                          {
+                                            Text = m.Name,
+                                            Value = m.ID.ToString(),
+                                            Selected = (m.Name.Equals(merchantName, StringComparison.Ordinal) ? true : false)
+                                          }).ToList();
+
+      List<SelectListItem> serviceList = (from t in Service.CreateManager().Load()
+                                          select new SelectListItem()
+                                          {
+                                            Text = t.Name,
+                                            Value = t.ID.ToString(),
+                                            Selected = (t.Name.Equals(serviceName, StringComparison.Ordinal) ? true : false)
+                                          }).ToList();
+
+      List<List<SelectListItem>> result = new List<List<SelectListItem>>();
+      result.Add(instanceList);
+      result.Add(merchantList);
+      result.Add(serviceList);
+      return Json(result);
+    }
+
+
+    //provjeriti kad generisemo i kad onda promjenimo msisdn u neki postojeci,
+    //javiti mu gresku i onemoguciti insertovanje
+    [HttpPost]
+    public ActionResult Save(List<MsisdnBlacklistModel> model)
+    {
+      List<MsisdnBlacklist> msisdnBlacklist = null;
+      IMsisdnBlacklistManager mbManager = MsisdnBlacklist.CreateManager();
+
+      if (model == null || model.Count == 0)
+        return Redirect(Request.UrlReferrer.ToString());
+
+      List<MsisdnBlacklist> mbList = new List<MsisdnBlacklist>();
+      List<MsisdnBlacklist> mbList1 = new List<MsisdnBlacklist>();
+      List<MsisdnBlacklist> mbList2 = new List<MsisdnBlacklist>();
+      foreach (MsisdnBlacklistModel mb in model)
+      {
+        if (mb.ToInsert == true)
+        {
+
+          msisdnBlacklist = mbManager.Load(mb.MSISDN);
+          if (msisdnBlacklist.Count > 0)
+          {
+            foreach (MsisdnBlacklist msbl in msisdnBlacklist)
+              mbList1.Add(msbl);
+          }
+          else
+          {
+            MsisdnBlacklist ko = new MsisdnBlacklist();
+            ko.Msisdn = mb.MSISDN;
+            ko.Service = mb.ServiceModel.Service;
+            ko.Instance = mb.InstanceModel.Instance;
+            ko.Description = mb.Description;
+            ko.IsActive = mb.IsActive;
+            mbList2.Add(ko);
+          }
+        }
+      }
+
+      foreach (MsisdnBlacklist msbl in mbList2)
+      {
+        msbl.Insert();
+      }
+
+      return Redirect(Request.UrlReferrer.ToString());
+    }
+  }
+}

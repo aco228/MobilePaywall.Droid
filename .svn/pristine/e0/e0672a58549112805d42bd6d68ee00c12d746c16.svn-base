@@ -1,0 +1,630 @@
+﻿@model TempalteCustomPageDataModel
+
+@{
+  Layout = "~/Views/Template/_Layout/_Layout.cshtml";
+}
+
+<script src="~/Scripts/jquery-2.0.3.js"></script>
+<script src="~/Scripts/bootstrap.min.js"></script>
+<script src="~/Scripts/Template/ace/ace.js"></script>
+
+<style>
+  select {
+    margin-left: 35px !important;
+    padding: 10px;
+  }
+
+  .editor {
+    width: 100%;
+    height: 500px;
+    margin-top: 10px;
+  }
+
+  .btnHtmlText{
+    width: 100%;
+    background-color: #e8e8e8;
+    color: black;
+    text-shadow: 1px 1px 1px rgba(255, 255, 255, 0.66);
+    margin-top: -30px;
+  }
+
+  .btnAdvancedOptions {
+    width: 100%;
+    background-color: #e8e8e8;
+    color: black;
+    text-shadow: 1px 1px 1px rgba(255, 255, 255, 0.66);
+    margin-top: -30px;
+  }
+
+  .customPageTitleValue {
+    font-family: Roboto;
+    font-weight: lighter;
+    color: #1976d3;
+    font-size: 25pt;
+  }
+
+  .customPageDescription {
+    font-family: Roboto;
+    font-weight: bold;
+    color: #959595;
+    font-size: 10pt;
+  }
+
+  .customPageDescriptionValue {
+    font-family: Roboto;
+    color: #424140;
+    font-size: 14pt;
+  }
+
+  .customPageRoute {
+    font-family: Roboto;
+    font-weight: bold;
+    color: #959595;
+    font-size: 10pt;
+  }
+
+  .customPageRouteValue {
+    font-family: Roboto;
+    color: #424140;
+    font-size: 14pt;
+  }
+
+  .selectPageOverride {
+    margin-left: 0px !important;
+    padding: 10px;
+  }
+
+  .overridePageLabel {
+    font-family: Roboto;
+    font-weight: bold;
+    color: #959595;
+    font-size: 10pt;
+  }
+</style>
+
+<div class="" id="appendedDiv">
+  <div>
+    <div>
+      <div class="customPageTitleValue">@Model.CustomPage.Title</div>
+    </div>
+    <div style="padding-bottom: 14px;padding-top: 14px;">
+      <div class="customPageDescription">DESCRIPTION:</div>
+      <div class="customPageDescriptionValue">@Model.CustomPage.Description</div>
+    </div>
+    <div style="padding-bottom:14px;">
+      <div class="customPageRoute">ROUTE:</div>
+      <div class="customPageRouteValue">@Model.CustomPage.Route.Pattern</div>
+    </div>
+  </div>
+
+  <div class="md-card hiddenClassWildCards" hidden>
+    <div class="md-card-content">
+      <h3 class="heading_a">Wildcards</h3>
+      <div class="uk-grid" data-uk-grid-margin="">
+        <div class="uk-width-medium-2-2">
+          <div class="uk-form-row">
+            <div class="uk-grid">
+              <div class="uk-width-medium-6-6">
+                <span class="wildcard">[Service.ID]</span> = <span class="wildcard_value">@PaywallHttpContext.Current.Service.ServiceData.ID.ToString()</span><br>
+                <span class="wildcard">[Service.Name]</span> = <span class="wildcard_value">@PaywallHttpContext.Current.Service.ServiceData.Name</span><br>
+                <span class="wildcard">[Service.Url]</span> = <span class="wildcard_value">@string.Format("http://{0}", PaywallHttpContext.Current.Service.ServiceData.Name)</span><br>
+                <span class="wildcard">[Service.Price]</span> = <span class="wildcard_value">@PaywallHttpContext.Current.Service.ServiceInfo.DynamicPrice()</span><br>
+                <span class="wildcard">[Service.DynamicPrice]</span> = <span class="wildcard_value">@PaywallHttpContext.Current.Service.ServiceInfo.Price</span><br>
+                <span class="wildcard">[Service.Type]</span> = <span class="wildcard_value">@PaywallHttpContext.Current.Service.ServiceInfo.TemplateServiceType.ToString()</span><br />
+                <span class="wildcard">[Service.Country]</span> = <span class="wildcard_value">@PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.GlobalName</span><br>
+                <span class="wildcard">[Merchant.Name]</span> = <span class="wildcard_value">@PaywallHttpContext.Current.Service.ServiceData.Merchant.Name</span><br>
+                <span class="wildcard">[Merchant.Address]</span> = <span class="wildcard_value">@PaywallHttpContext.Current.Service.ServiceData.Merchant.Address</span><br>
+                <span class="wildcard">[PaymentProvider.Name]</span> = <span class="wildcard_value">@PaywallHttpContext.Current.Service.PaymentProvider.Name</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="uk-grid" data-uk-grid-margin="">
+        <div class="uk-grid">
+          <div class="uk-width-medium-1-2">
+            <a class="md-btn" href="#" id="btnHideWildCards" data-ajax="false">Hide</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="md-card hiddenClassEdit" hidden>
+    <div class="md-card-content">
+      <h3 class="heading_a">Edit Custom Page</h3>
+      <div class="uk-grid" data-uk-grid-margin="">
+        <div class="uk-width-medium-2-2">
+          <div class="uk-form-row">
+            <div class="md-input-wrapper md-input-filled">
+              <label>Description</label>
+              <input type="text" class="md-input" id="customPageDescription" value="@Model.CustomPage.Description">
+              <span class="md-input-bar"></span>
+            </div>
+          </div>
+          <div class="uk-form-row">
+            <input type="checkbox" @Html.Raw(Model.CustomPage.ContextValidationFilter == true ? "checked" : "") class="contenxtValidation">
+            <label for="val_check_ski" class="inline-label">Context Validation</label>
+            <input type="checkbox" @Html.Raw(Model.CustomPage.AuthenticationFilter == true ? "checked" : "") class="authentication">
+            <label for="val_check_run" class="inline-label">Authentication</label>
+            <input type="checkbox" @Html.Raw(Model.CustomPage.AgeVerificationFilter == true ? "checked" : "") class="ageVerification">
+            <label for="val_check_eat" class="inline-label">Age Verification</label>
+            <input type="checkbox" @Html.Raw(Model.CustomPage.RestrictedAccessFilter == true ? "checked" : "") class="restrictedAccessFilter">
+            <label for="val_check_eat" class="inline-label">Restricted Access Filter</label>
+          </div>
+
+          <div class="uk-form-row">
+            <label class="overridePageLabel">OVERRIDE PAGE</label>
+            <select class="md-input-wrapper selectPageOverride">
+              <option tg="-1">NULL</option>
+              <option tg="home" @Html.Raw(Model.CustomPage.OverridePage == "home" ? "selected" : "")>Home</option>
+              <option tg="terms" @Html.Raw(Model.CustomPage.OverridePage == "terms" ? "selected" : "")>Terms</option>
+              <option tg="imprint" @Html.Raw(Model.CustomPage.OverridePage == "imprint" ? "selected" : "")>Imprint</option>
+              <option tg="error" @Html.Raw(Model.CustomPage.OverridePage == "error" ? "selected" : "")>Error</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="uk-grid" data-uk-grid-margin="">
+        <div class="uk-grid">
+          <div class="uk-width-medium-1-2">
+            <a class="md-btn" href="#" id="btnInsertEditedCustomPage" data-ajax="false">Update</a>
+          </div>
+          <div class="uk-width-medium-1-2">
+            <a class="md-btn" href="#" id="btnCancelEdit" data-ajax="false">Cancel</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  @* Links.add new, edit, show wild cards, delete.. *@
+  <div class="md-card">
+    <div class="md-card-content">
+      <div class="uk-grid">
+        <div class="uk-width-medium-1-6">
+          <a class="md-btn md-btn-flat md-btn-flat-primary" href="#" id="addNewCustomPageData" inuse="false">Add new Custom Page Data</a>
+        </div>
+        <div class="uk-width-medium-1-6">
+          <a class="md-btn md-btn-flat md-btn-flat-primary" href="#" id="deleteCustomPage" custompagedataid="@Model.CustomPage.ID" inuse="false">Delete Custom Page</a>
+        </div>
+        <div class="uk-width-medium-1-6">
+          <a class="md-btn md-btn-flat md-btn-flat-primary" href="#" id="editCustomPage" inuse="false">Edit Custom Page</a>
+        </div>
+        <div class="uk-width-medium-1-6">
+          <a class="md-btn md-btn-flat md-btn-flat-primary" href="#" id="showWildCards" inuse="false">Show Wild Cards</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  @foreach (CustomPageData cpd in Model.CustomPageDatas)
+  {
+    <div class="md-card tempalteCustomPageParent" custompageid="@Model.CustomPage.ID" templatecustompagedataid="@cpd.ID" id="customPage_@cpd.ID">
+      <div class="md-card-content">
+        <div class="uk-grid" data-uk-grid-margin="">
+          <div class="uk-width-medium-2-3">
+
+            <div class="uk-form-row">
+              <div class="md-input-wrapper md-input-filled">
+                <label for="TemplateTitle">Title:</label>
+                <input id="TemplateTitle" type="text" class="md-input title" value="@cpd.Title">
+                <span class="md-input-bar">
+                </span>
+              </div>
+            </div>
+
+           
+
+            <div class="uk-form-row" style="margin-top: 5px;">
+              <span>
+                <input type="checkbox" name="val_check_hobbies" class="currentService" @Html.Raw(cpd.Service != null ? "checked" : "") disabled />
+                <label for="val_check_ski" class="inline-label">Current service</label>
+              </span>
+              <span>
+                <input type="checkbox" class="currentPaymentProvider" @Html.Raw(cpd.PaymentProvider != null ? "checked" : "") disabled />
+                <label for="val_check_run" class="inline-label">Current payment provider</label>
+              </span>
+            </div>
+
+            @* From here is more options *@
+            <div class="uk-form-row">
+              <button type="button" class="btn btnAdvancedOptions btn-default btn-xs" data-toggle="collapse" data-target="#options_@(cpd.ID)">Advanced options</button>
+              <div id="options_@(cpd.ID)" class="uk-form-row collapse">
+
+                <div class="uk-form-row" style="margin-top: 0px;">
+                  <span>
+                    <label for="selectMobileOperator" class="uk-form-label">MobileOperator:</label>
+                    <select class="form-control selectMobileOperator" disabled style="margin-left: 0px !important;width: 200px;">
+                      <option mot="-1" @Html.Raw(cpd.MobileOperator == null ? "selected" : "")>NULL</option>
+                      @foreach (var tt in Model.MobileOperators)
+                      {
+                        <option mot="@tt.ID" @Html.Raw(cpd.MobileOperator != null && cpd.MobileOperator.ID == tt.ID ? "selected" : "")>@tt.Name</option>
+                      }
+                    </select>
+                  </span>
+                </div>
+
+                <div class="uk-form-row" style="margin-top: 13px;">
+                  <span>
+                    <input type="checkbox" @Html.Raw(cpd.IsPlainText == true ? "checked" : "") class="isPlainText">
+                    <label for="val_check_eat" class="inline-label">Is Plain Text</label>
+                  </span>
+                  <span>
+                    <input type="checkbox" @Html.Raw(cpd.UseLayout == true ? "checked" : "") class="useLayout">
+                    <label for="val_check_eat" class="inline-label">Use Layout</label>
+                  </span>
+                  <span>
+                    <input type="checkbox" @Html.Raw(cpd.UsePredefinedDiv == true ? "checked" : "") asd class="usePredefinedDiv">
+                    <label for="val_check_eat" class="inline-label">UsePredefinedDiv</label>
+                  </span>
+                </div>
+
+              </div>
+            </div>
+            @* End options *@
+
+
+            <div class="uk-form-row" style="margin-top: 13px;">
+
+              <button type="button" class="btn btnHtmlText btn-default btn-xs" data-toggle="collapse" data-target="#htmlOptions_@(cpd.ID)">Html options</button>
+              <div id="htmlOptions_@(cpd.ID)" class="uk-form-row collapse" style="padding-top:15px;">
+                <div class="md-input-wrapper md-input-filled">
+                  <label for="product_edit_description_control">Html text:</label>
+                  @*<textarea class="md-input templateData" name="product_edit_description_control" id="product_edit_description_control"
+                    cols="30" rows="4" data-autosize-on="true" style="overflow: hidden; word-wrap: break-word; height: 500px;">@cpd.Data</textarea>*@
+                  <div class="editor">@cpd.Data</div>
+                  <span class="md-input-bar"></span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="uk-grid">
+          <div class="uk-width-medium-1-6">
+            <a class="btnUpdateTemplateCustomPage md-btn md-btn-flat md-btn-flat-primary" href="#" inuse="false">Update</a>
+          </div>
+          <div class="uk-width-medium-1-6">
+            <a class="btnDeleteTemplateCustomPage md-btn md-btn-flat md-btn-flat-primary" href="#" inuse="false">Delete</a>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  }
+</div>
+
+@* Start of hidden div *@
+<div hidden id="hiddenClass">
+  <div class="md-card tempalteCustomPageParent" custompageid="@Model.CustomPage.ID" templatecustompagedataid="-1" id="[_ID_]">
+    <div class="md-card-content">
+      <h3 class="heading_a">New Custom Page Data</h3>
+      <div class="uk-grid" data-uk-grid-margin="">
+        <div class="uk-width-medium-2-3">
+          <div class="uk-form-row">
+            <div class="md-input-wrapper">
+              <label>Title:</label>
+              <input type="text" class="md-input title" style="margin-bottom: 10px;">
+              <span class="md-input-bar">
+              </span>
+            </div>
+          </div>
+
+         
+
+          <div class="uk-form-row" style="margin-top:-5px;">
+            <span>
+              <input type="checkbox" name="val_check_hobbies" class="currentService" />
+              <label for="val_check_ski" class="inline-label">Current service</label>
+            </span>
+            <span>
+              <input type="checkbox" class="currentProvider" />
+              <label for="val_check_run" class="inline-label">Current payment provider</label>
+            </span>
+          </div>
+
+
+
+          @*  more options *@
+          <div class="uk-form-row">
+            <button type="button" style="margin-top:-30px;" class="btnAdvancedOptions btn btn-default btn-xs" data-toggle="collapse" data-target="#options_[_ID_]">Show Advanced Options</button> 
+            <div id="options_[_ID_]" class="uk-form-row collapse collapse_option">
+
+              <div class="uk-form-row">
+                <span>
+                  <label for="selectMobileOperator" class="uk-form-label">For MobileOperator:</label>
+                  <select class="form-control selectMobileOperator" style="margin-left: 0px !important;width: 200px;">
+                    <option mot="-1">NULL</option>
+                    @foreach (var tt in Model.MobileOperators)
+                    {
+                      <option mot="@tt.ID">@tt.Name</option>
+                    }
+                  </select>
+                </span>
+              </div>
+
+              <div class="uk-form-row">
+                <span>
+                  <input type="checkbox" class="isPlainText" checked>
+                  <label for="val_check_eat" class="inline-label">Is Plain Text</label>
+                </span>
+                <span>
+                  <input type="checkbox" class="useLayout" checked>
+                  <label for="val_check_eat" class="inline-label">Use Layout</label>
+                </span>
+                <span>
+                  <input type="checkbox" class="usePredefinedDiv" checked>
+                  <label for="val_check_eat" class="inline-label">UsePredefinedDiv</label>
+                </span>
+              </div>
+
+            </div>
+          </div>
+          @* End more options *@
+
+          <div class="uk-form-row">
+        
+              <div class="md-input-wrapper md-input-filled">
+                <label for="product_edit_description_control">Html text:</label>
+                <div class="editor"></div>
+                <span class="md-input-bar"></span>
+              </div>
+            </div>
+
+         </div>
+      </div>
+      <div class="uk-grid">
+        <div class="uk-width-medium-1-6">
+          <a class="btnUpdateTemplateCustomPage md-btn md-btn-flat md-btn-flat-primary" href="#" inuse="false">Update</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+@*End of hidden div*@
+
+<script>
+  function onLoad() {
+    initAce();
+    addCustomPage();
+    btnSubmit();
+    btnDelete();
+    btnDeletCustomPage();
+    btnEditCustomPage();
+    btnCancelEdit();
+    btnInsertEditedCustomPage();
+    btnHideWildCards();
+    btnHiddenClassWildCards();
+    checkCurentServiceAndProvider();
+  }
+
+  function checkCurentServiceAndProvider() {
+    $('body').on('click', '.currentService', function () {
+      console.log("gore..");
+      if ($('.currentProvider').is(":checked")) {
+        $('.currentProvider').removeAttr('checked');
+      }
+    });
+
+    $('body').on('click', '.currentProvider', function () {
+      console.log("dolje..");
+      if ($('.currentService').is(':checked')) {
+        console.log('checked service.. dolje click');
+        $('.currentService').removeAttr('checked');
+      }
+    });
+  }
+
+  function btnHideWildCards() {
+    $('#btnHideWildCards').click(function () {
+      $('.hiddenClassWildCards').attr('hidden', 'true');
+    });
+  }
+
+  function btnHiddenClassWildCards() {
+
+    $('#showWildCards').click(function () {
+      if ($('.hiddenClassWildCards').attr('hidden')) {
+        $('.hiddenClassWildCards').removeAttr('hidden');
+      } else {
+        $('.hiddenClassWildCards').attr('hidden', 'true');
+      }
+    });
+  }
+
+  function btnInsertEditedCustomPage() {
+    $('#btnInsertEditedCustomPage').click(function () {
+
+      var btn = $(this);
+      var customPageID = $('#deleteCustomPage').attr('custompagedataid');
+      var customPageDescription = $('#customPageDescription').val();
+      var contextValidation = $('.contenxtValidation').is(':checked') ? "1" : "0";
+      var authentication = $('.authentication').is(':checked') ? "1" : "0";
+      var ageVerification = $('.ageVerification').is(':checked') ? "1" : "0";
+      var restrictedAccessFilter = $('.restrictedAccessFilter').is(':checked') ? "1" : "0";
+      var pageOverride = $('.selectPageOverride').find(':selected').attr('tg');
+
+      var message = 'Are you sure you want to edit TemplateCustom Page?';
+
+      visual.Confirm(message, "Yes", "No", function () {
+        var customPage = {
+          customPageID: customPageID,
+          customPageDescription: customPageDescription,
+          contextValidation: contextValidation,
+          authentication: authentication,
+          ageVerification: ageVerification,
+          restrictedAccessFilter: restrictedAccessFilter,
+          pageOverride: pageOverride
+        }
+        template.call('ApiEditCustomPage', customPage, function (response) {
+          btn.attr('inuse', 'false');
+          visual.Alert(response.message);
+        });
+      });
+    });
+  }
+
+
+  function initAce() {
+    $('.editor').each(function () {
+      if ($(this).attr('acceIsSet') == 'true')
+        return;
+      if ($(this).closest('#hiddenClass').length > 0)
+        return;
+      var id = _system.ID('editor');
+      $(this).attr('id', id);
+      var editor = ace.edit(id);
+      editor.setTheme("ace/theme/xcode");
+      editor.getSession().setMode("ace/mode/html");
+      console.log("Configured for: " + id);
+      $(this).attr('aceIsSet', 'true');
+    });
+  }
+
+
+  function btnEditCustomPage() {
+    $('#editCustomPage').click(function () {
+      if ($('.hiddenClassEdit').attr('hidden')) {
+        $('.hiddenClassEdit').removeAttr('hidden');
+      } else {
+        $('.hiddenClassEdit').attr('hidden', 'true');
+      }
+    });
+  }
+
+  function btnCancelEdit() {
+    $('#btnCancelEdit').click(function () {
+      $('.hiddenClassEdit').attr('hidden', 'true');
+    });
+  }
+
+
+  function addCustomPage() {
+    $('#addNewCustomPageData').click(function () {
+      //$('#hiddenClass').removeAttr('hidden');
+
+      var id = _system.ID('customPage_');
+      $('#hiddenClass').find('.tempalteCustomPageParent').attr('id', id);
+      $('#hiddenClass').find('.tempalteCustomPageParent').find('.btnAdvancedOptions').attr('data-target', '#options_' + id);
+      $('#hiddenClass').find('.tempalteCustomPageParent').find('.collapse_option').attr('id', 'options_' + id);
+      var newHtml = $('#hiddenClass').html();
+      $('#appendedDiv').append(newHtml);
+      initAce();
+    });
+  }
+
+  function btnDeletCustomPage() {
+    $('#deleteCustomPage').click(function () {
+      var btn = $(this);
+      var customPageID = $('#deleteCustomPage').attr('custompagedataid');
+      console.log(customPageID);
+      var message = 'Are you sure you want to delete TemplateCustom Page?';
+      var isDelete = false;
+      visual.Confirm(message, "Yes", "No", function () {
+        var customPage = {
+          customPageID: customPageID
+        }
+        template.call('ApiDeleteCustomPage', customPage, function (response) {
+          btn.attr('inuse', 'false');
+          visual.Alert(response.message);
+        });
+      });
+    });
+  }
+
+  function btnDelete() {
+    $('body').on('click', '.btnDeleteTemplateCustomPage', function () {
+      var btn = $(this);
+      var parent = $(this).closest('.tempalteCustomPageParent');
+      var id = parent.attr('templatecustompagedataid');
+      var message = 'Are you sure you want to delete TemplateCustom Page Data?';
+      var isDelete = false;
+      visual.Confirm(message, 'Yes', 'No', function () {
+        btn.attr('inuse', 'true');
+        btn.text('...');
+        var customPageData = {
+          customPageDataId: id,
+        }
+        template.call('ApiDeleteCustomPageData', customPageData, function (response) {
+          btn.attr('inuse', 'false');
+          btn.text(tmplText);
+          visual.Alert(response.message);
+        });
+      });
+    });
+  }
+
+
+  function btnSubmit() {
+    $('body').on('click', '.btnUpdateTemplateCustomPage', function () {
+      var btn = $(this);
+      var parent = $(this).closest('.tempalteCustomPageParent');
+      var id = parent.attr('templatecustompagedataid');
+      var customPageId = parent.attr('custompageid');
+      var isPlainText = parent.find('.isPlainText').is(':checked') ? "1" : "0";
+      var useLayout = parent.find('.useLayout').is(':checked') ? "1" : "0";
+      var usePredefinedDiv = parent.find('.usePredefinedDiv').is(':checked') ? "1" : "0";
+      var currentService = parent.find('.currentService').is(':checked') ? "1" : "0";
+      var currentPaymentProvider = parent.find('.currentPaymentProvider').is(':checked') ? "1" : "0";
+      var currentMobileOperator = parent.find('.selectMobileOperator').find(":selected").attr('mot');
+      var data = ace.edit(parent.find('.editor').attr('id')).getValue();
+      var title = parent.find('.title').val();
+      console.log(id + " " + currentService + " " + currentPaymentProvider + " " + currentMobileOperator + " " + data + " " + usePredefinedDiv);
+
+      var message = 'Are you sure you want to update TemplateCustom Page Data?';
+      var isDelete = false;
+
+      if (data == '' && id == '-1') {
+        parent.remove();
+        return;
+      }
+
+      //else if (data == '' && id != '-1') {
+      //  message = 'Are you sure you want to delete this TemplateCustomPage?';
+      //  isDelete = true;
+      //}
+
+      visual.Confirm(message, 'Yes', 'No', function () {
+        var tmplText = btn.text();
+        btn.attr('inuse', 'true');
+        btn.text('...');
+
+        var modificationData = {
+          customPageId: customPageId,
+          templateCustomPageDataID: id,
+          currentService: currentService,
+          currentPaymentProvider: currentPaymentProvider,
+          currentMobileOperatorID: currentMobileOperator,
+          isPlainText: isPlainText,
+          useLayout: useLayout,
+          usePredefinedDiv: usePredefinedDiv,
+          data: data,
+          title: title
+        }
+
+
+        template.call('ApiAddNewCustomPageData', modificationData, function (response) {
+          btn.attr('inuse', 'false');
+          btn.text(tmplText);
+
+          if (response.status && !isDelete) {
+            visual.Toast(response.message);
+            parent.attr('id', response.id);
+          }
+          else if (response.status && !isDelete) {
+            visual.Toast(response.message);
+            parent.remove();
+          }
+          else
+            visual.Alert(response.message);
+        });
+
+      });
+
+    });
+  }
+
+</script>

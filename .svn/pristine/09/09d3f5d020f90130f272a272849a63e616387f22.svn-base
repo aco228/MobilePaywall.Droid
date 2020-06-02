@@ -1,0 +1,133 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+
+using Cashflow.Client;
+
+using MobilePaywall.Data;
+using log4net;
+using Senti.Diagnostics.Log;
+using MobilePaywall.Service.Callback.Log;
+using MobilePaywall.Direct;
+using MobilePaywall.Service.Callback.SpecificHandlers.CosmikServices;
+using Cashflow.Message;
+
+namespace MobilePaywall.Service.Handlers
+{
+  public class CosmikNotificationHandler : NotificationHandlerBase
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (CosmikNotificationHandler._log == null)
+          CosmikNotificationHandler._log = log4net.LogManager.GetLogger(typeof(CosmikNotificationHandler));
+        return CosmikNotificationHandler._log;
+      }
+    }
+    #endregion
+
+    protected override void ProcessSetupSubscription(Cashflow.Message.SetupSubscriptionNotification notification)
+    {
+      CallbackLog CLog = new CallbackLog(notification, Log);
+      try
+      {
+
+        if (CLog.UserSession == null || CLog.UserSession.Service.Product.ID != 8)
+          return;
+
+        if (notification.Status.Code != MessageStatusCode.Success)
+          return;
+
+        string hid = CLog.UserSession.GetRefererParameter("hid");
+        if (string.IsNullOrEmpty(hid))
+          return;
+
+        CosmikWebRequest request = new CosmikWebRequest(CLog);
+
+        request.Type = "conversion";
+        request.Hid = hid;
+        request.Network = CLog.UserSession.MobileOperator != null ? CLog.UserSession.MobileOperator.ID.ToString() : "";
+        request.Msisdn = CLog.UserSession.Customer != null ? CLog.UserSession.Customer.Msisdn : "";
+        request.SendData();
+      }
+      catch(Exception e)
+      {
+        Log.Error("Cosmik.ProcessSetupSubscription.FATAL", e);
+      }
+    }
+
+    protected override void ProcessChargeSubscription(Cashflow.Message.ChargeSubscriptionNotification notification)
+    {
+      CallbackLog CLog = new CallbackLog(notification, Log);
+      try
+      {
+
+        if (CLog.UserSession == null || CLog.UserSession.Service.Product.ID != 8)
+          return;
+
+        if (notification.Status.Code != MessageStatusCode.Success || notification.Transaction == null || notification.Transaction.TransactionID == null)
+          return;
+
+        int? numberOfOverallTransactions = MobilePaywallDirect.Instance.LoadInt(@"
+          SELECT COUNT(*) AS br FROM MobilePaywall.core.[Transaction] AS t
+          LEFT OUTER JOIN MobilePaywall.core.Payment AS p ON t.PaymentID=p.PaymentID
+          LEFT OUTER JOIN MobilePaywall.core.[Transaction] AS ts ON ts.PaymentID=p.PaymentID
+          WHERE ts.ExternalTransactionGuid='" + notification.Transaction.TransactionID + "'");
+
+        bool isSubsequent = (numberOfOverallTransactions.HasValue && numberOfOverallTransactions.Value > 1);
+        string hid = CLog.UserSession.GetRefererParameter("hid");
+        if (string.IsNullOrEmpty(hid))
+          return;
+
+        CosmikWebRequest request = new CosmikWebRequest(CLog);
+        request.Type = !isSubsequent ? "billing" : "rebilling";
+        request.Hid = hid;
+        request.Network = CLog.UserSession.MobileOperator != null ? CLog.UserSession.MobileOperator.ID.ToString() : "";
+        request.Msisdn = CLog.UserSession.Customer != null ? CLog.UserSession.Customer.Msisdn : "";
+        request.Amount = notification.Transaction.Amount != null ? notification.Transaction.Amount.Value.ToString() : "";
+        request.SendData();
+      }
+      catch(Exception e)
+      {
+        Log.Fatal("Cosmik.ProcessChargeSubscription.FATAL", e);
+      }
+    }
+
+    protected override void ProcessCancelSubscription(CancelSubscriptionNotification notification)
+    {
+      CallbackLog CLog = new CallbackLog(notification, Log);
+      try
+      {
+        if (CLog.UserSession == null || CLog.UserSession.Service.Product.ID != 8)
+          return;
+
+        if (notification.Status.Code != MessageStatusCode.Success)
+          return;
+
+        string hid = CLog.UserSession.GetRefererParameter("hid");
+        if (string.IsNullOrEmpty(hid))
+          return;
+
+        CosmikWebRequest request = new CosmikWebRequest(CLog);
+
+        request.Type = "cancel";
+        request.Hid = hid;
+        request.Network = CLog.UserSession.MobileOperator != null ? CLog.UserSession.MobileOperator.ID.ToString() : "";
+        request.Msisdn = CLog.UserSession.Customer != null ? CLog.UserSession.Customer.Msisdn : "";
+        request.SendData();
+      }
+      catch(Exception e)
+      {
+        Log.Fatal("Cosmik.ProcessCancelSubscription.FATAL", e);
+      }
+    }
+    
+    
+  }
+}

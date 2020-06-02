@@ -1,0 +1,73 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using MobilePaywall.Data;
+
+using MobilePaywall.Data.DCBEgypt; 
+
+namespace MobilePaywall.Data.DCBEgypt 
+{
+  public partial interface IPaymentRequestPinMapManager : IDataManager<PaymentRequestPinMap> 
+  {
+	
+
+  }
+
+  public partial class PaymentRequestPinMap : MobilePaywallObject<IPaymentRequestPinMapManager> 
+  {
+		private PaymentRequest _paymentRequest;
+		private string _pin = String.Empty;
+		private bool _isVerified = false;
+		
+
+		public PaymentRequest PaymentRequest 
+		{
+			get
+			{
+				if (this._paymentRequest != null &&
+						this._paymentRequest.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._paymentRequest = PaymentRequest.CreateManager().LazyLoad(this.ConnectionContext, this._paymentRequest.ID) as PaymentRequest;
+					else
+						this._paymentRequest = PaymentRequest.CreateManager().LazyLoad(this._paymentRequest.ID) as PaymentRequest;
+				return this._paymentRequest;
+			}
+			set { _paymentRequest = value; }
+		}
+
+		public string Pin{ get {return this._pin; } set { this._pin = value;} }
+		public bool IsVerified {get {return this._isVerified; } set { this._isVerified = value;} }
+		
+
+    public override bool IsInsertable { get { return true;} }
+
+    public override bool IsDeletable { get { return false;} }
+
+    public override bool IsUpdatable { get { return true;} }
+
+    public PaymentRequestPinMap()
+    { 
+    }
+
+    public PaymentRequestPinMap(int id): base(id, DateTime.Now, DateTime.Now, true)
+    {
+    }
+
+    public PaymentRequestPinMap(int id,  PaymentRequest paymentRequest, string pin, bool isVerified, DateTime updated, DateTime created): base(id, updated, created, false)
+    {
+			this._paymentRequest = paymentRequest;
+			this._pin = pin;
+			this._isVerified = isVerified;
+			
+    }
+
+    public override object Clone(bool deepClone)
+    {
+      return new PaymentRequestPinMap(-1,  this.PaymentRequest,this.Pin,this.IsVerified, DateTime.Now, DateTime.Now);
+    }
+  }
+}
+

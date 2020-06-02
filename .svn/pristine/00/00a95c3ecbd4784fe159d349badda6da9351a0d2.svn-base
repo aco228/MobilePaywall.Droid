@@ -1,0 +1,43 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class PublishSvnLogManager : IPublishSvnLogManager
+  {
+
+    public List<PublishSvnLog> Load(PublishSession publishSession)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, publishSession);
+    }
+
+    public List<PublishSvnLog> Load(IConnectionInfo connection, PublishSession publishSession)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, publishSession);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, publishSession);
+    }
+
+    public List<PublishSvnLog> Load(ISqlConnectionInfo connection, PublishSession publishSession)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[psl].PublishSessionID = @PublishSessionID";
+      parameters.Arguments.Add("PublishSessionID", publishSession.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+  }
+}
+

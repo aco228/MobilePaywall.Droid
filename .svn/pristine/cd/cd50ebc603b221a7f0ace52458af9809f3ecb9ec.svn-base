@@ -1,0 +1,110 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IAutomationGroupManager 
+  {
+    
+    List<AutomationGroup> Load(Country country);
+    List<AutomationGroup> Load(IConnectionInfo connection, Country country);
+
+
+    
+
+
+  }
+
+  public partial class AutomationGroup
+  {
+    private List<Automation> _automations = null;
+
+    public void InsertWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void UpdateWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+
+    public List<Automation> Automations
+    {
+      get
+      {
+        if (this._automations != null)
+          return this._automations;
+        this._automations = Automation.CreateManager().Load(this);
+        return this._automations;
+      }
+    }
+
+    public void SortIndexes()
+    {
+      List<Automation> automations = Automation.CreateManager().Load(this);
+      List<Automation> sorted = (from sa in automations where sa.Index > -1 select sa).ToList();
+      List<Automation> unsorted = (from ua in automations where ua.Index == -1 select ua).ToList();
+
+      // Add indexes to unsorted ones
+      int sortIndex = sorted.Count + 1;
+      foreach (Automation automation in unsorted)
+      {
+        automation.Index = sortIndex;
+        automation.Update();
+        sortIndex++;
+      }
+
+      // Chech all other indexes
+      int referenceIndex = 1;
+      automations = Automation.CreateManager().Load(this);
+      foreach(Automation automation in automations)
+      {
+        if (referenceIndex != automation.Index)
+        {
+          automation.Index = 1;
+          automation.Update();
+        }
+        referenceIndex++;
+      }
+
+    }
+
+    public void SortIndexes(string Data)
+    {
+
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        IAutomationManager aManager = Automation.CreateManager();
+        connection.Transaction.Begin();
+
+        Data = Data.Replace(" ", string.Empty);
+        string[] parts = Data.Split('#');
+        foreach (string part in parts)
+        {
+          string[] data = part.Split('|');
+          if (data.Length != 2)
+            continue;
+
+          int automationID = -1, orderID = -1;
+          if (!Int32.TryParse(data[0], out automationID) || !Int32.TryParse(data[1], out orderID))
+            continue;
+
+          Automation automation = aManager.Load(automationID);
+          if (automation == null)
+            continue;
+          if (automation.AutomationGroup.ID != this.ID)
+            continue;
+
+          automation.Index = orderID;
+          automation.Update(connection);
+        }
+
+        connection.Transaction.Commit();
+        this.SortIndexes();
+      }
+    }
+
+
+  }
+}
+

@@ -1,0 +1,300 @@
+using log4net;
+using Senti.Data;
+using Senti.Diagnostics.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IFooterLinkManager 
+  {
+    
+    FooterLink Load(Country country);
+    FooterLink Load(IConnectionInfo connection, Country country);
+    FooterLink Load(Service service);
+    FooterLink Load(IConnectionInfo connection, Service service);
+    FooterLink Load(Country country, PaymentProvider paymentProvider);
+    FooterLink Load(IConnectionInfo connection, Country country, PaymentProvider paymentProvider);
+
+  }
+
+  public partial class FooterLink
+  {
+
+    #region #LOG#
+    private static ILog _log = null;
+    protected static ILog Log
+    {
+      get
+      {
+        if (FooterLink._log == null)
+          FooterLink._log = LogManager.GetLogger(typeof(FooterLink));
+        return FooterLink._log;
+      }
+    }
+    #endregion
+
+
+    public void InsertWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, "FooterLink", "core", this); }
+    public void UpdateWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, "FooterLink", "core", this); }
+    public void DeleteWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, "FooterLink", "core", this); }
+
+    private bool _decoded = false;
+    private bool? _isCheckPaymentRequired = null;
+    private bool _error = false;
+    private List<FooterLinkData> _links = null;
+
+    // SUMMARY: Prepare and get proper list of footer data
+    public List<FooterLinkData> Links
+    {
+      get
+      {
+        if ( !this._decoded )
+          this.Decode();
+        if ( this._error || this._links == null )
+          return new List<FooterLinkData>();
+        return this._links;
+      }
+    }
+
+    // SUMMARY: Check througt entire data is checking payment necceseary (with EXCEPTION handeling)
+    public bool IsCheckPaymentRequired
+    {
+      get
+      {
+        try
+        {
+          if (this.Links == null || this.Links.Count == 0 )
+            return false;
+          if(!this._isCheckPaymentRequired.HasValue)
+            this._isCheckPaymentRequired = (from fld in this.Links where fld != null && fld.OnlyIfCustomerHavePayment != -1 select fld).FirstOrDefault() != null;
+          return this._isCheckPaymentRequired.Value;
+        }
+        catch(Exception e)
+        {
+          Log.Debug(new LogMessageBuilder(new LogErrorCode("mobilepaywall", "core", "footerlink"), "Exception in FooterLink.FooterLinkData.IsCheckPaymentRequired.", e, e.InnerException));
+          return false;
+        }
+      }
+    }
+
+    // SUMMARY: Clone list. It is necceseary becasue when we access it dynamicly it causes problems (with EXCEPTION handeling)
+    public List<FooterLinkData> Clone()
+    {
+      try
+      {
+        List<FooterLinkData> flds = new List<FooterLinkData>();
+
+        if (this.Links != null)
+          foreach (FooterLinkData fld in this.Links)
+            flds.Add(fld);
+
+        return flds;
+      }
+      catch(Exception e)
+      {
+        Log.Debug(new LogMessageBuilder(new LogErrorCode("mobilepaywall", "core", "footerlink"), "Exception in FooterLink.FooterLinkData.Clone.", e, e.InnerException));
+        return new List<FooterLinkData>();
+      }
+    }
+    
+    // SUMMARY: Append one FooterLink.Links to another
+    public void Append(FooterLink appender)
+    {
+      if ( appender == null ) 
+        return;
+      if ( !this._decoded )
+        this.Decode();
+      if (this._error)
+        this._links = appender.Links;
+
+      List<FooterLinkData> flds = new List<FooterLinkData>();
+      List<FooterLinkData> temp = appender.Links;
+      foreach (FooterLinkData tempfld in temp)
+        if ((from fld in this.Links where fld.FooterText.Equals(tempfld.FooterText) && fld.FooterUrl.Equals(tempfld.FooterUrl) select fld).Count() == 0)
+          flds.Add(tempfld);
+        
+      this._links.AddRange(flds);
+    }
+
+    // SUMMARY: Decode data to List<FooterLinkData>
+    private void Decode()
+    {
+      this._links = new List<FooterLinkData>();
+      string[] lines = this._data.Split(this._newLineChar[0]);
+
+      IRouteManager rManager = Route.CreateManager();
+      ITranslationGroupManager tgManager = TranslationGroup.CreateManager();
+      IMobileOperatorManager mManager = MobileOperator.CreateManager();
+      IMerchantManager merchantManager = Merchant.CreateManager();
+      IPaymentProviderManager ppManager = PaymentProvider.CreateManager();
+
+      // this will be used in FooterLinkData.Prepare()
+      ITranslationKeyManager tkManager = TranslationKey.CreateManager();
+      ITranslationGroupKeyManager tgkManager = TranslationGroupKey.CreateManager();
+      ITranslationValueManager tvManager = TranslationValue.CreateManager();
+      TranslationKey translationKey = null;
+
+      if(this._service != null)
+        translationKey = tkManager.Load(this._service);
+      else if(this._country.Language != null)
+        translationKey = tkManager.Load(this._country.Language, this._service);
+      else 
+        translationKey = tkManager.Load(1);
+
+      for(int i = 0; i < lines.Length; i++)
+      {
+        if (i == 0) continue;  // header
+        string line = lines[i];
+        string[] data = line.Split(this._separatorChar[0]);
+
+        if (data.Length != Enum.GetNames(typeof(FooterLinkData.Columns)).Length)
+        { this._error = true; break; }
+
+        int routeID, translationGroupID, mobileOperatorID, paymentProviderID, onlyIfCustomerHavePayment;
+
+        if (!Int32.TryParse(data[(int)FooterLinkData.Columns.RouteID], out routeID))
+        { this._error = true; break; }
+        if (!Int32.TryParse(data[(int)FooterLinkData.Columns.TranslationGroupID], out translationGroupID))
+        { this._error = true; break; }
+        if (!Int32.TryParse(data[(int)FooterLinkData.Columns.MobileOperator], out mobileOperatorID))
+        { this._error = true; break; }
+        if (!Int32.TryParse(data[(int)FooterLinkData.Columns.PaymentProvider], out paymentProviderID))
+        { this._error = true; break; }
+        if (!Int32.TryParse(data[(int)FooterLinkData.Columns.IfHasPayment], out onlyIfCustomerHavePayment))
+        { this._error = true; break; }
+
+        Route route = routeID != -1 ? rManager.Load(routeID) : null;
+        if(route == null && routeID != -1) { this._error = true; break; }
+        TranslationGroup translationGroup = translationGroupID != -1 ? tgManager.Load(translationGroupID) : null;
+        if (translationGroup == null && translationGroupID != -1) { this._error = true; break; }
+        MobileOperator mobileOperator = mobileOperatorID != -1 ? mManager.Load(mobileOperatorID) : null;
+        if (mobileOperator == null && mobileOperatorID != -1) { this._error = true; break; }
+        PaymentProvider paymentProvider = paymentProviderID > 0 ? ppManager.Load(paymentProviderID) : null;
+        if (paymentProvider == null && paymentProviderID > 0) { this._error = true; break; }
+
+        FooterLinkData newData = new FooterLinkData(
+          route, translationGroup, 
+          mobileOperatorID, mobileOperator, 
+          paymentProvider, 
+          data[(int)FooterLinkData.Columns.FooterUrl], 
+          data[(int)FooterLinkData.Columns.FooterText], 
+          onlyIfCustomerHavePayment);
+
+        newData.Prepare(translationKey, tgkManager, tvManager);
+        this._links.Add(newData);
+      }
+
+      this._decoded = true;
+      if(this._error)
+        this._links = null;
+    }
+  }
+
+  // SUMMARY: Helper model class for FooterLink entry
+  public class FooterLinkData
+  {
+    private Route _route = null;
+    private TranslationGroup _translationGroup = null;
+    private TranslationValue _translationValue = null;
+    private int _mobileOperatorID = -1;
+    private MobileOperator _mobileOperator = null;
+    private PaymentProvider _paymentProvider = null;
+    private string _footerUrl = string.Empty;
+    private string _footerText = string.Empty;
+    private int _onlyIfCustomerHavePayment = -1;
+
+    public Route Route { get { return this._route; } }
+    public int RouteID { get { return this._route != null ? this._route.ID : -1; } }
+    public TranslationGroup TranslationGroup { get { return this._translationGroup; } }
+    public int TranslationGroupID { get { return this._translationGroup != null ? this._translationGroup.ID : -1; } }
+    public MobileOperator MobileOperator { get { return this._mobileOperator; } }
+    public int MobileOperatorID { get { return this._mobileOperatorID; } }
+    public int PaymentProviderID { get { return this._paymentProvider != null ? this._paymentProvider.ID : -1; } }
+    public string FooterUrl { get { return this._footerUrl; } }
+    public string FooterText { get { return this._footerText; } }
+    public int OnlyIfCustomerHavePayment { get { return this._onlyIfCustomerHavePayment; } }
+
+    public FooterLinkDataHasPayment PaymentStatus
+    {
+      get
+      {
+        if (this. _onlyIfCustomerHavePayment == 1) return FooterLinkDataHasPayment.HasPayment;
+        else if (this._onlyIfCustomerHavePayment == 0) return FooterLinkDataHasPayment.DoesNotHavePayment;
+        else return FooterLinkDataHasPayment.Default;
+      }
+    }
+
+    public string Url
+    {
+      get
+      {
+        if (this._route != null)
+          return this._route.Pattern;
+        return this._footerUrl;
+      }
+    }
+
+    public string Text
+    {
+      get
+      {
+        if (this._translationValue != null)
+          return this._translationValue.Value;
+        return this._footerText;
+      }
+    }
+
+    public enum Columns
+    {
+      RouteID = 0,
+      TranslationGroupID = 1,
+      FooterUrl = 2,
+      FooterText = 3,
+      MobileOperator = 4,
+      PaymentProvider = 5,
+      IfHasPayment = 6
+    }
+
+    public FooterLinkData(Route route, TranslationGroup translationGroup, int mobileOperatorID, MobileOperator mobileOperator, PaymentProvider paymentProvider, string footerUrl, string footerText, int onlyIfCustomerHavePayment)
+    {
+      this._route = route;
+      this._mobileOperatorID = mobileOperatorID;
+      this._mobileOperator = mobileOperator;
+      this._translationGroup = translationGroup;
+      this._paymentProvider = paymentProvider;
+      this._footerUrl = footerUrl;
+      this._footerText = footerText;
+      this._onlyIfCustomerHavePayment = onlyIfCustomerHavePayment;
+    }
+
+    public void Prepare(TranslationKey key, ITranslationGroupKeyManager tgkManager, ITranslationValueManager tvManager)
+    {
+      if (this._translationGroup == null)
+        return;
+
+      List<TranslationGroupKey> keys = tgkManager.Load(this._translationGroup);
+      TranslationGroupKey tgk = (from k in keys where k.Name.Equals("Title") select k).FirstOrDefault();
+      if (tgk == null)
+        return;
+
+      this._translationValue = tvManager.Load(key, tgk);
+      if(this._translationValue == null && key.FallbackTranslationKey != null)
+        this._translationValue = tvManager.Load(key.FallbackTranslationKey, tgk);
+    }
+    
+  }
+
+  public enum FooterLinkDataHasPayment
+  {
+    Default,
+    HasPayment,
+    DoesNotHavePayment
+  }
+
+}
+

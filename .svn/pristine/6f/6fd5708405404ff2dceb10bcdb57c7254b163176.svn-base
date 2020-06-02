@@ -1,0 +1,73 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using MobilePaywall.Data;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IAuctionCreditManager : IDataManager<AuctionCredit> 
+  {
+	
+
+  }
+
+  public partial class AuctionCredit : MobilePaywallObject<IAuctionCreditManager> 
+  {
+		private AuctionCreditStatus _auctionCreditStatus;
+		private Customer _customer;
+		private int _amount = -1;
+		
+
+		public AuctionCreditStatus AuctionCreditStatus  { get { return this._auctionCreditStatus; } set { this._auctionCreditStatus = value; } }
+		public Customer Customer 
+		{
+			get
+			{
+				if (this._customer != null &&
+						this._customer.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._customer = Customer.CreateManager().LazyLoad(this.ConnectionContext, this._customer.ID) as Customer;
+					else
+						this._customer = Customer.CreateManager().LazyLoad(this._customer.ID) as Customer;
+				return this._customer;
+			}
+			set { _customer = value; }
+		}
+
+		public int Amount{ get {return this._amount; } set { this._amount = value;} }
+		
+
+    public override bool IsInsertable { get { return true;} }
+
+    public override bool IsDeletable { get { return false;} }
+
+    public override bool IsUpdatable { get { return true;} }
+
+    public AuctionCredit()
+    { 
+    }
+
+    public AuctionCredit(int id): base(id, DateTime.Now, DateTime.Now, true)
+    {
+    }
+
+    public AuctionCredit(int id,  AuctionCreditStatus auctionCreditStatus, Customer customer, int amount, DateTime updated, DateTime created): base(id, updated, created, false)
+    {
+			this._auctionCreditStatus = auctionCreditStatus;
+			this._customer = customer;
+			this._amount = amount;
+			
+    }
+
+    public override object Clone(bool deepClone)
+    {
+      return new AuctionCredit(-1,  this.AuctionCreditStatus, this.Customer,this.Amount, DateTime.Now, DateTime.Now);
+    }
+  }
+}
+

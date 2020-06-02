@@ -1,0 +1,78 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Direct;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Implementation.Payment.Specific.MY
+{
+  public class MYAltercoLookupManager : LookupManagerBase
+  {
+
+    public MYAltercoLookupManager(IUserSession us)
+      :base(us)
+    {
+
+    }
+
+    public override Data.LookupSession InitiateLookupSession(string requestRawUrl, Data.UserHttpRequest originalRequest)
+    {
+      MobilePaywallDirect db = MobilePaywallDirect.Instance;
+      DirectContainer container = db.LoadContainer(string.Format(@"
+        SELECT TOP 1 lsr.LookupSessionResultID AS lsr, ls.LookupSessionID AS ls FROM MobilePaywall.core.LookupSession AS ls
+                LEFT OUTER JOIN MobilePaywall.core.LookupSessionResult AS lsr ON lsr.LookupSessionID=ls.LookupSessionID
+                WHERE ls.UserSessionID={0} ORDER BY lsr.LookupSessionResultID DESC, lsr.IsSuccessful, lsr.IsFinalResult;", this.Session.SessionData.ID));
+
+      if (!container.HasValue)
+        return null;
+
+      int? lsid = container.GetInt("ls");
+      if (!lsid.HasValue)
+        return null;
+
+      LookupSession ls = LookupSession.CreateManager().Load(lsid.Value);
+      return ls;
+    }
+
+    public override LookupSessionResult TryGetLookupSessionResult()
+    {
+      MobilePaywallDirect db = MobilePaywallDirect.Instance;
+      DirectContainer container = db.LoadContainer(string.Format(@"
+        SELECT TOP 1 lsr.LookupSessionResultID AS lsr, ls.LookupSessionID AS ls FROM MobilePaywall.core.LookupSession AS ls
+        LEFT OUTER JOIN MobilePaywall.core.LookupSessionResult AS lsr ON lsr.LookupSessionID=ls.LookupSessionID
+        WHERE ls.UserSessionID={0} ORDER BY lsr.LookupSessionResultID DESC, lsr.IsSuccessful, lsr.IsFinalResult;", this.Session.SessionData.ID));
+
+      if (!container.HasValue)
+        return null;
+
+      int? lsrid = container.GetInt("lsr");
+      if (!lsrid.HasValue)
+        return null;
+
+      LookupSessionResult lsr = LookupSessionResult.CreateManager().Load(lsrid.Value);
+      return lsr;
+    }
+
+    public override LookupSessionResult ProcessLookupCallbackResult(string url)
+    {
+      MobilePaywallDirect db = MobilePaywallDirect.Instance;
+      DirectContainer container = db.LoadContainer(string.Format(@"
+        SELECT TOP 1 lsr.LookupSessionResultID AS lsr, ls.LookupSessionID AS ls FROM MobilePaywall.core.LookupSession AS ls
+        LEFT OUTER JOIN MobilePaywall.core.LookupSessionResult AS lsr ON lsr.LookupSessionID=ls.LookupSessionID
+        WHERE ls.UserSessionID={0} ORDER BY lsr.LookupSessionResultID DESC, lsr.IsSuccessful, lsr.IsFinalResult;", this.Session.SessionData.ID));
+
+      if (!container.HasValue)
+        return null;
+
+      int? lsrid = container.GetInt("lsr");
+      if (!lsrid.HasValue)
+        return null;
+
+      LookupSessionResult lsr = LookupSessionResult.CreateManager().Load(lsrid.Value);
+      return lsr;
+    }
+
+  }
+}

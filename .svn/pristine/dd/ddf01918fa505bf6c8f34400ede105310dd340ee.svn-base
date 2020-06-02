@@ -1,0 +1,488 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(TemplateServiceFlow))] 
+  public partial class TemplateServiceFlowManager : MobilePaywall.Data.Sql.SqlManagerBase<TemplateServiceFlow>, ITemplateServiceFlowManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override TemplateServiceFlow LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							TemplateServiceFlowTable.GetColumnNames("[tsf]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[tsf_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[tsf_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[tsf_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[tsf_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[tsf_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[tsf_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[tsf_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[tsf_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[tsf_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[tsf_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[tsf_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[tsf_s_t]") : string.Empty) + 
+					" FROM [core].[TemplateServiceFlow] AS [tsf] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [tsf_s] ON [tsf].[ServiceID] = [tsf_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [tsf_s_a] ON [tsf_s].[ApplicationID] = [tsf_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [tsf_s_p] ON [tsf_s].[ProductID] = [tsf_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [tsf_s_m] ON [tsf_s].[MerchantID] = [tsf_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [tsf_s_st] ON [tsf_s].[ServiceTypeID] = [tsf_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [tsf_s_ust] ON [tsf_s].[UserSessionTypeID] = [tsf_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tsf_s_c] ON [tsf_s].[FallbackCountryID] = [tsf_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [tsf_s_l] ON [tsf_s].[FallbackLanguageID] = [tsf_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [tsf_s_ar] ON [tsf_s].[FallbackAgeRatingID] = [tsf_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [tsf_s_sc] ON [tsf_s].[ServiceConfigurationID] = [tsf_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [tsf_s_bm] ON [tsf_s].[BusinessModelID] = [tsf_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [tsf_s_t] ON [tsf_s].[TemplateID] = [tsf_s_t].[TemplateID] ";
+				sqlCmdText += "WHERE [tsf].[TemplateServiceFlowID] = @TemplateServiceFlowID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@TemplateServiceFlowID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsf", "loadinternal", "notfound"), "TemplateServiceFlow could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				TemplateServiceFlowTable tsfTable = new TemplateServiceFlowTable(query);
+				ServiceTable tsf_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable tsf_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable tsf_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable tsf_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable tsf_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable tsf_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable tsf_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable tsf_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable tsf_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable tsf_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable tsf_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable tsf_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        
+				Application tsf_s_aObject = (this.Depth > 1) ? tsf_s_aTable.CreateInstance() : null;
+				Product tsf_s_pObject = (this.Depth > 1) ? tsf_s_pTable.CreateInstance() : null;
+				Merchant tsf_s_mObject = (this.Depth > 1) ? tsf_s_mTable.CreateInstance() : null;
+				ServiceType tsf_s_stObject = (this.Depth > 1) ? tsf_s_stTable.CreateInstance() : null;
+				UserSessionType tsf_s_ustObject = (this.Depth > 1) ? tsf_s_ustTable.CreateInstance() : null;
+				Country tsf_s_cObject = (this.Depth > 1) ? tsf_s_cTable.CreateInstance() : null;
+				Language tsf_s_lObject = (this.Depth > 1) ? tsf_s_lTable.CreateInstance() : null;
+				AgeRating tsf_s_arObject = (this.Depth > 1) ? tsf_s_arTable.CreateInstance() : null;
+				ServiceConfiguration tsf_s_scObject = (this.Depth > 1) ? tsf_s_scTable.CreateInstance() : null;
+				BusinessModel tsf_s_bmObject = (this.Depth > 1) ? tsf_s_bmTable.CreateInstance() : null;
+				Template tsf_s_tObject = (this.Depth > 1) ? tsf_s_tTable.CreateInstance() : null;
+				Service tsf_sObject = (this.Depth > 0) ? tsf_sTable.CreateInstance(tsf_s_aObject, tsf_s_pObject, tsf_s_mObject, tsf_s_stObject, tsf_s_ustObject, tsf_s_cObject, tsf_s_lObject, tsf_s_arObject, tsf_s_scObject, tsf_s_bmObject, tsf_s_tObject) : null;
+				TemplateServiceFlow tsfObject = tsfTable.CreateInstance(tsf_sObject);
+				sqlReader.Close();
+
+				return tsfObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsf", "loadinternal", "exception"), "TemplateServiceFlow could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "TemplateServiceFlow", "Exception while loading TemplateServiceFlow object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public TemplateServiceFlow Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							TemplateServiceFlowTable.GetColumnNames("[tsf]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[tsf_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[tsf_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[tsf_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[tsf_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[tsf_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[tsf_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[tsf_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[tsf_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[tsf_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[tsf_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[tsf_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[tsf_s_t]") : string.Empty) +  
+					" FROM [core].[TemplateServiceFlow] AS [tsf] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [tsf_s] ON [tsf].[ServiceID] = [tsf_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [tsf_s_a] ON [tsf_s].[ApplicationID] = [tsf_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [tsf_s_p] ON [tsf_s].[ProductID] = [tsf_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [tsf_s_m] ON [tsf_s].[MerchantID] = [tsf_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [tsf_s_st] ON [tsf_s].[ServiceTypeID] = [tsf_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [tsf_s_ust] ON [tsf_s].[UserSessionTypeID] = [tsf_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tsf_s_c] ON [tsf_s].[FallbackCountryID] = [tsf_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [tsf_s_l] ON [tsf_s].[FallbackLanguageID] = [tsf_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [tsf_s_ar] ON [tsf_s].[FallbackAgeRatingID] = [tsf_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [tsf_s_sc] ON [tsf_s].[ServiceConfigurationID] = [tsf_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [tsf_s_bm] ON [tsf_s].[BusinessModelID] = [tsf_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [tsf_s_t] ON [tsf_s].[TemplateID] = [tsf_s_t].[TemplateID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsf", "customload", "notfound"), "TemplateServiceFlow could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				TemplateServiceFlowTable tsfTable = new TemplateServiceFlowTable(query);
+				ServiceTable tsf_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable tsf_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable tsf_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable tsf_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable tsf_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable tsf_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable tsf_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable tsf_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable tsf_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable tsf_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable tsf_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable tsf_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        
+				Application tsf_s_aObject = (this.Depth > 1) ? tsf_s_aTable.CreateInstance() : null;
+				Product tsf_s_pObject = (this.Depth > 1) ? tsf_s_pTable.CreateInstance() : null;
+				Merchant tsf_s_mObject = (this.Depth > 1) ? tsf_s_mTable.CreateInstance() : null;
+				ServiceType tsf_s_stObject = (this.Depth > 1) ? tsf_s_stTable.CreateInstance() : null;
+				UserSessionType tsf_s_ustObject = (this.Depth > 1) ? tsf_s_ustTable.CreateInstance() : null;
+				Country tsf_s_cObject = (this.Depth > 1) ? tsf_s_cTable.CreateInstance() : null;
+				Language tsf_s_lObject = (this.Depth > 1) ? tsf_s_lTable.CreateInstance() : null;
+				AgeRating tsf_s_arObject = (this.Depth > 1) ? tsf_s_arTable.CreateInstance() : null;
+				ServiceConfiguration tsf_s_scObject = (this.Depth > 1) ? tsf_s_scTable.CreateInstance() : null;
+				BusinessModel tsf_s_bmObject = (this.Depth > 1) ? tsf_s_bmTable.CreateInstance() : null;
+				Template tsf_s_tObject = (this.Depth > 1) ? tsf_s_tTable.CreateInstance() : null;
+				Service tsf_sObject = (this.Depth > 0) ? tsf_sTable.CreateInstance(tsf_s_aObject, tsf_s_pObject, tsf_s_mObject, tsf_s_stObject, tsf_s_ustObject, tsf_s_cObject, tsf_s_lObject, tsf_s_arObject, tsf_s_scObject, tsf_s_bmObject, tsf_s_tObject) : null;
+				TemplateServiceFlow tsfObject = tsfTable.CreateInstance(tsf_sObject);
+				sqlReader.Close();
+
+				return tsfObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsf", "customload", "exception"), "TemplateServiceFlow could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "TemplateServiceFlow", "Exception while loading (custom/single) TemplateServiceFlow object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<TemplateServiceFlow> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							TemplateServiceFlowTable.GetColumnNames("[tsf]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[tsf_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[tsf_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[tsf_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[tsf_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[tsf_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[tsf_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[tsf_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[tsf_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[tsf_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[tsf_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[tsf_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[tsf_s_t]") : string.Empty) +  
+					" FROM [core].[TemplateServiceFlow] AS [tsf] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [tsf_s] ON [tsf].[ServiceID] = [tsf_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [tsf_s_a] ON [tsf_s].[ApplicationID] = [tsf_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [tsf_s_p] ON [tsf_s].[ProductID] = [tsf_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [tsf_s_m] ON [tsf_s].[MerchantID] = [tsf_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [tsf_s_st] ON [tsf_s].[ServiceTypeID] = [tsf_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [tsf_s_ust] ON [tsf_s].[UserSessionTypeID] = [tsf_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tsf_s_c] ON [tsf_s].[FallbackCountryID] = [tsf_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [tsf_s_l] ON [tsf_s].[FallbackLanguageID] = [tsf_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [tsf_s_ar] ON [tsf_s].[FallbackAgeRatingID] = [tsf_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [tsf_s_sc] ON [tsf_s].[ServiceConfigurationID] = [tsf_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [tsf_s_bm] ON [tsf_s].[BusinessModelID] = [tsf_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [tsf_s_t] ON [tsf_s].[TemplateID] = [tsf_s_t].[TemplateID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsf", "customloadmany", "notfound"), "TemplateServiceFlow list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<TemplateServiceFlow>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				TemplateServiceFlowTable tsfTable = new TemplateServiceFlowTable(query);
+				ServiceTable tsf_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable tsf_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable tsf_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable tsf_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable tsf_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable tsf_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable tsf_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable tsf_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable tsf_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable tsf_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable tsf_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable tsf_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        List<TemplateServiceFlow> result = new List<TemplateServiceFlow>();
+        do
+        {
+          
+					Application tsf_s_aObject = (this.Depth > 1) ? tsf_s_aTable.CreateInstance() : null;
+					Product tsf_s_pObject = (this.Depth > 1) ? tsf_s_pTable.CreateInstance() : null;
+					Merchant tsf_s_mObject = (this.Depth > 1) ? tsf_s_mTable.CreateInstance() : null;
+					ServiceType tsf_s_stObject = (this.Depth > 1) ? tsf_s_stTable.CreateInstance() : null;
+					UserSessionType tsf_s_ustObject = (this.Depth > 1) ? tsf_s_ustTable.CreateInstance() : null;
+					Country tsf_s_cObject = (this.Depth > 1) ? tsf_s_cTable.CreateInstance() : null;
+					Language tsf_s_lObject = (this.Depth > 1) ? tsf_s_lTable.CreateInstance() : null;
+					AgeRating tsf_s_arObject = (this.Depth > 1) ? tsf_s_arTable.CreateInstance() : null;
+					ServiceConfiguration tsf_s_scObject = (this.Depth > 1) ? tsf_s_scTable.CreateInstance() : null;
+					BusinessModel tsf_s_bmObject = (this.Depth > 1) ? tsf_s_bmTable.CreateInstance() : null;
+					Template tsf_s_tObject = (this.Depth > 1) ? tsf_s_tTable.CreateInstance() : null;
+					Service tsf_sObject = (this.Depth > 0) ? tsf_sTable.CreateInstance(tsf_s_aObject, tsf_s_pObject, tsf_s_mObject, tsf_s_stObject, tsf_s_ustObject, tsf_s_cObject, tsf_s_lObject, tsf_s_arObject, tsf_s_scObject, tsf_s_bmObject, tsf_s_tObject) : null;
+					TemplateServiceFlow tsfObject = (this.Depth > -1) ? tsfTable.CreateInstance(tsf_sObject) : null;
+					result.Add(tsfObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsf", "customloadmany", "exception"), "TemplateServiceFlow list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "TemplateServiceFlow", "Exception while loading (custom/many) TemplateServiceFlow object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, TemplateServiceFlow data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[TemplateServiceFlow] ([ServiceID],[Title]) VALUES(@ServiceID,@Title); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@Title", !string.IsNullOrEmpty(data.Title) ? (object)data.Title : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsf", "insert", "noprimarykey"), "TemplateServiceFlow could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "TemplateServiceFlow", "Exception while inserting TemplateServiceFlow object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsf", "insert", "exception"), "TemplateServiceFlow could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "TemplateServiceFlow", "Exception while inserting TemplateServiceFlow object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, TemplateServiceFlow data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[TemplateServiceFlow] SET " +
+												"[ServiceID] = @ServiceID, " + 
+												"[Title] = @Title, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [TemplateServiceFlowID] = @TemplateServiceFlowID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@Title", !string.IsNullOrEmpty(data.Title) ? (object)data.Title : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Created", data.Created).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@TemplateServiceFlowID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsf", "update", "norecord"), "TemplateServiceFlow could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "TemplateServiceFlow", "Exception while updating TemplateServiceFlow object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsf", "update", "morerecords"), "TemplateServiceFlow was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "TemplateServiceFlow", "Exception while updating TemplateServiceFlow object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsf", "update", "exception"), "TemplateServiceFlow could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "TemplateServiceFlow", "Exception while updating TemplateServiceFlow object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, TemplateServiceFlow data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[TemplateServiceFlow] WHERE TemplateServiceFlowID = @TemplateServiceFlowID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@TemplateServiceFlowID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsf", "delete", "norecord"), "TemplateServiceFlow could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "TemplateServiceFlow", "Exception while deleting TemplateServiceFlow object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsf", "delete", "exception"), "TemplateServiceFlow could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "TemplateServiceFlow", "Exception while deleting TemplateServiceFlow object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

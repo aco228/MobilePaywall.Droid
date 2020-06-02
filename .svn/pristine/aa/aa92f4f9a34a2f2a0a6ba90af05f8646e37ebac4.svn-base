@@ -1,0 +1,230 @@
+﻿using MobilePaywall.Data;
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.ContentUploader.Video
+{
+	/*
+		
+		THIS CLASS MUST BE CALLED THROUGH CONSOLE APPLICATION -------------
+
+		Folder path must include _config.txt 
+		With provided details, like this:
+
+-------------(beginning of the file)
+ContentGroupID:49
+ContentTypeID:1
+ContentStorageID:1
+CategoryID:23
+Language:EN
+AgeRatingID:1
+Rating:1
+-------------(end of the file)
+		
+	*/
+
+	public class VideoUploaderManager
+	{
+		private string _folderPath = string.Empty;
+		private string _saveDirectory = string.Empty;
+		private List<VideoUploaderFile> _files = new List<VideoUploaderFile>();
+		private VideoUploaderInformations _informations = null;
+
+		private static FFmpegProcessThumbnail FFMPEG_THUMBNAIL = null;
+		private static FFmpegProcessVideo FFMPEG_VIDEO = null;
+
+		
+		public VideoUploaderManager(string folderPath, string ffmpefLocation = "")
+		{
+			Console.WriteLine("VideoUploader Started");
+			this._folderPath = folderPath;
+			if(!Directory.Exists(this._folderPath))
+				throw new Exception("Folder path does not exists");
+
+			this._informations = new VideoUploaderInformations(this._folderPath);
+			if(this._informations.Error)
+				throw new Exception("ERROR With video uploader validation + " + this._informations.Message);
+
+			if (string.IsNullOrEmpty(ffmpefLocation))
+				ffmpefLocation = @"D:\aco\_everything.else\MobilePaywall.Tools\MobilePaywall.Content.Uploader\External\ffmpeg.exe";
+
+			if (!File.Exists(ffmpefLocation))
+				throw new Exception("FFMPEG location does not exists");
+			FFMPEG_THUMBNAIL = new FFmpegProcessThumbnail(ffmpefLocation);
+			FFMPEG_VIDEO = new FFmpegProcessVideo(ffmpefLocation);
+
+			// get all files
+			foreach (FileInfo fi in new DirectoryInfo(this._folderPath).GetFiles())
+			{
+				if (fi.Name.Equals("_config.txt"))
+					continue;
+				this._files.Add(new VideoUploaderFile(fi.Name, fi.FullName));
+			}
+			Console.WriteLine("Files retrieved " + this._files.Count + " of them!");
+
+			// create output folder
+			this._saveDirectory = string.Format(@"{0}/output", this._folderPath);
+			if (!Directory.Exists(this._saveDirectory))
+			{
+				Directory.CreateDirectory(this._saveDirectory);
+				Console.WriteLine("Output folder created");
+			}
+		}
+
+		public void Start()
+		{
+			new Thread(() => { this.ConversionThread(); }).Start();
+			new Thread(() => { this.UploadThread(); }).Start();
+		}
+
+		private void ConversionThread()
+		{
+			List<VideoCodec> codecs = new List<VideoCodec>();
+			codecs.Add(VideoCodec.CreateManager().Load(10));
+			codecs.Add(VideoCodec.CreateManager().Load(16));
+
+			List<VisualMediaDimensions> dimensions = new List<VisualMediaDimensions>();
+			dimensions.Add(VisualMediaDimensions.CreateManager().Load(8));
+			dimensions.Add(VisualMediaDimensions.CreateManager().Load(10));
+			dimensions.Add(VisualMediaDimensions.CreateManager().Load(23));
+			dimensions.Add(VisualMediaDimensions.CreateManager().Load(31));
+
+			foreach (var file in this._files)
+			{
+				string fileDirectory = string.Format(@"{0}/{1}", this._saveDirectory, file.Name);
+				if (!Directory.Exists(fileDirectory))
+					Directory.CreateDirectory(fileDirectory);
+
+				if (File.Exists(string.Format(@"{0}/_complete.txt", fileDirectory)))
+					continue;
+
+				Console.WriteLine("STARTING CONVERSION WITH:: " + file.Name);
+				FFMPEG_THUMBNAIL.Start(file.Path, string.Format(@"{0}/thumbnail.jpg", fileDirectory));
+				Console.WriteLine("       -> thumbnail created");
+
+				foreach (VideoCodec codec in codecs)
+					foreach (VisualMediaDimensions dim in dimensions)
+					{
+						FFMPEG_VIDEO.Start(new FFmpegProcessVideoInput()
+						{
+							InputFilePath = file.Path,
+							Name = file.Name,
+							Dimensions = dim,
+							VideoCodec = codec,
+							OutputFolder = string.Format(@"{0}/{1}.{2}", fileDirectory, codec.ID, (codec.ID == 16 ? "23" : dim.ID.ToString()))
+						});
+
+						Console.WriteLine(string.Format("       -> video converted for codec='{0}' with dimension='{1}'", codec.Name, dim.Description));
+
+						if (codec.ID == 16)
+							break;
+					}
+				
+				File.WriteAllText(string.Format(@"{0}/_complete.txt", fileDirectory), file.Name);
+			}
+		}
+
+		private void UploadThread()
+		{
+			ThumbnailConversionProfileEntry thumbnailConversionProfileEntry = ThumbnailConversionProfileEntry.CreateManager().Load(7);
+			Dictionary<string, VideoConversionProfileEntry> conversionProfiles = new Dictionary<string, VideoConversionProfileEntry>();
+			conversionProfiles.Add("10.8", VideoConversionProfileEntry.CreateManager().Load(1));
+			conversionProfiles.Add("10.10", VideoConversionProfileEntry.CreateManager().Load(2));
+			conversionProfiles.Add("10.23", VideoConversionProfileEntry.CreateManager().Load(3));
+			conversionProfiles.Add("10.31", VideoConversionProfileEntry.CreateManager().Load(4));
+			conversionProfiles.Add("16.23", VideoConversionProfileEntry.CreateManager().Load(8));
+
+			for (; ;)
+			{
+				DirectoryInfo[] directories = new DirectoryInfo(this._saveDirectory).GetDirectories();
+				int currentlyUploaded = 0;
+
+				foreach(DirectoryInfo di in directories)
+				{
+					string completeFlag = string.Format(@"{0}/_complete.txt", di.FullName);
+					string uploadedFlag = string.Format(@"{0}/_uploaded.txt", di.FullName);
+
+					if (!File.Exists(completeFlag))
+						continue;
+
+					if(File.Exists(uploadedFlag))
+					{
+						currentlyUploaded++;
+
+						if (currentlyUploaded == this._files.Count)
+						{
+							Console.WriteLine("UPLOAD FINISHED");
+							break;
+						}
+
+						continue;
+					}
+
+					string name = "";
+					try { name = File.ReadAllText(completeFlag); }
+					catch(Exception e)
+					{
+						Console.WriteLine("-- upload could not start because completeFlag is used by another process for folder " + di.Name);
+						continue;
+					}
+
+					Console.WriteLine("STARTING UPLOAD WITH " + di.Name);
+					
+					/*
+						PREPARE CONTENT
+					*/
+
+					ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted);
+					connection.Transaction.Begin();
+
+					Data.Content content = new Content(-1, this._informations.ContentGroup, this._informations.ContentType, this._informations.ContentStorage, this._informations.AgeRating, true, DateTime.Now, DateTime.Now);
+					content.Insert(connection);
+
+					VideoContent videoContent = new VideoContent(-1, content, false, name, name, DateTime.Now, DateTime.Now);
+					videoContent.Insert(connection);
+
+					/*
+						INSERT THUMBNAIL
+					*/
+					string thumbnailPath = string.Format(@"{0}/thumbnail.jpg", di.FullName);
+					ContentThumbnail ct = new ContentThumbnail(-1, content, true, DateTime.Now, DateTime.Now);
+					ct.Insert(connection);
+					ContentThumbnailData ctd = new ContentThumbnailData(-1, ct, thumbnailConversionProfileEntry, false, new byte[] { 0 }, DateTime.Now, DateTime.Now);
+					ctd.DataFilePath = thumbnailPath;
+					ctd.Insert(connection);
+
+					/*
+						INSERT VIDEO DATA
+					*/
+
+					foreach (FileInfo file in di.GetFiles())
+					{
+						if (file.Extension != ".mp4" && file.Extension != ".webm")
+							continue;
+
+						string fileNameSplit = file.Name.Replace(file.Extension, string.Empty);
+
+						VideoContentData vcd = new VideoContentData(-1, videoContent, conversionProfiles[fileNameSplit], true, false, 0, new byte[] { 0 }, DateTime.Now, DateTime.Now);
+						vcd.DataFilePath = file.FullName;
+						vcd.Insert(connection);
+					}
+
+
+					File.WriteAllText(uploadedFlag, DateTime.Now.ToString());
+					connection.Transaction.Commit();
+					Console.WriteLine("UPLOAD FINISH FOR " + di.Name);
+
+				}
+			}
+		}
+
+
+	}
+}

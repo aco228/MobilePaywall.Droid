@@ -1,0 +1,408 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using MobilePaywall.Data;
+
+namespace MobilePaywall
+{
+	public abstract class ContentCacheBase : IContentCache
+	{
+		private static readonly object ContentCacheLockObject = new object();
+
+    private Data.Application _application = null;
+
+		private List<IContent> _items = null;
+		private List<IContentGroup> _groups = null;
+    private SortedDictionary<int, IContent> _contentMap = null;
+
+
+    //private SortedDictionary<int, IContentGroup> _groupMap = null;
+    //private SortedDictionary<int, SortedDictionary<int, IContent>> _serviceContentMap = null;
+    //private SortedDictionary<int, SortedDictionary<int, IContent>> _categoryContentMap = null;
+    //private SortedDictionary<int, SortedDictionary<int, IContent>> _groupContentMap = null;
+    //private SortedDictionary<int, List<Category>> _serviceCategoryMap = null;
+    //private SortedDictionary<ThumbnailKey, ContentThumbnailData> _thumbnails = null;
+    //private SortedDictionary<int, List<ContentThumbnailData>> _contentThumbnailMap = null;
+
+    public Data.Application Application { get { return this._application; } }
+
+		public List<IContentGroup> Groups { get { return this._groups; } }
+		public List<IContent> Items { get { return this._items; } }
+    public SortedDictionary<int, IContent> ContentMap { get { return this._contentMap; } }
+
+
+    //public SortedDictionary<int, IContentGroup> GroupMap { get { return this._groupMap; } }
+    //public SortedDictionary<int, SortedDictionary<int, IContent>> ServiceContentMap { get { return this._serviceContentMap; } }
+    //public SortedDictionary<int, SortedDictionary<int, IContent>> CategoryContentMap { get { return this._categoryContentMap; } }
+    //public SortedDictionary<int, SortedDictionary<int, IContent>> GroupContentMap { get { return this._groupContentMap; } }
+    //public SortedDictionary<int, List<Category>> ServiceCategoryMap { get { return this._serviceCategoryMap; } }
+    //public SortedDictionary<ThumbnailKey, ContentThumbnailData> Thumbnails { get { return this._thumbnails; } }
+    //public SortedDictionary<int, List<ContentThumbnailData>> ContentThumbnailMap { get { return this._contentThumbnailMap; } }
+
+		public ContentCacheBase()
+		{
+
+		}
+
+		public ContentCacheBase(Data.Application application) : this()
+		{
+      //this.Initialize(application);
+		}
+
+		public virtual void Initialize(MobilePaywall.Data.Application application)
+		{
+			//this.LoadGroups();
+			//this.LoadGroups(application);
+			//this.LoadItems();
+			//this.MapContent();
+			//this.MapServiceContent(application);
+			//this.MapCategoryContent();
+		}
+
+    public virtual void LoadGroups()
+    {
+      List<ContentGroup> groups = null;
+      if (this._application == null)
+        groups = (from cg in ContentGroup.LoadAll() where cg.IsEnabled select cg).ToList();
+      else
+        groups = (from scg in ServiceContentGroupMap.LoadByApplication(this._application) where scg.ContentGroup.IsEnabled select scg.ContentGroup).ToList();
+
+      this._groups = new List<IContentGroup>();
+      foreach (ContentGroup cg in groups)
+        this._groups.Add(cg.Instantiate());
+    }
+
+    public virtual void LoadItems()
+    {
+      List<Content> items = Content.LoadAll();
+      if (this._groups == null)
+        return;
+
+      this._items = new List<IContent>();
+      if (items == null || items.Count == 0)
+        foreach (IContentGroup icg in this._groups)
+          this._items.AddRange(icg.LoadContent());
+      else
+        foreach (Content item in items)
+          this._items.Add(item.Instantiate());
+    }
+
+    protected void MapContent()
+    {
+      if (this._items == null ||
+        this._items.Count == 0)
+        return;
+
+      this._contentMap = new SortedDictionary<int, IContent>();
+      foreach (IContent ic in this._items)
+        if (!this._contentMap.ContainsKey(ic.ContentData.ID))
+          this._contentMap.Add(ic.ContentData.ID, ic);
+    }
+
+    //protected void MapGroups()
+    //{
+    //  if (this._groups == null ||
+    //     this._groups.Count == 0)
+    //    return;
+
+    //  this._groupMap = new SortedDictionary<int, IContentGroup>();
+    //  foreach (IContentGroup group in this._groups)
+    //    if (!this._groupMap.ContainsKey(group.ContentGroupData.ID))
+    //      this._groupMap.Add(group.ContentGroupData.ID, group);
+    //}
+
+    //protected void MapContentGroups()
+    //{
+    //  if (this._items == null ||
+    //     this._items.Count == 0)
+    //    return;
+
+    //  if (this._groups == null ||
+    //     this._groups.Count == 0)
+    //    return;
+
+    //  this._groupContentMap = new SortedDictionary<int, SortedDictionary<int, IContent>>();
+    //  foreach (IContentGroup group in this._groups)
+    //  {
+    //    SortedDictionary<int, IContent> current = null;
+    //    if (this._groupContentMap.ContainsKey(group.ContentGroupData.ID))
+    //      current = this._groupContentMap[group.ContentGroupData.ID];
+    //    else
+    //      current = new SortedDictionary<int, IContent>();
+
+    //    foreach (IContent item in this._items)
+    //      if (!current.ContainsKey(item.ContentData.ID) && 
+    //          group.ContentGroupData.ID == item.ContentData.ContentGroup.ID)
+    //        current.Add(item.ContentData.ID, item);
+    //  }
+    //}
+
+    //protected void MapServiceContent()
+    //{
+    //  List<ServiceContentGroupMap> serviceContentGroupMap = ServiceContentGroupMap.LoadAll();
+    //  this.MapServiceContent(serviceContentGroupMap);
+    //}
+
+    //protected void MapServiceContent(Data.Application application)
+    //{
+    //  List<ServiceContentGroupMap> serviceContentGroupMap = ServiceContentGroupMap.LoadByApplication(application);
+    //  this.MapServiceContent(serviceContentGroupMap);
+    //}
+
+    //protected void MapServiceContent(List<ServiceContentGroupMap> serviceContentGroupMap)
+    //{
+    //  if (serviceContentGroupMap == null ||
+    //    serviceContentGroupMap.Count == 0)
+    //    return;
+
+    //  this._serviceContentMap = new SortedDictionary<int, SortedDictionary<int, IContent>>();
+    //  foreach (ServiceContentGroupMap scgm in serviceContentGroupMap)
+    //  {
+    //    SortedDictionary<int, IContent> current = null;
+    //    if (this._serviceContentMap.ContainsKey(scgm.Service.ID))
+    //      current = this._serviceContentMap[scgm.Service.ID];
+    //    else
+    //      current = new SortedDictionary<int, IContent>();
+
+    //    foreach (KeyValuePair<int, IContent> kv in this._contentMap)
+    //      if (kv.Value.ContentData.ContentGroup.ID == scgm.ContentGroup.ID)
+    //        current.Add(kv.Key, kv.Value);
+
+    //    if (!this._serviceContentMap.ContainsKey(scgm.Service.ID))
+    //      this._serviceContentMap.Add(scgm.Service.ID, current);
+    //  }
+    //}
+
+    //protected void MapCategoryContent()
+    //{
+    //  this._categoryContentMap = new SortedDictionary<int, SortedDictionary<int, IContent>>();
+    //  IContentCategoryMapManager ccmManager = ContentCategoryMap.CreateManager();
+    //  List<ContentCategoryMap> contentCategoryMap = ccmManager.Load();
+
+    //  if (contentCategoryMap == null ||
+    //    contentCategoryMap.Count == 0)
+    //    return;
+
+    //  foreach (ContentCategoryMap ccm in contentCategoryMap)
+    //  {
+    //    SortedDictionary<int, IContent> current;
+    //    if (this._categoryContentMap.ContainsKey(ccm.Category.ID))
+    //      current = this._categoryContentMap[ccm.Category.ID];
+    //    else
+    //      current = new SortedDictionary<int, IContent>();
+
+    //    foreach (KeyValuePair<int, IContent> kv in this._contentMap)
+    //      if (kv.Key == ccm.Content.ID &&
+    //        !current.ContainsKey(ccm.Content.ID))
+    //        current.Add(kv.Key, kv.Value);
+
+    //    if (!this._categoryContentMap.ContainsKey(ccm.Category.ID))
+    //      this._categoryContentMap.Add(ccm.Category.ID, current);
+    //  }
+    //}
+
+    //public void MapServiceCategory()
+    //{
+    //  //this._serviceCategoryMap = new SortedDictionary<int, List<Category>>();
+    //  //if(this.ser)
+    //}
+
+    //protected void MapThumbnails()
+    //{
+    //  List<ContentThumbnailData> contentThumbnailDataItems = ContentThumbnailData.LoadAll(2);
+    //  this.MapThumbnails(contentThumbnailDataItems);
+    //}
+
+    //protected void MapThumbnails(Data.Application application)
+    //{
+    //  List<ContentThumbnailData> contentThumbnailDataItems = ContentThumbnailData.LoadByApplication(application);
+    //  this.MapThumbnails(contentThumbnailDataItems);
+    //}
+
+    //protected void MapThumbnails(List<ContentThumbnailData> contentThumbnailDataItems)
+    //{
+    //  if (this._items == null ||
+    //    this._items.Count < 1)
+    //    return;
+
+    //  lock (ContentCacheLockObject)
+    //  {
+    //    if (this._thumbnails != null)
+    //      return;
+
+    //    this._thumbnails = new SortedDictionary<ThumbnailKey, ContentThumbnailData>();
+    //    this._contentThumbnailMap = new SortedDictionary<int, List<ContentThumbnailData>>();
+    //    foreach (ContentThumbnailData contentThumbnailData in contentThumbnailDataItems)
+    //    {
+    //      ThumbnailKey thumbnailKey = new ThumbnailKey(contentThumbnailData.ContentThumbnail.Content.ID, contentThumbnailData.ContentThumbnail.ID);
+    //      if (this._thumbnails.ContainsKey(thumbnailKey))
+    //        continue;
+    //      this._thumbnails.Add(thumbnailKey, contentThumbnailData);
+    //      if (!this._contentThumbnailMap.ContainsKey(contentThumbnailData.ContentThumbnail.Content.ID))
+    //        this._contentThumbnailMap.Add(contentThumbnailData.ContentThumbnail.Content.ID, new List<ContentThumbnailData>());
+    //      this._contentThumbnailMap[contentThumbnailData.ContentThumbnail.Content.ID].Add(contentThumbnailData);
+    //    }
+    //  }
+    //}
+
+    //public IContent GetContent(int contentID)
+    //{
+    //  if (this._contentMap.ContainsKey(contentID))
+    //    return this._contentMap[contentID];
+
+    //  throw new KeyNotFoundException("Content for provided key is not found!");
+    //}
+
+    //public IContent GetContent(Guid contentGuid)
+    //{
+    //  throw new NotImplementedException("Searching for content by GUID is not implemented!");
+    //}
+
+    //public IContent GetContent(Content content)
+    //{
+    //  throw new NotImplementedException("Searching for content by content object is not implemented!");
+    //}
+
+    //public IContent GetContent(VideoContent videoContent)
+    //{
+    //  if (videoContent == null)
+    //    throw new ArgumentNullException("Video content object is not provided!");
+
+    //  if (this._contentMap.ContainsKey(videoContent.Content.ID))
+    //    return this._contentMap[videoContent.Content.ID];
+
+    //  throw new KeyNotFoundException("Content for provided video content object is not found!");
+    //}
+
+    //protected ContentThumbnailData LoadThumbnailData()
+    //{
+    //  return null;
+    //}
+
+    //public List<ContentThumbnailData> GetThumbnails(Content content)
+    //{
+    //  if (this._contentThumbnailMap == null) this._contentThumbnailMap = new SortedDictionary<int, List<ContentThumbnailData>>();
+    //  if (this._contentThumbnailMap.ContainsKey(content.ID)) return this._contentThumbnailMap[content.ID];
+    //  List<ContentThumbnailData> thumbnails = ContentThumbnailData.LoadByContent(content, null);
+    //  this._contentThumbnailMap.Add(content.ID, thumbnails);
+    //  return thumbnails;
+    //}
+
+    ////public ContentThumbnailData GetThumbnail(Content content, ContentThumbnail contentThumbnail, ThumbnailConversionProfileEntry thumbnailConversionProfileEntry, bool @default)
+    ////{
+    ////	return this.LoadThumbnail(content, contentThumbnail, thumbnailConversionProfileEntry, @default);
+    ////}
+
+    ////public ContentThumbnailData GetThumbnail(int contentID, int contentThumbnailID, int thumbnailConversionProfileEntryID, bool @default)
+    ////{
+    ////	if (!this._contentMap.ContainsKey(contentID))
+    ////		throw new KeyNotFoundException("Content for provided key is not found!");
+
+    ////	IContent content = this._contentMap[contentID];
+    ////	ContentThumbnail contentThumbnail = ContentThumbnail.LoadByContent<ContentThumbnail>(content.ContentData);
+    ////	ThumbnailConversionProfileEntry thumbnailConversionProfileEntry = ThumbnailConversionProfileEntry.LoadByThumbnailConversionProfileEntryID(thumbnailConversionProfileEntryID);
+    ////	return this.LoadThumbnail(content.ContentData, contentThumbnail, thumbnailConversionProfileEntry, @default);
+    ////}
+
+    ////protected ContentThumbnailData LoadThumbnail(Content content, ContentThumbnail contentThumbnail, ThumbnailConversionProfileEntry thumbnailConversionProfileEntry, bool @default)
+    ////{
+    ////	if(content == null ||
+    ////		contentThumbnail == null || 
+    ////		thumbnailConversionProfileEntry == null)
+    ////	throw new ArgumentNullException("Some of provided arguments are null.")
+
+    ////	ThumbnailKey thumbnailKey = new ThumbnailKey(content.ID, contentThumbnail.ID, thumbnailConversionProfileEntry.ID);
+
+    ////	if(this._thumbnails == null)
+    ////		this._thumbnails = new SortedDictionary<ThumbnailKey, ContentThumbnailData>();
+
+    ////	if(this._thumbnails.ContainsKey(thumbnailKey))
+    ////		return this._thumbnails[thumbnailKey];
+
+    ////	lock(ContentCacheLockObject)
+    ////	{
+    ////		if(this._thumbnails.ContainsKey(thumbnailKey))
+    ////		return this._thumbnails[thumbnailKey];
+
+    ////		List<ContentThumbnailData> contentThumbnailDataList = ContentThumbnailData.LoadByContent(content, @default);
+    ////		foreach(ContentThumbnailData ctd in contentThumbnailDataList)
+    ////		{
+    ////			ThumbnailKey temporary = new ThumbnailKey(content.ID, ctd.ContentThumbnail.ID, ctd.ThumbnailConversionProfileEntry.ID);
+    ////			if(this._thumbnails.ContainsKey(temporary))
+    ////				continue;
+    ////			this._thumbnails.Add(temporary, ctd);
+    ////		}
+    ////	}
+
+    ////	return this._thumbnails[thumbnailKey];
+    ////}
+
+    //public List<IContent> FilterContent(int serviceID, int serviceConfigurationEntryID, int? categoryID, int? page, int? items)
+    //{
+    //  IServiceManager sManager = Service.CreateManager();
+    //  Service service = sManager.Load(serviceID);
+    //  if (service == null)
+    //    return null;
+
+    //  IServiceConfigurationEntryManager sceManager = ServiceConfigurationEntry.CreateManager();
+    //  ServiceConfigurationEntry serviceConfigurationEntry = sceManager.Load(serviceConfigurationEntryID);
+    //  if (serviceConfigurationEntry == null)
+    //    return null;
+
+    //  ICategoryManager cManager = Category.CreateManager();
+    //  Category category = categoryID.HasValue ? cManager.Load(categoryID.Value) : null;
+
+    //  return this.FilterContent(service, serviceConfigurationEntry, category, page, items);
+    //}
+
+    //public List<IContent> FilterContent(Service service, ServiceConfigurationEntry serviceConfigurationEntry, Category category, int? page, int? items)
+    //{
+    //  List<IContent> temporary = new List<IContent>();
+
+    //  if (!this._serviceContentMap.ContainsKey(service.ID))
+    //    return null;
+
+    //  SortedDictionary<int, IContent> current = this._serviceContentMap[service.ID];
+    //  if (serviceConfigurationEntry != null)
+    //    if (category == null)
+    //      temporary.AddRange((from v in current.Values
+    //                          where v.ContentData.AgeRating.Index <= serviceConfigurationEntry.AgeRating.Index
+    //                          select v).ToList());
+    //    else
+    //      temporary.AddRange((from v in current.Values
+    //                          where v.ContentData.AgeRating.Index <= serviceConfigurationEntry.AgeRating.Index &&
+    //                            v.Categories.Contains(category)
+    //                          select v).ToList());
+    //  else
+    //    temporary.AddRange(current.Values);
+
+    //  if (temporary == null ||
+    //    temporary.Count == 0)
+    //    return null;
+
+    //  if (!page.HasValue)
+    //    page = 0;
+
+    //  if (!items.HasValue)
+    //    items = 0;
+
+    //  int skip = page.Value * items.Value;
+    //  skip = skip % temporary.Count;
+
+    //  int limit = skip + items.Value;
+    //  if (temporary.Count < limit)
+    //    items = temporary.Count - skip;
+
+    //  List<IContent> filtered = new List<IContent>();
+    //  filtered = temporary.Skip(skip).Take(items.Value).ToList();
+    //  if (filtered.Count < items.Value)
+    //    filtered.AddRange(temporary.Skip(items.Value - filtered.Count).Take(items.Value - filtered.Count));
+
+    //  return filtered;
+    //}
+
+	}
+}

@@ -1,0 +1,136 @@
+﻿@model MobilePaywall.Web.Models.ContentListViewModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+  
+  int pageCount = (int)(Math.Ceiling((decimal)Model.AllContentCount / (decimal)Model.PageItemsCount));
+  int maxNumberOfPages = pageCount; // (pageCount < 5 ? pageCount : 5);
+
+}
+
+@Scripts.Render("~/Script/Home")
+@Scripts.Render("~/Script/GlmAdult/Home")
+
+
+@{
+  //Change it to take random content!
+  Random rnd = new Random();
+  int index = rnd.Next(0, Model.Content.Count);
+  MobilePaywall.IContent content = Model.Content.ElementAt(index);
+  Random ran = new Random();
+}
+
+<style>
+  #contentVideoControls{ margin:auto!important;  width:80%!important; margin-top: 20px; }
+  .content_videoControl{ float:left; width: 50px!important; margin-right:10px!important; }
+  .content_videoControl_current{background-color: #5d232c!important;}
+  #categoires_top{background-color: #424242; height: 50px; text-align: center; padding-top: 10px; color: white;}
+  #category-link{text-decoration: none; cursor:pointer;}
+  .category_list_item{background-color:#616161; text-align:center; height:28px; color:white; font-size:17px;}
+  .category_list_item:hover{background-color:#424242;}
+</style>
+<div id="category-link">
+  <h3 id="categoires_top">Categorias</h3>
+</div>
+<div id="dropdown" loaded="false" style="display: none;">
+
+</div>
+<div id="contentVideos" class="row">
+  @*<div class="header row">@Translations.Web.Home.Header2</div>*@
+  <section id="player_bottom">
+    
+    <div id="list_videos">
+
+      <div id="other_videos" class="">
+        <span id="">@Html.Raw(Model.Category != null ? Model.Category.ContextTitle(PaywallHttpContext.Current.Service) : "Novos vídeos")</span>
+      </div>
+      <div id="contents">
+        <div id="contentVideoContainer">
+          @{
+            foreach (MobilePaywall.IContent item in Model.Content)
+            {
+              MobilePaywall.ContentInformations info = item.GetInformations(PaywallHttpContext.Current.Service.ServiceData, PaywallHttpContext.Current.Service.ServiceData.FallbackLanguage);
+              <div class="content fleft">
+                <a href="@Model.AppendSessionID(item)" class="___clink" style="text-decoration:none">
+                  <div class="content-picture">
+                    <img src="@item.GetThumbnailUrl(this.Request.UserAgent)" alt="">
+                    <i class="icon icon-hd-box"></i>
+                    <i class="icon icon-hd-text"></i>
+                    <div class="rating up">
+                      <i class="icon-thumb-up"></i>
+                      <span id="percent">@{  int ne = ran.Next(80, 99); } @ne%</span>
+
+                    </div>
+
+                    @*<div class="content-time">
+                        <span class="black box rounded">21:06</span>
+                      </div>*@
+                  </div>
+                  <div class="content-description">
+                    <div class="content-title">
+                      @info.Title
+                      <i class="icon icon-option-vertical iconAddTo"></i>
+                    </div>
+                  </div>
+                </a>
+              </div>
+                        }
+          }
+        </div>
+      </div>
+    </div>
+    <div class="clear"></div>
+
+    <div id="contentVideoControls" class="row view-all">
+      @for (int i = 0; i < maxNumberOfPages; i++)
+      {
+        string content_videoControl_current = (i == Model.CurrentPage) ? "content_videoControl_current" : "";
+        <a href="@Model.AppendSessionIDForPagination(i, Model.Category)">
+          <div class="content_videoControl @content_videoControl_current" id="controlLoadMore">@(i + 1)</div>
+        </a>
+      }
+      <div style="clear:both"></div>
+    </div>
+
+  </section>
+
+  <div style="clear:both"></div>
+
+</div>
+
+<script>
+  var _videoController = null;
+  var _contentHome = null;
+  var _contentCount = @Model.ContentCount;
+  var _allContentCount = @Model.AllContentCount;
+
+  $(document).ready(function () {
+    _videoController = new VideoController();
+    _videoController.TextPending = '@Translations.Web.Pending.PleaseWait';
+    _videoController.LoadMoreBtn = function(){};
+
+    @if(Model.Category != null)
+    {
+      @Html.Raw(Server.HtmlDecode("_videoController.CategoryID = '" + Model.Category.ID + "';"));
+    }
+
+    _contentHome = new ContentHome();
+
+    $('#category-link').click(function(){
+      if($('#dropdown').attr('loaded') == 'true'){
+        $('#dropdown').toggle();
+      }
+      else{
+        $.ajax({
+          url: @Html.Raw(Model.TemplateMode ? "'/template/Categories'" : "'/home/Categories'"),
+          success : function(response){
+              $('#dropdown').html(response);
+              $('#dropdown').attr('loaded','true');
+              $('#dropdown').css('display','block');
+            }
+          
+        });
+      }
+        
+    });
+  });
+</script>

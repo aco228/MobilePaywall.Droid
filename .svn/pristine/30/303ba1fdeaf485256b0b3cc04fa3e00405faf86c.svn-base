@@ -1,0 +1,257 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+namespace MobilePaywall.Data
+{
+  public partial interface IClientManager
+  {
+    List<Client> Load();
+    List<Client> Load(IConnectionInfo connection);
+    Client Load(string username, string password);
+    Client Load(IConnectionInfo connection, string username, string password);
+    Client Load(Guid clientGuid);
+    Client Load(IConnectionInfo connection, Guid clientGuid);
+    Client Load(string username);
+    Client Load(IConnectionInfo connection, string username);
+
+  }
+
+  public partial class Client
+  {
+    private Dictionary<int, Instance> _allowedInstances = null;
+    private Dictionary<int, Merchant> _allowedMerchants = null;
+    private Dictionary<int, Service> _allowedServices = null;
+    
+    public Dictionary<int, Instance> AllowedInstances { get { if (this._allowedInstances == null) this.FilterInstances(); return this._allowedInstances; } }
+    public Dictionary<int, Merchant> AllowedMerchants { get { if (this._allowedMerchants == null) this.FilterMerchants(); return this._allowedMerchants; } }
+    public Dictionary<int, Service> AllowedServices { get { if (this._allowedServices == null) this.FilterServices(); return this._allowedServices; } }
+
+
+    public void InsertWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, "Client", "core", this); }
+    public void UpdateWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, "Client", "core", this); }
+
+
+    public void FilterInstances()
+    {
+      this._allowedInstances = new Dictionary<int, Instance>();
+      List<ClientAccessPolicy> clientAccessPolicies = ClientAccessPolicy.CreateManager().Load(this);
+      IInstanceManager iManager = Instance.CreateManager();
+
+      List<Instance> finalInstanceList = new List<Instance>();
+      List<Instance> tempAllowed = new List<Instance>();
+      List<Instance> tempRestricted = new List<Instance>();
+
+      List<ClientAccessPolicy> capInstance = (from c in clientAccessPolicies where c.Instance != null && c.Application == null && c.Merchant == null && c.Product == null && c.Service == null select c).ToList();
+
+      foreach (ClientAccessPolicy cap in capInstance)
+        if (cap.AccessMode == AccessMode.Allowed)
+          tempAllowed.Add(cap.Instance);
+        else
+          tempRestricted.Add(cap.Instance);
+
+      foreach (Instance ins in tempAllowed)
+        if (!tempRestricted.Contains(ins) && !finalInstanceList.Contains(ins))
+          finalInstanceList.Add(ins);
+
+      foreach (Instance ins in tempRestricted)
+        if (finalInstanceList.Contains(ins))
+          finalInstanceList.Remove(ins);
+
+      foreach (Instance ins in finalInstanceList)
+        this._allowedInstances.Add(ins.ID, ins);
+    }
+
+    public void FilterMerchants()
+    {
+      this._allowedMerchants = new Dictionary<int, Merchant>();
+      List<ClientAccessPolicy> clientAccessPolicies = ClientAccessPolicy.CreateManager().Load(this);
+      IMerchantManager mManager = Merchant.CreateManager();
+
+      List<Merchant> finalMerchantList = new List<Merchant>();
+      List<Merchant> tempMerchantAllowed = new List<Merchant>();
+      List<Merchant> tempMerchantRestricted = new List<Merchant>();
+
+      // only instance
+      List<ClientAccessPolicy> capInstance = (from c in clientAccessPolicies where c.Instance != null && c.Application == null && c.Merchant == null && c.Product == null && c.Service == null select c).ToList();
+      ReferenceAllowedRestrictedMerchants(capInstance, LoadBy.Instance, mManager, ref finalMerchantList, ref tempMerchantAllowed, ref tempMerchantRestricted);
+
+      // merchant
+      List<ClientAccessPolicy> capMerchant = (from c in clientAccessPolicies where c.Merchant != null && c.Product == null && c.Service == null select c).ToList();
+      ReferenceAllowedRestrictedMerchants(capMerchant, LoadBy.Merchant, mManager, ref finalMerchantList, ref tempMerchantAllowed, ref tempMerchantRestricted);
+
+      foreach (Data.Merchant m in finalMerchantList)
+        this._allowedMerchants.Add(m.ID, m);
+    }
+
+    public void FilterServices()
+    {
+      this._allowedServices = new Dictionary<int, Service>();
+      List<ClientAccessPolicy> clientAccessPolicies = ClientAccessPolicy.CreateManager().Load(this);
+      IServiceManager sManager = Service.CreateManager();
+
+      List<Service> finalServiceList = new List<Service>();
+
+      List<Service> tempAllowed = new List<Service>();
+      List<Service> tempRestricted = new List<Service>();
+
+      // only instance
+      List<ClientAccessPolicy> capInstance = (from c in clientAccessPolicies where c.Instance != null && c.Application == null && c.Merchant == null && c.Product == null && c.Service == null select c).ToList();
+      ReferenceAllowedRestrictedServices(capInstance, LoadBy.Instance, sManager, ref finalServiceList, ref tempAllowed, ref tempRestricted);
+
+      // application (and instance)
+      List<ClientAccessPolicy> capApplication = (from c in clientAccessPolicies where c.Application != null && c.Merchant == null && c.Product == null && c.Service == null select c).ToList();
+      ReferenceAllowedRestrictedServices(capApplication, LoadBy.Application, sManager, ref finalServiceList, ref tempAllowed, ref tempRestricted);
+
+      // merchant (and instance)
+      List<ClientAccessPolicy> capMerchant = (from c in clientAccessPolicies where c.Merchant != null && c.Application == null && c.Product == null && c.Service == null select c).ToList();
+      ReferenceAllowedRestrictedServices(capMerchant, LoadBy.Merchant, sManager, ref finalServiceList, ref tempAllowed, ref tempRestricted);
+
+      // application && merchant (and instance)
+      List<ClientAccessPolicy> capApplicationMerchant = (from c in clientAccessPolicies where c.Application != null && c.Merchant != null && c.Product == null && c.Service == null select c).ToList();
+      ReferenceAllowedRestrictedServices(capApplicationMerchant, LoadBy.ApplicationMerchant, sManager, ref finalServiceList, ref tempAllowed, ref tempRestricted);
+
+      // product (and instance)
+      List<ClientAccessPolicy> capProduct = (from c in clientAccessPolicies where c.Product != null && c.Application == null && c.Merchant == null && c.Service == null select c).ToList();
+      ReferenceAllowedRestrictedServices(capProduct, LoadBy.Product, sManager, ref finalServiceList, ref tempAllowed, ref tempRestricted);
+
+      // application && product (and instance)
+      List<ClientAccessPolicy> capApplicationProduct = (from c in clientAccessPolicies where c.Application != null && c.Product != null && c.Merchant == null && c.Service == null select c).ToList();
+      ReferenceAllowedRestrictedServices(capApplicationProduct, LoadBy.ApplicationProduct, sManager, ref finalServiceList, ref tempAllowed, ref tempRestricted);
+
+      // merchant && product (and instance)
+      List<ClientAccessPolicy> capProductMerchant = (from c in clientAccessPolicies where c.Merchant != null && c.Product != null && c.Service == null select c).ToList();
+      ReferenceAllowedRestrictedServices(capProductMerchant, LoadBy.MerchantProduct, sManager, ref finalServiceList, ref tempAllowed, ref tempRestricted);
+
+      // application && merchant && product (and instance)
+      List<ClientAccessPolicy> capApplicationMerchantProduct = (from c in clientAccessPolicies where c.Application != null && c.Merchant != null && c.Product != null && c.Service == null select c).ToList();
+      ReferenceAllowedRestrictedServices(capApplicationMerchantProduct, LoadBy.ApplicationMerchantProduct, sManager, ref finalServiceList, ref tempAllowed, ref tempRestricted);
+
+      // service (and instance, application, merchant, product)
+      List<ClientAccessPolicy> capServices = (from c in clientAccessPolicies where c.Service != null select c).ToList();
+      ReferenceAllowedRestrictedServices(capServices, LoadBy.Service, sManager, ref finalServiceList, ref tempAllowed, ref tempRestricted);
+
+      foreach (Service s in finalServiceList)
+        this._allowedServices.Add(s.ID, s);
+    }
+
+    public void ReferenceAllowedRestrictedMerchants(List<ClientAccessPolicy> capList, LoadBy loadBy, IMerchantManager mManager, ref List<Merchant> finalMerchantList, ref List<Merchant> tempAllowed, ref List<Merchant> tempRestricted)
+    {
+      foreach (ClientAccessPolicy cap in capList)
+        if (cap.AccessMode == AccessMode.Allowed)
+          tempAllowed.AddRange(LoadMerchantBySomething(cap, loadBy, mManager));
+        else
+          tempRestricted.AddRange(LoadMerchantBySomething(cap, loadBy, mManager));
+
+      finalMerchantList = RemoveRestrictedMerchants(finalMerchantList, tempAllowed, tempRestricted);
+      tempAllowed = new List<Merchant>();
+      tempRestricted = new List<Merchant>();
+    }
+
+    public List<Merchant> RemoveRestrictedMerchants(List<Merchant> finalList, List<Merchant> allowed, List<Merchant> restricted)
+    {
+      foreach (Merchant m in allowed)
+        if (!restricted.Contains(m) && !finalList.Contains(m))
+          finalList.Add(m);
+
+      foreach (Merchant m in restricted)
+        if (finalList.Contains(m))
+          finalList.Remove(m);
+
+      return finalList;
+    }
+
+    public List<Merchant> LoadMerchantBySomething(ClientAccessPolicy cap, LoadBy loadBy, IMerchantManager mManager)
+    {
+      switch (loadBy)
+      {
+        case LoadBy.Instance: return mManager.Load(cap.Instance);
+        case LoadBy.Merchant: List<Merchant> m = new List<Merchant>(); m.Add(cap.Merchant); return m;
+        default: return null;
+      }
+    }
+
+    public void ReferenceAllowedRestrictedServices(List<ClientAccessPolicy> capList, LoadBy loadBy, IServiceManager sManager, ref List<Service> finalServiceList, ref List<Service> tempAllowed, ref List<Service> tempRestricted)
+    {
+      foreach (ClientAccessPolicy cap in capList)
+        if (cap.AccessMode == AccessMode.Allowed)
+          tempAllowed.AddRange(LoadServiceBySomething(cap, loadBy, sManager));
+        else
+          tempRestricted.AddRange(LoadServiceBySomething(cap, loadBy, sManager));
+
+      finalServiceList = RemoveRestrictedServices(finalServiceList, tempAllowed, tempRestricted);
+      tempAllowed = new List<Service>();
+      tempRestricted = new List<Service>();
+    }
+
+    public List<Service> RemoveRestrictedServices(List<Service> finalList, List<Service> allowed, List<Service> restricted)
+    {
+      foreach (Service s in allowed)
+        if (!restricted.Contains(s) && !finalList.Contains(s))
+          finalList.Add(s);
+
+      foreach (Service s in restricted)
+        if (finalList.Contains(s))
+          finalList.Remove(s);
+
+      return finalList;
+    }
+
+    public List<Service> LoadServiceBySomething(ClientAccessPolicy cap, LoadBy loadBy, IServiceManager sManager)
+    {
+      switch (loadBy)
+      {
+        case LoadBy.Instance: return sManager.Load(cap.Instance);
+        case LoadBy.Application: return sManager.Load(cap.Application);
+        case LoadBy.Merchant: return sManager.Load(cap.Merchant);
+        case LoadBy.ApplicationMerchant: return sManager.Load(cap.Application, cap.Merchant, null);
+        case LoadBy.Product: return sManager.Load(cap.Product);
+        case LoadBy.ApplicationProduct: return sManager.Load(cap.Application, null, cap.Product);
+        case LoadBy.MerchantProduct: return sManager.Load(null, cap.Merchant, cap.Product);
+        case LoadBy.ApplicationMerchantProduct: return sManager.Load(cap.Application, cap.Merchant, cap.Product);
+        case LoadBy.Service: List<Service> s = new List<Service>(); s.Add(cap.Service); return s;
+        default: return null;
+      }
+    }
+
+
+    public enum LoadBy
+    {
+      Instance, Application, Merchant, ApplicationMerchant, Product, ApplicationProduct, MerchantProduct, ApplicationMerchantProduct, Service
+    }
+
+    //allowedInstances + Instances allowed through credentials for Merchants and Services (useful for dropdowns)
+    public List<Instance> SupportedInstances()
+    {
+      List<Instance> additionalInstances = (from m in this.AllowedMerchants.Values where !this.AllowedInstances.Values.Contains(m.Instance) select m.Instance).Distinct().ToList();
+      additionalInstances.AddRange((from s in this.AllowedServices.Values where !this.AllowedInstances.Values.Contains(s.Merchant.Instance) && !additionalInstances.Contains(s.Merchant.Instance) select s.Merchant.Instance).Distinct().ToList());
+      return (from i in this.AllowedInstances.Values.Union(additionalInstances) select i).ToList();
+    }
+
+    public List<Merchant> SupportedMerchants()
+    {
+      List<Merchant> additionalMerchants = (from s in this.AllowedServices.Values where !this.AllowedMerchants.Values.Contains(s.Merchant) select s.Merchant).Distinct().ToList();
+      return (from m in this.AllowedMerchants.Values.Union(additionalMerchants) select m).ToList();
+    }
+
+    public bool HasAccess(Service service)
+    {
+      if (this._allowedServices == null)
+        this.FilterServices();
+      return this._allowedServices.ContainsKey(service.ID);
+    }
+
+    public bool HasAccess(string componentName)
+    {
+      Component component = Component.CreateManager().Load(componentName);
+      if (component == null)
+        throw new Exception(string.Format("Component with name '{0}' does not exists", componentName));
+
+      ClientComponentAccessPolicy ccap = ClientComponentAccessPolicy.CreateManager().Load(this, component);
+      return ccap != null && ccap.AccessMode == AccessMode.Allowed;
+    }
+  }
+}
+

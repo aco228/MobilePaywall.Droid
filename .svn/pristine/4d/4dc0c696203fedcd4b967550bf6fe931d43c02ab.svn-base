@@ -1,0 +1,461 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ServiceContentGroupMap))] 
+  public partial class ServiceContentGroupMapManager : MobilePaywall.Data.Sql.SqlManagerBase<ServiceContentGroupMap>, IServiceContentGroupMapManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ServiceContentGroupMap LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ServiceContentGroupMapTable.GetColumnNames("[scgm]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[scgm_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[scgm_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[scgm_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[scgm_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[scgm_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[scgm_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[scgm_s_bm]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentGroupTable.GetColumnNames("[scgm_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[scgm_cg_i]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTypeTable.GetColumnNames("[scgm_cg_cgt]") : string.Empty) + 
+					" FROM [core].[ServiceContentGroupMap] AS [scgm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [scgm_s] ON [scgm].[ServiceID] = [scgm_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [scgm_s_a] ON [scgm_s].[ApplicationID] = [scgm_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [scgm_s_p] ON [scgm_s].[ProductID] = [scgm_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [scgm_s_m] ON [scgm_s].[MerchantID] = [scgm_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [scgm_s_st] ON [scgm_s].[ServiceTypeID] = [scgm_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [scgm_s_sc] ON [scgm_s].[ServiceConfigurationID] = [scgm_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [scgm_s_bm] ON [scgm_s].[BusinessModelID] = [scgm_s_bm].[BusinessModelID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroup] AS [scgm_cg] ON [scgm].[ContentGroupID] = [scgm_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [scgm_cg_i] ON [scgm_cg].[InstanceID] = [scgm_cg_i].[InstanceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroupType] AS [scgm_cg_cgt] ON [scgm_cg].[ContentGroupTypeID] = [scgm_cg_cgt].[ContentGroupTypeID] ";
+				sqlCmdText += "WHERE [scgm].[ServiceContentGroupMapID] = @ServiceContentGroupMapID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ServiceContentGroupMapID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scgm", "loadinternal", "notfound"), "ServiceContentGroupMap could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ServiceContentGroupMapTable scgmTable = new ServiceContentGroupMapTable(query);
+				ServiceTable scgm_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable scgm_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable scgm_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable scgm_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable scgm_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				ServiceConfigurationTable scgm_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable scgm_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				ContentGroupTable scgm_cgTable = (this.Depth > 0) ? new ContentGroupTable(query) : null;
+				InstanceTable scgm_cg_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				ContentGroupTypeTable scgm_cg_cgtTable = (this.Depth > 1) ? new ContentGroupTypeTable(query) : null;
+
+        
+				Application scgm_s_aObject = (this.Depth > 1) ? scgm_s_aTable.CreateInstance() : null;
+				Product scgm_s_pObject = (this.Depth > 1) ? scgm_s_pTable.CreateInstance() : null;
+				Merchant scgm_s_mObject = (this.Depth > 1) ? scgm_s_mTable.CreateInstance() : null;
+				ServiceType scgm_s_stObject = (this.Depth > 1) ? scgm_s_stTable.CreateInstance() : null;
+				ServiceConfiguration scgm_s_scObject = (this.Depth > 1) ? scgm_s_scTable.CreateInstance() : null;
+				BusinessModel scgm_s_bmObject = (this.Depth > 1) ? scgm_s_bmTable.CreateInstance() : null;
+				Service scgm_sObject = (this.Depth > 0) ? scgm_sTable.CreateInstance(scgm_s_aObject, scgm_s_pObject, scgm_s_mObject, scgm_s_stObject, scgm_s_scObject, scgm_s_bmObject) : null;
+				Instance scgm_cg_iObject = (this.Depth > 1) ? scgm_cg_iTable.CreateInstance() : null;
+				ContentGroupType scgm_cg_cgtObject = (this.Depth > 1) ? scgm_cg_cgtTable.CreateInstance() : null;
+				ContentGroup scgm_cgObject = (this.Depth > 0) ? scgm_cgTable.CreateInstance(scgm_cg_iObject, scgm_cg_cgtObject) : null;
+				ServiceContentGroupMap scgmObject = scgmTable.CreateInstance(scgm_sObject, scgm_cgObject);
+				sqlReader.Close();
+
+				return scgmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scgm", "loadinternal", "exception"), "ServiceContentGroupMap could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ServiceContentGroupMap", "Exception while loading ServiceContentGroupMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ServiceContentGroupMap Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ServiceContentGroupMapTable.GetColumnNames("[scgm]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[scgm_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[scgm_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[scgm_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[scgm_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[scgm_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[scgm_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[scgm_s_bm]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentGroupTable.GetColumnNames("[scgm_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[scgm_cg_i]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTypeTable.GetColumnNames("[scgm_cg_cgt]") : string.Empty) +  
+					" FROM [core].[ServiceContentGroupMap] AS [scgm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [scgm_s] ON [scgm].[ServiceID] = [scgm_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [scgm_s_a] ON [scgm_s].[ApplicationID] = [scgm_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [scgm_s_p] ON [scgm_s].[ProductID] = [scgm_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [scgm_s_m] ON [scgm_s].[MerchantID] = [scgm_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [scgm_s_st] ON [scgm_s].[ServiceTypeID] = [scgm_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [scgm_s_sc] ON [scgm_s].[ServiceConfigurationID] = [scgm_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [scgm_s_bm] ON [scgm_s].[BusinessModelID] = [scgm_s_bm].[BusinessModelID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroup] AS [scgm_cg] ON [scgm].[ContentGroupID] = [scgm_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [scgm_cg_i] ON [scgm_cg].[InstanceID] = [scgm_cg_i].[InstanceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroupType] AS [scgm_cg_cgt] ON [scgm_cg].[ContentGroupTypeID] = [scgm_cg_cgt].[ContentGroupTypeID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scgm", "customload", "notfound"), "ServiceContentGroupMap could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ServiceContentGroupMapTable scgmTable = new ServiceContentGroupMapTable(query);
+				ServiceTable scgm_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable scgm_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable scgm_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable scgm_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable scgm_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				ServiceConfigurationTable scgm_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable scgm_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				ContentGroupTable scgm_cgTable = (this.Depth > 0) ? new ContentGroupTable(query) : null;
+				InstanceTable scgm_cg_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				ContentGroupTypeTable scgm_cg_cgtTable = (this.Depth > 1) ? new ContentGroupTypeTable(query) : null;
+
+        
+				Application scgm_s_aObject = (this.Depth > 1) ? scgm_s_aTable.CreateInstance() : null;
+				Product scgm_s_pObject = (this.Depth > 1) ? scgm_s_pTable.CreateInstance() : null;
+				Merchant scgm_s_mObject = (this.Depth > 1) ? scgm_s_mTable.CreateInstance() : null;
+				ServiceType scgm_s_stObject = (this.Depth > 1) ? scgm_s_stTable.CreateInstance() : null;
+				ServiceConfiguration scgm_s_scObject = (this.Depth > 1) ? scgm_s_scTable.CreateInstance() : null;
+				BusinessModel scgm_s_bmObject = (this.Depth > 1) ? scgm_s_bmTable.CreateInstance() : null;
+				Service scgm_sObject = (this.Depth > 0) ? scgm_sTable.CreateInstance(scgm_s_aObject, scgm_s_pObject, scgm_s_mObject, scgm_s_stObject, scgm_s_scObject, scgm_s_bmObject) : null;
+				Instance scgm_cg_iObject = (this.Depth > 1) ? scgm_cg_iTable.CreateInstance() : null;
+				ContentGroupType scgm_cg_cgtObject = (this.Depth > 1) ? scgm_cg_cgtTable.CreateInstance() : null;
+				ContentGroup scgm_cgObject = (this.Depth > 0) ? scgm_cgTable.CreateInstance(scgm_cg_iObject, scgm_cg_cgtObject) : null;
+				ServiceContentGroupMap scgmObject = scgmTable.CreateInstance(scgm_sObject, scgm_cgObject);
+				sqlReader.Close();
+
+				return scgmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scgm", "customload", "exception"), "ServiceContentGroupMap could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ServiceContentGroupMap", "Exception while loading (custom/single) ServiceContentGroupMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ServiceContentGroupMap> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ServiceContentGroupMapTable.GetColumnNames("[scgm]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[scgm_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[scgm_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[scgm_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[scgm_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[scgm_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[scgm_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[scgm_s_bm]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentGroupTable.GetColumnNames("[scgm_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[scgm_cg_i]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTypeTable.GetColumnNames("[scgm_cg_cgt]") : string.Empty) +  
+					" FROM [core].[ServiceContentGroupMap] AS [scgm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [scgm_s] ON [scgm].[ServiceID] = [scgm_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [scgm_s_a] ON [scgm_s].[ApplicationID] = [scgm_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [scgm_s_p] ON [scgm_s].[ProductID] = [scgm_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [scgm_s_m] ON [scgm_s].[MerchantID] = [scgm_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [scgm_s_st] ON [scgm_s].[ServiceTypeID] = [scgm_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [scgm_s_sc] ON [scgm_s].[ServiceConfigurationID] = [scgm_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [scgm_s_bm] ON [scgm_s].[BusinessModelID] = [scgm_s_bm].[BusinessModelID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroup] AS [scgm_cg] ON [scgm].[ContentGroupID] = [scgm_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [scgm_cg_i] ON [scgm_cg].[InstanceID] = [scgm_cg_i].[InstanceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroupType] AS [scgm_cg_cgt] ON [scgm_cg].[ContentGroupTypeID] = [scgm_cg_cgt].[ContentGroupTypeID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scgm", "customloadmany", "notfound"), "ServiceContentGroupMap list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ServiceContentGroupMap>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ServiceContentGroupMapTable scgmTable = new ServiceContentGroupMapTable(query);
+				ServiceTable scgm_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable scgm_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable scgm_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable scgm_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable scgm_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				ServiceConfigurationTable scgm_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable scgm_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				ContentGroupTable scgm_cgTable = (this.Depth > 0) ? new ContentGroupTable(query) : null;
+				InstanceTable scgm_cg_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				ContentGroupTypeTable scgm_cg_cgtTable = (this.Depth > 1) ? new ContentGroupTypeTable(query) : null;
+
+        List<ServiceContentGroupMap> result = new List<ServiceContentGroupMap>();
+        do
+        {
+          
+					Application scgm_s_aObject = (this.Depth > 1) ? scgm_s_aTable.CreateInstance() : null;
+					Product scgm_s_pObject = (this.Depth > 1) ? scgm_s_pTable.CreateInstance() : null;
+					Merchant scgm_s_mObject = (this.Depth > 1) ? scgm_s_mTable.CreateInstance() : null;
+					ServiceType scgm_s_stObject = (this.Depth > 1) ? scgm_s_stTable.CreateInstance() : null;
+					ServiceConfiguration scgm_s_scObject = (this.Depth > 1) ? scgm_s_scTable.CreateInstance() : null;
+					BusinessModel scgm_s_bmObject = (this.Depth > 1) ? scgm_s_bmTable.CreateInstance() : null;
+					Service scgm_sObject = (this.Depth > 0) ? scgm_sTable.CreateInstance(scgm_s_aObject, scgm_s_pObject, scgm_s_mObject, scgm_s_stObject, scgm_s_scObject, scgm_s_bmObject) : null;
+					Instance scgm_cg_iObject = (this.Depth > 1) ? scgm_cg_iTable.CreateInstance() : null;
+					ContentGroupType scgm_cg_cgtObject = (this.Depth > 1) ? scgm_cg_cgtTable.CreateInstance() : null;
+					ContentGroup scgm_cgObject = (this.Depth > 0) ? scgm_cgTable.CreateInstance(scgm_cg_iObject, scgm_cg_cgtObject) : null;
+					ServiceContentGroupMap scgmObject = (this.Depth > -1) ? scgmTable.CreateInstance(scgm_sObject, scgm_cgObject) : null;
+					result.Add(scgmObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scgm", "customloadmany", "exception"), "ServiceContentGroupMap list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ServiceContentGroupMap", "Exception while loading (custom/many) ServiceContentGroupMap object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ServiceContentGroupMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ServiceContentGroupMap] ([ServiceID],[ContentGroupID],[IsEnabled]) VALUES(@ServiceID,@ContentGroupID,@IsEnabled); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentGroupID", data.ContentGroup.ID);
+				sqlCmd.Parameters.AddWithValue("@IsEnabled", data.IsEnabled).SqlDbType = SqlDbType.Bit;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scgm", "insert", "noprimarykey"), "ServiceContentGroupMap could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ServiceContentGroupMap", "Exception while inserting ServiceContentGroupMap object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scgm", "insert", "exception"), "ServiceContentGroupMap could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ServiceContentGroupMap", "Exception while inserting ServiceContentGroupMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ServiceContentGroupMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ServiceContentGroupMap] SET " +
+												"[ServiceID] = @ServiceID, " + 
+												"[ContentGroupID] = @ContentGroupID, " + 
+												"[IsEnabled] = @IsEnabled, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ServiceContentGroupMapID] = @ServiceContentGroupMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentGroupID", data.ContentGroup.ID);
+				sqlCmd.Parameters.AddWithValue("@IsEnabled", data.IsEnabled).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ServiceContentGroupMapID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scgm", "update", "norecord"), "ServiceContentGroupMap could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ServiceContentGroupMap", "Exception while updating ServiceContentGroupMap object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scgm", "update", "morerecords"), "ServiceContentGroupMap was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ServiceContentGroupMap", "Exception while updating ServiceContentGroupMap object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scgm", "update", "exception"), "ServiceContentGroupMap could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ServiceContentGroupMap", "Exception while updating ServiceContentGroupMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ServiceContentGroupMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ServiceContentGroupMap] WHERE ServiceContentGroupMapID = @ServiceContentGroupMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ServiceContentGroupMapID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scgm", "delete", "norecord"), "ServiceContentGroupMap could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ServiceContentGroupMap", "Exception while deleting ServiceContentGroupMap object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("scgm", "delete", "exception"), "ServiceContentGroupMap could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ServiceContentGroupMap", "Exception while deleting ServiceContentGroupMap object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

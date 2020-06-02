@@ -1,0 +1,92 @@
+﻿function AccessPolicyManager()
+{
+  this._emprtyRowHtml = '';
+
+  this._init = function () {
+    this._setEmptyRow();
+    this._set_initialOptions();
+    this._submitListener();
+  };
+
+  this._set_initialOptions = function () {
+    $('.selectAccessPolicy').each(function () {
+      var initialID = $(this).attr('initial_selection');
+      if (initialID == '')
+        return;
+      $(this).find('option[value=' + initialID + ']').prop('selected', true);
+    });
+  };
+
+  this._setEmptyRow = function () {
+    this._emprtyRowHtml = '<tr role="row" class="odd accessPolicyRow emptyRow">' + $('.emptyRow').html() + '</tr>'
+  };
+
+  this._submitListener = function () {
+    var self = this;
+    $('.submitAccessPolicy').attr('inuse', 'false');
+    $('body').on('click', '.submitAccessPolicy', function () {
+      btn = $(this);
+      if (btn.attr('inuse') == 'true')
+        return;
+
+      var id = $(this).attr('accessPolicyID');
+      var clientID = $('#tbodyAccessPolicy').attr('clientid');
+      var row = $(this).closest('.accessPolicyRow');
+      var instanceID = row.find('.selectAccessPolicy_Instance option:selected').attr('value');
+      var applicationID = row.find('.selectAccessPolicy_Application option:selected').attr('value');
+      var merchantID = row.find('.selectAccessPolicy_Merchant option:selected').attr('value');
+      var productID = row.find('.selectAccessPolicy_Product option:selected').attr('value');
+      var serviceID = row.find('.selectAccessPolicy_Service option:selected').attr('value');
+      var accessMode = row.find('.tdAccess .icheckbox_minimal-blue').attr('aria-checked');
+
+      btn.attr('inuse', 'true');
+
+      _clientManager._ajax('AccessPolicyUpdate',
+        '&accessPolicyID=' + id + '&clientID=' + clientID + '&instanceID=' + instanceID + '&applicationID=' + applicationID + '&merchantID=' + merchantID + '&productID=' + productID + '&serviceID=' + serviceID + '&accessMode=' + accessMode,
+        function (response) {
+          if (!response.status)
+          {
+            alert(response.message);
+            return;
+          }
+
+          btn.attr('inuse', 'false');
+          btn.text('Update');
+
+          if(response.id != '')
+          {
+            btn.attr('accesspolicyid', response.id);
+            $('#tbodyAccessPolicy').append(self._emprtyRowHtml);
+            self._updateICheck();
+            _application.BoxMessage('Created!', btn, false);
+          }
+          else
+            _application.BoxMessage('Updated!', btn, false);
+
+        }, btn);
+    });
+  };
+
+  this._updateICheck = function () {
+
+    //iCheck for checkbox and radio inputs
+    $('input[type="checkbox"].minimal, input[type="radio"].minimal').iCheck({
+      checkboxClass: 'icheckbox_minimal-blue',
+      radioClass: 'iradio_minimal-blue'
+    });
+    //Red color scheme for iCheck
+    $('input[type="checkbox"].minimal-red, input[type="radio"].minimal-red').iCheck({
+      checkboxClass: 'icheckbox_minimal-red',
+      radioClass: 'iradio_minimal-red'
+    });
+    //Flat red color scheme for iCheck
+    $('input[type="checkbox"].flat-red, input[type="radio"].flat-red').iCheck({
+      checkboxClass: 'icheckbox_flat-green',
+      radioClass: 'iradio_flat-green'
+    });
+
+  };
+
+
+  this._init();
+}

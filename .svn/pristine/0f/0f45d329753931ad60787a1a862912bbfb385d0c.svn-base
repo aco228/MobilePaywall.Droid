@@ -1,0 +1,1254 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Direct;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Data.Direct
+{
+  public class StatisticDirectManager
+  {
+    #region #log#
+
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (StatisticDirectManager._log == null)
+          StatisticDirectManager._log = LogManager.GetLogger(typeof(StatisticDirectManager));
+        return StatisticDirectManager._log;
+      }
+    }
+    #endregion
+
+    private MobilePaywallDirect _database = null;
+
+    public StatisticDirectManager()
+    {
+      this._database = new MobilePaywallDirect();
+    }
+
+    public DataTable Load(DateTime from, DateTime to, string select, List<string> selectInner, List<string> queryFrom, string filterBy, List<string> group, List<string> joinOn, string component, Dictionary<string, string> providerQueryBuilder, string revenueGroupBy)
+    {
+      string command = string.Empty;
+      if (component.Equals("statistic"))
+      {
+        if (from < DateTime.ParseExact("29/09/2016 00:00:00", "dd/MM/yyyy HH:mm:ss", null))
+          command = Select().Replace("{mainSelect}", select).Replace("{selectNames}", selectInner[1]).Replace("{selectIDs}", selectInner[0])
+                          .Replace("{joinService}", queryFrom[0]).Replace("{joinMerchant}", queryFrom[1]).Replace("{joinCountry}", queryFrom[2])
+                          .Replace("{joinMobileOperator}", queryFrom[3]).Replace("{joinPaymentProvider}", queryFrom[4])
+                          .Replace("{joinInstance}", queryFrom[5]).Replace("{joinPayout}", queryFrom[6])
+                          .Replace("{from}", this._database.Date(from)).Replace("{to}", this._database.Date(to))
+                          .Replace("{filterBy}", filterBy).Replace("{groupByIDs}", group[0]).Replace("{groupByNames}", group[1])
+                          .Replace("{selectUSCreated}", selectInner[2]).Replace("{groupByUSCreated}", group[2])
+                          .Replace("{selectPCreated}", selectInner[3]).Replace("{groupByPCreated}", group[3])
+                          .Replace("{selectPUpdated}", selectInner[4]).Replace("{groupByPUpdated}", group[4])
+                          .Replace("{selectTCreated}", selectInner[5]).Replace("{groupByTCreated}", group[5])
+                          .Replace("{ident}", joinOn[0]).Replace("{successIdent}", joinOn[1]).Replace("{pendingIdent}", joinOn[2]).Replace("{initIdent}", joinOn[3]).Replace("{failedIdent}", joinOn[4])
+                          .Replace("{pr}", joinOn[5]).Replace("{initP}", joinOn[6]).Replace("{pendingP}", joinOn[7]).Replace("{successP}", joinOn[8]).Replace("{failedP}", joinOn[9])
+                          .Replace("{cancelP}", joinOn[10]).Replace("{otherCancelP1}", joinOn[11]).Replace("{otherCancelP2}", joinOn[12]).Replace("{t1}", joinOn[13]).Replace("{t2}", joinOn[14]);
+        else if (providerQueryBuilder.Count > 0)
+          command = SelectOLCGroupByProviders().Replace("{usUnion}", providerQueryBuilder["us"]).Replace("{identUnion}", providerQueryBuilder["ident"])
+                                                .Replace("{successIdentUnion}", providerQueryBuilder["successIdent"]).Replace("{pendingIdentUnion}", providerQueryBuilder["pendingIdent"])
+                                                .Replace("{initIdentUnion}", providerQueryBuilder["initIdent"]).Replace("{failedIdentUnion}", providerQueryBuilder["failedIdent"])
+                                                .Replace("{prUnion}", providerQueryBuilder["pr"]).Replace("{initPUnion}", providerQueryBuilder["initP"])
+                                                .Replace("{pendingPUnion}", providerQueryBuilder["pendingP"]).Replace("{successPUnion}", providerQueryBuilder["successP"])
+                                                .Replace("{failedPUnion}", providerQueryBuilder["failedP"]).Replace("{cancelPUnion}", providerQueryBuilder["cancelP"])
+                                                .Replace("{otherCancelPUnion}", providerQueryBuilder["otherCancelP"])
+                                                .Replace("{t1Union}", providerQueryBuilder["t1"]).Replace("{t2Union}", providerQueryBuilder["t2"])
+                                                .Replace("{ident}", joinOn[0]).Replace("{successIdent}", joinOn[1]).Replace("{pendingIdent}", joinOn[2]).Replace("{initIdent}", joinOn[3]).Replace("{failedIdent}", joinOn[4])
+                                                .Replace("{pr}", joinOn[5]).Replace("{initP}", joinOn[6]).Replace("{pendingP}", joinOn[7]).Replace("{successP}", joinOn[8]).Replace("{failedP}", joinOn[9])
+                                                .Replace("{cancelP}", joinOn[10]).Replace("{otherCancelP}", joinOn[11]).Replace("{t1}", joinOn[12]).Replace("{t2}", joinOn[13])
+                                                .Replace("{from}", this._database.Date(from)).Replace("{to}", this._database.Date(to))
+                                                .Replace("{joinUserSession}", queryFrom[7]).Replace("{filterBy}", filterBy);
+        else
+          command = SelectUsingOLCache().Replace("{from}", this._database.Date(from)).Replace("{to}", this._database.Date(to))
+                                        .Replace("{filterBy}", filterBy)
+                                        .Replace("{mainSelect}", select).Replace("{selectIDs}", selectInner[0])
+                                        .Replace("{joinService}", queryFrom[0]).Replace("{joinMerchant}", queryFrom[1])
+                                        .Replace("{joinPaymentProvider}", queryFrom[4]).Replace("{joinUserSession}", queryFrom[7])
+                                        .Replace("{groupByIDs}", group[0]).Replace("{groupByNames}", group[1]).Replace("{selectNames}", selectInner[1])
+                                        .Replace("{selectOLCSessionCreated}", selectInner[2]).Replace("{groupByOLCSessionCreated}", group[2])
+                                        .Replace("{selectPUpdated}", selectInner[3]).Replace("{groupByPUpdated}", group[3])
+                                        .Replace("{selectTCreated}", selectInner[4]).Replace("{groupByTCreated}", group[4])
+                                        .Replace("{ident}", joinOn[0]).Replace("{successIdent}", joinOn[1]).Replace("{pendingIdent}", joinOn[2]).Replace("{initIdent}", joinOn[3]).Replace("{failedIdent}", joinOn[4])
+                                        .Replace("{pr}", joinOn[5]).Replace("{initP}", joinOn[6]).Replace("{pendingP}", joinOn[7]).Replace("{successP}", joinOn[8]).Replace("{failedP}", joinOn[9])
+                                        .Replace("{cancelP}", joinOn[10]).Replace("{otherCancelP}", joinOn[11]).Replace("{t1}", joinOn[12]).Replace("{t2}", joinOn[13]);
+      }
+      else if (component.Equals("chart"))
+      {
+        if (from < DateTime.ParseExact("29/09/2016 00:00:00", "dd/MM/yyyy HH:mm:ss", null))
+          command = ChartSelect().Replace("{mainSelect}", select).Replace("{selectNames}", selectInner[1]).Replace("{selectIDs}", selectInner[0])
+                                .Replace("{joinService}", queryFrom[0]).Replace("{joinMerchant}", queryFrom[1]).Replace("{joinCountry}", queryFrom[2])
+                                .Replace("{joinMobileOperator}", queryFrom[3]).Replace("{joinPaymentProvider}", queryFrom[4])
+                                .Replace("{joinInstance}", queryFrom[5]).Replace("{joinPayout}", queryFrom[6])
+                                .Replace("{from}", this._database.Date(from)).Replace("{to}", this._database.Date(to))
+                                .Replace("{filterBy}", filterBy).Replace("{groupByIDs}", group[0]).Replace("{groupByNames}", group[1])
+                                .Replace("{selectUSCreated}", selectInner[2]).Replace("{groupByUSCreated}", group[2])
+                                .Replace("{selectPCreated}", selectInner[3]).Replace("{groupByPCreated}", group[3])
+                                .Replace("{selectPUpdated}", selectInner[4]).Replace("{groupByPUpdated}", group[4])
+                                .Replace("{selectTCreated}", selectInner[5]).Replace("{groupByTCreated}", group[5])
+                                .Replace("{successIdent}", joinOn[1]).Replace("{successP}", joinOn[8])
+                                .Replace("{cancelP}", joinOn[10]).Replace("{otherCancelP1}", joinOn[11]).Replace("{otherCancelP2}", joinOn[12])
+                                .Replace("{t1}", joinOn[13]).Replace("{t2}", joinOn[14]);
+        else
+          command = ChartSelectUsingOLCache().Replace("{from}", this._database.Date(from)).Replace("{to}", this._database.Date(to))
+                                            .Replace("{filterBy}", filterBy)
+                                            .Replace("{mainSelect}", select).Replace("{selectIDs}", selectInner[0])
+                                            .Replace("{joinService}", queryFrom[0]).Replace("{joinMerchant}", queryFrom[1])
+                                            .Replace("{joinPaymentProvider}", queryFrom[4]).Replace("{joinUserSession}", queryFrom[7])
+                                            .Replace("{groupByIDs}", group[0]).Replace("{groupByNames}", group[1]).Replace("{selectNames}", selectInner[1])
+                                            .Replace("{selectOLCSessionCreated}", selectInner[2]).Replace("{groupByOLCSessionCreated}", group[2])
+                                            .Replace("{selectPUpdated}", selectInner[3]).Replace("{groupByPUpdated}", group[3])
+                                            .Replace("{selectTCreated}", selectInner[4]).Replace("{groupByTCreated}", group[4])
+                                            .Replace("{successIdent}", joinOn[1]).Replace("{successP}", joinOn[8])
+                                            .Replace("{cancelP}", joinOn[10]).Replace("{otherCancelP}", joinOn[11])
+                                            .Replace("{t1}", joinOn[12]).Replace("{t2}", joinOn[13]);
+      }
+      else if (component.Equals("revenue"))
+        command = RevenueSelect().Replace("{from}", this._database.Date(from)).Replace("{to}", this._database.Date(to))
+                                  .Replace("{filterBy}", filterBy)
+                                  .Replace("{mainSelect}", select).Replace("{selectIDs}", selectInner[0])
+                                  .Replace("{joinService}", queryFrom[0]).Replace("{joinMerchant}", queryFrom[1])
+                                  .Replace("{joinPaymentProvider}", queryFrom[4]).Replace("{joinUserSession}", queryFrom[7])
+                                  .Replace("{revenueSelect}", revenueGroupBy).Replace("{revenueGroup}", revenueGroupBy)
+                                  .Replace("{mainJoin}", joinOn[0]).Replace("{groupByIDs}", group[0])
+                                  .Replace("{groupByNames}", group[1]).Replace("{selectNames}", selectInner[1])
+                                  .Replace("{groupByOLCSessionCreated}", group[2]).Replace("{selectOLCSessionCreated}", selectInner[2])
+                                  .Replace("{groupByTCreated}", group[4]).Replace("{selectTCreated}", selectInner[4]).Replace("{selectPrices}", selectInner[7]);
+      else if (component.Equals("dashboard"))
+        command = DashboardSelect().Replace("{from}", this._database.Date(from)).Replace("{to}", this._database.Date(to)).Replace("{filterBy}", filterBy);
+      else if (component.Equals("dashboardMap"))
+        command = string.Format(DashboardMapSelect(), this._database.Date(from), this._database.Date(to), filterBy);
+
+      this._database.SetTimeout(0);
+
+      Log.Debug(command);
+
+      DataTable table = this._database.Load(command);
+      return table;
+    }
+
+    public string Select()
+    {
+      #region # command for statistics #
+      string select = "SELECT ISNULL(us.br,0) AS 'Sessions', " +
+                              "ISNULL(ident.br,0) AS 'Identifications', " +
+                              "ISNULL(successIdent.br,0) AS 'SuccessfullIdentifications', " +
+                              "ISNULL(pendingIdent.br,0) AS 'PendingIdentifications', " +
+                              "ISNULL(initIdent.br,0) AS 'InitializedIdentifications', " +
+                              "ISNULL(failedIdent.br, 0) AS 'FailedIdentifications', " +
+                              "ISNULL(pr.br,0) AS 'PaymentRequests', " +
+                              "ISNULL(initP.br,0) AS 'InitializedPayments', " +
+                              "ISNULL(pendingP.br,0) AS 'PendingPayments', " +
+                              "ISNULL(successP.br,0) AS 'SuccessfullPayments', " +
+                              "ISNULL(failedP.br,0) AS 'FailedPayments', " +
+                              "ISNULL(cancelP.br,0) AS 'CancelledPayments', " +
+                              "ISNULL(cancelP.br,0) + ISNULL(otherCancelP1.br,0) + ISNULL(otherCancelP2.br,0) AS 'TotalCancellations', " +
+                              "ISNULL(t1.br,0) AS 'NewTransactions', " +
+                              "ISNULL(t2.br,0) AS 'Subsequents' " +
+                              "{mainSelect} " +
+                      "FROM ( SELECT '1' AS temp, COUNT(*) AS br " +
+                                "{selectNames} {selectIDs} {selectUSCreated} " +
+                              "FROM MobilePaywall.core.UserSession AS us " +
+                                "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                              "WHERE us.Created >= '{from}' AND us.Created <= '{to}' " +
+                                "{filterBy} " +
+                              "{groupByIDs} {groupByNames} {groupByUSCreated} ) AS us " +
+                      "LEFT OUTER JOIN (  SELECT '1' AS temp , COUNT(*) AS br " +
+                                            "{selectIDs} {selectUSCreated} " +
+                                          "FROM MobilePaywall.core.UserSession AS us " +
+                                            "INNER JOIN MobilePaywall.core.LookupSession AS ls ON us.UserSessionID = ls.UserSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE us.Created >= '{from}' AND us.Created <= '{to}' " +
+                                            "AND ls.LookupSessionGuid IS NOT NULL " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByUSCreated} ) AS ident ON us.temp = ident.temp {ident} " +
+                      "LEFT OUTER JOIN (	SELECT '1' AS temp , COUNT(DISTINCT(ls.LookupSessionID)) AS br " +
+                                            "{selectIDs} {selectUSCreated} " +
+                                          "FROM MobilePaywall.core.UserSession AS us " +
+                                            "INNER JOIN MobilePaywall.core.LookupSession AS ls ON us.UserSessionID = ls.UserSessionID " +
+                                            "INNER JOIN MobilePaywall.core.LookupSessionResult AS lsr ON ls.LookupSessionID = lsr.LookupSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE us.Created >= '{from}' AND us.Created <= '{to}' " +
+                                            "AND ls.LookupSessionStatusID = 3 " +
+                                            "AND lsr.IsSuccessful = 1 " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByUSCreated} ) AS successIdent ON us.temp = successIdent.temp {successIdent} " +
+                      "LEFT OUTER JOIN ( 	SELECT '1' AS temp , COUNT(*) AS br " +
+                                            "{selectIDs} {selectUSCreated} " +
+                                          "FROM MobilePaywall.core.UserSession AS us " +
+                                            "INNER JOIN MobilePaywall.core.LookupSession AS ls ON us.UserSessionID = ls.UserSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE us.Created >= '{from}' AND us.Created <= '{to}' " +
+                                            "AND ls.LookupSessionStatusID = 2 " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByUSCreated} ) AS pendingIdent ON us.temp = pendingIdent.temp {pendingIdent} " +
+                      "LEFT OUTER JOIN (	SELECT '1' AS temp , COUNT(*) AS br " +
+                                            "{selectIDs} {selectUSCreated} " +
+                                          "FROM MobilePaywall.core.UserSession AS us " +
+                                            "INNER JOIN MobilePaywall.core.LookupSession AS ls ON us.UserSessionID = ls.UserSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE us.Created >= '{from}' AND us.Created <= '{to}' " +
+                                            "AND ls.LookupSessionStatusID = 1 " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByUSCreated} ) AS initIdent ON us.temp = initIdent.temp {initIdent} " +
+                      "LEFT OUTER JOIN (	SELECT '1' AS temp , COUNT(DISTINCT(ls.LookupSessionID)) AS br " +
+                                            "{selectIDs} {selectUSCreated} " +
+                                          "FROM MobilePaywall.core.UserSession AS us " +
+                                            "INNER JOIN MobilePaywall.core.LookupSession AS ls ON us.UserSessionID = ls.UserSessionID " +
+                                            "INNER JOIN MobilePaywall.core.LookupSessionResult AS lsr ON ls.LookupSessionID = lsr.LookupSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE us.Created >= '{from}' AND us.Created <= '{to}' " +
+                                            "AND ls.LookupSessionStatusID = 3 " +
+                                            "AND lsr.IsSuccessful = 0 " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByUSCreated} ) AS failedIdent ON us.temp = failedIdent.temp {failedIdent} " +
+                      "LEFT OUTER JOIN (	SELECT '1' AS temp , COUNT(*) AS br " +
+                                            "{selectIDs} {selectUSCreated} " +
+                                          "FROM MobilePaywall.core.PaymentRequest AS pr " +
+                                            "INNER JOIN MobilePaywall.core.UserSession AS us ON pr.UserSessionID = us.UserSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE pr.Created >= '{from}' AND pr.Created <= '{to}' " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByUSCreated} ) AS pr ON us.temp = pr.temp {pr} " +
+                      "LEFT OUTER JOIN (	SELECT '1' AS temp , COUNT(*) AS br " +
+                                            "{selectIDs} {selectUSCreated} " +
+                                          "FROM MobilePaywall.core.Payment AS p " +
+                                            "INNER JOIN MobilePaywall.core.PaymentRequest AS pr ON p.PaymentRequestID = pr.PaymentRequestID " +
+                                            "INNER JOIN MobilePaywall.core.UserSession AS us ON pr.UserSessionID = us.UserSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE us.Created >= '{from}' AND us.Created <= '{to}' " +
+                                            "AND p.PaymentStatusID = 1 " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByUSCreated} ) AS initP ON us.temp = initP.temp {initP} " +
+                      "LEFT OUTER JOIN (	SELECT '1' AS temp , COUNT(*) AS br " +
+                                            "{selectIDs} {selectUSCreated} " +
+                                          "FROM MobilePaywall.core.Payment AS p " +
+                                            "INNER JOIN MobilePaywall.core.PaymentRequest AS pr ON p.PaymentRequestID = pr.PaymentRequestID " +
+                                            "INNER JOIN MobilePaywall.core.UserSession AS us ON pr.UserSessionID = us.UserSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE us.Created >= '{from}' AND us.Created <= '{to}' " +
+                                            "AND p.PaymentStatusID = 2 " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByUSCreated}) AS pendingP ON us.temp = pendingP.temp {pendingP} " +
+                      "LEFT OUTER JOIN (	SELECT '1' AS temp , COUNT(*) AS br " +
+                                            "{selectIDs} {selectUSCreated} " +
+                                          "FROM MobilePaywall.core.Payment AS p " +
+                                            "INNER JOIN MobilePaywall.core.PaymentRequest AS pr ON p.PaymentRequestID = pr.PaymentRequestID " +
+                                            "INNER JOIN MobilePaywall.core.UserSession AS us ON pr.UserSessionID = us.UserSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE us.Created >= '{from}' AND us.Created <= '{to}' " +
+                                            "AND p.PaymentStatusID = 3 " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByUSCreated} ) AS successP ON us.temp = successP.temp {successP} " +
+                      "LEFT OUTER JOIN (	SELECT '1' AS temp , COUNT(*) AS br " +
+                                            "{selectIDs} {selectUSCreated} " +
+                                          "FROM MobilePaywall.core.Payment AS p " +
+                                            "INNER JOIN MobilePaywall.core.PaymentRequest AS pr ON p.PaymentRequestID = pr.PaymentRequestID " +
+                                            "INNER JOIN MobilePaywall.core.UserSession AS us ON pr.UserSessionID = us.UserSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE us.Created >= '{from}' AND us.Created <= '{to}' " +
+                                            "AND p.PaymentStatusID = 4 " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByUSCreated} ) AS failedP ON us.temp = failedP.temp {failedP} " +
+                      "LEFT OUTER JOIN (	SELECT '1' AS temp , COUNT(*) AS br " +
+                                            "{selectIDs} {selectUSCreated} " +
+                                          "FROM MobilePaywall.core.Payment AS p " +
+                                            "INNER JOIN MobilePaywall.core.PaymentRequest AS pr ON p.PaymentRequestID = pr.PaymentRequestID " +
+                                            "INNER JOIN MobilePaywall.core.UserSession AS us ON pr.UserSessionID = us.UserSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE us.Created >= '{from}' AND us.Created <= '{to}' " +
+                                            "AND p.PaymentStatusID = 5 " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByUSCreated} ) AS cancelP ON us.temp = cancelP.temp {cancelP} " +
+                      "FULL OUTER JOIN (  SELECT '1' AS temp , COUNT(*) AS br " +
+                                            "{selectNames} {selectIDs} {selectPCreated} " +
+                                          "FROM MobilePaywall.core.Payment AS p " +
+                                            "INNER JOIN MobilePaywall.core.PaymentRequest AS pr ON p.PaymentRequestID = pr.PaymentRequestID " +
+                                            "INNER JOIN MobilePaywall.core.UserSession AS us ON pr.UserSessionID = us.UserSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE p.PaymentStatusID = 5 " +
+                                            "AND (p.Created >= '{from}'  AND p.Created <= '{to}') " +
+                                            "AND (us.Created <= '{from}' OR us.Created >= '{to}') " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByNames}  {groupByPCreated} ) AS otherCancelP1 ON us.temp = otherCancelP1.temp {otherCancelP1} " +
+                      "FULL OUTER JOIN (  SELECT '1' AS temp , COUNT(*) AS br " +
+                                            "{selectNames} {selectIDs} {selectPUpdated} " +
+                                          "FROM MobilePaywall.core.Payment AS p " +
+                                            "INNER JOIN MobilePaywall.core.PaymentRequest AS pr ON p.PaymentRequestID = pr.PaymentRequestID " +
+                                            "INNER JOIN MobilePaywall.core.UserSession AS us ON pr.UserSessionID = us.UserSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE p.PaymentStatusID = 5 " +
+                                            "AND (p.Updated >= '{from}'  AND p.Updated <= '{to}') " +
+                                            "AND (us.Created <= '{from}' OR us.Created >= '{to}') " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByNames}  {groupByPUpdated} ) AS otherCancelP2 ON us.temp = otherCancelP2.temp {otherCancelP2} " +
+                      "LEFT OUTER JOIN (	SELECT '1' AS temp , COUNT(*) AS br " +
+                                            "{selectIDs} {selectUSCreated} " +
+                                          "FROM MobilePaywall.core.[Transaction] AS t " +
+                                            "INNER JOIN MobilePaywall.core.Payment AS p ON t.PaymentID = p.PaymentID " +
+                                            "INNER JOIN MobilePaywall.core.PaymentRequest AS pr ON p.PaymentRequestID = pr.PaymentRequestID " +
+                                            "INNER JOIN MobilePaywall.core.UserSession AS us ON pr.UserSessionID = us.UserSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE us.Created >= '{from}' AND us.Created <= '{to}' " +
+                                            "AND t.TransactionStatusID = 5 " +
+                                            "AND (SELECT COUNT(*) FROM MobilePaywall.core.[Transaction] WHERE PaymentID = t.PaymentID ) = 1 " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByUSCreated} ) AS t1 ON us.temp = t1.temp {t1} " +
+                      "FULL OUTER JOIN (	SELECT '1' AS temp , COUNT(*) AS br " +
+                                            "{selectNames} {selectIDs} {selectTCreated} " +
+                                          "FROM MobilePaywall.core.[Transaction] AS t " +
+                                            "INNER JOIN MobilePaywall.core.Payment AS p ON t.PaymentID = p.PaymentID " +
+                                            "INNER JOIN MobilePaywall.core.PaymentRequest AS pr ON p.PaymentRequestID = pr.PaymentRequestID " +
+                                            "INNER JOIN MobilePaywall.core.UserSession AS us ON pr.UserSessionID = us.UserSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE t.Created >= '{from}' AND t.Created <= '{to}' " +
+                                            "AND t.TransactionStatusID = 5 " +
+                                            "AND (SELECT COUNT(*) FROM MobilePaywall.core.[Transaction] WHERE PaymentID = t.PaymentID ) > 1 " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByNames} {groupByTCreated} ) AS t2 ON us.temp = t2.temp {t2}";
+      #endregion
+
+      return select;
+    }
+
+    public string ChartSelect()
+    {
+      #region # command for statistics chart #
+      string select = "SELECT ISNULL(us.br,0) AS 'Sessions', " +
+                              "ISNULL(successIdent.br,0) AS 'SuccessfullIdentifications', " +
+                              "ISNULL(successP.br,0) AS 'SuccessfullPayments', " +
+                              "ISNULL(cancelP.br,0) + ISNULL(otherCancelP1.br,0) + ISNULL(otherCancelP2.br,0) AS 'TotalCancellations', " +
+                              "ISNULL(t1.br,0) AS 'NewTransactions', " +
+                              "ISNULL(t2.br,0) AS 'Subsequents' " +
+                              "{mainSelect} " +
+                      "FROM ( SELECT '1' AS temp, COUNT(*) AS br " +
+                                "{selectNames} {selectIDs} {selectUSCreated} " +
+                              "FROM MobilePaywall.core.UserSession AS us " +
+                                "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                              "WHERE us.Created >= '{from}' AND us.Created <= '{to}' " +
+                                "{filterBy} " +
+                              "{groupByIDs} {groupByNames} {groupByUSCreated} ) AS us " +
+                      "LEFT OUTER JOIN (	SELECT '1' AS temp , COUNT(DISTINCT(ls.LookupSessionID)) AS br " +
+                                            "{selectIDs} {selectUSCreated} " +
+                                          "FROM MobilePaywall.core.UserSession AS us " +
+                                            "INNER JOIN MobilePaywall.core.LookupSession AS ls ON us.UserSessionID = ls.UserSessionID " +
+                                            "INNER JOIN MobilePaywall.core.LookupSessionResult AS lsr ON ls.LookupSessionID = lsr.LookupSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE us.Created >= '{from}' AND us.Created <= '{to}' " +
+                                            "AND ls.LookupSessionStatusID = 3 " +
+                                            "AND lsr.IsSuccessful = 1 " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByUSCreated} ) AS successIdent ON us.temp = successIdent.temp {successIdent} " +
+                      "LEFT OUTER JOIN (	SELECT '1' AS temp , COUNT(*) AS br " +
+                                            "{selectIDs} {selectUSCreated} " +
+                                          "FROM MobilePaywall.core.Payment AS p " +
+                                            "INNER JOIN MobilePaywall.core.PaymentRequest AS pr ON p.PaymentRequestID = pr.PaymentRequestID " +
+                                            "INNER JOIN MobilePaywall.core.UserSession AS us ON pr.UserSessionID = us.UserSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE us.Created >= '{from}' AND us.Created <= '{to}' " +
+                                            "AND p.PaymentStatusID = 3 " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByUSCreated} ) AS successP ON us.temp = successP.temp {successP} " +
+                      "LEFT OUTER JOIN (	SELECT '1' AS temp , COUNT(*) AS br " +
+                                            "{selectIDs} {selectUSCreated} " +
+                                          "FROM MobilePaywall.core.Payment AS p " +
+                                            "INNER JOIN MobilePaywall.core.PaymentRequest AS pr ON p.PaymentRequestID = pr.PaymentRequestID " +
+                                            "INNER JOIN MobilePaywall.core.UserSession AS us ON pr.UserSessionID = us.UserSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE us.Created >= '{from}' AND us.Created <= '{to}' " +
+                                            "AND p.PaymentStatusID = 5 " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByUSCreated} ) AS cancelP ON us.temp = cancelP.temp {cancelP} " +
+                      "FULL OUTER JOIN (  SELECT '1' AS temp , COUNT(*) AS br " +
+                                            "{selectNames} {selectIDs} {selectPCreated} " +
+                                          "FROM MobilePaywall.core.Payment AS p " +
+                                            "INNER JOIN MobilePaywall.core.PaymentRequest AS pr ON p.PaymentRequestID = pr.PaymentRequestID " +
+                                            "INNER JOIN MobilePaywall.core.UserSession AS us ON pr.UserSessionID = us.UserSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE p.PaymentStatusID = 5 " +
+                                            "AND (p.Created >= '{from}'  AND p.Created <= '{to}') " +
+                                            "AND (us.Created <= '{from}' OR us.Created >= '{to}') " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByNames}  {groupByPCreated} ) AS otherCancelP1 ON us.temp = otherCancelP1.temp {otherCancelP1} " +
+                      "FULL OUTER JOIN (  SELECT '1' AS temp , COUNT(*) AS br " +
+                                            "{selectNames} {selectIDs} {selectPUpdated} " +
+                                          "FROM MobilePaywall.core.Payment AS p " +
+                                            "INNER JOIN MobilePaywall.core.PaymentRequest AS pr ON p.PaymentRequestID = pr.PaymentRequestID " +
+                                            "INNER JOIN MobilePaywall.core.UserSession AS us ON pr.UserSessionID = us.UserSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE p.PaymentStatusID = 5 " +
+                                            "AND (p.Updated >= '{from}'  AND p.Updated <= '{to}') " +
+                                            "AND (us.Created <= '{from}' OR us.Created >= '{to}') " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByNames}  {groupByPUpdated} ) AS otherCancelP2 ON us.temp = otherCancelP2.temp {otherCancelP2} " +
+                      "LEFT OUTER JOIN (	SELECT '1' AS temp , COUNT(*) AS br " +
+                                            "{selectIDs} {selectUSCreated} " +
+                                          "FROM MobilePaywall.core.[Transaction] AS t " +
+                                            "INNER JOIN MobilePaywall.core.Payment AS p ON t.PaymentID = p.PaymentID " +
+                                            "INNER JOIN MobilePaywall.core.PaymentRequest AS pr ON p.PaymentRequestID = pr.PaymentRequestID " +
+                                            "INNER JOIN MobilePaywall.core.UserSession AS us ON pr.UserSessionID = us.UserSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE us.Created >= '{from}' AND us.Created <= '{to}' " +
+                                            "AND t.TransactionStatusID = 5 " +
+                                            "AND (SELECT COUNT(*) FROM MobilePaywall.core.[Transaction] WHERE PaymentID = t.PaymentID ) = 1 " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByUSCreated} ) AS t1 ON us.temp = t1.temp {t1} " +
+                      "FULL OUTER JOIN (	SELECT '1' AS temp , COUNT(*) AS br " +
+                                            "{selectNames} {selectIDs} {selectTCreated} " +
+                                          "FROM MobilePaywall.core.[Transaction] AS t " +
+                                            "INNER JOIN MobilePaywall.core.Payment AS p ON t.PaymentID = p.PaymentID " +
+                                            "INNER JOIN MobilePaywall.core.PaymentRequest AS pr ON p.PaymentRequestID = pr.PaymentRequestID " +
+                                            "INNER JOIN MobilePaywall.core.UserSession AS us ON pr.UserSessionID = us.UserSessionID " +
+                                            "{joinService} {joinMerchant} {joinCountry} {joinMobileOperator} {joinPaymentProvider} {joinInstance} " +
+                                          "WHERE t.Created >= '{from}' AND t.Created <= '{to}' " +
+                                            "AND t.TransactionStatusID = 5 " +
+                                            "AND (SELECT COUNT(*) FROM MobilePaywall.core.[Transaction] WHERE PaymentID = t.PaymentID ) > 1 " +
+                                            "{filterBy} " +
+                                          "{groupByIDs} {groupByNames} {groupByTCreated} ) AS t2 ON us.temp = t2.temp {t2}";
+      #endregion
+
+      return select;
+    }
+
+    //after 29th September 2016. OLCache table is in use
+    public string SelectUsingOLCache()
+    {
+      #region # OLCache command for statistics (OLD) #
+      //string select = "SELECT ISNULL(us.br,0) AS 'Sessions', " +
+      //                       "ISNULL(ident.br,0) AS 'Identifications', " +
+      //                       "ISNULL(successIdent.br,0) AS 'SuccessfullIdentifications', " +
+      //                       "ISNULL(pendingIdent.br,0) AS 'PendingIdentifications', " +
+      //                       "ISNULL(initIdent.br,0) AS 'InitializedIdentifications', " +
+      //                       "ISNULL(failedIdent.br, 0) AS 'FailedIdentifications', " +
+      //                       "ISNULL(pr.br,0) AS 'PaymentRequests', " +
+      //                       "ISNULL(initP.br,0) AS 'InitializedPayments', " +
+      //                       "ISNULL(pendingP.br,0) AS 'PendingPayments', " +
+      //                       "ISNULL(successP.br,0) AS 'SuccessfullPayments', " +
+      //                       "ISNULL(failedP.br,0) AS 'FailedPayments', " +
+      //                       "ISNULL(cancelP.br,0) AS 'CancelledPayments', " +
+      //                       "ISNULL(cancelP.br,0) + ISNULL(otherCancelP.br,0) AS 'TotalCancellations', " +
+      //                       "ISNULL(t1.br,0) AS 'NewTransactions', " +
+      //                       "ISNULL(t2.br,0) AS 'Subsequents' " +
+      //                       "{mainSelect} " +
+      //                "FROM " +
+      //                  "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+      //                          "{selectIDs} {selectNames} {selectOLCSessionCreated} " +
+      //                   "FROM MobilePaywall.core.OLCache AS olc " +
+      //                          "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+      //                   "WHERE olc.IsSubseguent = 0  " +
+      //                      "AND olc.SessionCreated >= '{from}' " +
+      //                      "AND olc.SessionCreated <= '{to}' " +
+      //                                                "{filterBy} " +
+      //                                              "{groupByIDs} {groupByNames} {groupByOLCSessionCreated} " +
+      //                      ") AS us " +
+      //                "LEFT OUTER JOIN " +
+      //                  "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+      //                          "{selectIDs} {selectOLCSessionCreated} " +
+      //                   "FROM MobilePaywall.core.OLCache AS olc " +
+      //                          "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+      //                   "WHERE olc.IdentificationSessionGuid IS NOT NULL  " +
+      //                     "AND olc.IsSubseguent = 0 " +
+      //                     "AND olc.SessionCreated >= '{from}' " +
+      //                     "AND olc.SessionCreated <= '{to}' " +
+      //                                                "{filterBy} " +
+      //                                              "{groupByIDs} {groupByOLCSessionCreated} " +
+      //                    ") AS ident ON us.temp = ident.temp {ident} " +
+      //                "LEFT OUTER JOIN " +
+      //                  "(SELECT '1' AS TEMP, COUNT(DISTINCT(ls.LookupSessionID)) AS br " +
+      //                          "{selectIDs} {selectOLCSessionCreated} " +
+      //                   "FROM MobilePaywall.core.OLCache AS olc " +
+      //                   "INNER JOIN MobilePaywall.core.LookupSession AS ls ON olc.IdentificationSessionGuid = ls.IdentificationSessionGuid " +
+      //                   "INNER JOIN MobilePaywall.core.LookupSessionResult AS lsr ON ls.LookupSessionID = lsr.LookupSessionID " +
+      //                          "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+      //                   "WHERE olc.IsSubseguent = 0 " +
+      //                    "AND olc.SessionCreated >= '{from}'  " +
+      //                    "AND olc.SessionCreated <= '{to}' " +
+      //                    "AND ls.LookupSessionStatusID = 3 " +
+      //                    "AND lsr.IsSuccessful = 1 " +
+      //                                                "{filterBy} " +
+      //                                              "{groupByIDs} {groupByOLCSessionCreated} " +
+      //                                              "   ) AS successIdent ON us.temp = successIdent.temp {successIdent} " +
+      //                "LEFT OUTER JOIN " +
+      //                  "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+      //                          "{selectIDs} {selectOLCSessionCreated} " +
+      //                   "FROM MobilePaywall.core.OLCache AS olc " +
+      //                   "INNER JOIN MobilePaywall.core.LookupSession AS ls ON olc.IdentificationSessionGuid = ls.IdentificationSessionGuid " +
+      //                          "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+      //                   "WHERE olc.IsSubseguent = 0  " +
+      //                      "AND olc.SessionCreated >= '{from}' " +
+      //                      "AND olc.SessionCreated <= '{to}' " +
+      //                     "AND ls.LookupSessionStatusID = 2 " +
+      //                                                "{filterBy} " +
+      //                                              "{groupByIDs} {groupByOLCSessionCreated} " +
+      //                                              ")  AS pendingIdent ON us.temp = pendingIdent.temp {pendingIdent} " +
+      //                "LEFT OUTER JOIN " +
+      //                  "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+      //                          "{selectIDs} {selectOLCSessionCreated} " +
+      //                   "FROM MobilePaywall.core.OLCache AS olc " +
+      //                   "INNER JOIN MobilePaywall.core.LookupSession AS ls ON olc.IdentificationSessionGuid = ls.IdentificationSessionGuid " +
+      //                          "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+      //                   "WHERE olc.IsSubseguent = 0  " +
+      //                      "AND olc.SessionCreated >= '{from}' " +
+      //                      "AND olc.SessionCreated <= '{to}' " +
+      //                     "AND ls.LookupSessionStatusID = 1 " +
+      //                                                "{filterBy} " +
+      //                                              "{groupByIDs} {groupByOLCSessionCreated} " +
+      //                                              ") AS initIdent ON us.temp = initIdent.temp {initIdent} " +
+      //                "LEFT OUTER JOIN " +
+      //                  "(SELECT '1' AS TEMP, COUNT(DISTINCT(ls.LookupSessionID)) AS br " +
+      //                          "{selectIDs} {selectOLCSessionCreated} " +
+      //                   "FROM MobilePaywall.core.OLCache AS olc " +
+      //                   "INNER JOIN MobilePaywall.core.LookupSession AS ls ON olc.IdentificationSessionGuid = ls.IdentificationSessionGuid " +
+      //                          "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+      //                   "INNER JOIN MobilePaywall.core.LookupSessionResult AS lsr ON ls.LookupSessionID = lsr.LookupSessionID " +
+      //                   "WHERE olc.IsSubseguent = 0  " +
+      //                      "AND olc.SessionCreated >= '{from}' " +
+      //                      "AND olc.SessionCreated <= '{to}' " +
+      //                      "AND ls.LookupSessionStatusID = 3 " +
+      //                      "AND lsr.IsSuccessful = 0  " +
+      //                                                "{filterBy} " +
+      //                                              "{groupByIDs} {groupByOLCSessionCreated} " +
+      //                                              ") AS failedIdent ON us.temp = failedIdent.temp {failedIdent} " +
+      //                "LEFT OUTER JOIN " +
+      //                  "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+      //                          "{selectIDs} {selectOLCSessionCreated} " +
+      //                   "FROM MobilePaywall.core.OLCache AS olc " +
+      //                   "INNER JOIN MobilePaywall.core.PaymentRequest AS pr ON olc.PaymentRequestID = pr.PaymentRequestID  " +
+      //                          "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+      //                   "WHERE pr.Created >= '{from}' " +
+      //                      "AND pr.Created <= '{to}' " +
+      //                      "AND olc.IsSubseguent = 0 " +
+      //                                                "{filterBy} " +
+      //                                              "{groupByIDs} {groupByOLCSessionCreated}  " +
+      //                                              ") AS pr ON us.temp = pr.temp {pr} " +
+      //                "LEFT OUTER JOIN " +
+      //                  "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+      //                          "{selectIDs} {selectOLCSessionCreated} " +
+      //                   "FROM MobilePaywall.core.OLCache AS olc " +
+      //                     "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID = p.PaymentID " +
+      //                          "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+      //                   "WHERE olc.SessionCreated >= '{from}'   " +
+      //                      "AND olc.IsSubseguent=0  " +
+      //                     "AND olc.SessionCreated <= '{to}' " +
+      //                     "AND p.PaymentStatusID = 1  " +
+      //                                                "{filterBy} " +
+      //                                              "{groupByIDs} {groupByOLCSessionCreated}  " +
+      //                                              ") AS initP ON us.temp = initP.temp {initP} " +
+      //                "LEFT OUTER JOIN " +
+      //                  "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+      //                          "{selectIDs} {selectOLCSessionCreated} " +
+      //                   "FROM MobilePaywall.core.OLCache AS olc " +
+      //                    "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID=p.PaymentID " +
+      //                          "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+      //                   "WHERE olc.SessionCreated >= '{from}'   " +
+      //                   "AND olc.IsSubseguent=0  " +
+      //                     "AND olc.SessionCreated <= '{to}' " +
+      //                     "AND p.PaymentStatusID = 2  " +
+      //                                                "{filterBy} " +
+      //                                              "{groupByIDs} {groupByOLCSessionCreated}  " +
+      //                                              ") AS pendingP ON us.temp = pendingP.temp {pendingP} " +
+      //                "LEFT OUTER JOIN " +
+      //                  "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+      //                          "{selectIDs} {selectOLCSessionCreated} " +
+      //                   "FROM MobilePaywall.core.OLCache AS olc " +
+      //                   "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID=p.PaymentID " +
+      //                          "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+      //                   "WHERE olc.SessionCreated >= '{from}'   " +
+      //                      "AND olc.IsSubseguent=0  " +
+      //                     "AND olc.SessionCreated <= '{to}' " +
+      //                     "AND p.PaymentStatusID = 3  " +
+      //                                                "{filterBy} " +
+      //                                              "{groupByIDs} {groupByOLCSessionCreated}  " +
+      //                                              ") AS successP ON us.temp = successP.temp {successP} " +
+      //                "LEFT OUTER JOIN " +
+      //                  "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+      //                          "{selectIDs} {selectOLCSessionCreated} " +
+      //                   "FROM MobilePaywall.core.OLCache AS olc " +
+      //                   "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID = p.PaymentID " +
+      //                          "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+      //                   "WHERE olc.SessionCreated >= '{from}'  " +
+      //                    "AND olc.IsSubseguent=0  " +
+      //                     "AND olc.SessionCreated <= '{to}' " +
+      //                     "AND p.PaymentStatusID = 4  " +
+      //                                                "{filterBy} " +
+      //                                              "{groupByIDs} {groupByOLCSessionCreated} " +
+      //                                              ") AS failedP ON us.temp = failedP.temp {failedP} " +
+      //                "LEFT OUTER JOIN " +
+      //                  "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+      //                          "{selectIDs} {selectOLCSessionCreated} " +
+      //                   "FROM MobilePaywall.core.OLCache AS olc " +
+      //                   "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID = p.PaymentID " +
+      //                          "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+      //                   "WHERE olc.SessionCreated >= '{from}'   " +
+      //                   "AND olc.IsSubseguent=0     " +
+      //                     "AND olc.SessionCreated <= '{to}' " +
+      //                     "AND p.PaymentStatusID = 5  " +
+      //                                                "{filterBy} " +
+      //                                              "{groupByIDs} {groupByOLCSessionCreated} " +
+      //                                              ") AS cancelP ON us.temp = cancelP.temp {cancelP} " +
+      //                "FULL OUTER JOIN /* Ako se spaja samo po temp moglo bi da ide left ili inner */ " +
+      //                  "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+      //                          "{selectIDs} {selectNames} {selectPUpdated} " +
+      //                   "FROM MobilePaywall.core.OLCache AS olc " +
+      //                   "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID = p.PaymentID " +
+      //                          "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+      //                   "WHERE p.PaymentStatusID = 5 " +
+      //                     "AND (p.Updated >= '{from}' " +
+      //                          "AND p.Updated <= '{to}') " +
+      //                     "AND (olc.SessionCreated <= '{from}' " +
+      //                          "OR olc.SessionCreated >= '{to}') " +
+      //                                                "{filterBy} " +
+      //                                              "{groupByIDs} {groupByNames} {groupByPUpdated} " +
+      //                                              ") AS otherCancelP ON us.temp = otherCancelP.temp {otherCancelP} " +
+      //                "LEFT OUTER JOIN " +
+      //                  "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+      //                          "{selectIDs} {selectOLCSessionCreated} " +
+      //                   "FROM MobilePaywall.core.OLCache AS olc " +
+      //                   "INNER JOIN MobilePaywall.core.[Transaction] AS t ON olc.TransactionID = t.TransactionID " +
+      //                          "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+      //                   "WHERE olc.SessionCreated >= '{from}'  " +
+      //                      "AND olc.IsSubseguent = 0  " +
+      //                     "AND olc.SessionCreated <= '{to}' " +
+      //                     "AND t.TransactionStatusID = 5 " +
+      //                                                "{filterBy} " +
+      //                                              "{groupByIDs} {groupByOLCSessionCreated} " +
+      //                                              ") AS t1 ON us.temp = t1.temp {t1} " +
+      //                "FULL OUTER JOIN " +
+      //                  "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+      //                          "{selectIDs} {selectNames} {selectTCreated} " +
+      //                   "FROM MobilePaywall.core.OLCache AS olc " +
+      //                   "INNER JOIN MobilePaywall.core.[Transaction] AS t ON olc.TransactionID = t.TransactionID " +
+      //                          "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+      //                  "WHERE t.Created >= '{from}'  " +
+      //                  "AND olc.IsSubseguent = 1  " +
+      //                     "AND t.Created <= '{to}' " +
+      //                     "AND t.TransactionStatusID = 5 " +
+      //                                                "{filterBy} " +
+      //                                              "{groupByIDs} {groupByNames} {groupByTCreated} " +
+      //                                              ") AS t2 ON us.temp = t2.temp {t2}";
+
+      #endregion
+      #region # OLCache command for statistics (OLD) #
+      string select = "SELECT ISNULL(us.br,0) AS 'Sessions', " +
+                             "ISNULL(ident.br,0) AS 'Identifications', " +
+                             "ISNULL(successIdent.br,0) AS 'SuccessfullIdentifications', " +
+                             "ISNULL(pendingIdent.br,0) AS 'PendingIdentifications', " +
+                             "ISNULL(initIdent.br,0) AS 'InitializedIdentifications', " +
+                             "ISNULL(failedIdent.br, 0) AS 'FailedIdentifications', " +
+                             "ISNULL(pr.br,0) AS 'PaymentRequests', " +
+                             "ISNULL(initP.br,0) AS 'InitializedPayments', " +
+                             "ISNULL(pendingP.br,0) AS 'PendingPayments', " +
+                             "ISNULL(successP.br,0) AS 'SuccessfullPayments', " +
+                             "ISNULL(failedP.br,0) AS 'FailedPayments', " +
+                             "ISNULL(cancelP.br,0) AS 'CancelledPayments', " +
+                             "ISNULL(cancelP.br,0) + ISNULL(otherCancelP.br,0) AS 'TotalCancellations', " +
+                             "ISNULL(t1.br,0) AS 'NewTransactions', " +
+                             "ISNULL(t2.br,0) AS 'Subsequents' " +
+                             "{mainSelect} " +
+                      "FROM " +
+                        "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+                                "{selectIDs} {selectNames} {selectOLCSessionCreated} " +
+                         "FROM MobilePaywall.core.OLCache AS olc " +
+                                "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                         "WHERE olc.IsSubseguent = 0  " +
+                            "AND olc.SessionCreated >= '{from}' " +
+                            "AND olc.SessionCreated <= '{to}' " +
+                                                      "{filterBy} " +
+                                                    "{groupByIDs} {groupByNames} {groupByOLCSessionCreated} " +
+                            ") AS us " +
+                      "LEFT OUTER JOIN " +
+                        "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+                                "{selectIDs} {selectOLCSessionCreated} " +
+                         "FROM MobilePaywall.core.OLCache AS olc " +
+                                "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                         "WHERE olc.IdentificationSessionGuid IS NOT NULL  " +
+                           "AND olc.IsSubseguent = 0 " +
+                           "AND olc.SessionCreated >= '{from}' " +
+                           "AND olc.SessionCreated <= '{to}' " +
+                                                      "{filterBy} " +
+                                                    "{groupByIDs} {groupByOLCSessionCreated} " +
+                          ") AS ident ON us.temp = ident.temp {ident} " +
+                      "LEFT OUTER JOIN " +
+                        "(SELECT '1' AS TEMP, COUNT(DISTINCT(ls.LookupSessionID)) AS br " +
+                                "{selectIDs} {selectOLCSessionCreated} " +
+                         "FROM MobilePaywall.core.OLCache AS olc " +
+                         "INNER JOIN MobilePaywall.core.LookupSession AS ls ON olc.IdentificationSessionGuid = ls.IdentificationSessionGuid " +
+                         "INNER JOIN MobilePaywall.core.LookupSessionResult AS lsr ON ls.LookupSessionID = lsr.LookupSessionID " +
+                                "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                         "WHERE olc.IsSubseguent = 0 " +
+                          " AND olc.SessionCreated >= '{from}'  " +
+                          " AND olc.SessionCreated <= '{to}' " +
+                          " AND olc.IdentificationSessionGuid <> '00000000-0000-0000-0000-000000000000' "+
+                          " AND ls.IdentificationSessionGuid <> '00000000-0000-0000-0000-000000000000' " +
+                          " AND ls.LookupSessionStatusID = 3 " +
+                          " AND lsr.IsSuccessful = 1 " +
+                                                      "{filterBy} " +
+                                                    "{groupByIDs} {groupByOLCSessionCreated} " +
+                                                    "   ) AS successIdent ON us.temp = successIdent.temp {successIdent} " +
+                      "LEFT OUTER JOIN " +
+                        "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+                                "{selectIDs} {selectOLCSessionCreated} " +
+                         "FROM MobilePaywall.core.OLCache AS olc " +
+                         "INNER JOIN MobilePaywall.core.LookupSession AS ls ON olc.IdentificationSessionGuid = ls.IdentificationSessionGuid " +
+                                "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                         "WHERE olc.IsSubseguent = 0  " +
+                          " AND olc.IdentificationSessionGuid <> '00000000-0000-0000-0000-000000000000' " +
+                          " AND ls.IdentificationSessionGuid <> '00000000-0000-0000-0000-000000000000' " +
+                            "AND olc.SessionCreated >= '{from}' " +
+                            "AND olc.SessionCreated <= '{to}' " +
+                           "AND ls.LookupSessionStatusID = 2 " +
+                                                      "{filterBy} " +
+                                                    "{groupByIDs} {groupByOLCSessionCreated} " +
+                                                    ")  AS pendingIdent ON us.temp = pendingIdent.temp {pendingIdent} " +
+                      "LEFT OUTER JOIN " +
+                        "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+                                "{selectIDs} {selectOLCSessionCreated} " +
+                         "FROM MobilePaywall.core.OLCache AS olc " +
+                         "INNER JOIN MobilePaywall.core.LookupSession AS ls ON olc.IdentificationSessionGuid = ls.IdentificationSessionGuid " +
+                                "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                         "WHERE olc.IsSubseguent = 0  " +
+                          " AND olc.IdentificationSessionGuid <> '00000000-0000-0000-0000-000000000000' " +
+                          " AND ls.IdentificationSessionGuid <> '00000000-0000-0000-0000-000000000000' " +
+                            "AND olc.SessionCreated >= '{from}' " +
+                            "AND olc.SessionCreated <= '{to}' " +
+                           "AND ls.LookupSessionStatusID = 1 " +
+                                                      "{filterBy} " +
+                                                    "{groupByIDs} {groupByOLCSessionCreated} " +
+                                                    ") AS initIdent ON us.temp = initIdent.temp {initIdent} " +
+                      "LEFT OUTER JOIN " +
+                        "(SELECT '1' AS TEMP, COUNT(DISTINCT(ls.LookupSessionID)) AS br " +
+                                "{selectIDs} {selectOLCSessionCreated} " +
+                         "FROM MobilePaywall.core.OLCache AS olc " +
+                         "INNER JOIN MobilePaywall.core.LookupSession AS ls ON olc.IdentificationSessionGuid = ls.IdentificationSessionGuid " +
+                                "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                         "INNER JOIN MobilePaywall.core.LookupSessionResult AS lsr ON ls.LookupSessionID = lsr.LookupSessionID " +
+                         "WHERE olc.IsSubseguent = 0  " +
+                          " AND olc.IdentificationSessionGuid <> '00000000-0000-0000-0000-000000000000' " +
+                          " AND ls.IdentificationSessionGuid <> '00000000-0000-0000-0000-000000000000' " +
+                            "AND olc.SessionCreated >= '{from}' " +
+                            "AND olc.SessionCreated <= '{to}' " +
+                            "AND ls.LookupSessionStatusID = 3 " +
+                            "AND lsr.IsSuccessful = 0  " +
+                                                      "{filterBy} " +
+                                                    "{groupByIDs} {groupByOLCSessionCreated} " +
+                                                    ") AS failedIdent ON us.temp = failedIdent.temp {failedIdent} " +
+                      "LEFT OUTER JOIN " +
+                        "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+                                "{selectIDs} {selectOLCSessionCreated} " +
+                         "FROM MobilePaywall.core.OLCache AS olc " +
+                         "INNER JOIN MobilePaywall.core.PaymentRequest AS pr ON olc.PaymentRequestID = pr.PaymentRequestID  " +
+                                "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                         "WHERE pr.Created >= '{from}' " +
+                            "AND pr.Created <= '{to}' " +
+                            "AND olc.IsSubseguent = 0 " +
+                                                      "{filterBy} " +
+                                                    "{groupByIDs} {groupByOLCSessionCreated}  " +
+                                                    ") AS pr ON us.temp = pr.temp {pr} " +
+                      "LEFT OUTER JOIN " +
+                        "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+                                "{selectIDs} {selectOLCSessionCreated} " +
+                         "FROM MobilePaywall.core.OLCache AS olc " +
+                           "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID = p.PaymentID " +
+                                "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                         "WHERE olc.SessionCreated >= '{from}'   " +
+                            "AND olc.IsSubseguent=0  " +
+                           "AND olc.SessionCreated <= '{to}' " +
+                           "AND p.PaymentStatusID = 1  " +
+                                                      "{filterBy} " +
+                                                    "{groupByIDs} {groupByOLCSessionCreated}  " +
+                                                    ") AS initP ON us.temp = initP.temp {initP} " +
+                      "LEFT OUTER JOIN " +
+                        "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+                                "{selectIDs} {selectOLCSessionCreated} " +
+                         "FROM MobilePaywall.core.OLCache AS olc " +
+                          "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID=p.PaymentID " +
+                                "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                         "WHERE olc.SessionCreated >= '{from}'   " +
+                         "AND olc.IsSubseguent=0  " +
+                           "AND olc.SessionCreated <= '{to}' " +
+                           "AND p.PaymentStatusID = 2  " +
+                                                      "{filterBy} " +
+                                                    "{groupByIDs} {groupByOLCSessionCreated}  " +
+                                                    ") AS pendingP ON us.temp = pendingP.temp {pendingP} " +
+                      "LEFT OUTER JOIN " +
+                        "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+                                "{selectIDs} {selectOLCSessionCreated} " +
+                         "FROM MobilePaywall.core.OLCache AS olc " +
+                         "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID=p.PaymentID " +
+                                "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                         "WHERE olc.SessionCreated >= '{from}'   " +
+                            "AND olc.IsSubseguent=0  " +
+                           "AND olc.SessionCreated <= '{to}' " +
+                           "AND p.PaymentStatusID = 3  " +
+                                                      "{filterBy} " +
+                                                    "{groupByIDs} {groupByOLCSessionCreated}  " +
+                                                    ") AS successP ON us.temp = successP.temp {successP} " +
+                      "LEFT OUTER JOIN " +
+                        "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+                                "{selectIDs} {selectOLCSessionCreated} " +
+                         "FROM MobilePaywall.core.OLCache AS olc " +
+                         "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID = p.PaymentID " +
+                                "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                         "WHERE olc.SessionCreated >= '{from}'  " +
+                          "AND olc.IsSubseguent=0  " +
+                           "AND olc.SessionCreated <= '{to}' " +
+                           "AND p.PaymentStatusID = 4  " +
+                                                      "{filterBy} " +
+                                                    "{groupByIDs} {groupByOLCSessionCreated} " +
+                                                    ") AS failedP ON us.temp = failedP.temp {failedP} " +
+                      "LEFT OUTER JOIN " +
+                        "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+                                "{selectIDs} {selectOLCSessionCreated} " +
+                         "FROM MobilePaywall.core.OLCache AS olc " +
+                         "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID = p.PaymentID " +
+                                "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                         "WHERE olc.SessionCreated >= '{from}'   " +
+                         "AND olc.IsSubseguent=0     " +
+                           "AND olc.SessionCreated <= '{to}' " +
+                           "AND p.PaymentStatusID = 5  " +
+                                                      "{filterBy} " +
+                                                    "{groupByIDs} {groupByOLCSessionCreated} " +
+                                                    ") AS cancelP ON us.temp = cancelP.temp {cancelP} " +
+                      "FULL OUTER JOIN /* Ako se spaja samo po temp moglo bi da ide left ili inner */ " +
+                        "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+                                "{selectIDs} {selectNames} {selectPUpdated} " +
+                         "FROM MobilePaywall.core.OLCache AS olc " +
+                         "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID = p.PaymentID " +
+                                "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                         "WHERE p.PaymentStatusID = 5 " +
+                           "AND (p.Updated >= '{from}' " +
+                                "AND p.Updated <= '{to}') " +
+                           "AND (olc.SessionCreated <= '{from}' " +
+                                "OR olc.SessionCreated >= '{to}') " +
+                                                      "{filterBy} " +
+                                                    "{groupByIDs} {groupByNames} {groupByPUpdated} " +
+                                                    ") AS otherCancelP ON us.temp = otherCancelP.temp {otherCancelP} " +
+                      "LEFT OUTER JOIN " +
+                        "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+                                "{selectIDs} {selectOLCSessionCreated} " +
+                         "FROM MobilePaywall.core.OLCache AS olc " +
+                         "INNER JOIN MobilePaywall.core.[Transaction] AS t ON olc.TransactionID = t.TransactionID " +
+                                "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                         "WHERE olc.SessionCreated >= '{from}'  " +
+                            "AND olc.IsSubseguent = 0  " +
+                           "AND olc.SessionCreated <= '{to}' " +
+                           "AND t.TransactionStatusID = 5 " +
+                                                      "{filterBy} " +
+                                                    "{groupByIDs} {groupByOLCSessionCreated} " +
+                                                    ") AS t1 ON us.temp = t1.temp {t1} " +
+                      "FULL OUTER JOIN " +
+                        "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+                                "{selectIDs} {selectNames} {selectTCreated} " +
+                         "FROM MobilePaywall.core.OLCache AS olc " +
+                         "INNER JOIN MobilePaywall.core.[Transaction] AS t ON olc.TransactionID = t.TransactionID " +
+                                "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                        "WHERE t.Created >= '{from}'  " +
+                        "AND olc.IsSubseguent = 1  " +
+                           "AND t.Created <= '{to}' " +
+                           "AND t.TransactionStatusID = 5 " +
+                                                      "{filterBy} " +
+                                                    "{groupByIDs} {groupByNames} {groupByTCreated} " +
+                                                    ") AS t2 ON us.temp = t2.temp {t2}";
+
+      #endregion
+      return select;
+    }
+
+    public string ChartSelectUsingOLCache()
+    {
+      #region # OLCache command for statistics chart#
+      string select ="SELECT ISNULL(us.br,0) AS 'Sessions', " +
+                               "ISNULL(successIdent.br,0) AS 'SuccessfullIdentifications', " +
+                               "ISNULL(successP.br,0) AS 'SuccessfullPayments', " +
+                               "ISNULL(cancelP.br,0) + ISNULL(otherCancelP.br,0) AS 'TotalCancellations', " +
+                               "ISNULL(t1.br,0) AS 'NewTransactions', " +
+                               "ISNULL(t2.br,0) AS 'Subsequents' " +
+                               "{mainSelect} " +
+                        "FROM " +
+                          "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+                                  "{selectIDs} {selectNames} {selectOLCSessionCreated} " +
+                           "FROM MobilePaywall.core.OLCache AS olc " +
+                                  "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                           "WHERE olc.IsSubseguent = 0  " +
+                              "AND olc.SessionCreated >= '{from}' " +
+                              "AND olc.SessionCreated <= '{to}' " +
+                                                        "{filterBy} " +
+                                                      "{groupByIDs} {groupByNames} {groupByOLCSessionCreated} " +
+                              ") AS us " +
+                        "LEFT OUTER JOIN " +
+                          "(SELECT '1' AS TEMP, COUNT(DISTINCT(ls.LookupSessionID)) AS br " +
+                                  "{selectIDs} {selectOLCSessionCreated} " +
+                           "FROM MobilePaywall.core.OLCache AS olc " +
+                           "INNER JOIN MobilePaywall.core.LookupSession AS ls ON olc.IdentificationSessionGuid = ls.IdentificationSessionGuid " +
+                           "INNER JOIN MobilePaywall.core.LookupSessionResult AS lsr ON ls.LookupSessionID = lsr.LookupSessionID " +
+                                  "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                           "WHERE olc.IsSubseguent = 0 " +
+                            "AND olc.SessionCreated >= '{from}'  " +
+                            "AND olc.SessionCreated <= '{to}' " +
+                            "AND ls.LookupSessionStatusID = 3 " +
+                            "AND lsr.IsSuccessful = 1 " +
+                                                        "{filterBy} " +
+                                                      "{groupByIDs} {groupByOLCSessionCreated} " +
+                                                      "   ) AS successIdent ON us.temp = successIdent.temp {successIdent} " +
+                        "LEFT OUTER JOIN " +
+                          "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+                                  "{selectIDs} {selectOLCSessionCreated} " +
+                           "FROM MobilePaywall.core.OLCache AS olc " +
+                           "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID=p.PaymentID " +
+                                  "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                           "WHERE olc.SessionCreated >= '{from}'   " +
+                              "AND olc.IsSubseguent=0  " +
+                             "AND olc.SessionCreated <= '{to}' " +
+                             "AND p.PaymentStatusID = 3  " +
+                                                        "{filterBy} " +
+                                                      "{groupByIDs} {groupByOLCSessionCreated}  " +
+                                                      ") AS successP ON us.temp = successP.temp {successP} " +
+                        "LEFT OUTER JOIN " +
+                          "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+                                  "{selectIDs} {selectOLCSessionCreated} " +
+                           "FROM MobilePaywall.core.OLCache AS olc " +
+                           "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID = p.PaymentID " +
+                                  "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                           "WHERE olc.SessionCreated >= '{from}'   " +
+                           "AND olc.IsSubseguent=0     " +
+                             "AND olc.SessionCreated <= '{to}' " +
+                             "AND p.PaymentStatusID = 5  " +
+                                                        "{filterBy} " +
+                                                      "{groupByIDs} {groupByOLCSessionCreated} " +
+                                                      ") AS cancelP ON us.temp = cancelP.temp {cancelP} " +
+                        "FULL OUTER JOIN /* Ako se spaja samo po temp moglo bi da ide left ili inner */ " +
+                          "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+                                  "{selectIDs} {selectNames} {selectPUpdated} " +
+                           "FROM MobilePaywall.core.OLCache AS olc " +
+                           "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID = p.PaymentID " +
+                                  "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                           "WHERE p.PaymentStatusID = 5 " +
+                             "AND (p.Updated >= '{from}' " +
+                                  "AND p.Updated <= '{to}') " +
+                             "AND (olc.SessionCreated <= '{from}' " +
+                                  "OR olc.SessionCreated >= '{to}') " +
+                                                        "{filterBy} " +
+                                                      "{groupByIDs} {groupByNames} {groupByPUpdated} " +
+                                                      ") AS otherCancelP ON us.temp = otherCancelP.temp {otherCancelP} " +
+                        "LEFT OUTER JOIN " +
+                          "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+                                  "{selectIDs} {selectOLCSessionCreated} " +
+                           "FROM MobilePaywall.core.OLCache AS olc " +
+                           "INNER JOIN MobilePaywall.core.[Transaction] AS t ON olc.TransactionID = t.TransactionID " +
+                                  "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                           "WHERE olc.SessionCreated >= '{from}'  " +
+                              "AND olc.IsSubseguent = 0  " +
+                             "AND olc.SessionCreated <= '{to}' " +
+                             "AND t.TransactionStatusID = 5 " +
+                                                        "{filterBy} " +
+                                                      "{groupByIDs} {groupByOLCSessionCreated} " +
+                                                      ") AS t1 ON us.temp = t1.temp {t1} " +
+                        "FULL OUTER JOIN " +
+                          "(SELECT '1' AS TEMP, COUNT(*) AS br " +
+                                  "{selectIDs} {selectNames} {selectTCreated} " +
+                           "FROM MobilePaywall.core.OLCache AS olc " +
+                           "INNER JOIN MobilePaywall.core.[Transaction] AS t ON olc.TransactionID = t.TransactionID " +
+                                  "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                          "WHERE t.Created >= '{from}'  " +
+                          "AND olc.IsSubseguent = 1  " +
+                             "AND t.Created <= '{to}' " +
+                             "AND t.TransactionStatusID = 5 " +
+                                                        "{filterBy} " +
+                                                      "{groupByIDs} {groupByNames} {groupByTCreated} " +
+                                                      ") AS t2 ON us.temp = t2.temp {t2}";
+
+      #endregion
+      return select;
+    }
+
+    //after 20th September 2016. OLCache table is in use. Grouped by providers
+    public string SelectOLCGroupByProviders()
+    {
+      #region # OLCache command for statistics, grouped by providers #
+      string select = "SELECT ISNULL(us.br,0) AS 'Sessions', " +
+                              "us.ProviderName AS 'ProviderName', " +
+                              "ISNULL(ident.br,0) AS 'Identifications', " +
+                              "ISNULL(successIdent.br,0) AS 'SuccessfullIdentifications', " +
+                              "ISNULL(pendingIdent.br,0) AS 'PendingIdentifications', " +
+                              "ISNULL(initIdent.br,0) AS 'InitializedIdentifications', " +
+                              "ISNULL(failedIdent.br, 0) AS 'FailedIdentifications', " +
+                              "ISNULL(pr.br,0) AS 'PaymentRequests', " +
+                              "ISNULL(initP.br,0) AS 'InitializedPayments', " +
+                              "ISNULL(pendingP.br,0) AS 'PendingPayments', " +
+                              "ISNULL(successP.br,0) AS 'SuccessfullPayments', " +
+                              "ISNULL(failedP.br,0) AS 'FailedPayments', " +
+                              "ISNULL(cancelP.br,0) AS 'CancelledPayments', " +
+                              "ISNULL(cancelP.br,0) + ISNULL(otherCancelP.br,0) AS 'TotalCancellations', " +
+                              "ISNULL(t1.br,0) AS 'NewTransactions', " +
+                              "ISNULL(t2.br,0) AS 'Subsequents' " +
+                       "FROM ({usUnion}) AS us " +
+                       "LEFT OUTER JOIN " +
+                                "({identUnion}) AS ident ON us.temp = ident.temp AND us.ProviderName = ident.ProviderName {ident} " +
+                       "LEFT OUTER JOIN " +
+                                "({successIdentUnion}) AS successIdent ON us.temp = successIdent.temp AND us.ProviderName = successIdent.ProviderName  {successIdent} " +
+                       "LEFT OUTER JOIN " +
+                                "({pendingIdentUnion}) AS pendingIdent ON us.temp = pendingIdent.temp AND us.ProviderName = pendingIdent.ProviderName  {pendingIdent} " +
+                       "LEFT OUTER JOIN " +
+                                "({initIdentUnion}) AS initIdent ON us.temp = initIdent.temp AND us.ProviderName = initIdent.ProviderName  {initIdent} " +
+                       "LEFT OUTER JOIN " +
+                                "({failedIdentUnion}) AS failedIdent ON us.temp = failedIdent.temp AND us.ProviderName = failedIdent.ProviderName  {failedIdent} " +
+                       "LEFT OUTER JOIN " +
+                                "({prUnion}) AS pr ON us.temp = pr.temp AND us.ProviderName = pr.ProviderName  {pr} " +
+                       "LEFT OUTER JOIN " +
+                                "({initPUnion}) AS initP ON us.temp = initP.temp {initP} AND us.ProviderName = initP.ProviderName  " +
+                       "LEFT OUTER JOIN " +
+                                "({pendingPUnion}) AS pendingP ON us.temp = pendingP.temp {pendingP} AND us.ProviderName = pendingP.ProviderName  " +
+                       "LEFT OUTER JOIN " +
+                                "({successPUnion}) AS successP ON us.temp = successP.temp {successP} AND us.ProviderName = successP.ProviderName  " +
+                       "LEFT OUTER JOIN " +
+                                "({failedPUnion}) AS failedP ON us.temp = failedP.temp {failedP} AND us.ProviderName = failedP.ProviderName  " +
+                       "LEFT OUTER JOIN " +
+                                "({cancelPUnion}) AS cancelP ON us.temp = cancelP.temp {cancelP} AND us.ProviderName = cancelP.ProviderName  " +
+                       "FULL OUTER JOIN " +
+                                "({otherCancelPUnion}) AS otherCancelP ON us.temp = otherCancelP.temp AND us.ProviderName = otherCancelP.ProviderName  {otherCancelP} " +
+                       "LEFT OUTER JOIN " +
+                                "({t1Union}) AS t1 ON us.temp = t1.temp AND us.ProviderName = t1.ProviderName {t1} " +
+                       "FULL OUTER JOIN " +
+                                "({t2Union}) AS t2 ON us.temp = t2.temp AND us.ProviderName = t2.ProviderName {t2} ";
+      #endregion
+      return select;
+
+    }
+    public string DashboardSelect()
+    {
+      #region # command for dashboard #
+      string select = "SELECT ISNULL(us.br,0) AS 'Sessions', " +
+                        "ISNULL(successIdent.br,0) AS 'SuccessfullIdentifications', " +
+                        "ISNULL(p_all.br,0) AS 'Payments', " +
+                        "ISNULL(t1.br,0) AS 'NewTransactions' " +
+                      "FROM ( SELECT '1' AS temp, COUNT(*) AS br " +
+                              "FROM MobilePaywall.core.OLCache AS olc " +
+                              "WHERE olc.IsSubseguent = 0 AND olc.SessionCreated >= '{from}' AND olc.SessionCreated <= '{to}' " +
+                              "{filterBy} ) AS us  " +
+                      "LEFT OUTER JOIN (  SELECT '1' AS temp , COUNT(DISTINCT(ls.LookupSessionID)) AS br " +
+                                          "FROM MobilePaywall.core.OLCache AS olc " +
+                                            "INNER JOIN MobilePaywall.core.LookupSession AS ls ON olc.IdentificationSessionGuid = ls.IdentificationSessionGuid " +
+                                            "INNER JOIN MobilePaywall.core.LookupSessionResult AS lsr ON ls.LookupSessionID = lsr.LookupSessionID " +
+                                          "WHERE olc.IsSubseguent = 0 AND olc.SessionCreated >= '{from}' AND olc.SessionCreated <= '{to}' " +
+                                            " AND ls.LookupSessionStatusID = 3 " +
+                                            " AND olc.IdentificationSessionGuid <> '00000000-0000-0000-0000-000000000000' " +
+                                            " AND ls.IdentificationSessionGuid <> '00000000-0000-0000-0000-000000000000' " +
+                                            " AND lsr.IsSuccessful = 1 " + 
+                                            "{filterBy} ) AS successIdent ON us.temp = successIdent.temp " +
+                      "LEFT OUTER JOIN (	SELECT '1' AS temp , COUNT(*) AS br " +
+                                          "FROM MobilePaywall.core.OLCache AS olc " +
+                                            "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID = p.PaymentID " +
+                                          "WHERE olc.IsSubseguent=0 AND olc.SessionCreated >= '{from}' AND olc.SessionCreated <= '{to}' " +
+                                            "{filterBy} ) AS p_all ON us.temp = p_all.temp " +
+                      "LEFT OUTER JOIN (	SELECT '1' AS temp , COUNT(*) AS br " +
+                                          "FROM MobilePaywall.core.OLCache AS olc " +
+                                            "INNER JOIN MobilePaywall.core.[Transaction] AS t ON olc.TransactionID = t.TransactionID " +
+                                          "WHERE olc.IsSubseguent = 0 AND olc.SessionCreated >= '{from}' AND olc.SessionCreated <= '{to}' " +
+                                            "AND t.TransactionStatusID = 5 " +
+                                            "{filterBy} ) AS t1 ON us.temp = t1.temp ";
+      #endregion
+
+      return select;
+    }
+
+    public string DashboardMapSelect()
+    {
+      #region # command for dashboardMap #
+      string select = "SELECT ISNULL(t1.br,0) AS 'NewTransactions',  " +
+                              "us.ServiceName AS 'ServiceName', " +
+                              "us.CountryCode AS 'CountryCode' " +
+                       "FROM (SELECT '1' AS TEMP, " +
+                                " COUNT(*) AS br, " +
+                                "[olc].ServiceName AS 'ServiceName', " +
+                                "[olc].CountryCode AS 'CountryCode', " +
+                                "[olc].ServiceID " +
+                             "FROM MobilePaywall.core.OLCache AS olc " +
+                             "WHERE olc.IsSubseguent = 0 " + 
+                                 "AND olc.SessionCreated >= '{0}' " +
+                                 "AND olc.SessionCreated <= '{1}' " +
+                                 "{2} " +
+                             "GROUP BY [olc].ServiceID, " +
+                                       "[olc].CountryCode, " +
+                                       "[olc].ServiceName) AS us " +
+                       "LEFT OUTER JOIN (SELECT '1' AS TEMP, " +
+                                        "COUNT(*) AS br, " +
+                                        "[olc].ServiceID, " +
+                                        "[olc].CountryCode " +
+                                    "FROM MobilePaywall.core.OLCache AS olc " +
+                                    "INNER JOIN MobilePaywall.core.[Transaction] AS t ON olc.TransactionID = t.TransactionID " +
+                                 "WHERE olc.IsSubseguent = 0 " +
+                                      "AND olc.SessionCreated >= '{0}' " +
+                                      "AND olc.SessionCreated <= '{1}' " +
+                                      "AND t.TransactionStatusID = 5 " +
+                                      "{2} " +
+                                 "GROUP BY [olc].ServiceID, " +
+                                          "[olc].CountryCode) AS t1 ON us.TEMP = t1.TEMP " +
+                        "AND ISNULL(us.ServiceID, 0) = ISNULL(t1.ServiceID, 0) " +
+                        "AND us.CountryCode = t1.CountryCode " +
+                          "WHERE us.CountryCode IS NOT NULL AND t1.br > 0 ";
+      #endregion
+      return select;
+    }
+
+    public string RevenueSelect()
+    {
+      string select = "SELECT SUM(revenue.Transactions) AS 'NewTransactions', " +
+                              "SUM(revenue.Subsequents) AS 'Subsequents', " +
+                              "SUM(revenue.TGross) AS 'GrossTransactions', " +
+                              "SUM(revenue.TPayout) AS 'PayoutTransactions', " +
+                              "SUM(revenue.SGross) AS 'GrossSubsequents', " +
+                              "SUM(revenue.SPayout) AS 'PayoutSubsequents', " +
+                              "revenue.Currency " +
+                              "{revenueSelect} " +
+                      "FROM ( " +
+                      "SELECT ISNULL(t1.temp, t2.temp) AS 'Temp', " +
+                              "ISNULL(t1.br, 0) AS 'Transactions', " +
+                              "ISNULL(t2.br, 0) AS 'Subsequents', " +
+                              "ISNULL(t1.ServiceID, t2.ServiceID) AS 'ServiceID', " +
+                              "ISNULL(t1.MobileOperatorID, t2.MobileOperatorID) AS 'MobileOperatorID', " +
+                              "ISNULL(t1.Abbreviation, t2.Abbreviation) AS 'Currency', " +
+                              "ISNULL(t1.Gross, 0)  AS 'TGross', " +
+                              "ISNULL(t1.Payout, 0) AS 'TPayout', " +
+                              "ISNULL(t2.Gross, 0) AS 'SGross', " +
+                              "ISNULL(t2.Payout, 0) AS 'SPayout', " +
+                              "ISNULL(t1.ServiceOfferID, t2.ServiceOfferID) AS 'ServiceOfferID' " +
+                              "{mainSelect} " +
+                        "FROM (SELECT '1' AS temp,  " +
+                                    "COUNT(*) AS br, " +
+                                    "[olc].ServiceID,  " +
+                                    "[olc].ServiceName AS 'ServiceName', " +
+                                    "[olc].MobileOperatorID,  " +
+                                    "[sp].ServicePriceID, " +
+                                    "COUNT(*) * [sp].Gross AS Gross, " +
+                                    "COUNT(*) * [sp].Payout AS Payout, " +
+                                    "[pr].ServiceOfferID, " +
+                                    "[curr].Abbreviation " +
+                                    "{selectIDs} {selectNames} {selectOLCSessionCreated} {selectPrices} " +
+                              "FROM MobilePaywall.core.OLCache AS olc " +
+                                    "INNER JOIN MobilePaywall.core.[Transaction] AS t ON olc.TransactionID = t.TransactionID " +
+                                    "INNER JOIN MobilePaywall.core.PaymentRequest AS pr ON olc.PaymentRequestID = pr.PaymentRequestID " +
+                                    "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                                    "LEFT OUTER JOIN (MobilePaywall.core.ServicePrice AS sp " +
+                                                      "INNER JOIN MobilePaywall.core.Currency AS curr ON sp.CurrencyID = curr.CurrencyID) ON (olc.ServiceID = sp.ServiceID " +
+                                                                                                                                                  "AND pr.ServiceOfferID = sp.ServiceOfferID " +
+                                                                                                                                                  "AND olc.MobileOperatorID = sp.MobileOperatorID " +
+                                                                                                                                                  "AND t.Created >= sp.ValidFrom " +
+                                                                                                                                                  "AND t.Created <= ISNULL(sp.ValidTo, GETDATE())) " +
+                              "WHERE olc.SessionCreated >= '{from}' " +
+                                    "AND olc.IsSubseguent = 0 " +
+                                    "AND olc.SessionCreated <= '{to}' " +
+                                    "AND t.TransactionStatusID = 5 " +
+                                    "{filterBy} " +
+                              "GROUP BY  [olc].ServiceID, " +
+                                        "[olc].ServiceName, " +
+                                        "[olc].MobileOperatorID, " +
+                                        "[sp].ServicePriceID, " +
+                                        "[sp].Gross, " +
+                                        "[sp].Payout, " +
+                                        "[pr].ServiceOfferID, " +
+                                        "[curr].Abbreviation " +
+                                        "{groupByIDs} {groupByNames} {groupByOLCSessionCreated} ) AS t1 " +
+                      "FULL OUTER JOIN " +
+                      "(SELECT '1' AS TEMP, " +
+                              "COUNT(*) AS br, " +
+                              "[olc].ServiceID, " +
+                              "[olc].MobileOperatorID, " +
+                              "[olc].ServiceName AS 'ServiceName', " +
+                              "[curr].Abbreviation, " +
+                              "COUNT(*) * [sp].Gross AS Gross, " +
+                              "COUNT(*) * [sp].Payout AS Payout, " +
+                              "[pr].ServiceOfferID " +
+                              "{selectIDs} {selectNames} {selectTCreated} {selectPrices} " +
+                      "FROM MobilePaywall.core.OLCache AS olc " +
+                            "INNER JOIN MobilePaywall.core.[Transaction] AS t ON olc.TransactionID = t.TransactionID " +
+                            "INNER JOIN MobilePaywall.core.PaymentRequest AS pr ON olc.PaymentRequestID = pr.PaymentRequestID " +
+                            "{joinService} {joinMerchant} {joinPaymentProvider} {joinUserSession} " +
+                            "LEFT OUTER JOIN (MobilePaywall.core.ServicePrice AS sp " +
+                                              "INNER JOIN MobilePaywall.core.Currency AS curr ON sp.CurrencyID = curr.CurrencyID) ON (olc.ServiceID = sp.ServiceID " +
+                                                                                                                                          "AND pr.ServiceOfferID = sp.ServiceOfferID " +
+                                                                                                                                          "AND olc.MobileOperatorID = sp.MobileOperatorID " +
+                                                                                                                                          "AND t.Created >= sp.ValidFrom " +
+                                                                                                                                          "AND t.Created <= ISNULL(sp.ValidTo, GETDATE())) " +
+                      "WHERE t.Created >= '{from}' " +
+                            "AND olc.IsSubseguent = 1 " +
+                            "AND t.Created <= '{to}' " +
+                            "AND t.TransactionStatusID = 5 " +
+                            "{filterBy}  " +
+                            "GROUP BY [olc].ServiceID, " +
+                                      "[olc].MobileOperatorID, " +
+                                      "[olc].ServiceName, " +
+                                      "[pr].ServiceOfferID, " +
+                                      "[curr].Abbreviation, " +
+                                      "[sp].Gross, " +
+                                      "[sp].Payout " +
+                                      "{groupByIDs} {groupByNames} {groupByTCreated} ) AS t2 ON t1.temp = t2.temp " +
+                                                                                                        "AND ISNULL(t1.ServiceID, 0) = ISNULL(t2.ServiceID, 0) " +
+                                                                                                        "AND ISNULL(t1.MobileOperatorID, 0) = ISNULL(t2.MobileOperatorID, 0) " +
+                                                                                                        "AND ISNULL(t1.ServiceOfferID, 0) = ISNULL(t2.ServiceOfferID, 0) " +
+                                                                                                        "{mainJoin}) AS revenue " +
+                      "GROUP BY revenue.Currency {revenueGroup} ";
+      return select;
+
+    }
+
+    public DataTable DashboardChartSelect()
+    {
+      #region # command for dashboardChart #
+      string command =  "SELECT t1.New, t2.Returning, t1.[Date] " +
+                        "FROM ( SELECT COUNT(Distinct IPAddress) AS 'New', CONVERT(DATE, Created) AS 'Date' " +
+                                "FROM MobilePaywall.core.UserSession AS us " +
+                                "WHERE Created BETWEEN DATEADD(DD, -6, GETDATE()) AND GETDATE() " +
+                                "GROUP BY  CONVERT(DATE, Created)) AS t1 " +
+                        "LEFT OUTER JOIN ( SELECT temp.[Date], count(*) AS 'Returning' " +
+                                          "FROM (	SELECT COUNT(*) AS count, CONVERT(DATE, Created) AS 'Date' " +
+                                                "FROM MobilePaywall.core.UserSession AS us " +
+                                                "WHERE Created BETWEEN DATEADD(DD, -6, GETDATE()) AND GETDATE() " +
+                                                "GROUP BY us.IPAddress, CONVERT(DATE, Created) " +
+                                                "HAVING COUNT(*) > 1 ) AS temp " +
+                                          "GROUP BY temp.[Date]) AS t2 ON t1.[Date] = t2.[Date] " +
+                        "ORDER BY Date ASC";
+
+      DataTable table = this._database.Load(command);
+      return table;
+      #endregion
+    }
+    #region # old command #
+    ////Change
+    //public string Select()
+    //{
+    //  string select = "SELECT " +
+    //                    "{0}" +
+    //                    "COUNT(DISTINCT(us1.UserSessionID)) AS 'Sessions', " +
+    //                    "COUNT(DISTINCT(pr.PaymentRequestID)) AS 'Requests', " +
+    //                    "COUNT(DISTINCT(p.PaymentID)) AS 'Payments', " +
+    //                    "COUNT(DISTINCT(t.TransactionID)) AS 'New', " +
+    //                    "COUNT(DISTINCT(t1.TransactionID)) AS 'Subsequents' " +
+    //                    "FROM [MobilePaywall].[core].[Service] AS s " +
+    //                    "LEFT OUTER JOIN [MobilePaywall].[core].[Merchant] AS m ON s.MerchantID = m.MerchantID " +
+    //                    "LEFT OUTER JOIN [MobilePaywall].[core].[UserSession] AS us ON s.ServiceID = us.ServiceID " +
+    //                    "LEFT OUTER JOIN [MobilePaywall].[core].[Country] AS c ON us.CountryID = c.CountryID " +
+    //                    "LEFT OUTER JOIN [MobilePaywall].[core].[MobileOperator] AS mo ON us.MobileOperatorID = mo.MobileOperatorID " +
+    //                    "LEFT OUTER JOIN [MobilePaywall].[core].[UserSession] AS us1 ON us1.UserSessionID = us.UserSessionID AND us1.Created >= '{1}' AND us1.Created <= '{2}' " +
+    //                    "LEFT OUTER JOIN [MobilePaywall].[core].[PaymentRequest] AS pr ON us1.UserSessionID = pr.UserSessionID " +
+    //                    "LEFT OUTER JOIN [MobilePaywall].[core].[Payment] AS p ON pr.PaymentRequestID = p.PaymentRequestID " +
+    //                    "LEFT OUTER JOIN [MobilePaywall].[core].[Transaction] AS t ON p.PaymentID = t.PaymentID " +
+    //                    "LEFT OUTER JOIN [MobilePaywall].[core].[UserSession] AS us2 ON us2.UserSessionID = us.UserSessionID AND us2.Created < '{1}' " +
+    //                    "LEFT OUTER JOIN [MobilePaywall].[core].[PaymentRequest] AS pr1 ON us2.UserSessionID = pr1.UserSessionID " +
+    //                    "LEFT OUTER JOIN [MobilePaywall].[core].[Payment] AS p1 ON pr1.PaymentRequestID = p1.PaymentRequestID " +
+    //                    "LEFT OUTER JOIN [MobilePaywall].[core].[Transaction] AS t1 ON p1.PaymentID = t1.PaymentID AND t1.Created >= '{1}' AND t1.Created <= '{2}' " +
+    //                    "{3} " +
+    //                    "{4}";
+    //  return select;
+    //}
+
+    #endregion
+  }
+}

@@ -1,0 +1,118 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Data.Direct.MobilePaywall;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web.Models
+{
+    // SUMMARY: Import model for adding new FooterLink 
+    public class TemplateFooterConfigurationImportModel
+    {
+        private bool _initilized = false;
+        private FooterLink _footerLink = null;
+        private Route _route = null;
+        private TranslationGroup _translationGroup = null;
+        private MobileOperator _mobileOperator = null;
+        private PaymentProvider _paymentProvider = null;
+        private bool _serviceSpecific = false;
+        private bool _error = false;
+
+        // Informations sent from ajax 
+        public string Action { get; set; } // Service || Country
+        public string SubAction { get; set; } // Add || Remove
+        public int FooterLinkID { get; set; }
+        public int RouteID { get; set; }
+        public int TranslationGroupID { get; set; }
+        public string InputLink { get; set; }
+        public string InputText { get; set; }
+        public int MobileOperatorID { get; set; }
+        public int PaymentProviderID { get; set; }
+        public int IfHasPayment { get; set; }
+
+        public FooterLink FooterLink { get { return this._footerLink; } set { this._footerLink = value; } }
+        public Route Route { get { return this._route; } }
+        public TranslationGroup TranslationGroup { get { return this._translationGroup; } }
+        public MobileOperator MobileOperator { get { return this._mobileOperator; } }
+        public bool SeviceSpecific { get { return this._serviceSpecific; } }
+        public bool Error { get { return this._error; } }
+
+        public TemplateFooterConfigurationImportModel Init()
+        {
+            if (this.Action.Equals("Service"))
+                this._serviceSpecific = true;
+
+            if (this.FooterLinkID > 0)
+            {
+                this._footerLink = FooterLink.CreateManager().Load(this.FooterLinkID);
+                if (this._footerLink == null)
+                    this._error = true;
+            }
+
+            if (this.RouteID > 0)
+            {
+                this._route = Route.CreateManager().Load(this.RouteID);
+                if (this._route == null)
+                    this._error = true;
+            }
+
+            if (this.TranslationGroupID > 0)
+            {
+                this._translationGroup = TranslationGroup.CreateManager().Load(this.TranslationGroupID);
+                if (this._translationGroup == null)
+                    this._error = true;
+            }
+
+            if (this.MobileOperatorID > 0)
+            {
+                this._mobileOperator = MobileOperator.CreateManager().Load(this.MobileOperatorID);
+                if (this._mobileOperator == null)
+                    this._error = true;
+            }
+
+            if (this.PaymentProviderID > 0)
+            {
+                this._paymentProvider = PaymentProvider.CreateManager().Load(this.PaymentProviderID);
+                if (this._paymentProvider == null)
+                    this._error = true;
+            }
+
+            this._initilized = true;
+            return this;
+        }
+
+        public static char Separator { get { return ';'; } }
+        public static char NewLine { get { return '#'; } }
+        public static string PrintHeader { get { return string.Format("RouteID{0}TranslationGroupID{0}FooterUrl{0}FooterText{0}MobileOperator{0}PaymentProvider{0}IfHasPayment", TemplateFooterConfigurationImportModel.Separator); } }
+        public static string Print(List<TemplateFooterConfigurationImportModel> data)
+        {
+            string returnData = TemplateFooterConfigurationImportModel.PrintHeader;
+            for (int i = 0; i < data.Count; i++)
+                returnData += TemplateFooterConfigurationImportModel.NewLine + data.ElementAt(i).Print();
+            return returnData;
+        }
+
+        public string Print()
+        {
+            if (!this._initilized)
+                this.Init();
+
+            if (this._error)
+                return string.Empty;
+
+            return string.Format("{1}{0}{2}{0}{3}{0}{4}{0}{5}{0}{6}{0}{7}",
+              TemplateFooterConfigurationImportModel.Separator,
+              this._route != null ? this._route.ID.ToString() : "-1",
+              this._translationGroup != null ? this._translationGroup.ID.ToString() : "-1",
+              this.InputLink,
+              this.InputText,
+              this._mobileOperator != null ? this._mobileOperator.ID.ToString() : "-1",
+              this._paymentProvider != null ? this._paymentProvider.ID.ToString() : "-1",
+              this.IfHasPayment.ToString());
+        }
+
+    }
+}

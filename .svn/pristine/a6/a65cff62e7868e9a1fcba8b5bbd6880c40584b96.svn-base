@@ -1,0 +1,756 @@
+﻿using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Merchant.Helpers
+{
+  public class MerchantHelper
+  {
+
+    public static List<SelectListItem> Instances
+    {
+      get
+      {
+        MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+        return (from ins in runtime.Instances select new SelectListItem() { Text = ins.Name, Value = ins.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> InstancesSelected(int? selected)
+    {
+      MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+      return (from ins in runtime.Instances select new SelectListItem() { Text = ins.Name, Value = ins.ID.ToString(), Selected = (ins.ID == selected ? true : false) }).ToList();
+    }
+
+    //Instances directly defined in ClientAccessPolicy
+    public static List<SelectListItem> AllowedInstances
+    {
+      get
+      {
+        Client client = PaywallHttpContext.Current.ClientSession.Client;
+        return (from ins in client.AllowedInstances.Values select new SelectListItem() { Text = ins.Name, Value = ins.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> SupportedInstances
+    {
+      get
+      {
+        Client client = PaywallHttpContext.Current.ClientSession.Client;
+        List<Instance> supportedInstances = client.SupportedInstances();
+
+        return (from ins in supportedInstances select new SelectListItem() { Text = ins.Name, Value = ins.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> Applications
+    {
+      get
+      {
+        MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+        return (from a in runtime.Applications select new SelectListItem() { Text = a.Name, Value = a.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> ApplicationsGroupedByInstance
+    {
+      get
+      {
+        MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+        List<SelectListItem> applications = new List<SelectListItem>();
+        foreach (KeyValuePair<int, List<Data.Application>> kv in runtime.InstanceApplicationMap)
+        {
+          SelectListGroup group = new SelectListGroup() { Name = runtime.GetInstanceByID(kv.Key).Name };
+          foreach (Data.Application application in kv.Value)
+            applications.Add(new SelectListItem() { Text = application.Name, Value = application.ID.ToString(), Group = group });
+        }
+        return applications;
+      }
+    }
+
+    public static List<SelectListItem> Merchants
+    {
+      get
+      {
+        MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+        return (from m in runtime.Merchants select new SelectListItem() { Text = m.Name, Value = m.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> MerchantsGroupedByInstance
+    {
+      get
+      {
+        MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+        List<SelectListItem> merchants = new List<SelectListItem>();
+        foreach (KeyValuePair<int, List<Data.Merchant>> kv in runtime.InstanceMerchantMap)
+        {
+          SelectListGroup group = new SelectListGroup() { Name = runtime.GetInstanceByID(kv.Key).Name };
+          foreach (Data.Merchant merchant in kv.Value)
+            merchants.Add(new SelectListItem() { Text = merchant.Name, Value = merchant.ID.ToString(), Group = group });
+        }
+        return merchants;
+      }
+    }
+
+    //Merchants defined in ClientAccessPolicy
+    public static List<SelectListItem> AllowedMerchants
+    {
+      get
+      {
+        Dictionary<int, Data.Merchant> allowedMerchants = PaywallHttpContext.Current.ClientSession.Client.AllowedMerchants;
+        MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+        return (from m in allowedMerchants.Values select new SelectListItem() { Text = m.Name, Value = m.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> AllowedMerchantsGroupedByInstance
+    {
+      get
+      {
+        Dictionary<int, Data.Merchant> allowedMerchants = PaywallHttpContext.Current.ClientSession.Client.AllowedMerchants;
+        MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+        List<SelectListItem> merchants = new List<SelectListItem>();
+        foreach (KeyValuePair<int, List<Data.Merchant>> kv in runtime.InstanceMerchantMap)
+        {
+          SelectListGroup group = new SelectListGroup() { Name = runtime.GetInstanceByID(kv.Key).Name };
+          foreach (Data.Merchant merchant in kv.Value)
+          {
+            if (!allowedMerchants.Values.Contains(merchant))
+              continue;
+            merchants.Add(new SelectListItem() { Text = merchant.Name, Value = merchant.ID.ToString(), Group = group });
+          }
+        }
+        return merchants;
+      }
+    }
+
+    //AllowedMerchants + Merchants supported through AllowedServices
+    public static List<SelectListItem> SupportedMerchants
+    {
+      get
+      {
+        Client client = PaywallHttpContext.Current.ClientSession.Client;
+        Dictionary<int, Service> allowedServices = client.AllowedServices;
+        Dictionary<int, Data.Merchant> allowedMerchants = client.AllowedMerchants;
+
+        List<Data.Merchant> additionalMerchants = (from s in allowedServices.Values where !allowedMerchants.Values.Contains(s.Merchant) select s.Merchant).Distinct().ToList();
+        return (from m in allowedMerchants.Values.Union(additionalMerchants) select new SelectListItem() { Text = m.Name, Value = m.ID.ToString() }).ToList();
+      }
+    }
+
+    //public static List<SelectListItem> SupportedMerchantsGroupedByInstance
+    //{
+    //  get
+    //  {
+    //    Client client = PaywallHttpContext.Current.ClientSession.Client;
+
+    //    MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+    //    List<Data.Merchant> supportedMerchants = client.SupportedMerchants();
+    //    List<SelectListItem> merchants = new List<SelectListItem>();
+    //    foreach (KeyValuePair<int, List<Data.Merchant>> kv in runtime.InstanceMerchantMap)
+    //    {
+    //      SelectListGroup group = new SelectListGroup() { Name = runtime.GetInstanceByID(kv.Key).Name };
+    //      foreach (Data.Merchant merchant in kv.Value)
+    //      {
+    //        if (!supportedMerchants.Contains(merchant))
+    //          merchants.Add(new SelectListItem() { Text = merchant.Name, Value = merchant.ID.ToString(), Group = group });              
+    //      }
+    //    }
+    //    return merchants;
+    //  }
+    //}
+
+    public static List<SelectListItem> Templates
+    {
+      get
+      {
+        ITemplateManager tempManager = Template.CreateManager();
+        return (from t in tempManager.Load() select new SelectListItem() { Text = t.Name, Value = t.ID.ToString() }).ToList();
+      }
+    }
+
+
+    //public static List<SelectListItem> Merchants
+    //{
+    //  get
+    //  {
+    //    IMerchantManager mManager = Data.Merchant.CreateManager();
+    //    return (from m in mManager.Load() select new SelectListItem() { Text = m.Name, Value = m.ID.ToString() }).ToList();
+    //  }
+    //}
+
+    //public static List<SelectListItem> MerchantsSelected(int? selected)
+    //{
+    //  MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+    //  return (from m in runtime.Merchants select new SelectListItem() { Text = m.Name, Value = m.ID.ToString(), Selected = (m.ID == selected ? true : false) }).ToList();
+    //}
+
+
+    public static List<SelectListItem> Services
+    {
+      get
+      {
+        MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+        List<SelectListItem> services = new List<SelectListItem>();
+        foreach (IService service in runtime.Services)
+        {
+          services.Add(new SelectListItem() { Text = service.ServiceData.Name, Value = service.ServiceData.ID.ToString() });
+        }
+        return services;
+      }
+    }
+
+    public static List<SelectListItem> ServicesSelected(int? selected)
+    {
+      MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+      List<SelectListItem> services = new List<SelectListItem>();
+      foreach (IService service in runtime.Services)
+      {
+        services.Add(new SelectListItem() { Text = service.ServiceData.Name, Value = service.ServiceData.ID.ToString(), Selected = (service.ServiceData.ID == selected ? true : false) });
+      }
+      return services;
+    }
+
+    public static List<SelectListItem> AllowedServicesGroupedByMerchant
+    {
+      get
+      {
+        Dictionary<int, Service> allowedServices = PaywallHttpContext.Current.ClientSession.Client.AllowedServices;
+        MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+        List<SelectListItem> services = new List<SelectListItem>();
+        foreach (KeyValuePair<int, List<IService>> kv in runtime.MerchantServiceMap)
+        {
+          SelectListGroup group = new SelectListGroup() { Name = runtime.GetMerchantByID(kv.Key).Name };
+          foreach (IService service in kv.Value)
+          {
+            if (!allowedServices.Values.Contains(service.ServiceData))
+              continue;
+            services.Add(new SelectListItem() { Text = service.ServiceData.Name, Value = service.ServiceData.ID.ToString(), Group = group });
+          }
+        }
+
+        return services;
+      }
+    }
+    
+    public static List<SelectListItem> ServiceOffers
+    {
+      get
+      {
+        return (from so in ServiceOffer.CreateManager().Load() select new SelectListItem() { Text = so.Name, Value = so.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> Countries
+    {
+      get
+      {
+        MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+        return (from c in runtime.Countries select new SelectListItem() { Text = c.GlobalName, Value = c.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> CountriesSelected(int? selected)
+    {
+      ICountryManager cManager = Country.CreateManager();
+      return (from c in cManager.Load() select new SelectListItem() { Text = c.GlobalName, Value = c.ID.ToString(), Selected = (c.ID == selected ? true : false) }).ToList();
+    }
+
+    public static List<SelectListItem> MobileOperators
+    {
+      get
+      {
+        MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+        return (from mo in runtime.Operators select new SelectListItem() { Text = mo.Name, Value = mo.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> MobileOperatorsSelected(int? selected)
+    {
+      MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+      return (from mo in runtime.Operators select new SelectListItem() { Text = mo.Name, Value = mo.ID.ToString(), Selected = (mo.ID == selected ? true : false) }).ToList();
+    }
+
+    public static List<SelectListItem> ActiveOperatorsSelected(int? selected)
+    {
+      MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+      return (from mo in runtime.Operators where mo.ExternalMobileOperatorID != null select new SelectListItem() { Text = mo.Name, Value = mo.ID.ToString(), Selected = (mo.ID == selected ? true : false) }).ToList();
+    }
+
+    public static List<SelectListItem> OperatorsFromSpecificCountry(int? countryId)
+    {
+      MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+      return (from mo in runtime.Operators where mo.Country.ID == countryId select new SelectListItem() { Text = mo.Name, Value = mo.ID.ToString(), Group = new SelectListGroup() { Name = runtime.GetCountryByID(mo.Country.ID).GlobalName } }).ToList();
+    }
+
+    public static List<SelectListItem> ActiveOperatorsFromSpecificCountry(int? countryId)
+    {
+      MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+      return (from mo in runtime.Operators where mo.Country.ID == countryId && mo.ExternalMobileOperatorID != null select new SelectListItem() { Text = mo.Name, Value = mo.ID.ToString(), Group = new SelectListGroup() { Name = runtime.GetCountryByID(mo.Country.ID).GlobalName } }).ToList();
+    }
+
+
+    public static List<SelectListItem> OperatorsByCountry()
+    {
+      MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+      List<SelectListItem> operatorsList = new List<SelectListItem>();
+      foreach (KeyValuePair<int, List<MobileOperator>> kv in runtime.CountryOperatorMap)
+      {
+        SelectListGroup optGroup = new SelectListGroup() { Name = runtime.GetCountryByID(kv.Key).GlobalName };
+        foreach (MobileOperator mobileOperator in kv.Value)
+        {
+          operatorsList.Add(new SelectListItem() { Text = mobileOperator.Name, Value = mobileOperator.ID.ToString(), Group = optGroup });
+        }
+      }
+      return operatorsList;
+    }
+
+    public static List<SelectListItem> OperatorsByCountrySelected(int? selected)
+    {
+      MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+      List<SelectListItem> operatorsList = new List<SelectListItem>();
+      foreach (KeyValuePair<int, List<MobileOperator>> kv in runtime.CountryOperatorMap)
+      {
+        SelectListGroup optGroup = new SelectListGroup() { Name = runtime.GetCountryByID(kv.Key).GlobalName };
+        foreach (MobileOperator mo in kv.Value)
+        {
+          operatorsList.Add(new SelectListItem() { Text = mo.Name, Value = mo.ID.ToString(), Group = optGroup, Selected = (mo.ID == selected ? true : false) });
+        }
+      }
+      return operatorsList;
+    }
+
+    public static List<SelectListItem> ActiveOperatorsByCountrySelected(int? selected)
+    {
+      MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+      List<SelectListItem> operatorsList = new List<SelectListItem>();
+      foreach (KeyValuePair<int, List<MobileOperator>> kv in runtime.CountryOperatorMap)
+      {
+        SelectListGroup optGroup = new SelectListGroup() { Name = runtime.GetCountryByID(kv.Key).GlobalName };
+        foreach (MobileOperator mo in kv.Value)
+        {
+          if (mo.ExternalMobileOperatorID != null)
+            operatorsList.Add(new SelectListItem() { Text = mo.Name, Value = mo.ID.ToString(), Group = optGroup, Selected = (mo.ID == selected ? true : false) });
+        }
+      }
+      return operatorsList;
+    }
+
+
+    public static List<SelectListItem> ServiceStatuses
+    {
+      get
+      {
+        return Enum.GetValues(typeof(ServiceStatus)).Cast<ServiceStatus>().Select(v => new SelectListItem { Text = v.ToString(), Value = v.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> ServiceTypes
+    {
+      get
+      {
+        IServiceTypeManager stManager = ServiceType.CreateManager();
+        return (from st in stManager.Load() select new SelectListItem() { Text = st.Name, Value = st.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> UserSessionTypes
+    {
+      get
+      {
+        IUserSessionTypeManager ustManager = UserSessionType.CreateManager();
+        return (from ust in ustManager.Load() select new SelectListItem() { Text = ust.Name, Value = ust.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> Products
+    {
+      get
+      {
+        IProductManager pManager = Product.CreateManager();
+        return (from p in pManager.Load() select new SelectListItem() { Text = p.Name, Value = p.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> ProductsGroupedByInstance
+    {
+      get
+      {
+        List<SelectListItem> products = new List<SelectListItem>();
+        var groupedProducts =
+            from product in Product.CreateManager().Load()
+            group product by product.Instance into insGroup
+            orderby insGroup.Key
+            select insGroup;
+
+        foreach (var insGroup in groupedProducts)
+        {
+          SelectListGroup group = new SelectListGroup() { Name = insGroup.Key.Name };
+          foreach (Product product in insGroup)
+            products.Add(new SelectListItem() { Text = product.Name, Value = product.ID.ToString(), Group = group });
+        }
+
+        return products;
+      }
+    }
+
+    public static List<SelectListItem> ProductsSelected(int? selected)
+    {
+      IProductManager pManager = Product.CreateManager();
+      return (from p in pManager.Load() select new SelectListItem() { Text = p.Name, Value = p.ID.ToString(), Selected = (p.ID == selected ? true : false) }).ToList();
+    }
+
+    public static List<SelectListItem> Languages
+    {
+      get
+      {
+        ILanguageManager lManager = Language.CreateManager();
+        return (from l in lManager.Load() select new SelectListItem() { Text = l.GlobalName, Value = l.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> LanguagesSelected(int? selected)
+    {
+      ILanguageManager lManager = Language.CreateManager();
+      return (from l in lManager.Load() select new SelectListItem() { Text = l.GlobalName, Value = l.ID.ToString(), Selected = (l.ID == selected ? true : false) }).ToList();
+    }
+
+    public static List<SelectListItem> AgeRatings
+    {
+      get
+      {
+        IAgeRatingManager arManager = AgeRating.CreateManager();
+        return (from ar in arManager.Load() select new SelectListItem() { Text = ar.Name, Value = ar.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> AgeRatingsSelected(int? selected)
+    {
+      IAgeRatingManager arManager = AgeRating.CreateManager();
+      return (from ar in arManager.Load() select new SelectListItem() { Text = ar.Name, Value = ar.ID.ToString(), Selected = (ar.ID == selected ? true : false) }).ToList();
+    }
+
+    public static List<SelectListItem> AgeRatingSelectionModes
+    {
+      get
+      {
+        return Enum.GetValues(typeof(AgeRatingSelectionMode)).Cast<AgeRatingSelectionMode>().Select(v => new SelectListItem { Text = v.ToString(), Value = v.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> AgeRatingSelectionModesSelected(AgeRatingSelectionMode? selected)
+    {
+      return Enum.GetValues(typeof(AgeRatingSelectionMode)).Cast<AgeRatingSelectionMode>().Select(v => new SelectListItem { Text = v.ToString(), Value = v.ToString(), Selected = (v == selected ? true : false) }).ToList();
+    }
+
+    public static List<SelectListItem> ShortMessageProviders
+    {
+      get
+      {
+        IShortMessageProviderManager smpManager = ShortMessageProvider.CreateManager();
+        return (from smp in smpManager.Load() select new SelectListItem() { Text = smp.Name, Value = smp.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> ShortMessageProvidersSelected(int? selected)
+    {
+      IShortMessageProviderManager smpManager = ShortMessageProvider.CreateManager();
+      return (from smp in smpManager.Load() select new SelectListItem() { Text = smp.Name, Value = smp.ID.ToString(), Selected = (smp.ID == selected ? true : false) }).ToList();
+    }
+
+    public static List<SelectListItem> AgeVerificationModes
+    {
+      get
+      {
+        return Enum.GetValues(typeof(AgeVerificationMode)).Cast<AgeVerificationMode>().Select(v => new SelectListItem { Text = v.ToString(), Value = v.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> AgeVerificationModesSelected(AgeVerificationMode? selected)
+    {
+      return Enum.GetValues(typeof(AgeVerificationMode)).Cast<AgeVerificationMode>().Select(v => new SelectListItem { Text = v.ToString(), Value = v.ToString(), Selected = (v == selected ? true : false) }).ToList();
+    }
+
+    public static List<SelectListItem> PaymentInterfaces
+    {
+      get
+      {
+        IPaymentInterfaceManager piManager = PaymentInterface.CreateManager();
+        return (from pi in piManager.Load() select new SelectListItem() { Text = pi.Name, Value = pi.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> PaymentInterfacesSelected(int? selected)
+    {
+      IPaymentInterfaceManager piManager = PaymentInterface.CreateManager();
+      return (from pi in piManager.Load() select new SelectListItem() { Text = pi.Name, Value = pi.ID.ToString(), Selected = (pi.ID == selected ? true : false) }).ToList();
+    }
+
+    public static List<SelectListItem> PaymentProviders
+    {
+      get
+      {
+        MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+        return (from pp in runtime.Providers select new SelectListItem() { Text = pp.Name, Value = pp.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> PaymentProvidersSelected(int? selected)
+    {
+      MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+      return (from pp in runtime.Providers select new SelectListItem() { Text = pp.Name, Value = pp.ID.ToString(), Selected = (pp.ID == selected ? true : false) }).ToList();
+    }
+
+    public static List<SelectListItem> PaymentTypes
+    {
+      get
+      {
+        return Enum.GetValues(typeof(PaymentType)).Cast<PaymentType>().Select(pt => new SelectListItem { Text = pt.ToString(), Value = pt.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> PaymentTypesSelected(PaymentType? selected)
+    {
+      return Enum.GetValues(typeof(PaymentType)).Cast<PaymentType>().Select(pt => new SelectListItem { Text = pt.ToString(), Value = pt.ToString(), Selected = (pt == selected ? true : false) }).ToList();
+    }
+
+    public static List<SelectListItem> PaymentCredentials
+    {
+      get
+      {
+        IPaymentCredentialsManager pcManager = Data.PaymentCredentials.CreateManager();
+        return (from pc in pcManager.Load() select new SelectListItem() { Text = pc.Username, Value = pc.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> PaymentCredentialsSelected(int? selected)
+    {
+      IPaymentCredentialsManager pcManager = Data.PaymentCredentials.CreateManager();
+      return (from pc in pcManager.Load() select new SelectListItem() { Text = pc.Username, Value = pc.ID.ToString(), Selected = (pc.ID == selected ? true : false) }).ToList();
+    }
+
+    public static List<SelectListItem> TemporarySetupAccessModes
+    {
+      get
+      {
+        return Enum.GetValues(typeof(TemporarySetupAccessMode)).Cast<TemporarySetupAccessMode>().Select(v => new SelectListItem { Text = v.ToString(), Value = v.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> TemporarySetupAccessModesSelected(TemporarySetupAccessMode? selected)
+    {
+      return Enum.GetValues(typeof(TemporarySetupAccessMode)).Cast<TemporarySetupAccessMode>().Select(v => new SelectListItem { Text = v.ToString(), Value = v.ToString(), Selected = (v == selected ? true : false) }).ToList();
+    }
+
+    public static List<SelectListItem> BusinessModels
+    {
+      get
+      {
+        IBusinessModelManager bmManager = BusinessModel.CreateManager();
+        return (from bm in bmManager.Load() select new SelectListItem() { Text = bm.Name, Value = bm.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> BusinessModelsSelected(int? selected)
+    {
+      IBusinessModelManager bmManager = BusinessModel.CreateManager();
+      return (from bm in bmManager.Load() select new SelectListItem() { Text = bm.Name, Value = bm.ID.ToString(), Selected = (bm.ID == selected ? true : false) }).ToList();
+    }
+
+    public static List<SelectListItem> BusinessModelEntries
+    {
+      get
+      {
+        IBusinessModelEntryManager bmeManager = BusinessModelEntry.CreateManager();
+        return (from bme in bmeManager.Load() select new SelectListItem() { Text = String.Concat("Country: ", bme.Country.GlobalName, bme.MobileOperator == null ? string.Empty : ", Operator: " + bme.MobileOperator.Name), Value = bme.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> BusinessModelEntriesSelected(int? selected)
+    {
+      IBusinessModelEntryManager bmeManager = BusinessModelEntry.CreateManager();
+      return (from bme in bmeManager.Load() select new SelectListItem() { Text = String.Concat("Country: ", bme.Country.GlobalName, bme.MobileOperator == null ? string.Empty : ", Operator: " + bme.MobileOperator.Name), Value = bme.ID.ToString(), Selected = (bme.ID == selected ? true : false) }).ToList();
+    }
+
+    public static List<SelectListItem> LookupMethods
+    {
+      get
+      {
+        return Enum.GetValues(typeof(LookupMethod)).Cast<LookupMethod>().Select(v => new SelectListItem { Text = v.ToString(), Value = v.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> LookupMethodsSelected(LookupMethod? selected)
+    {
+      return Enum.GetValues(typeof(LookupMethod)).Cast<LookupMethod>().Select(v => new SelectListItem { Text = v.ToString(), Value = v.ToString(), Selected = (v == selected ? true : false) }).ToList();
+    }
+
+    public static List<SelectListItem> LookupModes
+    {
+      get
+      {
+        return Enum.GetValues(typeof(LookupMode)).Cast<LookupMode>().Select(v => new SelectListItem { Text = v.ToString(), Value = v.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> LookupModesSelected(LookupMode? selected)
+    {
+      return Enum.GetValues(typeof(LookupMode)).Cast<LookupMode>().Select(v => new SelectListItem { Text = v.ToString(), Value = v.ToString(), Selected = (v == selected ? true : false) }).ToList();
+    }
+
+    public static List<SelectListItem> ContentStorages
+    {
+      get
+      {
+        IContentStorageManager ctManager = ContentStorage.CreateManager();
+        return (from ct in ctManager.Load() select new SelectListItem() { Text = ct.Name, Value = ct.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> ContentGroupTypes
+    {
+      get
+      {
+        return (from cgt in ContentGroupType.CreateManager().Load() select new SelectListItem() { Text = cgt.Name, Value = cgt.ID.ToString() }).ToList();
+      }
+    }
+    public static List<SelectListItem> ContentGroups
+    {
+      get
+      {
+        return (from cg in ContentGroup.LoadAll() select new SelectListItem() { Text = cg.Name, Value = cg.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> ContentGroupsGroupedByType
+    {
+      get
+      {
+        List<SelectListItem> contentGroups = new List<SelectListItem>();
+        var groupedCG = from cg in ContentGroup.CreateManager().Load()
+                        group cg by cg.ContentGroupType into cgGroup
+                        orderby cgGroup.Key.Name
+                        select cgGroup;
+
+        foreach (var cgGroup in groupedCG)
+        {
+          SelectListGroup group = new SelectListGroup() { Name = cgGroup.Key.Name };
+          foreach (ContentGroup cg in cgGroup)
+            contentGroups.Add(new SelectListItem() { Text = cg.Name, Value = cg.ID.ToString(), Group = group });
+        }
+        return contentGroups;
+      }
+    }
+
+    public static List<SelectListItem> PaymentConfigurations
+    {
+      get
+      {
+        IPaymentConfigurationManager pcManager = PaymentConfiguration.CreateManager();
+        return (from pc in pcManager.Load() select new SelectListItem() { Text = pc.Name, Value = pc.ID.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> PaymentConfigurationsSelected(int? selected)
+    {
+      IPaymentConfigurationManager pcManager = PaymentConfiguration.CreateManager();
+      return (from pc in pcManager.Load() select new SelectListItem() { Text = pc.Name, Value = pc.Name, Selected = (pc.ID == selected ? true : false) }).ToList();
+    }
+
+    //payment configurations dropdown for tab4 in Service Task (if payment config exists on previous tab put it in that optgroup)
+    public static List<SelectListItem> PaymentConfigurationsTaskSelected(int? selected, List<PaymentConfiguration> pConfig)
+    {
+      SelectListGroup optGroupDB = new SelectListGroup() { Name = "Database" };
+      SelectListGroup optGroupTab = new SelectListGroup() { Name = "Previous Tab Payment Configurations" };
+      IPaymentConfigurationManager pcManager = PaymentConfiguration.CreateManager();
+      List<SelectListItem> list = (from pc in pcManager.Load() select new SelectListItem() { Text = pc.Name, Value = pc.Name, Selected = (pc.ID == selected ? true : false), Group = (pConfig.Contains(pc) ? optGroupTab : optGroupDB) }).ToList();
+      return list.OrderByDescending(x => x.Group.Name).ToList();
+    }
+
+    public static List<SelectListItem> Clients
+    {
+      get
+      {
+        IClientManager cManager = Client.CreateManager();
+        return (from c in cManager.Load() select new SelectListItem() { Text = c.Username, Value = c.ID.ToString() }).ToList();
+      }
+    }
+
+    //all administators
+    public static List<SelectListItem> Administrators
+    {
+      get
+      {
+        IClientManager cManager = Client.CreateManager();
+        return (from c in cManager.Load()
+                where c.ClientType.Name == "Administrator"
+                orderby c.Username
+                select new SelectListItem() { Text = c.Username, Value = c.ID.ToString() }).ToList();
+      }
+    }
+
+    //all administrators with rights to Configure Service
+    public static List<SelectListItem> AdminsWithConfigureRights
+    {
+      get
+      {
+        IClientComponentAccessPolicyManager ccapManager = ClientComponentAccessPolicy.CreateManager();
+        return (from c in ccapManager.Load()
+                where c.Client.ClientType.Name.Equals("Administrator") 
+                      && c.Component.ID.Equals(6)
+                orderby c.Client.Username
+                select new SelectListItem() { Text = c.Client.Username, Value = c.Client.ID.ToString() }).ToList();
+      }
+    }
+
+    //all administators exept the client
+    public static List<SelectListItem> OtherAdministrators(Client client)
+    {
+      IClientManager cManager = Client.CreateManager();
+      return (from c in cManager.Load()
+              where c.ClientType.Name == "Administrator" && c.ID != client.ID
+              select new SelectListItem() { Text = c.Username, Value = c.ID.ToString() }).ToList();
+    }
+
+    public static List<SelectListItem> TimelineTypes
+    {
+      get
+      {
+        return Enum.GetValues(typeof(TimelineType)).Cast<TimelineType>().Select(v => new SelectListItem { Text = v.ToString(), Value = v.ToString() }).ToList();
+      }
+    }
+
+    public static List<SelectListItem> TimelineTypesSelected(TimelineType? selected)
+    {
+      return Enum.GetValues(typeof(TimelineType)).Cast<TimelineType>().Select(v => new SelectListItem { Text = v.ToString(), Value = v.ToString(), Selected = (v == selected ? true : false) }).ToList();
+    }
+
+    public static List<SelectListItem> CustomServiceTypes
+    {
+      get
+      {
+        List<SelectListItem> types = new List<SelectListItem>();
+        types.Add(new SelectListItem() { Text = "Funny videos", Value = "Funny videos" });
+        types.Add(new SelectListItem() { Text = "Games", Value = "Games" });
+        types.Add(new SelectListItem() { Text = "Adult", Value = "Adult" });
+
+        return types;
+      }
+    }
+
+    public static List<SelectListItem> Currencies
+    {
+      get
+      {
+        return (from c in Currency.CreateManager().Load() select new SelectListItem() { Text = c.Abbreviation, Value = c.ID.ToString()}).ToList();
+      }
+    }
+
+  }
+}

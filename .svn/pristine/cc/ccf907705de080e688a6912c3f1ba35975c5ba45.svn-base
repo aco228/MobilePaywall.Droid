@@ -1,0 +1,279 @@
+﻿using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using Cashflow.Message.Data;
+using Cashflow.Message;
+using Cashflow.Client;
+using MobilePaywall.CustomerCare.Core.PdfDocument;
+using System.Web;
+using MobilePaywall.CustomerCare.Helper;
+
+namespace MobilePaywall.CustomerCare.Models
+{
+  public class TransactionsModel
+  {
+
+    private string _title = string.Empty;
+    private CustomerClient _customerClient = null;
+    private ServiceLookupMethodMap _serviceLookupMethodMap = null;
+    private MobilePaywall.Data.Customer _customer = null;
+    private int _numberOfStreamedVideos = 0;
+    private int _numberOfDowloadedVideos = 0;
+
+    public MobilePaywall.Data.Payment Payment { get; set; }
+    public List<MobilePaywall.Data.PaymentContentAccessPolicyMap> AccessPolicyMap { get; set; }
+    public List<Subscription> CashflowSubscription { get; set; }
+    public List<Purchase> CashflowPurcases { get; set; }
+    //public List<MobilePaywall.Data.Transaction> Transactions { get; set; }
+    public List<CashflowTransaction> Transactions { get; set; }
+    public List<Cashflow.Message.Data.Transaction> CashflowTransactions { get; set; }
+    public Domain Domain { get; set; }
+    public List<UserHttpRequest> Requests { get; set; }
+    public List<IContent> Content { get; set; }
+		public ServiceLookupMethodMap ServiceLookupMethodMap { get { return this._serviceLookupMethodMap; } }
+    public MobilePaywall.Data.Customer Customer { get { return this._customer; } }
+    public int NumberOfStreamedVideos { get { return this._numberOfStreamedVideos; } }
+    public int NumberOfDownloadedVideos { get { return this._numberOfDowloadedVideos; } }
+    public string Title { get { return this._title; } }
+
+    public string PaymentStatus
+    {
+      get
+      {
+        if (this.CashflowSubscription.Count > 0)
+          return this.CashflowSubscription.ElementAt(0).Status.ToString();
+        else if (this.CashflowPurcases.Count > 0)
+          return this.CashflowPurcases.ElementAt(0).Status.ToString();
+        else
+          return string.Empty;
+      }
+    }
+
+    public TransactionsModel(MobilePaywall.Data.Payment payment) : this(payment, true) { }
+          
+		public TransactionsModel(MobilePaywall.Data.Payment payment, bool initializeAll)
+		{
+			this.Payment = payment;
+      this._title = this.Payment.PaymentType == PaymentType.Subscription ? "Subscriptions informations" : "Purchase informations";
+      this.AccessPolicyMap = PaymentContentAccessPolicyMap.CreateManager().Load(this.Payment);
+			this._customerClient = new CustomerClient();
+			this._customerClient.AttachLogWriter(new Cashflow.Client.Diagnostics.Log.CashflowClientLogWriter());
+			this._serviceLookupMethodMap = ServiceLookupMethodMap.CreateManager(2).Load(this.Payment.ServiceOffer.Service, this.Payment.Customer.Country, LookupMethod.Wap);
+
+			this.CashflowSubscription = new List<Subscription>();
+      this.CashflowPurcases = new List<Purchase>();
+			this.CashflowTransactions = new List<Cashflow.Message.Data.Transaction>();
+      this.Transactions = new List<CashflowTransaction>();
+      this._customer = this.Payment.Customer;
+			this.Requests = UserHttpRequest.CreateManager().Load(this._customer);
+      this.CountStreamDownload();
+			this.Domain = Domain.CreateManager().Load(this.Payment.ServiceOffer.Service).FirstOrDefault();
+
+			if (initializeAll)
+			{
+				this.GetContent();
+				this.GetSubsctiption();
+        this.GetPurcases();
+				this.GetTransactions();
+			}
+		}
+
+    private void CountStreamDownload()
+    {
+      foreach(UserHttpRequest request in this.Requests)
+        if (request.RequestedUrl.ToLower().Contains("/download"))
+          this._numberOfDowloadedVideos++;
+        else if (request.RequestedUrl.ToLower().Contains("/stream"))
+          this._numberOfStreamedVideos++;
+    }
+
+    public string LabelStatus(string status)
+    {
+      switch (status)
+      {
+        case "Charge Failed":
+        case "Refund Failed": return "danger";
+        case "Cancelled": return "danger";
+        case "Charged": return "success";
+        case "Refunded": return "info";
+        case "Pending": return "warning";
+        default: return "primary";
+      }
+    }
+
+    public string LabelPcapmStatus(string status)
+    {
+      switch(status)
+      {
+        case "True": return "success";
+        case "False": return "danger";
+        case "Expired": return "warning";
+        default: return "";
+      }
+    }
+
+    public List<Subscription> GetSubsctiption()
+    {
+      // TODO: Is Customer.Country country we need?
+      GetSubscriptionsRequest getSubscriptionsRequest = new GetSubscriptionsRequest(RequestMode.Synchronous,
+                                                                               this.Payment.Customer.ExternalCustomerGuid.Value.ToString(),
+                                                                               this._serviceLookupMethodMap.PaymentConfiguration.PaymentCredentials.Username, 
+                                                                               this._serviceLookupMethodMap.PaymentConfiguration.PaymentCredentials.Password,
+                                                                               null,
+                                                                               this.Payment.Customer.ExternalCustomerGuid.Value);
+
+      GetSubscriptionsResponse getSubscriptionResponse = this._customerClient.GetSubscriptions(getSubscriptionsRequest, null);
+      this.CashflowSubscription = getSubscriptionResponse.Subscriptions.ToList();
+			return this.CashflowSubscription;
+    }
+
+    public List<Purchase> GetPurcases()
+    {
+      GetPurchasesRequest getPurchaseRequest = new GetPurchasesRequest(RequestMode.Synchronous,
+                                                                               this.Payment.Customer.ExternalCustomerGuid.Value.ToString(),
+                                                                               this._serviceLookupMethodMap.PaymentConfiguration.PaymentCredentials.Username,
+                                                                               this._serviceLookupMethodMap.PaymentConfiguration.PaymentCredentials.Password,
+                                                                               null,
+                                                                               this.Payment.Customer.ExternalCustomerGuid.Value);
+
+      GetPurchasesResponse getPurcasheResponse = this._customerClient.GetPurchases(getPurchaseRequest, null);
+      this.CashflowPurcases = getPurcasheResponse.Purchases.ToList();
+      return this.CashflowPurcases;
+    }
+
+    public List<Cashflow.Message.Data.Transaction> GetTransactions()
+    {
+      foreach(Subscription subscription in this.CashflowSubscription)
+      {
+        TransactionClient transactionClient = new TransactionClient();
+        transactionClient.AttachLogWriter(new CashflowLog(this.Payment.ServiceOffer.Service));
+
+        GetTransactionsRequest getTransactionRequest = new GetTransactionsRequest(RequestMode.Default,
+                                                                                  this.Payment.ExternalPaymentGuid.ToString(),
+                                                                                  this._serviceLookupMethodMap.PaymentConfiguration.PaymentCredentials.Username,
+                                                                                  this._serviceLookupMethodMap.PaymentConfiguration.PaymentCredentials.Password,
+                                                                                  subscription.TransactionGroupID,
+                                                                                  null);
+
+        GetTransactionsResponse getTransactionResponse = transactionClient.GetTransactions(getTransactionRequest, null);
+
+        if (getTransactionResponse.Status.Code != MessageStatusCode.Success)
+          continue;
+
+        List<Refund> refunds = new List<Refund>();
+        GetRefundsRequest getRefundsRequest = new GetRefundsRequest(RequestMode.Synchronous, subscription.SubscriptionID.ToString(),
+                                                                    this._serviceLookupMethodMap.PaymentConfiguration.PaymentCredentials.Username,
+                                                                    this._serviceLookupMethodMap.PaymentConfiguration.PaymentCredentials.Password,
+                                                                    subscription.TransactionGroupID, null);
+        GetRefundsResponse getRefundsResponse = transactionClient.GetRefunds(getRefundsRequest);
+
+        if (getRefundsResponse.Status.Code == MessageStatusCode.Success)
+          refunds = getRefundsResponse.Refunds.ToList();
+
+
+        //this.CashflowTransactions.AddRange(getTransactionResponse.Transactions.ToList());
+
+        // TODO: Is this part OKEY?
+        List<Cashflow.Message.Data.Transaction> activeTransactions = (from t in getTransactionResponse.Transactions 
+                                                                      where t.Type == Cashflow.Message.Data.TransactionType.Debit && 
+                                                                            (t.Status == Cashflow.Message.Data.TransactionStatus.Failed || t.Status == Cashflow.Message.Data.TransactionStatus.Executed) 
+                                                                      select t).ToList();
+        foreach (Cashflow.Message.Data.Transaction t in activeTransactions)
+        {
+          //Refund refundTransaction = (from r in refunds where t.TransactionID == r.RefundTransaction.TransactionID select r).FirstOrDefault();
+          //if (refundTransaction != null)
+          //  continue;
+
+          Refund refund = (from r in refunds where t.TransactionID == r.RefundedTransaction.TransactionID select r).OrderByDescending(x=>x.RefundTransaction.Created).FirstOrDefault();
+          this.CashflowTransactions.Add(t);
+          this.Transactions.Add(new CashflowTransaction(t, refund));
+        }
+      }
+			return this.CashflowTransactions;
+    }
+
+    public List<IContent> GetContent()
+    {
+      this.Content = new List<IContent>();
+      List<UserContentAccessHistory> ucah = UserContentAccessHistory.CreateManager().Load(this.Payment, this._customer);
+
+      foreach (UserContentAccessHistory c in ucah)
+        this.Content.Add(c.Content.Instantiate());
+
+			return this.Content;
+    }
+
+    public void Print(HttpContext context)
+    {
+      PdfDocument document = new PdfDocument(context);
+      document.Open();
+
+      PdfTable customerTable = new PdfTable();
+      customerTable.Header = "Customer informations";
+      customerTable.Data.Add(new List<string>() { "Username", this._customer.Username });
+      customerTable.Data.Add(new List<string>() { "Country", this._customer.Country.GlobalName});
+      customerTable.Data.Add(new List<string>() { "Mobile operator", this._customer.MobileOperator != null ? this._customer.MobileOperator.Name : "null" });
+
+      document.AddTable(customerTable);
+
+      PdfTable subscriptionInformations = new PdfTable();
+      subscriptionInformations.Header = "Subscription informations";
+      subscriptionInformations.Data.Add(new List<string>() { "Identifier", this.Payment.Guid.ToString() });
+      subscriptionInformations.Data.Add(new List<string>() { "Date", this.Payment.Created.ToString() });
+      subscriptionInformations.Data.Add(new List<string>() { "Status", this.CashflowSubscription.ElementAt(0).Status.ToString() });
+      subscriptionInformations.Data.Add(new List<string>() { "Number of transactions", this.CashflowTransactions.Count.ToString() });
+
+      document.AddTable(subscriptionInformations);
+
+      PdfTable transactionTable = new PdfTable();
+      transactionTable.Header = "Transactions";
+      transactionTable.HasHeaderColumn = true;
+      transactionTable.Data.Add(new List<string>() { "Date", "Amount", "Currency", "Status" });
+
+      foreach(Cashflow.Message.Data.Transaction transaction in this.CashflowTransactions)
+        transactionTable.Data.Add(new List<string>() { transaction.Created.ToString(), transaction.Amount.Value.ToString(), transaction.Amount.Currency, transaction.Status.ToString() });
+
+      document.AddTable(transactionTable);
+
+      PdfTable viewedVideosTable = new PdfTable();
+      viewedVideosTable.Header = "Watched videos";
+      viewedVideosTable.HasHeaderColumn = true;
+      viewedVideosTable.Data.Add(new List<string>() { "Date", "Url" });
+
+      //foreach(IContent content in this.Content)
+      //{
+      //  Video video = content as Video;
+      //  viewedVideosTable.Data.Add(new List<string>() { content.GetAccessUrl(""), (video!=null) ? video.VideoContentData.Title : "" });
+      //}
+
+      List<UserHttpRequest> httpRequests = UserHttpRequest.CreateManager().Load(this._customer);
+      foreach(UserHttpRequest req in httpRequests)
+      {
+        if (req.Content == null)
+          continue;
+
+        viewedVideosTable.Data.Add(new List<string>() { req.Created.ToString(), string.Format("content/{0}", req.Content.ID) });
+      }
+
+      document.AddTable(viewedVideosTable);
+      
+      document.Close();
+
+    }
+
+		public string GetRequestUrlWithDomain(int index)
+		{
+			string url = this.Requests[index].RequestedUrl;
+			if (url.StartsWith("/"))
+			{
+				url = "http://" + Payment.ServiceOffer.Service.Name + url;
+			}
+			return url;
+		}
+
+  }
+}

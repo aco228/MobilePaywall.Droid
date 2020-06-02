@@ -1,0 +1,86 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class ContentAccessPolicyManager : IContentAccessPolicyManager
+  {
+
+      
+      public ContentAccessPolicy Load(BusinessModel businessModel, BusinessModelEntry businessModelEntry, Service service, ContentGroup contentGroup, Content content)
+      {
+          using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+              return this.Load(connection, businessModel, businessModelEntry, service, contentGroup, content);
+      }
+
+      public ContentAccessPolicy Load(IConnectionInfo connection, BusinessModel businessModel, BusinessModelEntry businessModelEntry, Service service, ContentGroup contentGroup, Content content)
+      {
+          ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+          if (sqlConnection != null)
+              return this.Load(sqlConnection, businessModel, businessModelEntry, service, contentGroup, content);
+          using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+              return this.Load(sqlConnection, businessModel, businessModelEntry, service, contentGroup, content);
+      }
+
+      public ContentAccessPolicy Load(ISqlConnectionInfo connection, BusinessModel businessModel, BusinessModelEntry businessModelEntry, 
+          Service service, ContentGroup contentGroup, Content content)
+      {
+          SqlQueryParameters parameters = new SqlQueryParameters();
+          string query = "[cap].BusinessModelID = @BusinessModelID AND [cap].BusinessModelEntryID = @BusinessModelEntryID AND [cap].ServiceID = @ServiceID";
+          if(contentGroup != null) 
+          {
+              query += " AND [cap].ContentGroupID = @ContentGroupID";
+              parameters.Arguments.Add("ContentGroupID", contentGroup.ID);
+          }
+          else query += " AND [cap].ContentGroupID IS NULL";
+          
+          if (content != null)
+          {
+              query += " AND [cap].ContentID = @ContentID";
+              parameters.Arguments.Add("ContentID", content.ID);
+          }
+          else query += " AND [cap].ContentID IS NULL";
+
+          parameters.Where = query;
+          parameters.Arguments.Add("BusinessModelID", businessModel.ID);
+          parameters.Arguments.Add("BusinessModelEntryID", businessModelEntry.ID);
+          parameters.Arguments.Add("ServiceID", service.ID);
+          return this.Load(connection, parameters);
+      }
+
+
+      public ContentAccessPolicy Load(Service service)
+      {
+        using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+          return this.Load(connection, service);
+      }
+
+      public ContentAccessPolicy Load(IConnectionInfo connection, Service service)
+      {
+        ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+        if (sqlConnection != null)
+          return this.Load(sqlConnection, service);
+        using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+          return this.Load(sqlConnection, service);
+      }
+
+      public ContentAccessPolicy Load(ISqlConnectionInfo connection, Service service)
+      {
+        SqlQueryParameters parameters = new SqlQueryParameters();
+        parameters.Where = "[cap].ServiceID=@ServiceID";
+        parameters.Arguments.Add("ServiceID", service.ID);
+        return this.Load(connection, parameters);
+      }
+
+  }
+}
+

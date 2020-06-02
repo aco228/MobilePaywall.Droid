@@ -1,0 +1,138 @@
+﻿using log4net;
+using MobilePaywall.Direct;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Web;
+
+namespace MobilePaywall.Implementation.PaywallLog
+{
+  public abstract class PLogImplementationBase
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    public static ILog Log4Net
+    {
+      get
+      {
+        if (PLogImplementationBase._log == null)
+          PLogImplementationBase._log = LogManager.GetLogger(typeof(PLogImplementationBase));
+        return PLogImplementationBase._log;
+      }
+    }
+    #endregion
+
+    private const string _lockObj = "lockObj";
+
+    private bool _hasError = true;
+    private Direct.MobilePaywallLogDirect _database = null;
+    private string _applicationName = string.Empty;
+    private Dictionary<string, int> _paywallLogClassMethodMap = new Dictionary<string, int>();
+    private int _applicationID = -1;
+        
+    public PLogImplementationBase(string applicationName)
+    {
+      this._applicationName = applicationName;
+      this._database = MobilePaywallLogDirect.Instance;
+      int? appID = this._database.LoadInt(string.Format("SELECT PaywallLogApplicationID FROM MobilePaywallLog.Log.PaywallLogApplication WHERE Name='{0}';", this._applicationName));
+      if (appID == null)
+        return;
+
+      this._hasError = false;
+      this._applicationID = appID.Value;
+    }
+    
+    public void AddLog(PLogPipe pipe)
+    {
+      if (this._hasError)
+        return;
+
+      pipe.PaywallLogApplicationID = this._applicationID;
+      this.GetDerivatedInformations(ref pipe);
+
+      PLogTrace trace = null;
+      if(!string.IsNullOrEmpty(pipe.Key))
+      {
+        trace = new PLogTrace(pipe.Key, this._applicationID);
+        if (!trace.IsActive || trace.ID == -1)
+          return;
+      }
+
+      int? contextID = this.GetContextID(pipe);
+      int? classMethodMapID = this.GetClassMethodMap(pipe);
+
+      this._database.Execute(string.Format(
+        @"INSERT INTO MobilePaywallLog.log.PaywallLog 
+                  (PaywallLogContextID, PaywallLogTraceID, PaywallLogApplicationID, PaywallLogClassMethodMapID, ApplicationID, ServiceID, UserSessionID, ClassName, MethodName, Text, Exception) 
+                VALUES 
+                ({0}, {1}, {2}, {3}, {4}, {5}, {6}, '{7}', '{8}', '{9}', {10});",
+        (contextID.HasValue ? contextID.Value.ToString() : "NULL"),
+        (trace != null ? trace.ID.ToString() : "NULL"),
+        pipe.PaywallLogApplicationID,
+        (classMethodMapID.HasValue ? classMethodMapID.Value.ToString() : "NULL"),
+        (pipe.ApplicationID.HasValue ? pipe.ApplicationID.Value.ToString() : "NULL"),
+        (pipe.ServiceID.HasValue ? pipe.ServiceID.Value.ToString() : "NULL"),
+        (pipe.UserSessionID.HasValue ? pipe.UserSessionID.Value.ToString() : "NULL"),
+        pipe.ClassName, pipe.MethodName,
+        pipe.Text, 
+        (string.IsNullOrEmpty(pipe.Exception) ? "NULL" : string.Format("'{0}'", pipe.Exception))));
+      
+    }
+
+    private void GetDerivatedInformations(ref PLogPipe pipe)
+    {
+      if(!pipe.UserSessionID.HasValue)
+        pipe.UserSessionID = this.GetUserSessionID(pipe);
+      if(!pipe.ApplicationID.HasValue)
+        pipe.ApplicationID = this.GetApplicationID(pipe);
+      if(!pipe.ServiceID.HasValue)
+        pipe.ServiceID = this.GetServiceID(pipe);
+    }
+
+    private int? GetContextID(PLogPipe pipe)
+    {
+      int? contextID = null;
+      if (pipe.UserSessionID.HasValue)
+      {
+        contextID = this._database.LoadInt(string.Format("SELECT PaywallLogContextID FROM MobilePaywallLog.log.PaywallLogContext WHERE UserSessionID={0}", pipe.UserSessionID.Value));
+        if (contextID == null)
+          contextID = this._database.Execute(string.Format("INSERT INTO MobilePaywallLog.log.PaywallLogContext (UserSessionID) VALUES ({0})", pipe.UserSessionID.Value));
+      }
+
+      return contextID;
+    }
+
+    private int? GetClassMethodMap(PLogPipe pipe)
+    {
+      string key = string.Format("{0}.{1}", pipe.ClassName, pipe.MethodName);
+      if (this._paywallLogClassMethodMap.ContainsKey(key))
+        return this._paywallLogClassMethodMap[key];
+
+      int? classMethodMapID = this._database.LoadInt(string.Format("SELECT PaywallLogClassMethodMapID FROM MobilePaywallLog.log.PaywallLogClassMethodMap WHERE [Key]='{0}' AND PaywallLogApplicationID={1};", 
+        key, 
+        pipe.PaywallLogApplicationID));
+
+      if (!classMethodMapID.HasValue)
+      {
+        classMethodMapID = this._database.Execute(string.Format("INSERT INTO MobilePaywallLog.log.PaywallLogClassMethodMap (PaywallLogApplicationID, [Key], ClassName, MethodName) VALUES ({0}, '{1}', '{2}', '{3}');",
+          pipe.PaywallLogApplicationID, key, pipe.ClassName, pipe.MethodName));
+      }
+
+      if (classMethodMapID.HasValue)
+        this._paywallLogClassMethodMap.Add(key, classMethodMapID.Value);
+
+      return classMethodMapID;
+    }
+
+    protected abstract int? GetApplicationID(PLogPipe pipe);
+    protected abstract int? GetServiceID(PLogPipe pipe);
+    protected abstract int? GetUserSessionID(PLogPipe pipe);
+    
+
+  }
+}

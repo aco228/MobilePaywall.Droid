@@ -1,0 +1,105 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using Cashflow.Message;
+using Cashflow.Message.Mobile;
+using Cashflow.Message.FirstTelecom;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.DCBEgypt;
+using Senti.Localization;
+
+
+namespace MobilePaywall
+{
+  public interface IArgument
+  {
+    WapTemplateArguments WapTemplateArguments { get; }
+    FirstTelecomTemplateArguments FirstTelecomTemplateArguments { get; }
+    MobileTanArguments MobileTanArguments { get; }
+
+    IArgumentGroup Get<T>();
+  }
+
+  public class Argument : IArgument
+  {
+    private IContent _content = null;
+    private IService _service = null;
+    private IUserSession _session = null;
+    private PaymentRequest _request = null;
+    private WapTemplateArguments _wapTemplateArguments = null;
+    private FirstTelecomTemplateArguments _firstTelecomTemplateArguments = null;
+    private MobileTanArguments _mobileTanArguments = null;
+
+    public WapTemplateArguments WapTemplateArguments { get { return this._wapTemplateArguments; } }
+    public FirstTelecomTemplateArguments FirstTelecomTemplateArguments { get { return this._firstTelecomTemplateArguments; } }
+    public MobileTanArguments MobileTanArguments { get { return this._mobileTanArguments; } }
+
+    public Argument(IContent content, IService service, IUserSession session, PaymentRequest request)
+    {
+      this._content = content;
+      this._service = service;
+      this._session = session;
+      this._request = request;
+      this._wapTemplateArguments = this.Get<WapTemplateArguments>() as WapTemplateArguments;
+      this._firstTelecomTemplateArguments = this.Get<FirstTelecomTemplateArguments>() as FirstTelecomTemplateArguments;
+      this._mobileTanArguments = this.Get<MobileTanArguments>() as MobileTanArguments;
+    }
+
+    public IArgumentGroup Get<T>()
+    {
+      if ((typeof(T)).Equals(typeof(Cashflow.Message.Mobile.WapTemplateArguments)))
+      {
+        WapTemplateArguments wapTemplateArguments = new WapTemplateArguments();
+        wapTemplateArguments.AboToolUrl = string.Format("http://{0}/payments", this._session.SessionData.Domain.DomainName); //Subscription management page.
+        wapTemplateArguments.ImprintUrl = string.Format("http://{0}/imprint", this._session.SessionData.Domain.DomainName); //Imprint page.
+        wapTemplateArguments.TacUrl = string.Format("http://{0}/terms", this._session.SessionData.Domain.DomainName); //Terms and condition page.
+        wapTemplateArguments.ContactUrl = string.Format("http://{0}/imprint", this._session.SessionData.Domain.DomainName); //Imprint page or dedicated contact page in case that we have it.
+        wapTemplateArguments.FaqUrl = string.Format("http://{0}/imprint", this._session.SessionData.Domain.DomainName); //Fuck U page! :D Usually we don't have it and in MobileMafia i didn't pass this argument.
+        //wapTemplateArguments.LogoUrl = string.Format("{0}/Images/_Logo/{1}", this._service.Domains.FirstOrDefault().DomainName, this._service.ServiceData.ID);
+        wapTemplateArguments.LogoUrl = string.Format("http://{0}/lg/{1}.png", this._session.SessionData.Domain.DomainName, this._service.ServiceData.ID);
+        //wapTemplateArguments.ThumbnailUrl = string.Format("{0}/content/thumbnail/{1}", this._service.Domains.FirstOrDefault().DomainName, this._content.ContentData.ID);
+        wapTemplateArguments.ThumbnailUrl = string.Format("http://{0}/thb/{1}.jpg", this._session.SessionData.Domain.DomainName, this._content.ContentData.ID);
+        //wapTemplateArguments.Description = this._service.ServiceData.FallbackCountry.ID == 1 ? "Unbegrenzter Zugriff auf alle Erotik Videos ab 16 Jahren!" : this._service.ServiceData.Name; //In case of Germany we should use "Unbegrenzter Zugriff auf alle Erotik Videos ab 16 Jahren!" this description.
+        wapTemplateArguments.Description = this._service.ServiceData.Name;
+        if (this._session.Service.ServiceData.ID == 59)
+          wapTemplateArguments.Description = "24h käyttöoikeus sivulle";
+        return wapTemplateArguments;
+      }
+      else if ((typeof(T)).Equals(typeof(Cashflow.Message.FirstTelecom.FirstTelecomTemplateArguments)))
+      {
+        if (this._session.SessionData.MobileOperator == null)
+          return null;
+        FirstTelecomTemplateArguments firstTelecomTemplateArguments = new FirstTelecomTemplateArguments();
+        switch (this._session.SessionData.MobileOperator.Country.ID)
+        {
+          case 1: //Germany
+            firstTelecomTemplateArguments.PurchaseTemplateId = "SMARTPHONE"; //Documentation about parameters you can find in ../Cashflow/_documentation/FirstTelecom
+            firstTelecomTemplateArguments.PurchaseColorId = "black_on_white";
+            return firstTelecomTemplateArguments;
+          default:
+            return null;
+        }
+      }
+      else if ((typeof(T)).Equals(typeof(Cashflow.Message.MobileTanArguments)))
+      {
+        if (this._session.SessionData.Country.ID != 65)
+          return null;
+
+        Random r = new Random();
+        PaymentRequestPinMap prpm = new PaymentRequestPinMap(-1, this._request, r.Next(1000, 9999).ToString(), false, DateTime.Now, DateTime.Now);
+        prpm.Insert();
+
+        MobileTanArguments arguments = new MobileTanArguments();
+        arguments.Msisdn = this._request.Customer.Msisdn;
+        arguments.Tan = prpm.Pin;
+        return arguments;
+      }
+      else
+        return null;
+    }
+  }
+}

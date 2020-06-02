@@ -1,0 +1,50 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface ICategoryManager 
+  {
+		List<Category> Load();
+		List<Category> Load(IConnectionInfo connection);
+		List<Category> Load(Instance instance);
+		List<Category> Load(IConnectionInfo connection, Instance instance);
+		Category Load(string name);
+		Category Load(IConnectionInfo connection, string name);
+  }
+
+  public partial class Category
+  {
+    private SortedDictionary<Language, CategoryDetail> _languageCategoryDetailMap = new SortedDictionary<Language, CategoryDetail>();
+
+    public void UpdateWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void UpdateWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void InsertWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void InsertWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void DeleteWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+    public void DeleteWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+
+    public override bool IsDeletable { get { return true; } }
+
+    public string ContextTitle(IService service)
+    {
+      if (this._languageCategoryDetailMap.ContainsKey(service.ServiceData.FallbackLanguage))
+        return this._languageCategoryDetailMap[service.ServiceData.FallbackLanguage].Title;
+      
+      CategoryDetail detail = CategoryDetail.CreateManager().Load(this, service.ServiceData.FallbackLanguage);
+      if (detail == null)
+        return this._name;
+
+      this._languageCategoryDetailMap.Add(service.ServiceData.FallbackLanguage, detail);
+      return detail.Title;
+    }
+
+
+  }
+}
+

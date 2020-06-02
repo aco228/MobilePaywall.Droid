@@ -1,0 +1,182 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall
+{
+  public class Html5 : ContentBase
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (Html5._log == null)
+          Html5._log = LogManager.GetLogger(typeof(Html5));
+        return Html5._log;
+      }
+    }
+    #endregion
+
+    private Html5Content _html5Content = null;
+
+    public Html5Content Html5Content { get { return this._html5Content; } }
+    public override string ContentIconClass { get { return "__contentIcon_html5"; } }
+    public override string DefaultTitle { get { return this._html5Content.Title; } }
+
+
+    public Html5(Content content)
+      :base(content)
+    {
+      this._html5Content = Html5Content.CreateManager().Load(content);      
+    }
+        
+    public Html5(ICache cache, Content content, Html5Content htmlContent)
+      :base(cache, content)
+    {
+      this._html5Content = htmlContent;
+    }
+    
+    public override bool IsDownloadable { get { return false; } }
+
+    public override string GetThumbnailUrl(string userAgent)
+    {
+      //string path = string.Format("/Views/_Other/_Application/{0}/{1}/thumbnail.jpg", this._html5Content.Content.ContentGroup.ID, this._html5Content.ID);
+      return "/content/html5/thumbnail/" + this._html5Content.Content.ID;
+    }
+
+    public override List<ContentStreamingOption> GetStreamingOptions(string userAgent)
+    {
+      List<ContentStreamingOption> list = new List<ContentStreamingOption>();
+      list.Add(new ContentStreamingOption()
+      {
+        Extra = "/content/html5/access/" + this._html5Content.ID,
+        Type = ContentStreamingOptionType.Html5
+      });
+      return list;
+    }
+
+    public override ContentInformations GetInformations(Service service, Language language)
+    {
+      Html5ContentDetail detail = Html5ContentDetail.LoadByServiceAndLanguage(this._html5Content, service, language);
+      if(detail != null)
+        return new ContentInformations()
+        {
+          Title = detail.Title,
+          Description = detail.Description,
+          HtmlTitle = detail.HtmlTitle,
+          MetaDescription = detail.MetaDescription,
+          MetaKeywords = detail.MetaKeywords,
+          Rating = detail.Rating.ToString()
+        };
+      else
+        return new ContentInformations()
+        {
+          Title = this._html5Content.Title,
+          HtmlTitle = this._html5Content.Title,
+          Description = this._html5Content.Description
+        };
+    }
+
+    public override System.Collections.Specialized.NameValueCollection GetMetaInformation(Data.Service service, Data.Language language)
+    {
+      throw new NotImplementedException();
+    }
+
+    public override ContentData GetContentData(string userAgent)
+    {
+      throw new NotImplementedException();
+    }
+
+    public override ContentData GetContentData(int id)
+    {
+      throw new NotImplementedException();
+    }
+
+    public override void UpdateTitle(string title, IUserSession us)
+    {
+      this._html5Content.Title = title;
+      this._html5Content.UpdateWithHistory(us);
+    }
+
+    public override void UpdateDescription(string description, IUserSession us)
+    {
+      this._html5Content.Description = description;
+      this._html5Content.UpdateWithHistory(us);
+    }
+
+    public override List<ContentInformations> GetAllContentDetail()
+    {
+      List<Html5ContentDetail> hcd = Html5ContentDetail.CreateManager().Load(this._html5Content);
+      List<ContentInformations> result = new List<ContentInformations>();
+
+      foreach (Html5ContentDetail h in hcd)
+        result.Add(new ContentInformations()
+        {
+          ID = h.ID,
+          Title = h.Title,
+          Description = h.Description,
+          HtmlTitle = h.HtmlTitle,
+          MetaDescription = h.MetaDescription,
+          MetaKeywords = h.MetaKeywords,
+          Language = h.Language,
+          Service = h.Service,
+          Rating = h.Rating.ToString(),
+        });
+
+      return result;
+    }
+
+    public override void UpdateContentDetails(ContentInformations info, IUserSession us)
+    {
+      if (info.Language == null)
+        return;
+
+      Html5ContentDetail dt = null;
+      if (info.Service != null)
+        dt = Html5ContentDetail.CreateManager().Load<Html5ContentDetail>(this._html5Content, info.Service, info.Language);
+      else
+        dt = Html5ContentDetail.CreateManager().Load(this._html5Content, info.Language);
+
+      if (dt == null)
+      {
+        dt = new Html5ContentDetail(-1, this._html5Content, null, info.Language, info.Title, info.Description, info.RatingDecimal, info.HtmlTitle, info.MetaDescription, info.MetaKeywords, DateTime.Now, DateTime.Now);
+        dt.InsertWithHistory(us);
+        return;
+      }
+
+      dt.Title = info.Title;
+      dt.Service = info.Service;
+      dt.Language = info.Language;
+      dt.Description = info.Description;
+      dt.Rating = info.RatingDecimal;
+      dt.MetaKeywords = info.MetaKeywords;
+      dt.MetaDescription = info.MetaDescription;
+
+      dt.UpdateWithHistory(us);
+    }
+
+    public override void DeleteContentDetails(ContentInformations info, IUserSession us)
+    {
+      if (info.Language == null)
+        return;
+
+      Html5ContentDetail dt = null;
+      if (info.Service != null)
+        dt = Html5ContentDetail.CreateManager().Load<Html5ContentDetail>(this._html5Content, info.Service, info.Language);
+      else
+        dt = Html5ContentDetail.CreateManager().Load(this._html5Content, info.Language);
+
+      if (dt != null)
+        dt.DeleteWithHistory(us);
+    }
+  }
+}

@@ -1,0 +1,95 @@
+﻿@model MobilePaywall.Web.Models.ContentProxyModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+}
+
+@Styles.Render("~/Style/Darkley/Login")
+@Scripts.Render("~/Script/Login")
+
+<style>
+  #mno_select
+  {
+    margin-bottom: 0px;
+    box-sizing: border-box;
+    background-color: #232323;
+    border: 3px solid #333;
+    color: #999;
+    width:100%;
+  }
+</style>
+
+<div class="contactFormWrapper">
+  @*<h4 class="contactTitle">Please enter your Mobile Operator and phone number</h4>*@
+  <h4 class="contactTitle">กรุณากรอก บริการมือถือที่ และหมายเลขโทรศัพท์ของคุณ</h4>
+  <form class="contactForm _login_form" id="contactForm">
+    <fieldset>
+      <div class="formFieldWrapper">
+        <label for="contactNameField">ผู้ประกอบการมือถือ:</label>
+        <select class="contactField requiredField" id="mno_select">
+          <option value="407">AIS</option>
+          <option value="408">DTAC</option>
+        </select>
+      </div>
+      <div class="formFieldWrapper">
+        <label for="contactEmailField">หมายเลขโทรศัพท์:</label>
+        <input type="text" name="contactEmailField" value="" class="contactField requiredField requiredEmailField" id="input_number">
+      </div>
+      <div class="formSubmitButtonErrorsWrapper" id="loginForm">
+        <input type="submit" class="buttonWrapper contactSubmitButton" id="submit" value="เสนอ" data-form-id="contactForm">
+      </div>
+      <div class="ajax_response"></div>
+    </fieldset>
+  </form>
+</div>
+
+<div style="clear:both;"></div>
+
+<script>
+  var succ_url = '@Model.AppendSessionID(Model.Content)';
+  var wait_text = '@Translations.Web.Pending.PleaseWait';
+  var original_text = '';
+
+  $(document).ready(function () {
+
+    original_text = $('#submit').text();
+    $('#submit').attr('inuse', 'false');
+
+    $('#submit').click(function (e) {
+      if ($(this).attr('inuse') == 'true')
+        return;
+
+      e.preventDefault();
+
+      var btn = $(this);
+      var mobileOperatorID = $('#mno_select').find(":selected").attr('value');
+      var number = $('#input_number').val();
+
+      if (number == '')
+      {
+        _visual.Alert('โปรดใส่หมายเลขโทรศัพท์ของคุณเป็นครั้งแรก');
+        return;
+      }
+
+      btn.text(wait_text);
+      btn.attr('inuse', 'true');
+
+      $.ajax({
+        url: '/other/SetNumber',
+        data: { number: number, mobileOperatorID: mobileOperatorID },
+        method: 'POST',
+        success:function(response)
+        {
+          if (response.status)
+            window.location = succ_url;
+          else
+          {
+            _visual.Alert(response.message);
+            btn.text(original_text);
+            btn.attr('inuse', 'false');
+          }
+        }
+      });
+
+    });
+  });
+</script>

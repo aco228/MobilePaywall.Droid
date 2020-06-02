@@ -1,0 +1,158 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Web.Log;
+using Senti.Diagnostics.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+using System.IO;
+using MobilePaywall.Web.Filters;
+using MobilePaywall.Web.Models;
+
+namespace MobilePaywall.Web.Controllers
+{
+  public class Html5Controller : PaywallRestrictedAccessController
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (Html5Controller._log == null)
+          Html5Controller._log = LogManager.GetLogger(typeof(Html5Controller));
+        return Html5Controller._log;
+      }
+    }
+    #endregion
+
+    public ActionResult Access(int id)
+    {
+      Html5Content content = Html5Content.CreateManager().Load(id);
+      if (content == null)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "html5controller", "access"), "Html5Content could not be loaded from database", id, this.Request.UserAgent));
+        return null;
+      }
+      ApplicationContentModel model = new ApplicationContentModel(this.PaywallContext, content);
+      return View("~/Views/_Other/_Application/Content.cshtml", model);
+    }
+
+    // SUMMARY: Access
+    public ActionResult Get(int id)
+    {
+      Html5Content content = Html5Content.CreateManager().Load(id);
+      if (content == null)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "html5controller", "access"), "Html5Content could not be loaded from database", id, this.Request.UserAgent));
+        return null;
+      }
+
+
+      // from mobilepaywall
+      //return Redirect(string.Format("~/Content/_Application/{0}/{1}/Source/Index.html?lang={2}", content.Content.ContentGroup.ID, content.ID, PaywallHttpContext.Current.Service.ServiceData.FallbackLanguage.TwoLetterIsoCode));
+
+      // from clickenzi
+      return Redirect(string.Format("http://landing.clickenzi.me/data/MobilePaywall/GameContent/{0}/{1}/Source/index.html?lang={2}", content.Content.ContentGroup.ID, content.ID, PaywallHttpContext.Current.Service.ServiceData.FallbackLanguage.TwoLetterIsoCode));
+    }
+
+    public override IContent GetRequestedContent()
+    {
+      LogMessageBuilder builder = null;
+      object htmlContentDataID = null;
+      if (!this.RouteData.Values.TryGetValue("id", out htmlContentDataID) ||
+          htmlContentDataID == null)
+      {
+        // problem here...
+        throw new ArgumentException("Invalid argument supplied for contentID parameter.", "contentID");
+      }
+
+      int htmlContentDataIDValue = Int32.Parse(htmlContentDataID.ToString());
+      Html5Content data = Html5Content.CreateManager().Load(htmlContentDataIDValue);
+      if (data == null)
+      {
+        builder = new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "videocontroller", "getrequestedcontent"), "Html5Content is not found in database for " + htmlContentDataID);
+        if (Log.IsErrorEnabled)
+          Log.Error(builder);
+        // Video not found. Return error page or so? (done in RestrictedAccessAttribute->OnActionExecuting)
+        return null;
+      }
+      return data.Content.Instantiate();
+    }
+  }
+
+  [SessionState(System.Web.SessionState.SessionStateBehavior.ReadOnly)]
+  public class Html51Controller : Controller
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (Html51Controller._log == null)
+          Html51Controller._log = LogManager.GetLogger(typeof(Html51Controller));
+        return Html51Controller._log;
+      }
+    }
+    #endregion
+
+    // SUMMARY: Check if there is thumbnail data stored in cache, if not, add thumbnail in cache and display thumbnail
+    public ActionResult Thumbnail(int id)
+    {
+      ContentThumbnailData contentThumbnailData = PaywallHttpContext.Current.Runtime.Cache.GetDefaultThumbnailData(id);
+      byte[] data = contentThumbnailData != null ? contentThumbnailData.Data : new byte[] { 0 };
+      if (contentThumbnailData == null)
+      {
+        Data.Content content = Data.Content.CreateManager().Load(id);
+        Html5Content html5Content = Html5Content.CreateManager().Load(content);
+        if (html5Content == null)
+        {
+          Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "html51controller", "thumbnail"), "Thumbnail problem. Could not load html5Contetn/content from database", id));
+          return null;
+        }
+
+        return this.Redirect(string.Format("http://landing.clickenzi.me/data/MobilePaywall/GameContent/{0}/{1}/Thumbnail.jpg", content.ContentGroup.ID, html5Content.ID));
+
+        //string thumbnailPath = string.Format("http://landing.clickenzi.me/data/MobilePaywall/GameContent/{0}/{1}/Thumbnail.jpg", content.ContentGroup.ID, html5Content.ID);
+        //FileInfo thumbnail = new FileInfo(thumbnailPath);
+        //if (!thumbnail.Exists)
+        //{
+        //  Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "html51controller", "thumbnail"), "Thumbnail problem. There is no default Thumbnail.png in html5 View folder. Please check this out", thumbnailPath, html5Content));
+        //  return null;
+        //}
+
+        //Html5 html5 = new Html5(PaywallHttpContext.Current.Runtime.Cache, content, html5Content);
+        //data = System.IO.File.ReadAllBytes(thumbnailPath);
+        //PaywallHttpContext.Current.Runtime.Cache.AddCustomThumbnail(html5, data);
+        //Log.Info(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "html51controller", "thumbnail"), "Added new thumbnail in cache!", id, html5Content));
+      }
+
+      return File(data, "image/jpeg;", id + ".jpg");
+    }
+
+
+    // SUMMARY: Access
+    public ActionResult Get(int id)
+    {
+      Html5Content content = Html5Content.CreateManager().Load(id);
+      if (content == null)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "html5controller", "access"), "Html5Content could not be loaded from database", id, this.Request.UserAgent));
+        return null;
+      }
+
+      // from mobilepaywall
+      //return Redirect(string.Format("~/Content/_Application/{0}/{1}/Source/Index.html?lang={2}", content.Content.ContentGroup.ID, content.ID, PaywallHttpContext.Current.Service.ServiceData.FallbackLanguage.TwoLetterIsoCode));
+
+      // from clickenzi
+      return Redirect(string.Format("http://landing.clickenzi.me/data/MobilePaywall/GameContent/{0}/{1}/Source/index.html?lang={2}", content.Content.ContentGroup.ID, content.ID, PaywallHttpContext.Current.Service.ServiceData.FallbackLanguage.TwoLetterIsoCode));
+    }
+
+  }
+
+}

@@ -1,0 +1,154 @@
+﻿using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.MobilePaywallDirect
+{
+  public class OLCacheManager
+  {
+    bool _BLOCK = true;
+    private PaywallDirect _database = null;
+    
+    public OLCacheManager()
+    {
+      this._database = new PaywallDirect();
+    }
+  
+    public int GetIDByUserSession(UserSession userSession)
+    {
+      if (this._BLOCK) return -1;
+      if (userSession == null)
+        return -1;
+
+      DataTable table = this._database.Load("SELECT OLCacheID FROM MobilePaywall.core.OLCache WHERE UserSessionID=" + userSession.ID);
+      if (table == null)
+        return -1;
+
+      if (table.Rows.Count == 0)
+        return -1;
+
+      return Int32.Parse(table.Rows[0][0].ToString());
+    }
+
+    public int Synchronize(UserSession userSession)
+    {
+      if (this._BLOCK) return -1;
+      int id = this.GetIDByUserSession(userSession);
+      if (id > 0) return id;
+
+      string command = string.Format("INSERT INTO MobilePaywall.core.OLCache (UserSessionID, ServiceID, Pxid, CountryName, CountryCode) VALUES ({0}, {1}, {2}, '{3}', '{4}');",
+        userSession.ID,
+        userSession.Service.ID,
+        string.IsNullOrEmpty(userSession.Pxid) ? "NULL" : userSession.Pxid,
+        userSession.Country.GlobalName,
+        userSession.Country.TwoLetterIsoCode);
+
+      this._database.Execute(command);
+      return this.GetIDByUserSession(userSession);
+    }
+
+    public int Synchronize(LookupSession lookupSession)
+    {
+      if (this._BLOCK) return -1;
+      if (lookupSession == null) return -1;
+      if (!lookupSession.IdentificationSessionGuid.HasValue) return -1;
+
+      int id = this.Synchronize(lookupSession.UserSession);
+      string command = string.Format("UPDATE MobilePaywall.core.OLCache SET IdentificationSessionGuid='{0}', Updated='{1}' WHERE OLCacheID={2}",
+        lookupSession.IdentificationSessionGuid.ToString(),
+        this._database.Date(DateTime.Now),
+        id);
+
+      this._database.Execute(command);
+      return id;
+    }
+
+    public int Synchronize(Customer customer, UserSession userSession = null)
+    {
+      if (this._BLOCK) return -1;
+      if (userSession == null)
+      {
+        List<UserSession> uss = UserSession.CreateManager().Load(customer, customer.Service);
+        if (uss == null || uss.Count == 0) return -1;
+        userSession = uss.ElementAt(0);
+      }
+
+      int id = this.Synchronize(userSession);
+      string command = string.Format("UPDATE MobilePaywall.core.OLCache SET MobileOperatorID={0}, MobileOperatorName={1}, Msisdn={2}, Updated='{3}' WHERE OLCacheID={4}",
+        customer.MobileOperator != null ? string.Format("'{0}'", customer.MobileOperator.ID) : "NULL",
+        customer.MobileOperator != null ? string.Format("'{0}'", customer.MobileOperator.Name) : "NULL",
+        !string.IsNullOrEmpty(customer.Msisdn) ? string.Format("'{0}'", customer.Msisdn) : "NULL",
+        this._database.Date(DateTime.Now),
+        id);
+
+      this._database.Execute(command);
+      return id;
+    }
+
+    public int Synchronize(PaymentRequest paymentRequest)
+    {
+      if (this._BLOCK) return -1;
+      if (paymentRequest == null) return -1;
+      
+      int id = this.Synchronize(paymentRequest.UserSession);
+      string command = string.Format("UPDATE MobilePaywall.core.OLCache SET PaymentRequestID={0}, Updated='{1}' WHERE OLCacheID={2}",
+        paymentRequest.ID,
+        this._database.Date(DateTime.Now),
+        id);
+
+      this._database.Execute(command);
+      return id;
+    }
+
+    public int Synchronize(Payment payment)
+    {
+      if (this._BLOCK) return -1;
+      if (payment == null) return -1;
+
+      int id = this.Synchronize(payment.PaymentRequest.UserSession);
+      string command = string.Format("UPDATE MobilePaywall.core.OLCache SET PaymentID={0}, Updated='{1}' WHERE OLCacheID={2}",
+        payment.ID,
+        this._database.Date(DateTime.Now),
+        id);
+
+      this._database.Execute(command);
+      return id;
+    }
+
+    public int Synchronize(PaymentContentAccessPolicyMap pcapm)
+    {
+      if (this._BLOCK) return -1;
+      if (pcapm == null) return -1;
+
+      int id = this.Synchronize(pcapm.Payment.PaymentRequest.UserSession);
+      string command = string.Format("UPDATE MobilePaywall.core.OLCache SET PaymentContentAccessPolicyID={0}, Updated='{1}' WHERE OLCacheID={2}",
+        pcapm.ID,
+        this._database.Date(DateTime.Now),
+        id);
+
+      this._database.Execute(command);
+      return id;
+    }
+
+    public int Synchronize(Transaction transaction, bool isSubsequent = false)
+    {
+      if (this._BLOCK) return -1;
+      if (transaction == null) return -1;
+
+      int id = this.Synchronize(transaction.Payment.PaymentRequest.UserSession);
+      string command = string.Format("UPDATE MobilePaywall.core.OLCache SET TransactionID={0}, IsSubseguent={1}, Updated='{2}' WHERE OLCacheID={3}",
+        transaction.ID,
+        isSubsequent ? "1" : "0",
+        this._database.Date(DateTime.Now),
+        id);
+
+      this._database.Execute(command);
+      return id;
+    }
+    
+  }
+}

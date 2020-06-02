@@ -1,0 +1,110 @@
+﻿using Cashflow.Client;
+using Cashflow.Message;
+using Cashflow.Message.Mobile;
+using log4net;
+using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Implementation.Payment.Specific.PL
+{
+  public class PLMobiltekLookupManager : LookupManagerBase
+  {
+    
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (PLMobiltekLookupManager._log == null)
+          PLMobiltekLookupManager._log = LogManager.GetLogger(typeof(PLMobiltekLookupManager));
+        return PLMobiltekLookupManager._log;
+      }
+    }
+    #endregion
+
+    public PLMobiltekLookupManager(IUserSession session)
+      : base(session)
+    { }
+
+    public override Data.LookupSession InitiateLookupSession(string requestRawUrl, Data.UserHttpRequest originalRequest)
+    {
+      SmsArguments smsArguments = new SmsArguments();
+
+      ServiceOffer so = (from s in ServiceOffer.CreateManager().Load(this.Session.Service.ServiceData) where s.IsActive && s.IsDefault select s).FirstOrDefault();
+      if (so == null)
+      {
+        Log.Error("PolandLookup: This servis has no active ServiceOffer " + this.Session.Service.ServiceData.Name);
+        return null;
+      }
+
+      PaymentConfiguration paymentConfiguration = so.PaymentConfiguration;
+
+      MobileExtensionClient mobileClient = new MobileExtensionClient();
+      mobileClient.AttachLogWriter(new CashflowLog(this.Session.Service.ServiceData));
+      
+      LookupOperatorRequest loreq = new LookupOperatorRequest(RequestMode.Synchronous,
+        this.Session.SessionData.Guid.ToString(),
+        paymentConfiguration.PaymentCredentials.Username,
+        paymentConfiguration.PaymentCredentials.Password,
+        this.Session.SessionData.Service.Product.ExternalProductGuid,
+        paymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+        this.Session.SessionData.Service.FallbackCountry.TwoLetterIsoCode,
+        paymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+        paymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+        this.Session.SessionData.IPAddress,
+        "", //  notifcationUrl
+        smsArguments.ToMessageArguments()); // arguments
+      loreq.ReferenceIntID = this.Session.SessionData.ID;
+
+      LookupOperatorResponse lookupOperatorResponse = mobileClient.LookupOperator(loreq);
+
+      UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), this.Session.SessionData, null, "", DateTime.Now, DateTime.Now);
+      uhr.Insert();
+
+      LookupSession lookupSession = new LookupSession(-1, Guid.NewGuid(), LookupSessionStatus.Initialized, this.Session.SessionData, uhr, null, string.Empty, DateTime.Now, DateTime.Now);
+      lookupSession.Insert();
+
+      switch (lookupOperatorResponse.Status.Code)
+      {
+        case MessageStatusCode.Success:
+          int mobileOperaotID = -1;
+          if (!Int32.TryParse(lookupOperatorResponse.OperatorID.ToString(), out mobileOperaotID))
+          {
+            Log.Error("PolandLookup:: Could not parse mobileoperator from this: " + lookupOperatorResponse.OperatorID.ToString());
+            return null;
+          }
+          MobileOperator mobileOperator = MobileOperator.CreateManager().Load(mobileOperaotID, IDType.External);
+          if (mobileOperator == null)
+          {
+            Log.Error("PolandLookup::Could not load mobileOperator by ID: " + mobileOperaotID);
+            return null;
+          }
+
+          Session.SessionData.MobileOperator = mobileOperator;
+          Session.SessionData.Update();
+
+          lookupSession.LookupSessionStatus = LookupSessionStatus.Complete;
+          lookupSession.LookupUrl = this.Session.Service.ServiceData.Name;
+          lookupSession.IdentificationSessionGuid = Guid.Empty;
+          lookupSession.Update();
+
+          LookupSessionResult lookupSessionResult = new LookupSessionResult(-1, lookupSession, true, true, null, mobileOperator, string.Empty, string.Empty, DateTime.Now, DateTime.Now);
+          lookupSessionResult.IdentificationResultGuid = Guid.Empty;
+          lookupSessionResult.Insert();
+
+          this.SkipLookup = true;
+          return lookupSession;
+
+        default:
+          return lookupSession;
+      }
+    }
+
+  }
+}

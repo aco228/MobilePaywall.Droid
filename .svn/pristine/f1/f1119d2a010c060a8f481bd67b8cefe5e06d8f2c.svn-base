@@ -1,0 +1,117 @@
+﻿using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Shapes;
+
+namespace MobilePaywall.GeoIP
+{
+  /// <summary>
+  /// Interaction logic for MainWindow.xaml
+  /// </summary>
+  public partial class MainWindow : Window
+  {
+    private BackgroundWorker _checker = new BackgroundWorker();
+    private BackgroundWorker _updater = new BackgroundWorker();
+
+    public MainWindow()
+    {
+      InitializeComponent();
+
+      this._checker.DoWork += new DoWorkEventHandler(Checker_DoWork);
+      this._checker.ProgressChanged += new ProgressChangedEventHandler(Checker_ProgressChanged);
+      this._checker.RunWorkerCompleted += new RunWorkerCompletedEventHandler(Checker_RunWorkerCompleted);
+
+
+      this._updater.DoWork += new DoWorkEventHandler(Updater_DoWork);
+      this._updater.ProgressChanged += new ProgressChangedEventHandler(Updater_ProgressChanged);
+      this._updater.RunWorkerCompleted += new RunWorkerCompletedEventHandler(Updater_RunWorkerCompleted);
+    }
+
+    protected void Checker_DoWork(object sender, DoWorkEventArgs e)
+    {
+      HttpWebRequest request = HttpWebRequest.Create("http://geo.sentiware.me/csv/geoip.csv.md5") as HttpWebRequest;
+      request.Credentials = new NetworkCredential("senti", "bPnM27iLfAC0zWC");
+      string filePath = System.IO.Path.GetTempFileName();
+      using (Stream stream = ((HttpWebResponse)request.GetResponse()).GetResponseStream())
+      {
+        FileStream fileStream = File.Create(filePath);
+        stream.CopyTo(fileStream);
+        fileStream.Flush();
+        fileStream.Close();
+      }
+
+      KeyValuePair<string, byte[]> hash = new KeyValuePair<string, byte[]>(File.ReadAllText(filePath), File.ReadAllBytes(filePath));
+      //if (hash.Value == null)
+      //TODO: 
+
+      IGeoDatabaseDownloadHistoryManager gddhManager = GeoDatabaseDownloadHistory.CreateManager();
+      GeoDatabaseDownloadHistory last = (from geo in gddhManager.Load() orderby geo.Created descending select geo).FirstOrDefault();
+
+      if (last == null)
+        last = new GeoDatabaseDownloadHistory(-1, hash.Key, hash.Value, GeoDatabaseDownloadHistoryStatus.Checked, DateTime.Now, DateTime.Now);
+      else
+      {
+        if(last.MD5Hash.Equals(hash.Key))
+          switch (last.GeoDatabaseDownloadHistoryStatus)
+          {
+            case GeoDatabaseDownloadHistoryStatus.Checked:
+              break;
+            case GeoDatabaseDownloadHistoryStatus.Updating:
+              break;
+            case GeoDatabaseDownloadHistoryStatus.Interrupted:
+              break;
+            default:
+              break;
+          }
+        else 
+          last = new GeoDatabaseDownloadHistory(-1, hash.Key, hash.Value, GeoDatabaseDownloadHistoryStatus.Checked, DateTime.Now, DateTime.Now);
+      }
+
+      if (last.ID == -1)
+        last.Insert();
+
+      
+    }
+
+    protected void Checker_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+    {
+
+    }
+
+    protected void Checker_ProgressChanged(object sender, ProgressChangedEventArgs e)
+    {
+
+    }
+
+    protected void Updater_DoWork(object sender, DoWorkEventArgs e)
+    {
+
+    }
+
+    protected void Updater_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
+    {
+
+    }
+
+    protected void Updater_ProgressChanged(object sender, ProgressChangedEventArgs e)
+    {
+
+    }
+
+
+  }
+}

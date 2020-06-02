@@ -1,0 +1,139 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+
+using Cashflow.Client;
+
+using Senti.Diagnostics.Log;
+
+using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Service.Callback.Log;
+
+namespace MobilePaywall.Service.Callback.Handlers
+{
+  public class PremiumNotificationHandler : NotificationHandlerBase
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (PremiumNotificationHandler._log == null)
+          PremiumNotificationHandler._log = log4net.LogManager.GetLogger(typeof(PremiumNotificationHandler));
+        return PremiumNotificationHandler._log;
+      }
+    }
+    #endregion
+
+    protected override void ProcessReceiveShortMessageNotification(Cashflow.Message.Mobile.ReceiveShortMessageNotification notification)
+    {
+      base.ProcessReceiveShortMessageNotification(notification);
+      CallbackLog CLog = new CallbackLog(notification, Log);
+
+
+      int number;
+
+      string _identificator = null;
+      string _tracking = null;
+      bool _isValid = false;
+      
+      Shortcode shortcode = null;
+      Keyword keyword = null;
+      ShortcodeKeywordServiceOfferMap skOffer = null;
+      Content _content = null;
+      Customer customer = null;
+
+      try
+      {
+        if (Int32.TryParse(notification.ShortMessage.Shortcode, out number))
+        {
+          CLog.Error(new LogMessageBuilder(
+            new LogErrorCode("premiumnotificationhandler", "prorcessreceiveshortmessage", "shortcode.problem"), "Invalid shortcode.",
+              notification, notification.Status, notification.ShortMessage));
+          return;
+        }
+
+        shortcode = Shortcode.CreateManager().Load(number);
+        if(shortcode == null)
+        {
+          CLog.Error(new LogMessageBuilder(
+            new LogErrorCode("premiumnotificationhandler", "prorcessreceiveshortmessage", "shortcode.notregistered"), string.Format("Shortcode {0} not registered in database.", number),
+              notification, notification.Status, notification.ShortMessage));
+          return;
+        }
+
+        keyword = Keyword.CreateManager().Load(notification.ShortMessage.Keyword);
+        if(keyword == null)
+        {
+          CLog.Error(new LogMessageBuilder(
+            new LogErrorCode("premiumnotificationhandler", "prorcessreceiveshortmessage", "keyword.notregistered"), string.Format("Keyword {0} not registered in database.", notification.ShortMessage.Keyword),
+              notification, notification.Status, notification.ShortMessage));
+          return;
+        }
+        
+        skOffer = ShortcodeKeywordServiceOfferMap.CreateManager().Load(shortcode, keyword);
+        if(skOffer == null)
+        {
+          CLog.Error(new LogMessageBuilder(
+            new LogErrorCode("premiumnotificationhandler", "prorcessreceiveshortmessage", "notmapped"), string.Format("Shortcode {0} and Keyword {1} are not mapped.", notification.ShortMessage.Shortcode, notification.ShortMessage.Keyword),
+              notification, notification.Status, notification.ShortMessage));
+          return;
+        }
+
+        IService service = skOffer.ServiceOffer.Service.Instantiate(null);
+
+        //customer = Customer.CreateManager().Load(service.ServiceData, notification.ShortMessage.Msisdn, CustomerIdentifier.Msisdn).FirstOrDefault();
+        customer = Customer.LoadCustomerByServiceMsisdn(service.ServiceData, notification.ShortMessage.Msisdn);
+        if(customer == null)
+        {
+          CLog.Error(new LogMessageBuilder(
+           new LogErrorCode("premiumnotificationhandler", "prorcessreceiveshortmessage", "customer.notexist"), string.Format("Customer with following MSISDN {0} will be created.", notification.ShortMessage.Msisdn),
+             notification, notification.Status, notification.ShortMessage));
+
+          customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Pending, service.ServiceData, service.ServiceData.FallbackCountry, null, null, notification.ShortMessage.Msisdn, null, null, null, DateTime.Now, DateTime.Now);
+          customer.Insert();
+          customer.SetUsernameAndPassword();
+        }
+
+        UserSession session = new UserSession(-1, Guid.NewGuid(), UserSessionType.CreateManager().Load(1), service.ServiceData, service.Domains.FirstOrDefault(), customer, service.ServiceData.FallbackCountry, null, null, null, null, false, null, "0.0.0.0", IPAddressType.IPv4, null, null, null, DateTime.Now.AddMinutes(30), DateTime.Now, DateTime.Now);
+        Log.Debug(new LogMessageBuilder(new LogErrorCode("premiumnotificationhandler", "prorcessreceiveshortmessage", "customer.notexist"), " --- USER SESSION WTF --- "));
+        session.Insert();
+
+        PremiumMessage premiumMessage = new PremiumMessage(-1, Guid.NewGuid(), PremiumMessageDirection.Incoming, PremiumMessageStatus.Received, session, skOffer, notification.ShortMessage.Text, DateTime.Now, DateTime.Now);
+        premiumMessage.Insert();
+
+
+
+      }
+      catch (Exception ex)
+      {
+        CLog.PFatal("Exception", ex.ToString());
+      }
+    }
+
+    private static string[] Parse(string text)
+    {
+      string[] values = null;
+      try
+      {
+        values = text.Split('/');
+        if (values.Length == 0)
+          return null;
+
+        if (string.IsNullOrEmpty(values[0]))
+          return null;
+
+
+      }
+      catch (Exception ex)
+      {
+
+      }
+      return null;
+    }
+  }
+}

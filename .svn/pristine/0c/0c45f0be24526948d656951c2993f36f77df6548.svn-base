@@ -1,0 +1,293 @@
+﻿/* Popup Manager */
+function Popup(templateID) {
+    if (typeof templateID === undefined || templateID == null) templateID = 1;
+
+    this.templateID = templateID;
+    this.videoPopup = null;
+    this.compatibilityPopup = null;
+    this.elem = null;
+
+    // HTML Elements
+    this.htmlContainer = '<div id="preHrefPopupHolder"></div>';
+    this.htmlHrefPopup = '<div class="preHrefPopup" style="display:none"> <div class="preHrefPopupClose">X</div> <div class="preHrefPopupSection preHrefPopupAccept"> <div class="preHrefPopupAlert"></div> <input type="checkbox" class="preHrefPopupCheckbox" /> <span>J accepte <a href="/terms">les conditions générales de vente</a></span> </div> <div class="preHrefPopupSection"> <button class="preHrefPopupBtn">Valider</button> </div> <div class="preHrefPopupSection preHrefPopupAbonnement">Abonnement: 4.00€ /SEAMINE</div> <div class="preHrefPopupSection"> <div class="preHrefBottomImg"></div> </div> </div>';
+    this.htmlCompatibilityPopup = '<div class="compatibilityPopup" style="display:none"> <div class="compatibilityPopupHead"> <div class="compatibilityPopupLogo"> <div class="compatibilityPopupLogoImg"></div> </div> <div class="compatibilityPopupText">Mon mobile</div> </div> <div class="compatibilityPopupBody"> <div class="compatibilityPopupBodySection"> <div class="compatibilityPopupLabel">Marque:</div> <div class="compatibilityPopupSelect" compatibilityselected="false" jsonfind="name">Choisir une marque</div> </div> <div class="compatibilityPopupBodySection"> <div class="compatibilityPopupLabel">Modele:</div> <div class="compatibilityPopupSelect" compatibilityselected="false" jsonfind="model">Choisir une modele</div> </div> <div class="compatibilityPopupSuccess" selectedname="" selectedmodel="" compatibile_text="Mon mobile est compatible" uncompatibile_text="Mon mobile est non compatibles"> <div class="compatibilityPopupSuccessBox"> <div class="compatibilityPopupSuccessImg"></div> <div class="compatibilityPopupSuccessText"></div> </div> </div> <div class="compatibilityPopupOptions"></div> </div> </div>';
+
+    this.init = function () {
+        if ($('#preHrefPopupHolder').length != 0) return;
+        $('body').append(this.htmlContainer);
+
+        this.elem = $('#preHrefPopupHolder');
+        this.videoPopup = new VideoPopup(this);
+        this.compatibilityPopup = new CompatibilityPopup(this);
+        this.closeListeners();
+    }
+
+    this.closeListeners = function () {
+        // for closing popup
+        var self = this;
+        $('#preHrefPopupHolder').on('click', '.preHrefPopupHolder_back', function () {
+            $('#preHrefPopupHolder').find('.preHrefPopupHolder_back').fadeOut(300, function () { $(this).remove(); $('#preHrefPopupHolder').css('display', 'none'); });
+            if (self.videoPopup.elem != null) self.videoPopup.elem.fadeOut(300, function () { self.videoPopup.elem.remove(); });
+            if (self.compatibilityPopup.elem != null) self.compatibilityPopup.elem.fadeOut(300, function () { self.compatibilityPopup.elem.remove(); });
+        });
+        // Closing all child elements
+
+        $('#preHrefPopupHolder').on('click', '.preHrefPopupClose', function () {
+            $('#preHrefPopupHolder').find('.preHrefPopupHolder_back').fadeOut(300, function () { $(this).remove(); $('#preHrefPopupHolder').css('display', 'none'); });
+            if (self.videoPopup == null) return;
+            self.videoPopup.elem.fadeOut(300, function () { self.videoPopup.elem.remove(); });
+        });
+    }
+
+    this.addBack = function () {
+        this.elem.append('<div class="preHrefPopupHolder_back"></div>');
+    }
+
+    this.displayContainer = function () {
+        // prepare container
+        if ($('#preHrefPopupHolder').css('display') != 'none') return;
+        $('#preHrefPopupHolder').fadeIn(250);
+    }
+
+    this.createID = function () {
+        // create id for box... 
+        var text = "";
+        var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        for (var i = 0; i < 15; i++) text += possible.charAt(Math.floor(Math.random() * possible.length));
+        return text;
+    }
+
+    this.centerBox = function (boxId) {
+        // centers popup box by y 
+        var h = ($(window).height() / 2) - ($('#' + boxId).height() / 2);
+        jQuery('#' + boxId).css({ 'margin-top': h + 'px' });
+    }
+
+    this.init();
+}
+
+/* 
+    Video popup 
+*/
+function VideoPopup( parent) {
+
+    this.parent = parent;
+    this.elem = null;
+
+    this.init = function () {
+        if (this.parent.templateID == 1) this.addEventListeners_1();
+        else if (this.parent.templateID == 2) this.addEventListeners_2();
+        else if (this.parent.templateID == 3) this.addEventListeners_3();
+    }
+
+    /*
+        TEMPLATE LISTENERS
+    */
+    this.addEventListeners_1 = function () {
+        var self = this;
+        // for displaying popup
+
+        $('.slides').click(function (event) { event.preventDefault(); self.popupAction(event, $(this).find('.flex-active-slide').children('a')); });
+        $('#content').on("click", '.thumbnailimg', function (event) { self.popupAction(event, $(this)); });
+        $('#content').on("click", '.watchnow', function (event) { self.popupAction(event, $(this)); });
+        $('#content').on("click", '.titlelink', function (event) { self.popupAction(event, $(this)); });
+    }
+
+    this.addEventListeners_2 = function () {
+        var self = this;
+        // for displaying popup
+
+        $('body').on('click', '.news-image-wrap', function (event) {
+            event.preventDefault();
+            self.popupAction(event, $(this).find('a'));
+        });
+    }
+
+    this.addEventListeners_3 = function () {
+        var self = this;
+        // for displaying popup
+
+        $('body').on('click', '.portfolioOneItemWrapper', function (event) {
+            event.preventDefault();
+            self.popupAction(event, $(this).find('a'));
+        });
+
+        $('body').on('click', '.mainSlider a', function (event) {
+            if ($(this).hasClass('nivo-prevNav') || $(this).hasClass('nivo-nextNav')) return;
+            event.preventDefault();
+            self.popupAction(event, $(this));
+        });
+    }
+
+    this.popupAction = function (event, elem) {
+        event.preventDefault();
+        this.parent.addBack();
+
+        // preparing parent container
+        parent.displayContainer();
+        var id = parent.createID();
+
+        // adding element to parent container
+        this.parent.elem.append($(this.parent.htmlHrefPopup).attr('id', id));
+        this.parent.centerBox(id);
+        this.elem = $('#' + id);
+
+        // getting original href location
+        var link = elem.attr('href'); // link before popup
+        console.log("LINK: " + link);
+
+        // on click
+        var self = this;
+        this.elem.fadeIn(500);
+        this.elem.find('.preHrefPopupBtn').click(function () {
+            if (!self.elem.find('.preHrefPopupCheckbox').is(':checked')) { self.popupAlert(5); return; }
+            //alert("ok");
+            location = link;
+        });
+    }
+
+    this.popupAlert = function (limit) {
+        if (this.elem.find('.preHrefPopupCheckbox').is(':checked') || limit == 0) return; else limit--;
+        var self = this;
+        this.elem.find('.preHrefPopupAlert').fadeIn(350, function () {
+            $(this).fadeOut(350, function () { self.popupAlert(limit); });
+        });
+    }
+
+    this.init();
+}
+
+/*
+    Compatibility popup
+*/
+function CompatibilityPopup(parent) {
+    this.parent = parent;
+    this.elem = null;
+    this.jsonData = null;
+
+    this.init = function () {
+        this.addEventListeners();
+    }
+
+    this.addEventListeners = function () {
+        var self = this;
+        $('body').on('click', '#compatibility_iconCompatible', function () { self.popupAction(); });
+    }
+
+    this.popupAction = function () {
+        // preparing parent container
+        parent.displayContainer();
+        var id = parent.createID();
+        this.parent.addBack();
+
+        // adding element to parent container
+        parent.elem.append($(this.parent.htmlCompatibilityPopup).attr('id', id));
+        parent.centerBox(id);
+        this.elem = $('#' + id);
+
+        this.addOptionListener();
+        this.collectJsonData();
+
+        // on click
+        var self = this;
+        this.elem.fadeIn(500);        
+    }
+
+    this.addOptionListener = function () {
+        var self = this;
+        this.elem.on('click', '.compatibilityPopupSelect', function () {
+            self.createOptions($(this));
+        });
+    };
+
+    this.createOptions = function (elem) {
+        this.elem.append('<div class="compatibilityPopupOptions"></div>');
+        if (!this.populateOptions(elem.attr('jsonfind'))) return;
+        var optionBox = this.elem.find('.compatibilityPopupOptions');
+        var self = this;
+        optionBox.fadeIn(200);
+        optionBox.find('.compatibilityPopupOptions_option').click(function () {
+            self.elem.find('.compatibilityPopupSuccess').attr('selected'+elem.attr('jsonfind'), $(this).text());
+            elem.attr('compatibilityselected', 'true');
+            self.checkAllSelections();
+            elem.text($(this).text());
+            optionBox.fadeOut(200, function () { optionBox.remove(); });
+        });
+    };
+
+    this.populateOptions = function (findBy) {
+        // used to populate compatibilityPopupOptions
+        var insertName = false; var name = "";
+        if (findBy == 'name') { insertName = true; }
+        else name = this.elem.find('.compatibilityPopupSuccess').attr('selectedname');
+
+        var box = this.elem.find('.compatibilityPopupOptions'); box.html("");
+        var appendHtml = ' <div class="compatibilityPopupOptions_option">';
+        var temp = "";
+        for (var i = 0; i < this.jsonData.phones.length; i++) {
+            if (insertName) {
+                // Escape inserted names
+                if (this.jsonData.phones[i].name == temp) continue; else temp = this.jsonData.phones[i].name;
+                box.append(appendHtml + this.jsonData.phones[i].name + '</div>');
+            } else {
+                if (name == this.jsonData.phones[i].name) box.append(appendHtml + this.jsonData.phones[i].model + '</div>');
+                else continue;
+            }
+        }
+
+        if(box.html()=="") return false;
+        else return true;
+    }
+
+    this.checkAllSelections = function () {
+        var length = 0; var hasSelected = 0; 
+        this.elem.find('.compatibilityPopupSelect').each(function () {
+            if ($(this).attr('compatibilityselected') == 'true') hasSelected++;
+            length++;
+        });
+
+        var self = this;
+        if (length == hasSelected) {
+            // DONE
+            this.elem.find('.compatibilityPopupSuccess').fadeIn(350, function () {
+                var succBox = $(this);
+
+                var selected_name = succBox.attr('selectedname'); var selected_model = succBox.attr('selectedmodel');
+                if (selected_model == "" || selected_name == "") return;
+                var enabled = self.checkIfModelIsEnabled(selected_name, selected_model);
+
+                succBox.find('.compatibilityPopupSuccessImg').removeClass('compatibilityPopupSuccessImgSucc').removeClass('compatibilityPopupSuccessImgFail');
+
+                if (enabled) {
+                    succBox.find('.compatibilityPopupSuccessText').text(succBox.attr('compatibile_text'));
+                    succBox.find('.compatibilityPopupSuccessImg').addClass('compatibilityPopupSuccessImgSucc');
+                } else {
+                    succBox.find('.compatibilityPopupSuccessText').text(succBox.attr('uncompatibile_text'));
+                    succBox.find('.compatibilityPopupSuccessImg').addClass('compatibilityPopupSuccessImgFail');
+                }
+
+                setInterval(function () { succBox.fadeOut(350); }, 5000);
+            });
+        }
+    }
+
+    this.checkIfModelIsEnabled = function (name, model) {
+        for (var i = 0; i < this.jsonData.phones.length; i++) {
+            if (this.jsonData.phones[i].name == name && this.jsonData.phones[i].model == model) {
+                if (this.jsonData.phones[i].enable == 'true') return true; else return false;
+                break;
+            }
+        }
+    }
+
+    this.collectJsonData = function () {
+        if (this.jsonData != null) return;
+        var self = this;
+        $.ajax({
+            type: 'GET', url: '/test/Popup_GetPhones',
+            success: function (o) { self.jsonData = JSON.parse(o); }
+        });
+    }
+
+    this.init();
+};

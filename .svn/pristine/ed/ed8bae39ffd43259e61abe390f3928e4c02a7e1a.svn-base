@@ -1,0 +1,43 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class VisualMediaDimensionsManager : IVisualMediaDimensionsManager
+  {
+
+		public List<VisualMediaDimensions> Load(Instance instance)
+		{
+			using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+				return this.Load(connection, instance);
+		}
+
+		public List<VisualMediaDimensions> Load(IConnectionInfo connection, Instance instance)
+		{
+			ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+			if (sqlConnection != null)
+				return this.Load(sqlConnection, instance);
+			using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+				return this.Load(sqlConnection, instance);
+		}
+
+		public List<VisualMediaDimensions> Load(ISqlConnectionInfo connection, Instance instance)
+		{
+			SqlQueryParameters parameters = new SqlQueryParameters();
+			parameters.Where = "[vmd].InstanceID = @InstanceID";
+			parameters.Arguments.Add("InstanceID", instance.ID);
+			return this.LoadMany(connection, parameters);
+		}
+
+  }
+}
+

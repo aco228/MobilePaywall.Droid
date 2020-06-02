@@ -1,0 +1,59 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IQuizContentDetailManager
+  {
+    List<QuizContentDetail> Load(QuizContent content);
+    List<QuizContentDetail> Load(IConnectionInfo connection, QuizContent content);
+    List<QuizContentDetail> Load(Service service);
+    List<QuizContentDetail> Load(IConnectionInfo connection, Service service);
+    List<QuizContentDetail> Load(Service service, Language language);
+    List<QuizContentDetail> Load(IConnectionInfo connection, Service service, Language language);
+    QuizContentDetail Load(QuizContent content, Language language);
+    QuizContentDetail Load(IConnectionInfo connection, QuizContent content, Language language);
+    T Load<T>(QuizContent content, Service service, Language language);
+    T Load<T>(IConnectionInfo connection, QuizContent content, Service service, Language language);
+  }
+
+  public partial class QuizContentDetail
+  {
+
+    public void UpdateWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void UpdateWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void InsertWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void InsertWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void DeleteWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+    public void DeleteWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+
+    public override bool IsDeletable { get { return true; } }
+
+    public static QuizContentDetail LoadByServiceAndLanguage(QuizContent content, Service service, Language language)
+    {
+      QuizContentDetail detail;
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        connection.Transaction.Begin();
+
+        IQuizContentDetailManager vcdManager = QuizContentDetail.CreateManager();
+        detail = vcdManager.Load<QuizContentDetail>(connection, content, service, language);
+        if (detail == null)
+          detail = vcdManager.Load(connection, content, language);
+        if (detail == null)
+          detail = vcdManager.Load(content).FirstOrDefault();
+
+        connection.Transaction.Commit();
+      }
+      return detail;
+    }
+
+  }
+}
+

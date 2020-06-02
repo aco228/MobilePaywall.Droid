@@ -1,0 +1,136 @@
+﻿@model MobilePaywall.Web.Models.CustomerModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+}
+
+@Styles.Render("~/Style/Darkley/Login")
+@Scripts.Render("~/Script/Login")
+
+
+<div class="container">
+
+  @{
+    if (Model.HasError)
+    {
+      <div class="warning wnn_txt"> <span> @Model.ErrorText </span>  <div class="hidewnn whide"> X </div> </div>
+    }
+  }
+
+  
+  @*style="width: 100%; color: white; padding: 5px; background-color: #2a2a2a;"*@
+
+  <div id="wrap" class="contactform">
+    <h2>Nummer einfügen</h2>
+    <table>
+      <tbody>
+        <tr>
+          <td>
+            <div class="form_section" id="selectMno_box" style="display:none ;">
+              <div class="form_label">Please select your mobile operator</div>
+              <select id="mnoSelect" >
+                <option id="-1">None</option>
+                <option id="318">Sunrise</option>
+                <option id="322">Swisscom</option>
+              </select>
+            </div>
+          </td>
+        </tr>
+        
+        <tr>
+          <td><label for="name">Telefonnummer:</label></td>
+        </tr>
+        <tr>
+          <td><input type="text" id="inputPhoneNumber" placeholder="Telefonnummer"></td>
+        </tr>
+        <tr>
+          <td></td>
+        </tr>
+        <tr>
+          <td id="loginForm">
+            <input type="button" value="@Translations.Web.Reset.Button" id="btnSetup" class="submitButton">
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="ajax_response"></div>
+  </div>
+
+
+  <div id="wrap" class="contactform">
+    <h2>@Translations.Web.Login.Title</h2>
+    <table>
+      <tbody>
+        <tr>
+          <td><label for="name">@Translations.Web.Login.Username :</label></td>
+        </tr>
+        <tr>
+          <td><input type="text" id="input_username" placeholder="@Translations.Web.Login.PlcUsername"></td>
+        </tr>
+        <tr>
+          <td><label for="email">@Translations.Web.Login.Password :</label></td>
+        </tr>
+        <tr>
+          <td><input type="password" id="input_password" placeholder="@Translations.Web.Login.PlcPassword"></td>
+        </tr>
+        <tr>
+          <td></td>
+        </tr>
+        <tr>
+          <td id="loginForm">
+            <input type="button" value="Einreichen" id="loginSubmit" class="submitButton">
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="ajax_response"></div>
+  </div>
+
+  <div style="clear:both;"></div>
+
+
+  <script>
+    var _login = new Login();
+    _login.RedirectUrl = '@Model.RedirectUrl';
+    _login.Message_login_input = '@Translations.Web.Login.Error';
+    _login.Message_login_success = '@Translations.Web.Login.Success';
+    _login.Message_login_error = '@Translations.Web.Login.Error';
+    _login.Message_reset_input = '@Translations.Web.Reset.ErrGeneral';
+    _login.Message_reset_error = '@Translations.Web.Reset.ErrNotFound';
+    _login.Message_reset_success = '@Translations.Web.Reset.Success';
+    _login.messageHandler();
+
+    $(document).ready(function () {
+      $('#btnSetup').on('click', function () {
+        var btn = $(this);
+        if (btn.attr('inuse') == 'true')
+          return;
+
+        var originalValue = btn.text();
+        btn.attr('inuse', 'true');
+        btn.text('...');
+        var mno = $('#mnoSelect option:selected').attr('id');
+
+        var phoneNumber = $('#inputPhoneNumber').val();
+        $.ajax({
+          url: '/CHDimoco/Setup',
+          type: 'POST',
+          data: { msisdn: phoneNumber, mno: mno },
+          success: function (response) {
+            console.log(response);
+            btn.attr('inuse', 'false');
+            btn.text(originalValue);
+            _visual.Alert(response.message);
+            btn.attr('inuse', false);
+            btn.text(originalValue);
+
+            if (typeof response.select_mno !== 'undefined')
+              $('#selectMno_box').css('display', 'block');
+
+          }
+        });
+
+      });
+    });
+
+
+  </script>

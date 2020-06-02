@@ -1,0 +1,142 @@
+﻿@model TemplateCopyServiceConfigurationModel
+@{
+  Layout = "~/Views/Template/_Layout/_Layout.cshtml";
+}
+
+<style>
+  .selectize-input{
+    width:200px;
+  }
+</style>
+
+<div class="md-card" id="serviceConfiguration">
+  <div class="md-card-content">
+    <h3 class="heading_a">Choose service</h3>
+
+    <div class="uk-grid" data-uk-grid-margin="">
+      <div>
+
+        <label for="settings_time_format" class="uk-form-label">Service status</label>
+        <div class="form-group">
+          <select id="selectCountry" class="form-control">
+            @for (int i = 0; i < Model.Countries.Count; i++)
+            {
+              <option value="@(Model.Countries[i] != null ? Model.Countries[i].ID : -1)">@(Model.Countries[i] != null ? Model.Countries[i].GlobalName : "")</option>
+            }
+          </select>
+          </div>
+        </div>
+    </div>
+
+    <div class="uk-grid" data-uk-grid-margin="">
+      <div>
+
+        <label for="settings_time_format" class="uk-form-label">Service status</label>
+
+        <div class="form-group">
+          <select id="selectService" class="form-control">
+            <option vale="-1">NULL</option>
+          </select>
+        </div>
+
+      </div>
+    </div>
+
+
+    <div class="uk-grid">
+      <div class="uk-width-medium-1-6">
+        <a class="md-btn md-btn-flat md-btn-flat-primary" href="#" id="btnCopyService" inuse="false">Copy this service</a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+
+  document.addEventListener("DOMContentLoaded", function () {
+    onBtnCopyThisService();
+    onChangeCountry();
+  });
+
+ 
+
+
+  function onChangeCountry() {
+    $('#selectCountry').on('change', function () {
+      var countryID = $(this).val();
+      $('#selectService').find('option').remove();
+
+      $.ajax({
+        type: "GET",
+        url: 'ApiTemplateCopyServiceConfigurationChangeCountry',
+        data: { countryID: countryID },
+        dataType:'json',
+        success: function (data) {
+          var item = data;
+          item.forEach(function (value, i) {
+            console.log(value);
+            $('#selectService').append($('<option></option>').attr('value', value.Item1).text(value.Item2));
+          });
+         
+        },
+        error: function (err) {
+          alert(err);
+        }
+      });
+
+    });
+  }
+
+
+
+  function onBtnCopyThisService() {
+    $('#btnCopyService').on('click', function () {
+      if ($(this).attr('inuse') == 'true') return;
+      var btn = $(this);
+      var tmplText = btn.text();
+      visual.Confirm("Are you sure that you want to copy this service?", "Yes", "No", function () {
+        var serviceID = $('#selectService option:selected').val();
+        console.log(serviceID);
+        template.call('ApiTemplateCopyServiceConfiguration', {
+          serviceID: serviceID
+        }, function (response) {
+          btn.attr('inuse', 'false');
+          btn.text(tmplText);
+          visual.Alert(response.message);
+        });
+      });
+    });
+  }
+
+
+  //function onSelectCountryAndService() {
+  //  $('#btnAddFilterBypass').click(function () {
+  //    if ($(this).attr('inuse') == 'true') return;
+  //    var btn = $(this);
+  //    var parent = btn.closest("#serviceConfiguration");
+  //    var tmplText = btn.text();
+  //    visual.Confirm("Are you sure you want to make this change?", "Yes", "No", function () {
+
+  //      var filterBypassType = $('#selectFilterBypassType').find(':selected').attr('value');
+  //      var thisService = $('#thisServiceCheckbox').is(':checked');
+  //      var thisPaymentProvider = $('#thisPaymentProvider').is(':checked');
+  //      console.log(filterBypassType + " " + thisService + " " + thisPaymentProvider);
+  //      btn.text('...');
+  //      template.call('ApiTemplateAttributeFilterBypassAddNew', {
+  //        filterBypassType: filterBypassType,
+  //        thisService: thisService,
+  //        thisPaymentProvider: thisPaymentProvider
+  //      }, function (response) {
+  //        console.log(response);
+  //        btn.attr('inuse', 'false');
+  //        btn.text(tmplText);
+  //        visual.Alert(response.message);
+  //      });
+
+  //    });
+
+  //  });
+  //}
+
+</script>

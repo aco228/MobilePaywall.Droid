@@ -1,0 +1,554 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ImageContentDetail))] 
+  public partial class ImageContentDetailManager : MobilePaywall.Data.Sql.SqlManagerBase<ImageContentDetail>, IImageContentDetailManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ImageContentDetail LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ImageContentDetailTable.GetColumnNames("[icd]") + 
+							(this.Depth > 0 ? "," + ImageContentTable.GetColumnNames("[icd_ic]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[icd_ic_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[icd_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[icd_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[icd_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[icd_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[icd_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[icd_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[icd_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[icd_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[icd_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[icd_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[icd_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[icd_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + LanguageTable.GetColumnNames("[icd_l]") : string.Empty) + 
+					" FROM [core].[ImageContentDetail] AS [icd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ImageContent] AS [icd_ic] ON [icd].[ImageContentID] = [icd_ic].[ImageContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [icd_ic_c] ON [icd_ic].[ContentID] = [icd_ic_c].[ContentID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [icd_s] ON [icd].[ServiceID] = [icd_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [icd_s_a] ON [icd_s].[ApplicationID] = [icd_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [icd_s_p] ON [icd_s].[ProductID] = [icd_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [icd_s_m] ON [icd_s].[MerchantID] = [icd_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [icd_s_st] ON [icd_s].[ServiceTypeID] = [icd_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [icd_s_ust] ON [icd_s].[UserSessionTypeID] = [icd_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [icd_s_c] ON [icd_s].[FallbackCountryID] = [icd_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [icd_s_l] ON [icd_s].[FallbackLanguageID] = [icd_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [icd_s_ar] ON [icd_s].[FallbackAgeRatingID] = [icd_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [icd_s_sc] ON [icd_s].[ServiceConfigurationID] = [icd_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [icd_s_bm] ON [icd_s].[BusinessModelID] = [icd_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [icd_s_t] ON [icd_s].[TemplateID] = [icd_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [icd_l] ON [icd].[LanguageID] = [icd_l].[LanguageID] ";
+				sqlCmdText += "WHERE [icd].[ImageContentDetailID] = @ImageContentDetailID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ImageContentDetailID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "loadinternal", "notfound"), "ImageContentDetail could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ImageContentDetailTable icdTable = new ImageContentDetailTable(query);
+				ImageContentTable icd_icTable = (this.Depth > 0) ? new ImageContentTable(query) : null;
+				ContentTable icd_ic_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				ServiceTable icd_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable icd_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable icd_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable icd_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable icd_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable icd_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable icd_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable icd_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable icd_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable icd_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable icd_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable icd_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				LanguageTable icd_lTable = (this.Depth > 0) ? new LanguageTable(query) : null;
+
+        
+				Content icd_ic_cObject = (this.Depth > 1) ? icd_ic_cTable.CreateInstance() : null;
+				ImageContent icd_icObject = (this.Depth > 0) ? icd_icTable.CreateInstance(icd_ic_cObject) : null;
+				Application icd_s_aObject = (this.Depth > 1) ? icd_s_aTable.CreateInstance() : null;
+				Product icd_s_pObject = (this.Depth > 1) ? icd_s_pTable.CreateInstance() : null;
+				Merchant icd_s_mObject = (this.Depth > 1) ? icd_s_mTable.CreateInstance() : null;
+				ServiceType icd_s_stObject = (this.Depth > 1) ? icd_s_stTable.CreateInstance() : null;
+				UserSessionType icd_s_ustObject = (this.Depth > 1) ? icd_s_ustTable.CreateInstance() : null;
+				Country icd_s_cObject = (this.Depth > 1) ? icd_s_cTable.CreateInstance() : null;
+				Language icd_s_lObject = (this.Depth > 1) ? icd_s_lTable.CreateInstance() : null;
+				AgeRating icd_s_arObject = (this.Depth > 1) ? icd_s_arTable.CreateInstance() : null;
+				ServiceConfiguration icd_s_scObject = (this.Depth > 1) ? icd_s_scTable.CreateInstance() : null;
+				BusinessModel icd_s_bmObject = (this.Depth > 1) ? icd_s_bmTable.CreateInstance() : null;
+				Template icd_s_tObject = (this.Depth > 1) ? icd_s_tTable.CreateInstance() : null;
+				Service icd_sObject = (this.Depth > 0) ? icd_sTable.CreateInstance(icd_s_aObject, icd_s_pObject, icd_s_mObject, icd_s_stObject, icd_s_ustObject, icd_s_cObject, icd_s_lObject, icd_s_arObject, icd_s_scObject, icd_s_bmObject, icd_s_tObject) : null;
+				Language icd_lObject = (this.Depth > 0) ? icd_lTable.CreateInstance() : null;
+				ImageContentDetail icdObject = icdTable.CreateInstance(icd_icObject, icd_sObject, icd_lObject);
+				sqlReader.Close();
+
+				return icdObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "loadinternal", "exception"), "ImageContentDetail could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ImageContentDetail", "Exception while loading ImageContentDetail object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ImageContentDetail Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ImageContentDetailTable.GetColumnNames("[icd]") + 
+							(this.Depth > 0 ? "," + ImageContentTable.GetColumnNames("[icd_ic]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[icd_ic_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[icd_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[icd_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[icd_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[icd_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[icd_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[icd_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[icd_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[icd_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[icd_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[icd_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[icd_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[icd_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + LanguageTable.GetColumnNames("[icd_l]") : string.Empty) +  
+					" FROM [core].[ImageContentDetail] AS [icd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ImageContent] AS [icd_ic] ON [icd].[ImageContentID] = [icd_ic].[ImageContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [icd_ic_c] ON [icd_ic].[ContentID] = [icd_ic_c].[ContentID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [icd_s] ON [icd].[ServiceID] = [icd_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [icd_s_a] ON [icd_s].[ApplicationID] = [icd_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [icd_s_p] ON [icd_s].[ProductID] = [icd_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [icd_s_m] ON [icd_s].[MerchantID] = [icd_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [icd_s_st] ON [icd_s].[ServiceTypeID] = [icd_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [icd_s_ust] ON [icd_s].[UserSessionTypeID] = [icd_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [icd_s_c] ON [icd_s].[FallbackCountryID] = [icd_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [icd_s_l] ON [icd_s].[FallbackLanguageID] = [icd_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [icd_s_ar] ON [icd_s].[FallbackAgeRatingID] = [icd_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [icd_s_sc] ON [icd_s].[ServiceConfigurationID] = [icd_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [icd_s_bm] ON [icd_s].[BusinessModelID] = [icd_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [icd_s_t] ON [icd_s].[TemplateID] = [icd_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [icd_l] ON [icd].[LanguageID] = [icd_l].[LanguageID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "customload", "notfound"), "ImageContentDetail could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ImageContentDetailTable icdTable = new ImageContentDetailTable(query);
+				ImageContentTable icd_icTable = (this.Depth > 0) ? new ImageContentTable(query) : null;
+				ContentTable icd_ic_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				ServiceTable icd_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable icd_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable icd_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable icd_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable icd_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable icd_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable icd_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable icd_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable icd_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable icd_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable icd_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable icd_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				LanguageTable icd_lTable = (this.Depth > 0) ? new LanguageTable(query) : null;
+
+        
+				Content icd_ic_cObject = (this.Depth > 1) ? icd_ic_cTable.CreateInstance() : null;
+				ImageContent icd_icObject = (this.Depth > 0) ? icd_icTable.CreateInstance(icd_ic_cObject) : null;
+				Application icd_s_aObject = (this.Depth > 1) ? icd_s_aTable.CreateInstance() : null;
+				Product icd_s_pObject = (this.Depth > 1) ? icd_s_pTable.CreateInstance() : null;
+				Merchant icd_s_mObject = (this.Depth > 1) ? icd_s_mTable.CreateInstance() : null;
+				ServiceType icd_s_stObject = (this.Depth > 1) ? icd_s_stTable.CreateInstance() : null;
+				UserSessionType icd_s_ustObject = (this.Depth > 1) ? icd_s_ustTable.CreateInstance() : null;
+				Country icd_s_cObject = (this.Depth > 1) ? icd_s_cTable.CreateInstance() : null;
+				Language icd_s_lObject = (this.Depth > 1) ? icd_s_lTable.CreateInstance() : null;
+				AgeRating icd_s_arObject = (this.Depth > 1) ? icd_s_arTable.CreateInstance() : null;
+				ServiceConfiguration icd_s_scObject = (this.Depth > 1) ? icd_s_scTable.CreateInstance() : null;
+				BusinessModel icd_s_bmObject = (this.Depth > 1) ? icd_s_bmTable.CreateInstance() : null;
+				Template icd_s_tObject = (this.Depth > 1) ? icd_s_tTable.CreateInstance() : null;
+				Service icd_sObject = (this.Depth > 0) ? icd_sTable.CreateInstance(icd_s_aObject, icd_s_pObject, icd_s_mObject, icd_s_stObject, icd_s_ustObject, icd_s_cObject, icd_s_lObject, icd_s_arObject, icd_s_scObject, icd_s_bmObject, icd_s_tObject) : null;
+				Language icd_lObject = (this.Depth > 0) ? icd_lTable.CreateInstance() : null;
+				ImageContentDetail icdObject = icdTable.CreateInstance(icd_icObject, icd_sObject, icd_lObject);
+				sqlReader.Close();
+
+				return icdObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "customload", "exception"), "ImageContentDetail could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ImageContentDetail", "Exception while loading (custom/single) ImageContentDetail object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ImageContentDetail> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ImageContentDetailTable.GetColumnNames("[icd]") + 
+							(this.Depth > 0 ? "," + ImageContentTable.GetColumnNames("[icd_ic]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[icd_ic_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[icd_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[icd_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[icd_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[icd_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[icd_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[icd_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[icd_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[icd_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[icd_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[icd_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[icd_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[icd_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + LanguageTable.GetColumnNames("[icd_l]") : string.Empty) +  
+					" FROM [core].[ImageContentDetail] AS [icd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ImageContent] AS [icd_ic] ON [icd].[ImageContentID] = [icd_ic].[ImageContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [icd_ic_c] ON [icd_ic].[ContentID] = [icd_ic_c].[ContentID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [icd_s] ON [icd].[ServiceID] = [icd_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [icd_s_a] ON [icd_s].[ApplicationID] = [icd_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [icd_s_p] ON [icd_s].[ProductID] = [icd_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [icd_s_m] ON [icd_s].[MerchantID] = [icd_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [icd_s_st] ON [icd_s].[ServiceTypeID] = [icd_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [icd_s_ust] ON [icd_s].[UserSessionTypeID] = [icd_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [icd_s_c] ON [icd_s].[FallbackCountryID] = [icd_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [icd_s_l] ON [icd_s].[FallbackLanguageID] = [icd_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [icd_s_ar] ON [icd_s].[FallbackAgeRatingID] = [icd_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [icd_s_sc] ON [icd_s].[ServiceConfigurationID] = [icd_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [icd_s_bm] ON [icd_s].[BusinessModelID] = [icd_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [icd_s_t] ON [icd_s].[TemplateID] = [icd_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [icd_l] ON [icd].[LanguageID] = [icd_l].[LanguageID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "customloadmany", "notfound"), "ImageContentDetail list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ImageContentDetail>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ImageContentDetailTable icdTable = new ImageContentDetailTable(query);
+				ImageContentTable icd_icTable = (this.Depth > 0) ? new ImageContentTable(query) : null;
+				ContentTable icd_ic_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				ServiceTable icd_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable icd_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable icd_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable icd_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable icd_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable icd_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable icd_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable icd_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable icd_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable icd_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable icd_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable icd_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				LanguageTable icd_lTable = (this.Depth > 0) ? new LanguageTable(query) : null;
+
+        List<ImageContentDetail> result = new List<ImageContentDetail>();
+        do
+        {
+          
+					Content icd_ic_cObject = (this.Depth > 1) ? icd_ic_cTable.CreateInstance() : null;
+					ImageContent icd_icObject = (this.Depth > 0) ? icd_icTable.CreateInstance(icd_ic_cObject) : null;
+					Application icd_s_aObject = (this.Depth > 1) ? icd_s_aTable.CreateInstance() : null;
+					Product icd_s_pObject = (this.Depth > 1) ? icd_s_pTable.CreateInstance() : null;
+					Merchant icd_s_mObject = (this.Depth > 1) ? icd_s_mTable.CreateInstance() : null;
+					ServiceType icd_s_stObject = (this.Depth > 1) ? icd_s_stTable.CreateInstance() : null;
+					UserSessionType icd_s_ustObject = (this.Depth > 1) ? icd_s_ustTable.CreateInstance() : null;
+					Country icd_s_cObject = (this.Depth > 1) ? icd_s_cTable.CreateInstance() : null;
+					Language icd_s_lObject = (this.Depth > 1) ? icd_s_lTable.CreateInstance() : null;
+					AgeRating icd_s_arObject = (this.Depth > 1) ? icd_s_arTable.CreateInstance() : null;
+					ServiceConfiguration icd_s_scObject = (this.Depth > 1) ? icd_s_scTable.CreateInstance() : null;
+					BusinessModel icd_s_bmObject = (this.Depth > 1) ? icd_s_bmTable.CreateInstance() : null;
+					Template icd_s_tObject = (this.Depth > 1) ? icd_s_tTable.CreateInstance() : null;
+					Service icd_sObject = (this.Depth > 0) ? icd_sTable.CreateInstance(icd_s_aObject, icd_s_pObject, icd_s_mObject, icd_s_stObject, icd_s_ustObject, icd_s_cObject, icd_s_lObject, icd_s_arObject, icd_s_scObject, icd_s_bmObject, icd_s_tObject) : null;
+					Language icd_lObject = (this.Depth > 0) ? icd_lTable.CreateInstance() : null;
+					ImageContentDetail icdObject = (this.Depth > -1) ? icdTable.CreateInstance(icd_icObject, icd_sObject, icd_lObject) : null;
+					result.Add(icdObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "customloadmany", "exception"), "ImageContentDetail list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ImageContentDetail", "Exception while loading (custom/many) ImageContentDetail object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ImageContentDetail data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ImageContentDetail] ([ImageContentID],[ServiceID],[LanguageID],[Title],[Description],[Rating],[HtmlTitle],[MetaDescription],[MetaKeywords]) VALUES(@ImageContentID,@ServiceID,@LanguageID,@Title,@Description,@Rating,@HtmlTitle,@MetaDescription,@MetaKeywords); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ImageContentID", data.ImageContent.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service == null ? DBNull.Value : (object)data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@LanguageID", data.Language == null ? DBNull.Value : (object)data.Language.ID);
+				sqlCmd.Parameters.AddWithValue("@Title", data.Title).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@Rating", data.Rating).SqlDbType = SqlDbType.Decimal;
+				sqlCmd.Parameters.AddWithValue("@HtmlTitle", data.HtmlTitle).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@MetaDescription", !string.IsNullOrEmpty(data.MetaDescription) ? (object)data.MetaDescription : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@MetaKeywords", !string.IsNullOrEmpty(data.MetaKeywords) ? (object)data.MetaKeywords : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "insert", "noprimarykey"), "ImageContentDetail could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ImageContentDetail", "Exception while inserting ImageContentDetail object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "insert", "exception"), "ImageContentDetail could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ImageContentDetail", "Exception while inserting ImageContentDetail object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ImageContentDetail data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ImageContentDetail] SET " +
+												"[ImageContentID] = @ImageContentID, " + 
+												"[ServiceID] = @ServiceID, " + 
+												"[LanguageID] = @LanguageID, " + 
+												"[Title] = @Title, " + 
+												"[Description] = @Description, " + 
+												"[Rating] = @Rating, " + 
+												"[HtmlTitle] = @HtmlTitle, " + 
+												"[MetaDescription] = @MetaDescription, " + 
+												"[MetaKeywords] = @MetaKeywords, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ImageContentDetailID] = @ImageContentDetailID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ImageContentID", data.ImageContent.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service == null ? DBNull.Value : (object)data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@LanguageID", data.Language == null ? DBNull.Value : (object)data.Language.ID);
+				sqlCmd.Parameters.AddWithValue("@Title", data.Title).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@Rating", data.Rating).SqlDbType = SqlDbType.Decimal;
+				sqlCmd.Parameters.AddWithValue("@HtmlTitle", data.HtmlTitle).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@MetaDescription", !string.IsNullOrEmpty(data.MetaDescription) ? (object)data.MetaDescription : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@MetaKeywords", !string.IsNullOrEmpty(data.MetaKeywords) ? (object)data.MetaKeywords : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ImageContentDetailID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "update", "norecord"), "ImageContentDetail could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ImageContentDetail", "Exception while updating ImageContentDetail object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "update", "morerecords"), "ImageContentDetail was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ImageContentDetail", "Exception while updating ImageContentDetail object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "update", "exception"), "ImageContentDetail could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ImageContentDetail", "Exception while updating ImageContentDetail object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ImageContentDetail data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ImageContentDetail] WHERE ImageContentDetailID = @ImageContentDetailID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ImageContentDetailID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "delete", "norecord"), "ImageContentDetail could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ImageContentDetail", "Exception while deleting ImageContentDetail object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("icd", "delete", "exception"), "ImageContentDetail could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ImageContentDetail", "Exception while deleting ImageContentDetail object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

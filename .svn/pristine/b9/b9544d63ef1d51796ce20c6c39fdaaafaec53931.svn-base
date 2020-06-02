@@ -1,0 +1,50 @@
+﻿using Cashflow.Client;
+using log4net;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using Cashflow.Message.Mobile;
+using MobilePaywall.Service.Callback.Log;
+
+namespace MobilePaywall.Service.Callback.Handlers._Specific.GR
+{
+	public class GRVeooNotificationHandler : NotificationHandlerBase
+	{
+
+		#region #logging#
+		private static ILog _log = null;
+
+		protected static ILog Log
+		{
+			get
+			{
+				if (GRVeooNotificationHandler._log == null)
+					GRVeooNotificationHandler._log = log4net.LogManager.GetLogger(typeof(GRVeooNotificationHandler));
+				return GRVeooNotificationHandler._log;
+			}
+		}
+		#endregion
+
+
+		protected override void ProcessSendSms(SendSmsNotification notification)
+		{
+			CallbackLog CLog = new CallbackLog(notification, Log);
+			if (CLog.UserSession == null || !CLog.UserSession.Service.FallbackCountry.TwoLetterIsoCode.Equals("GR"))
+				return;
+
+			if (notification.Status.Code != Cashflow.Message.MessageStatusCode.Success)
+				return;
+
+			if (CLog.UserSession.Customer == null)
+			{
+				Log.Error("GRVeoo: User session does not contain Customer. USID:" + CLog.UserSessionID);
+				return;
+			}
+
+			CLog.UserSession.Customer.Storage.PutString("SmsID", notification.SmsID.ToString());
+		}
+		
+
+	}
+}

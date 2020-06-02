@@ -1,0 +1,97 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface ITemplateServiceContentSortManager 
+  {
+    TemplateServiceContentSort Load(Service service, ContentGroup contentGroup);
+    TemplateServiceContentSort Load(IConnectionInfo connection, Service service, ContentGroup contentGroup);
+    
+    List<TemplateServiceContentSort> Load(Service service);
+    List<TemplateServiceContentSort> Load(IConnectionInfo connection, Service service);
+
+  }
+
+  public partial class TemplateServiceContentSort
+  {
+    private List<int> _contents = null;
+    private List<int> _displayedCotnent = null;
+    private List<int> _hiddenContent = null;
+
+
+    public void InsertWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, "TemplateServiceContentSort", "core", this); }
+    public void UpdateWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, "TemplateServiceContentSort", "core", this); }
+    public void DeleteWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, "TemplateServiceContentSort", "core", this); }
+
+    public List<int> Contents
+    {
+      get
+      {
+        if (this._contents != null)
+          return this._contents;
+
+        this._contents = new List<int>();
+        string[] contentids = this._data.Split(this._separator[0]);
+        foreach(string contentid in contentids)
+        {
+          int id = -1;
+          if (Int32.TryParse(contentid, out id))
+            this._contents.Add(id);
+        }
+
+        return this._contents;
+      }
+    }
+
+    public List<int> DisplayedContent { get { return this._displayedCotnent; } }
+    public List<int> HiddenContent { get { return this._hiddenContent; } }
+
+    public List<Content> SortContent(List<Content> content)
+    {
+      List<Content> returnContent = new List<Content>();
+      List<int> addedContentIDS = new List<int>();
+
+      foreach(int contentID in this.Contents)
+      {
+        Content cc = (from c in content where c.ID == contentID select c).FirstOrDefault();
+
+        // this issue will happen only for those services who use /content/management
+        if (cc == null)
+          continue;
+
+        returnContent.Add(cc);
+        addedContentIDS.Add(cc.ID);
+      }
+
+      List<Content> hiddenContent = (from c in content where !addedContentIDS.Contains(c.ID) select c).ToList();
+      this._displayedCotnent = (from c in returnContent select c.ID).ToList();
+
+      returnContent.AddRange(hiddenContent);
+
+      this._hiddenContent = (from hc in hiddenContent select hc.ID).ToList();
+      return returnContent;
+    }
+
+    public List<IContent> SortContent(List<IContent> content)
+    {
+      List<IContent> returnContent = new List<IContent>();
+      foreach (int contentID in this.Contents)
+      {
+        IContent contentItem = (from c in content where c.ContentData.ID == contentID select c).FirstOrDefault();
+        if (contentItem != null)
+          returnContent.Add(contentItem);
+      }
+
+      return returnContent;
+    }
+
+
+  }
+}
+

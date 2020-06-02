@@ -1,0 +1,371 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ThumbnailConversionProfileEntry))] 
+  public partial class ThumbnailConversionProfileEntryManager : MobilePaywall.Data.Sql.SqlManagerBase<ThumbnailConversionProfileEntry>, IThumbnailConversionProfileEntryManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ThumbnailConversionProfileEntry LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ThumbnailConversionProfileEntryTable.GetColumnNames("[tcpe]") + 
+							(this.Depth > 0 ? "," + ThumbnailConversionProfileTable.GetColumnNames("[tcpe_tcp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + VisualMediaDimensionsTable.GetColumnNames("[tcpe_vmd]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[tcpe_vmd_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ImageFormatTable.GetColumnNames("[tcpe_if]") : string.Empty) + 
+					" FROM [core].[ThumbnailConversionProfileEntry] AS [tcpe] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ThumbnailConversionProfile] AS [tcpe_tcp] ON [tcpe].[ThumbnailConversionProfileID] = [tcpe_tcp].[ThumbnailConversionProfileID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[VisualMediaDimensions] AS [tcpe_vmd] ON [tcpe].[VisualMediaDimensionsID] = [tcpe_vmd].[VisualMediaDimensionsID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [tcpe_vmd_i] ON [tcpe_vmd].[InstanceID] = [tcpe_vmd_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ImageFormat] AS [tcpe_if] ON [tcpe].[ImageFormatID] = [tcpe_if].[ImageFormatID] ";
+				sqlCmdText += "WHERE [tcpe].[ThumbnailConversionProfileEntryID] = @ThumbnailConversionProfileEntryID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ThumbnailConversionProfileEntryID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tcpe", "loadinternal", "notfound"), "ThumbnailConversionProfileEntry could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ThumbnailConversionProfileEntryTable tcpeTable = new ThumbnailConversionProfileEntryTable(query);
+				ThumbnailConversionProfileTable tcpe_tcpTable = (this.Depth > 0) ? new ThumbnailConversionProfileTable(query) : null;
+				VisualMediaDimensionsTable tcpe_vmdTable = (this.Depth > 0) ? new VisualMediaDimensionsTable(query) : null;
+				InstanceTable tcpe_vmd_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				ImageFormatTable tcpe_ifTable = (this.Depth > 0) ? new ImageFormatTable(query) : null;
+
+        
+				ThumbnailConversionProfile tcpe_tcpObject = (this.Depth > 0) ? tcpe_tcpTable.CreateInstance() : null;
+				Instance tcpe_vmd_iObject = (this.Depth > 1) ? tcpe_vmd_iTable.CreateInstance() : null;
+				VisualMediaDimensions tcpe_vmdObject = (this.Depth > 0) ? tcpe_vmdTable.CreateInstance(tcpe_vmd_iObject) : null;
+				ImageFormat tcpe_ifObject = (this.Depth > 0) ? tcpe_ifTable.CreateInstance() : null;
+				ThumbnailConversionProfileEntry tcpeObject = tcpeTable.CreateInstance(tcpe_tcpObject, tcpe_vmdObject, tcpe_ifObject);
+				sqlReader.Close();
+
+				return tcpeObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tcpe", "loadinternal", "exception"), "ThumbnailConversionProfileEntry could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ThumbnailConversionProfileEntry", "Exception while loading ThumbnailConversionProfileEntry object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ThumbnailConversionProfileEntry Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ThumbnailConversionProfileEntryTable.GetColumnNames("[tcpe]") + 
+							(this.Depth > 0 ? "," + ThumbnailConversionProfileTable.GetColumnNames("[tcpe_tcp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + VisualMediaDimensionsTable.GetColumnNames("[tcpe_vmd]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[tcpe_vmd_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ImageFormatTable.GetColumnNames("[tcpe_if]") : string.Empty) +  
+					" FROM [core].[ThumbnailConversionProfileEntry] AS [tcpe] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ThumbnailConversionProfile] AS [tcpe_tcp] ON [tcpe].[ThumbnailConversionProfileID] = [tcpe_tcp].[ThumbnailConversionProfileID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[VisualMediaDimensions] AS [tcpe_vmd] ON [tcpe].[VisualMediaDimensionsID] = [tcpe_vmd].[VisualMediaDimensionsID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [tcpe_vmd_i] ON [tcpe_vmd].[InstanceID] = [tcpe_vmd_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ImageFormat] AS [tcpe_if] ON [tcpe].[ImageFormatID] = [tcpe_if].[ImageFormatID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tcpe", "customload", "notfound"), "ThumbnailConversionProfileEntry could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ThumbnailConversionProfileEntryTable tcpeTable = new ThumbnailConversionProfileEntryTable(query);
+				ThumbnailConversionProfileTable tcpe_tcpTable = (this.Depth > 0) ? new ThumbnailConversionProfileTable(query) : null;
+				VisualMediaDimensionsTable tcpe_vmdTable = (this.Depth > 0) ? new VisualMediaDimensionsTable(query) : null;
+				InstanceTable tcpe_vmd_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				ImageFormatTable tcpe_ifTable = (this.Depth > 0) ? new ImageFormatTable(query) : null;
+
+        
+				ThumbnailConversionProfile tcpe_tcpObject = (this.Depth > 0) ? tcpe_tcpTable.CreateInstance() : null;
+				Instance tcpe_vmd_iObject = (this.Depth > 1) ? tcpe_vmd_iTable.CreateInstance() : null;
+				VisualMediaDimensions tcpe_vmdObject = (this.Depth > 0) ? tcpe_vmdTable.CreateInstance(tcpe_vmd_iObject) : null;
+				ImageFormat tcpe_ifObject = (this.Depth > 0) ? tcpe_ifTable.CreateInstance() : null;
+				ThumbnailConversionProfileEntry tcpeObject = tcpeTable.CreateInstance(tcpe_tcpObject, tcpe_vmdObject, tcpe_ifObject);
+				sqlReader.Close();
+
+				return tcpeObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tcpe", "customload", "exception"), "ThumbnailConversionProfileEntry could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ThumbnailConversionProfileEntry", "Exception while loading (custom/single) ThumbnailConversionProfileEntry object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ThumbnailConversionProfileEntry> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ThumbnailConversionProfileEntryTable.GetColumnNames("[tcpe]") + 
+							(this.Depth > 0 ? "," + ThumbnailConversionProfileTable.GetColumnNames("[tcpe_tcp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + VisualMediaDimensionsTable.GetColumnNames("[tcpe_vmd]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[tcpe_vmd_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ImageFormatTable.GetColumnNames("[tcpe_if]") : string.Empty) +  
+					" FROM [core].[ThumbnailConversionProfileEntry] AS [tcpe] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ThumbnailConversionProfile] AS [tcpe_tcp] ON [tcpe].[ThumbnailConversionProfileID] = [tcpe_tcp].[ThumbnailConversionProfileID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[VisualMediaDimensions] AS [tcpe_vmd] ON [tcpe].[VisualMediaDimensionsID] = [tcpe_vmd].[VisualMediaDimensionsID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [tcpe_vmd_i] ON [tcpe_vmd].[InstanceID] = [tcpe_vmd_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ImageFormat] AS [tcpe_if] ON [tcpe].[ImageFormatID] = [tcpe_if].[ImageFormatID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tcpe", "customloadmany", "notfound"), "ThumbnailConversionProfileEntry list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ThumbnailConversionProfileEntry>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ThumbnailConversionProfileEntryTable tcpeTable = new ThumbnailConversionProfileEntryTable(query);
+				ThumbnailConversionProfileTable tcpe_tcpTable = (this.Depth > 0) ? new ThumbnailConversionProfileTable(query) : null;
+				VisualMediaDimensionsTable tcpe_vmdTable = (this.Depth > 0) ? new VisualMediaDimensionsTable(query) : null;
+				InstanceTable tcpe_vmd_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				ImageFormatTable tcpe_ifTable = (this.Depth > 0) ? new ImageFormatTable(query) : null;
+
+        List<ThumbnailConversionProfileEntry> result = new List<ThumbnailConversionProfileEntry>();
+        do
+        {
+          
+					ThumbnailConversionProfile tcpe_tcpObject = (this.Depth > 0) ? tcpe_tcpTable.CreateInstance() : null;
+					Instance tcpe_vmd_iObject = (this.Depth > 1) ? tcpe_vmd_iTable.CreateInstance() : null;
+					VisualMediaDimensions tcpe_vmdObject = (this.Depth > 0) ? tcpe_vmdTable.CreateInstance(tcpe_vmd_iObject) : null;
+					ImageFormat tcpe_ifObject = (this.Depth > 0) ? tcpe_ifTable.CreateInstance() : null;
+					ThumbnailConversionProfileEntry tcpeObject = (this.Depth > -1) ? tcpeTable.CreateInstance(tcpe_tcpObject, tcpe_vmdObject, tcpe_ifObject) : null;
+					result.Add(tcpeObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tcpe", "customloadmany", "exception"), "ThumbnailConversionProfileEntry list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ThumbnailConversionProfileEntry", "Exception while loading (custom/many) ThumbnailConversionProfileEntry object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ThumbnailConversionProfileEntry data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ThumbnailConversionProfileEntry] ([ThumbnailConversionProfileID],[VisualMediaDimensionsID],[ImageFormatID]) VALUES(@ThumbnailConversionProfileID,@VisualMediaDimensionsID,@ImageFormatID); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ThumbnailConversionProfileID", data.ThumbnailConversionProfile.ID);
+				sqlCmd.Parameters.AddWithValue("@VisualMediaDimensionsID", data.VisualMediaDimensions.ID);
+				sqlCmd.Parameters.AddWithValue("@ImageFormatID", data.ImageFormat.ID);
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tcpe", "insert", "noprimarykey"), "ThumbnailConversionProfileEntry could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ThumbnailConversionProfileEntry", "Exception while inserting ThumbnailConversionProfileEntry object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tcpe", "insert", "exception"), "ThumbnailConversionProfileEntry could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ThumbnailConversionProfileEntry", "Exception while inserting ThumbnailConversionProfileEntry object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ThumbnailConversionProfileEntry data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ThumbnailConversionProfileEntry] SET " +
+												"[ThumbnailConversionProfileID] = @ThumbnailConversionProfileID, " + 
+												"[VisualMediaDimensionsID] = @VisualMediaDimensionsID, " + 
+												"[ImageFormatID] = @ImageFormatID, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ThumbnailConversionProfileEntryID] = @ThumbnailConversionProfileEntryID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ThumbnailConversionProfileID", data.ThumbnailConversionProfile.ID);
+				sqlCmd.Parameters.AddWithValue("@VisualMediaDimensionsID", data.VisualMediaDimensions.ID);
+				sqlCmd.Parameters.AddWithValue("@ImageFormatID", data.ImageFormat.ID);
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ThumbnailConversionProfileEntryID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tcpe", "update", "norecord"), "ThumbnailConversionProfileEntry could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ThumbnailConversionProfileEntry", "Exception while updating ThumbnailConversionProfileEntry object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tcpe", "update", "morerecords"), "ThumbnailConversionProfileEntry was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ThumbnailConversionProfileEntry", "Exception while updating ThumbnailConversionProfileEntry object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tcpe", "update", "exception"), "ThumbnailConversionProfileEntry could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ThumbnailConversionProfileEntry", "Exception while updating ThumbnailConversionProfileEntry object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ThumbnailConversionProfileEntry data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ThumbnailConversionProfileEntry] WHERE ThumbnailConversionProfileEntryID = @ThumbnailConversionProfileEntryID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ThumbnailConversionProfileEntryID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tcpe", "delete", "norecord"), "ThumbnailConversionProfileEntry could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ThumbnailConversionProfileEntry", "Exception while deleting ThumbnailConversionProfileEntry object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tcpe", "delete", "exception"), "ThumbnailConversionProfileEntry could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ThumbnailConversionProfileEntry", "Exception while deleting ThumbnailConversionProfileEntry object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

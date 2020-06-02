@@ -1,0 +1,73 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using MobilePaywall.Data;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IPlatformManager : IDataManager<Platform> 
+  {
+	
+
+  }
+
+  public partial class Platform : MobilePaywallObject<IPlatformManager> 
+  {
+		private Vendor _vendor;
+		private string _name = String.Empty;
+		private string _description = String.Empty;
+		
+
+		public Vendor Vendor 
+		{
+			get
+			{
+				if (this._vendor != null &&
+						this._vendor.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._vendor = Vendor.CreateManager().LazyLoad(this.ConnectionContext, this._vendor.ID) as Vendor;
+					else
+						this._vendor = Vendor.CreateManager().LazyLoad(this._vendor.ID) as Vendor;
+				return this._vendor;
+			}
+			set { _vendor = value; }
+		}
+
+		public string Name{ get {return this._name; } set { this._name = value;} }
+		public string Description{ get {return this._description; } set { this._description = value;} }
+		
+
+    public override bool IsInsertable { get { return true;} }
+
+    public override bool IsDeletable { get { return false;} }
+
+    public override bool IsUpdatable { get { return true;} }
+
+    public Platform()
+    { 
+    }
+
+    public Platform(int id): base(id, DateTime.Now, DateTime.Now, true)
+    {
+    }
+
+    public Platform(int id,  Vendor vendor, string name, string description, DateTime updated, DateTime created): base(id, updated, created, false)
+    {
+			this._vendor = vendor;
+			this._name = name;
+			this._description = description;
+			
+    }
+
+    public override object Clone(bool deepClone)
+    {
+      return new Platform(-1,  this.Vendor,this.Name,this.Description, DateTime.Now, DateTime.Now);
+    }
+  }
+}
+

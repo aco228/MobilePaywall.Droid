@@ -1,0 +1,446 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+using System.IO;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ContentThumbnailData))] 
+  public partial class ContentThumbnailDataManager : MobilePaywall.Data.Sql.SqlManagerBase<ContentThumbnailData>, IContentThumbnailDataManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ContentThumbnailData LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ContentThumbnailDataTable.GetColumnNames("[ctd]") + 
+							(this.Depth > 0 ? "," + ContentThumbnailTable.GetColumnNames("[ctd_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[ctd_ct_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ThumbnailConversionProfileEntryTable.GetColumnNames("[ctd_tcpe]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ThumbnailConversionProfileTable.GetColumnNames("[ctd_tcpe_tcp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + VisualMediaDimensionsTable.GetColumnNames("[ctd_tcpe_vmd]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ImageFormatTable.GetColumnNames("[ctd_tcpe_if]") : string.Empty) + 
+					" FROM [core].[ContentThumbnailData] AS [ctd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentThumbnail] AS [ctd_ct] ON [ctd].[ContentThumbnailID] = [ctd_ct].[ContentThumbnailID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [ctd_ct_c] ON [ctd_ct].[ContentID] = [ctd_ct_c].[ContentID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ThumbnailConversionProfileEntry] AS [ctd_tcpe] ON [ctd].[ThumbnailConversionProfileEntryID] = [ctd_tcpe].[ThumbnailConversionProfileEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ThumbnailConversionProfile] AS [ctd_tcpe_tcp] ON [ctd_tcpe].[ThumbnailConversionProfileID] = [ctd_tcpe_tcp].[ThumbnailConversionProfileID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[VisualMediaDimensions] AS [ctd_tcpe_vmd] ON [ctd_tcpe].[VisualMediaDimensionsID] = [ctd_tcpe_vmd].[VisualMediaDimensionsID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ImageFormat] AS [ctd_tcpe_if] ON [ctd_tcpe].[ImageFormatID] = [ctd_tcpe_if].[ImageFormatID] ";
+				sqlCmdText += "WHERE [ctd].[ContentThumbnailDataID] = @ContentThumbnailDataID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ContentThumbnailDataID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ctd", "loadinternal", "notfound"), "ContentThumbnailData could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ContentThumbnailDataTable ctdTable = new ContentThumbnailDataTable(query);
+				ContentThumbnailTable ctd_ctTable = (this.Depth > 0) ? new ContentThumbnailTable(query) : null;
+				ContentTable ctd_ct_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				ThumbnailConversionProfileEntryTable ctd_tcpeTable = (this.Depth > 0) ? new ThumbnailConversionProfileEntryTable(query) : null;
+				ThumbnailConversionProfileTable ctd_tcpe_tcpTable = (this.Depth > 1) ? new ThumbnailConversionProfileTable(query) : null;
+				VisualMediaDimensionsTable ctd_tcpe_vmdTable = (this.Depth > 1) ? new VisualMediaDimensionsTable(query) : null;
+				ImageFormatTable ctd_tcpe_ifTable = (this.Depth > 1) ? new ImageFormatTable(query) : null;
+
+        
+				Content ctd_ct_cObject = (this.Depth > 1) ? ctd_ct_cTable.CreateInstance() : null;
+				ContentThumbnail ctd_ctObject = (this.Depth > 0) ? ctd_ctTable.CreateInstance(ctd_ct_cObject) : null;
+				ThumbnailConversionProfile ctd_tcpe_tcpObject = (this.Depth > 1) ? ctd_tcpe_tcpTable.CreateInstance() : null;
+				VisualMediaDimensions ctd_tcpe_vmdObject = (this.Depth > 1) ? ctd_tcpe_vmdTable.CreateInstance() : null;
+				ImageFormat ctd_tcpe_ifObject = (this.Depth > 1) ? ctd_tcpe_ifTable.CreateInstance() : null;
+				ThumbnailConversionProfileEntry ctd_tcpeObject = (this.Depth > 0) ? ctd_tcpeTable.CreateInstance(ctd_tcpe_tcpObject, ctd_tcpe_vmdObject, ctd_tcpe_ifObject) : null;
+				ContentThumbnailData ctdObject = ctdTable.CreateInstance(ctd_ctObject, ctd_tcpeObject);
+				sqlReader.Close();
+
+				return ctdObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ctd", "loadinternal", "exception"), "ContentThumbnailData could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ContentThumbnailData", "Exception while loading ContentThumbnailData object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ContentThumbnailData Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ContentThumbnailDataTable.GetColumnNames("[ctd]") + 
+							(this.Depth > 0 ? "," + ContentThumbnailTable.GetColumnNames("[ctd_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[ctd_ct_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ThumbnailConversionProfileEntryTable.GetColumnNames("[ctd_tcpe]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ThumbnailConversionProfileTable.GetColumnNames("[ctd_tcpe_tcp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + VisualMediaDimensionsTable.GetColumnNames("[ctd_tcpe_vmd]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ImageFormatTable.GetColumnNames("[ctd_tcpe_if]") : string.Empty) +  
+					" FROM [core].[ContentThumbnailData] AS [ctd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentThumbnail] AS [ctd_ct] ON [ctd].[ContentThumbnailID] = [ctd_ct].[ContentThumbnailID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [ctd_ct_c] ON [ctd_ct].[ContentID] = [ctd_ct_c].[ContentID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ThumbnailConversionProfileEntry] AS [ctd_tcpe] ON [ctd].[ThumbnailConversionProfileEntryID] = [ctd_tcpe].[ThumbnailConversionProfileEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ThumbnailConversionProfile] AS [ctd_tcpe_tcp] ON [ctd_tcpe].[ThumbnailConversionProfileID] = [ctd_tcpe_tcp].[ThumbnailConversionProfileID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[VisualMediaDimensions] AS [ctd_tcpe_vmd] ON [ctd_tcpe].[VisualMediaDimensionsID] = [ctd_tcpe_vmd].[VisualMediaDimensionsID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ImageFormat] AS [ctd_tcpe_if] ON [ctd_tcpe].[ImageFormatID] = [ctd_tcpe_if].[ImageFormatID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ctd", "customload", "notfound"), "ContentThumbnailData could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ContentThumbnailDataTable ctdTable = new ContentThumbnailDataTable(query);
+				ContentThumbnailTable ctd_ctTable = (this.Depth > 0) ? new ContentThumbnailTable(query) : null;
+				ContentTable ctd_ct_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				ThumbnailConversionProfileEntryTable ctd_tcpeTable = (this.Depth > 0) ? new ThumbnailConversionProfileEntryTable(query) : null;
+				ThumbnailConversionProfileTable ctd_tcpe_tcpTable = (this.Depth > 1) ? new ThumbnailConversionProfileTable(query) : null;
+				VisualMediaDimensionsTable ctd_tcpe_vmdTable = (this.Depth > 1) ? new VisualMediaDimensionsTable(query) : null;
+				ImageFormatTable ctd_tcpe_ifTable = (this.Depth > 1) ? new ImageFormatTable(query) : null;
+
+        
+				Content ctd_ct_cObject = (this.Depth > 1) ? ctd_ct_cTable.CreateInstance() : null;
+				ContentThumbnail ctd_ctObject = (this.Depth > 0) ? ctd_ctTable.CreateInstance(ctd_ct_cObject) : null;
+				ThumbnailConversionProfile ctd_tcpe_tcpObject = (this.Depth > 1) ? ctd_tcpe_tcpTable.CreateInstance() : null;
+				VisualMediaDimensions ctd_tcpe_vmdObject = (this.Depth > 1) ? ctd_tcpe_vmdTable.CreateInstance() : null;
+				ImageFormat ctd_tcpe_ifObject = (this.Depth > 1) ? ctd_tcpe_ifTable.CreateInstance() : null;
+				ThumbnailConversionProfileEntry ctd_tcpeObject = (this.Depth > 0) ? ctd_tcpeTable.CreateInstance(ctd_tcpe_tcpObject, ctd_tcpe_vmdObject, ctd_tcpe_ifObject) : null;
+				ContentThumbnailData ctdObject = ctdTable.CreateInstance(ctd_ctObject, ctd_tcpeObject);
+				sqlReader.Close();
+
+				return ctdObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ctd", "customload", "exception"), "ContentThumbnailData could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ContentThumbnailData", "Exception while loading (custom/single) ContentThumbnailData object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ContentThumbnailData> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ContentThumbnailDataTable.GetColumnNames("[ctd]") + 
+							(this.Depth > 0 ? "," + ContentThumbnailTable.GetColumnNames("[ctd_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[ctd_ct_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ThumbnailConversionProfileEntryTable.GetColumnNames("[ctd_tcpe]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ThumbnailConversionProfileTable.GetColumnNames("[ctd_tcpe_tcp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + VisualMediaDimensionsTable.GetColumnNames("[ctd_tcpe_vmd]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ImageFormatTable.GetColumnNames("[ctd_tcpe_if]") : string.Empty) +  
+					" FROM [core].[ContentThumbnailData] AS [ctd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentThumbnail] AS [ctd_ct] ON [ctd].[ContentThumbnailID] = [ctd_ct].[ContentThumbnailID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [ctd_ct_c] ON [ctd_ct].[ContentID] = [ctd_ct_c].[ContentID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ThumbnailConversionProfileEntry] AS [ctd_tcpe] ON [ctd].[ThumbnailConversionProfileEntryID] = [ctd_tcpe].[ThumbnailConversionProfileEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ThumbnailConversionProfile] AS [ctd_tcpe_tcp] ON [ctd_tcpe].[ThumbnailConversionProfileID] = [ctd_tcpe_tcp].[ThumbnailConversionProfileID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[VisualMediaDimensions] AS [ctd_tcpe_vmd] ON [ctd_tcpe].[VisualMediaDimensionsID] = [ctd_tcpe_vmd].[VisualMediaDimensionsID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ImageFormat] AS [ctd_tcpe_if] ON [ctd_tcpe].[ImageFormatID] = [ctd_tcpe_if].[ImageFormatID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ctd", "customloadmany", "notfound"), "ContentThumbnailData list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ContentThumbnailData>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ContentThumbnailDataTable ctdTable = new ContentThumbnailDataTable(query);
+				ContentThumbnailTable ctd_ctTable = (this.Depth > 0) ? new ContentThumbnailTable(query) : null;
+				ContentTable ctd_ct_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				ThumbnailConversionProfileEntryTable ctd_tcpeTable = (this.Depth > 0) ? new ThumbnailConversionProfileEntryTable(query) : null;
+				ThumbnailConversionProfileTable ctd_tcpe_tcpTable = (this.Depth > 1) ? new ThumbnailConversionProfileTable(query) : null;
+				VisualMediaDimensionsTable ctd_tcpe_vmdTable = (this.Depth > 1) ? new VisualMediaDimensionsTable(query) : null;
+				ImageFormatTable ctd_tcpe_ifTable = (this.Depth > 1) ? new ImageFormatTable(query) : null;
+
+        List<ContentThumbnailData> result = new List<ContentThumbnailData>();
+        do
+        {
+          
+					Content ctd_ct_cObject = (this.Depth > 1) ? ctd_ct_cTable.CreateInstance() : null;
+					ContentThumbnail ctd_ctObject = (this.Depth > 0) ? ctd_ctTable.CreateInstance(ctd_ct_cObject) : null;
+					ThumbnailConversionProfile ctd_tcpe_tcpObject = (this.Depth > 1) ? ctd_tcpe_tcpTable.CreateInstance() : null;
+					VisualMediaDimensions ctd_tcpe_vmdObject = (this.Depth > 1) ? ctd_tcpe_vmdTable.CreateInstance() : null;
+					ImageFormat ctd_tcpe_ifObject = (this.Depth > 1) ? ctd_tcpe_ifTable.CreateInstance() : null;
+					ThumbnailConversionProfileEntry ctd_tcpeObject = (this.Depth > 0) ? ctd_tcpeTable.CreateInstance(ctd_tcpe_tcpObject, ctd_tcpe_vmdObject, ctd_tcpe_ifObject) : null;
+					ContentThumbnailData ctdObject = (this.Depth > -1) ? ctdTable.CreateInstance(ctd_ctObject, ctd_tcpeObject) : null;
+					result.Add(ctdObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ctd", "customloadmany", "exception"), "ContentThumbnailData list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ContentThumbnailData", "Exception while loading (custom/many) ContentThumbnailData object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ContentThumbnailData data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ContentThumbnailData] ([ContentThumbnailID],[ThumbnailConversionProfileEntryID],[IsOriginal],[Data]) VALUES(@ContentThumbnailID,@ThumbnailConversionProfileEntryID,@IsOriginal,@Data); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ContentThumbnailID", data.ContentThumbnail.ID);
+				sqlCmd.Parameters.AddWithValue("@ThumbnailConversionProfileEntryID", data.ThumbnailConversionProfileEntry.ID);
+				sqlCmd.Parameters.AddWithValue("@IsOriginal", data.IsOriginal).SqlDbType = SqlDbType.Bit;
+        //sqlCmd.Parameters.AddWithValue("@Data", data.Data).SqlDbType = SqlDbType.VarBinary;
+        sqlCmd.Parameters.AddWithValue("@Data", new byte[] { }).SqlDbType = SqlDbType.VarBinary;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ctd", "insert", "noprimarykey"), "ContentThumbnailData could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ContentThumbnailData", "Exception while inserting ContentThumbnailData object in database.");
+        }
+
+        int intId = (int)((decimal)idObj);
+
+        if (!String.IsNullOrEmpty(data.DataFilePath))
+        {
+          string updateQuery = @"UPDATE [core].[ContentThumbnailData] SET Data.WRITE(@Data, @Offset, @Length) WHERE ContentThumbnailDataID = @ContentThumbnailDataID;";
+          SqlCommand cmdUpdate = database.Add(updateQuery) as SqlCommand;
+          SqlParameter idParameter = new SqlParameter("@ContentThumbnailDataID", intId);
+          SqlParameter dataParameter = new SqlParameter("@Data", SqlDbType.VarBinary);
+          SqlParameter offsetParameter = new SqlParameter("@Offset", SqlDbType.BigInt);
+          SqlParameter lengthParameter = new SqlParameter("@Length", SqlDbType.BigInt);
+          cmdUpdate.Parameters.Add(idParameter);
+          cmdUpdate.Parameters.Add(dataParameter);
+          cmdUpdate.Parameters.Add(offsetParameter);
+          cmdUpdate.Parameters.Add(lengthParameter);
+
+          using (FileStream fs = new FileStream(data.DataFilePath, FileMode.Open, FileAccess.Read))
+          {
+            byte[] buffer = new byte[2090400];
+            int read = 0;
+            int offset = 0;
+
+            if (buffer.Length > fs.Length)
+              buffer = new byte[fs.Length];
+
+            while ((read = fs.Read(buffer, 0, buffer.Length)) > 0)
+            {
+              dataParameter.Value = buffer;
+              offsetParameter.Value = offset;
+              lengthParameter.Value = read;
+
+              cmdUpdate.ExecuteNonQuery();
+
+              if (buffer.Length > fs.Length - offset)
+                buffer = new byte[fs.Length];
+
+              offset += read;
+            }
+          }
+        }
+        return intId;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ctd", "insert", "exception"), "ContentThumbnailData could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ContentThumbnailData", "Exception while inserting ContentThumbnailData object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ContentThumbnailData data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ContentThumbnailData] SET " +
+												"[ContentThumbnailID] = @ContentThumbnailID, " + 
+												"[ThumbnailConversionProfileEntryID] = @ThumbnailConversionProfileEntryID, " + 
+												"[IsOriginal] = @IsOriginal, " + 
+												"[Data] = @Data, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ContentThumbnailDataID] = @ContentThumbnailDataID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ContentThumbnailID", data.ContentThumbnail.ID);
+				sqlCmd.Parameters.AddWithValue("@ThumbnailConversionProfileEntryID", data.ThumbnailConversionProfileEntry.ID);
+				sqlCmd.Parameters.AddWithValue("@IsOriginal", data.IsOriginal).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Data", data.Data).SqlDbType = SqlDbType.VarBinary;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ContentThumbnailDataID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ctd", "update", "norecord"), "ContentThumbnailData could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ContentThumbnailData", "Exception while updating ContentThumbnailData object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ctd", "update", "morerecords"), "ContentThumbnailData was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ContentThumbnailData", "Exception while updating ContentThumbnailData object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ctd", "update", "exception"), "ContentThumbnailData could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ContentThumbnailData", "Exception while updating ContentThumbnailData object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ContentThumbnailData data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ContentThumbnailData] WHERE ContentThumbnailDataID = @ContentThumbnailDataID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ContentThumbnailDataID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ctd", "delete", "norecord"), "ContentThumbnailData could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ContentThumbnailData", "Exception while deleting ContentThumbnailData object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ctd", "delete", "exception"), "ContentThumbnailData could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ContentThumbnailData", "Exception while deleting ContentThumbnailData object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

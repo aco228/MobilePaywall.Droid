@@ -1,0 +1,88 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+
+using iTextSharp.text;
+using iTextSharp.text.pdf;
+
+namespace MobilePaywall.CustomerCare.Core.PdfDocument
+{
+  public class PdfDocument
+  {
+
+    private Document _doc = null;
+    private HttpContext _httpContext = null;
+
+    public Document Document { get { return this._doc; } }
+
+    public PdfDocument( HttpContext context )
+    {
+      this._httpContext = context;
+      this._doc = new Document();
+      PdfWriter.GetInstance(this._doc, this._httpContext.Response.OutputStream);
+    }
+
+    public void Open()
+    {
+
+      this._httpContext.Response.ContentType = "application/pdf";
+      this._httpContext.Response.AddHeader("content-disposition", "attachment;filename=Subscription.pdf");
+      this._httpContext.Response.Cache.SetCacheability(HttpCacheability.NoCache);
+
+      this._doc.Open();
+    }
+
+    public void Close()
+    {
+      this._doc.Close();
+
+      this._httpContext.Response.Write(this._doc);
+      this._httpContext.Response.End();
+    }
+
+    public void AddTable(PdfTable pdfTable)
+    {
+      PdfPTable table = new PdfPTable(pdfTable.Columns);
+
+      // Add Header
+      table.AddCell(this.AddHeader(pdfTable.Header, pdfTable.Columns));
+
+      for (int row = 0; row < pdfTable.Data.Count; row++)
+        foreach (string column in pdfTable.Data.ElementAt(row))
+          table.AddCell(this.AddCell(column, row, pdfTable.HasHeaderColumn));
+
+      this._doc.Add(table);
+      this._doc.Add(new Paragraph("\r\n"));
+      this._doc.Add(new Paragraph("\r\n"));
+    }
+
+
+    private PdfPCell AddCell(string text, int row, bool containHeader)
+    {
+      PdfPCell cell = new PdfPCell(new Phrase(text, new Font(Font.FontFamily.HELVETICA, 10, Font.NORMAL)));
+      cell.HorizontalAlignment = 0;
+      cell.Colspan = 1;
+      cell.Padding = 5;
+      cell.BorderColor = new BaseColor(System.Drawing.Color.FromArgb(255, 160, 160, 160));
+
+      if (row == 0 && containHeader)
+        cell.BackgroundColor = new BaseColor(System.Drawing.Color.FromArgb(255, 208, 208, 208));
+      else if (row % 2 == 0)
+        cell.BackgroundColor = new BaseColor(System.Drawing.Color.FromArgb(255, 224, 224, 224));
+
+      return cell;
+    }
+
+    private PdfPCell AddHeader(string header, int colspan)
+    {
+      PdfPCell cell = new PdfPCell(new Phrase(header, new Font(Font.FontFamily.HELVETICA, 12, Font.BOLD)));
+      cell.HorizontalAlignment = 1;
+      cell.Colspan = colspan;
+      cell.Padding = 10;
+      cell.BorderColor = new BaseColor(System.Drawing.Color.FromArgb(255, 160, 160, 160));
+
+      return cell;
+    }
+  }
+}

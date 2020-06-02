@@ -1,0 +1,129 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Web.Filters;
+using MobilePaywall.Web.Models.Specific._Template;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers
+{
+  public partial class TemplateController : PaywallTemplateController
+  {
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateUpdateContentInformation(string contentID, string title, string description)
+    {
+      int _contentID = -1;
+      if (!Int32.TryParse(contentID, out _contentID))
+        return this.Json(new { status = false, message = "ID could not be parsed", id = -1 });
+
+      Data.Content c = Data.Content.CreateManager().Load(_contentID);
+
+      IContent i= c.Instantiate();
+      i.UpdateTitle(title,PaywallHttpContext.Current.Session);
+      i.UpdateDescription(description, PaywallHttpContext.Current.Session);
+      return this.Json(new { status = true, message = "Successfully edited!" });
+    }
+
+
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateUpdateContentThumbnail(string thumbnailID)
+    {
+      int _thumbnailID = -1;
+      if (!Int32.TryParse(thumbnailID, out _thumbnailID))
+        return this.Json(new { status = false, message = "ID could not be parsed", id = -1 });
+
+      ContentThumbnail contentthumbnail = ContentThumbnail.CreateManager().Load(_thumbnailID);
+      if (contentthumbnail == null)
+        return this.Json(new { status = false, message = "ct not found" });
+
+
+      ContentThumbnail defaultct = ContentThumbnail.CreateManager().Load(contentthumbnail.Content, true);
+
+      if (defaultct == null)
+        return this.Json(new { status = false, message = "defaultct not found" });
+
+      defaultct.IsDefault = false;
+      defaultct.Update();
+
+      contentthumbnail.IsDefault = true;
+      contentthumbnail.Update();
+
+      return this.Json(new { status = true, message = "Successfully edited!" });
+    }
+
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateUpdateContentDetail(string contentID, string useCurrentService, string languageID, string title, string htmltitle, string metakeywords, string rating, string description, string metadescription)
+    {
+      int _contentID = -1;
+      if (!Int32.TryParse(contentID, out _contentID))
+        return this.Json(new { status = false, message = "Content ID could not be parsed", id = -1 });
+
+      Content content = Data.Content.CreateManager().Load(_contentID);
+
+      if (content == null)
+        return this.Json(new { status = false, message = "Content not found" });
+
+      IContent icontent = content.Instantiate();
+      if (icontent == null)
+        return this.Json(new { status = false, message = "IContent not found", id = -1 });
+
+      int _languageID = -1;
+      if (!Int32.TryParse(languageID, out _languageID))
+        return this.Json(new { status = false, message = "Language ID could not be parsed", id = -1 });
+
+      Language language = Language.CreateManager().Load(_languageID);
+      if (language == null)
+        return this.Json(new { status = false, message = "Language not found", id = -1 });
+
+      ContentInformations contentinformation = new ContentInformations()
+      {
+        Language = language,
+        Title = title,
+        Description = description,
+        Rating = rating,
+        HtmlTitle = htmltitle,
+        MetaDescription = metadescription,
+        MetaKeywords = metakeywords,
+        Service = useCurrentService.Equals("1") ? PaywallContext.Service.ServiceData : null
+      };
+      icontent.UpdateContentDetails(contentinformation, PaywallHttpContext.Current.Session);
+
+      return this.Json(new { status = true, message = "Successfully edited!"});
+    }
+
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateDeleteContentDetail(string contentID, string contentDetailID)
+    {
+      int _contentID = -1;
+      if (!Int32.TryParse(contentID, out _contentID))
+        return this.Json(new { status = false, message = "ID could not be parsed", id = -1 });
+
+      Content content = Data.Content.CreateManager().Load(_contentID);
+
+      if (content == null)
+        return this.Json(new { status = false, message = "Content not found" });
+
+      IContent icontent = content.Instantiate();
+      if (icontent == null)
+        return this.Json(new { status = false, message = "IContent not found", id = -1 });
+
+      List<ContentInformations> contentInformations = icontent.GetAllContentDetail();
+
+      int _contentDetailID = -1;
+      if (!Int32.TryParse(contentDetailID, out _contentDetailID))
+        return this.Json(new { status = false, message = "ContentDetailID could not be parsed", id = -1 });
+
+      foreach(ContentInformations contentInformation in contentInformations)
+      {
+        if(contentInformation.ID == _contentDetailID)
+        {
+          icontent.DeleteContentDetails(contentInformation, PaywallHttpContext.Current.Session);
+        }
+      }
+
+      return this.Json(new { status = true, message = "Successfully Deleted!" });
+    }
+  }
+}

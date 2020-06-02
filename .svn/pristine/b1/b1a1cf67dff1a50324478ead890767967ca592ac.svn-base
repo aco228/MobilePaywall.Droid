@@ -1,0 +1,494 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(PaymentResult))] 
+  public partial class PaymentResultManager : MobilePaywall.Data.Sql.SqlManagerBase<PaymentResult>, IPaymentResultManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override PaymentResult LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							PaymentResultTable.GetColumnNames("[pr]") + 
+							(this.Depth > 0 ? "," + PaymentRequestTable.GetColumnNames("[pr_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LookupSessionTable.GetColumnNames("[pr_pr_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[pr_pr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTable.GetColumnNames("[pr_pr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[pr_pr_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[pr_pr_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserHttpRequestTable.GetColumnNames("[pr_pr_uhr]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentTable.GetColumnNames("[pr_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentRequestTable.GetColumnNames("[pr_p_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[pr_p_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[pr_p_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[pr_p_bme]") : string.Empty) + 
+					" FROM [core].[PaymentResult] AS [pr] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [pr_pr] ON [pr].[PaymentRequestID] = [pr_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[LookupSession] AS [pr_pr_ls] ON [pr_pr].[LookupSessionID] = [pr_pr_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [pr_pr_c] ON [pr_pr].[CustomerID] = [pr_pr_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [pr_pr_us] ON [pr_pr].[UserSessionID] = [pr_pr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [pr_pr_so] ON [pr_pr].[ServiceOfferID] = [pr_pr_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [pr_pr_bme] ON [pr_pr].[BusinessModelEntryID] = [pr_pr_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [pr_pr_uhr] ON [pr_pr].[UserHttpRequestID] = [pr_pr_uhr].[UserHttpRequestID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Payment] AS [pr_p] ON [pr].[PaymentID] = [pr_p].[PaymentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentRequest] AS [pr_p_pr] ON [pr_p].[PaymentRequestID] = [pr_p_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [pr_p_c] ON [pr_p].[CustomerID] = [pr_p_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceOffer] AS [pr_p_so] ON [pr_p].[ServiceOfferID] = [pr_p_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModelEntry] AS [pr_p_bme] ON [pr_p].[BusinessModelEntryID] = [pr_p_bme].[BusinessModelEntryID] ";
+				sqlCmdText += "WHERE [pr].[PaymentResultID] = @PaymentResultID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@PaymentResultID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pr", "loadinternal", "notfound"), "PaymentResult could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				PaymentResultTable prTable = new PaymentResultTable(query);
+				PaymentRequestTable pr_prTable = (this.Depth > 0) ? new PaymentRequestTable(query) : null;
+				LookupSessionTable pr_pr_lsTable = (this.Depth > 1) ? new LookupSessionTable(query) : null;
+				CustomerTable pr_pr_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				UserSessionTable pr_pr_usTable = (this.Depth > 1) ? new UserSessionTable(query) : null;
+				ServiceOfferTable pr_pr_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable pr_pr_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				UserHttpRequestTable pr_pr_uhrTable = (this.Depth > 1) ? new UserHttpRequestTable(query) : null;
+				PaymentTable pr_pTable = (this.Depth > 0) ? new PaymentTable(query) : null;
+				PaymentRequestTable pr_p_prTable = (this.Depth > 1) ? new PaymentRequestTable(query) : null;
+				CustomerTable pr_p_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				ServiceOfferTable pr_p_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable pr_p_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+
+        
+				LookupSession pr_pr_lsObject = (this.Depth > 1) ? pr_pr_lsTable.CreateInstance() : null;
+				Customer pr_pr_cObject = (this.Depth > 1) ? pr_pr_cTable.CreateInstance() : null;
+				UserSession pr_pr_usObject = (this.Depth > 1) ? pr_pr_usTable.CreateInstance() : null;
+				ServiceOffer pr_pr_soObject = (this.Depth > 1) ? pr_pr_soTable.CreateInstance() : null;
+				BusinessModelEntry pr_pr_bmeObject = (this.Depth > 1) ? pr_pr_bmeTable.CreateInstance() : null;
+				UserHttpRequest pr_pr_uhrObject = (this.Depth > 1) ? pr_pr_uhrTable.CreateInstance() : null;
+				PaymentRequest pr_prObject = (this.Depth > 0) ? pr_prTable.CreateInstance(pr_pr_lsObject, pr_pr_cObject, pr_pr_usObject, pr_pr_soObject, pr_pr_bmeObject, pr_pr_uhrObject) : null;
+				PaymentRequest pr_p_prObject = (this.Depth > 1) ? pr_p_prTable.CreateInstance() : null;
+				Customer pr_p_cObject = (this.Depth > 1) ? pr_p_cTable.CreateInstance() : null;
+				ServiceOffer pr_p_soObject = (this.Depth > 1) ? pr_p_soTable.CreateInstance() : null;
+				BusinessModelEntry pr_p_bmeObject = (this.Depth > 1) ? pr_p_bmeTable.CreateInstance() : null;
+				Payment pr_pObject = (this.Depth > 0) ? pr_pTable.CreateInstance(pr_p_prObject, pr_p_cObject, pr_p_soObject, pr_p_bmeObject) : null;
+				PaymentResult prObject = prTable.CreateInstance(pr_prObject, pr_pObject);
+				sqlReader.Close();
+
+				return prObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pr", "loadinternal", "exception"), "PaymentResult could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "PaymentResult", "Exception while loading PaymentResult object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public PaymentResult Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							PaymentResultTable.GetColumnNames("[pr]") + 
+							(this.Depth > 0 ? "," + PaymentRequestTable.GetColumnNames("[pr_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LookupSessionTable.GetColumnNames("[pr_pr_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[pr_pr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTable.GetColumnNames("[pr_pr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[pr_pr_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[pr_pr_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserHttpRequestTable.GetColumnNames("[pr_pr_uhr]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentTable.GetColumnNames("[pr_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentRequestTable.GetColumnNames("[pr_p_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[pr_p_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[pr_p_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[pr_p_bme]") : string.Empty) +  
+					" FROM [core].[PaymentResult] AS [pr] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [pr_pr] ON [pr].[PaymentRequestID] = [pr_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[LookupSession] AS [pr_pr_ls] ON [pr_pr].[LookupSessionID] = [pr_pr_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [pr_pr_c] ON [pr_pr].[CustomerID] = [pr_pr_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [pr_pr_us] ON [pr_pr].[UserSessionID] = [pr_pr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [pr_pr_so] ON [pr_pr].[ServiceOfferID] = [pr_pr_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [pr_pr_bme] ON [pr_pr].[BusinessModelEntryID] = [pr_pr_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [pr_pr_uhr] ON [pr_pr].[UserHttpRequestID] = [pr_pr_uhr].[UserHttpRequestID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Payment] AS [pr_p] ON [pr].[PaymentID] = [pr_p].[PaymentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentRequest] AS [pr_p_pr] ON [pr_p].[PaymentRequestID] = [pr_p_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [pr_p_c] ON [pr_p].[CustomerID] = [pr_p_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceOffer] AS [pr_p_so] ON [pr_p].[ServiceOfferID] = [pr_p_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModelEntry] AS [pr_p_bme] ON [pr_p].[BusinessModelEntryID] = [pr_p_bme].[BusinessModelEntryID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pr", "customload", "notfound"), "PaymentResult could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				PaymentResultTable prTable = new PaymentResultTable(query);
+				PaymentRequestTable pr_prTable = (this.Depth > 0) ? new PaymentRequestTable(query) : null;
+				LookupSessionTable pr_pr_lsTable = (this.Depth > 1) ? new LookupSessionTable(query) : null;
+				CustomerTable pr_pr_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				UserSessionTable pr_pr_usTable = (this.Depth > 1) ? new UserSessionTable(query) : null;
+				ServiceOfferTable pr_pr_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable pr_pr_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				UserHttpRequestTable pr_pr_uhrTable = (this.Depth > 1) ? new UserHttpRequestTable(query) : null;
+				PaymentTable pr_pTable = (this.Depth > 0) ? new PaymentTable(query) : null;
+				PaymentRequestTable pr_p_prTable = (this.Depth > 1) ? new PaymentRequestTable(query) : null;
+				CustomerTable pr_p_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				ServiceOfferTable pr_p_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable pr_p_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+
+        
+				LookupSession pr_pr_lsObject = (this.Depth > 1) ? pr_pr_lsTable.CreateInstance() : null;
+				Customer pr_pr_cObject = (this.Depth > 1) ? pr_pr_cTable.CreateInstance() : null;
+				UserSession pr_pr_usObject = (this.Depth > 1) ? pr_pr_usTable.CreateInstance() : null;
+				ServiceOffer pr_pr_soObject = (this.Depth > 1) ? pr_pr_soTable.CreateInstance() : null;
+				BusinessModelEntry pr_pr_bmeObject = (this.Depth > 1) ? pr_pr_bmeTable.CreateInstance() : null;
+				UserHttpRequest pr_pr_uhrObject = (this.Depth > 1) ? pr_pr_uhrTable.CreateInstance() : null;
+				PaymentRequest pr_prObject = (this.Depth > 0) ? pr_prTable.CreateInstance(pr_pr_lsObject, pr_pr_cObject, pr_pr_usObject, pr_pr_soObject, pr_pr_bmeObject, pr_pr_uhrObject) : null;
+				PaymentRequest pr_p_prObject = (this.Depth > 1) ? pr_p_prTable.CreateInstance() : null;
+				Customer pr_p_cObject = (this.Depth > 1) ? pr_p_cTable.CreateInstance() : null;
+				ServiceOffer pr_p_soObject = (this.Depth > 1) ? pr_p_soTable.CreateInstance() : null;
+				BusinessModelEntry pr_p_bmeObject = (this.Depth > 1) ? pr_p_bmeTable.CreateInstance() : null;
+				Payment pr_pObject = (this.Depth > 0) ? pr_pTable.CreateInstance(pr_p_prObject, pr_p_cObject, pr_p_soObject, pr_p_bmeObject) : null;
+				PaymentResult prObject = prTable.CreateInstance(pr_prObject, pr_pObject);
+				sqlReader.Close();
+
+				return prObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pr", "customload", "exception"), "PaymentResult could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "PaymentResult", "Exception while loading (custom/single) PaymentResult object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<PaymentResult> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							PaymentResultTable.GetColumnNames("[pr]") + 
+							(this.Depth > 0 ? "," + PaymentRequestTable.GetColumnNames("[pr_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LookupSessionTable.GetColumnNames("[pr_pr_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[pr_pr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTable.GetColumnNames("[pr_pr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[pr_pr_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[pr_pr_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserHttpRequestTable.GetColumnNames("[pr_pr_uhr]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentTable.GetColumnNames("[pr_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentRequestTable.GetColumnNames("[pr_p_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[pr_p_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[pr_p_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[pr_p_bme]") : string.Empty) +  
+					" FROM [core].[PaymentResult] AS [pr] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [pr_pr] ON [pr].[PaymentRequestID] = [pr_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[LookupSession] AS [pr_pr_ls] ON [pr_pr].[LookupSessionID] = [pr_pr_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [pr_pr_c] ON [pr_pr].[CustomerID] = [pr_pr_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [pr_pr_us] ON [pr_pr].[UserSessionID] = [pr_pr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [pr_pr_so] ON [pr_pr].[ServiceOfferID] = [pr_pr_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [pr_pr_bme] ON [pr_pr].[BusinessModelEntryID] = [pr_pr_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [pr_pr_uhr] ON [pr_pr].[UserHttpRequestID] = [pr_pr_uhr].[UserHttpRequestID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Payment] AS [pr_p] ON [pr].[PaymentID] = [pr_p].[PaymentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentRequest] AS [pr_p_pr] ON [pr_p].[PaymentRequestID] = [pr_p_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [pr_p_c] ON [pr_p].[CustomerID] = [pr_p_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceOffer] AS [pr_p_so] ON [pr_p].[ServiceOfferID] = [pr_p_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModelEntry] AS [pr_p_bme] ON [pr_p].[BusinessModelEntryID] = [pr_p_bme].[BusinessModelEntryID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pr", "customloadmany", "notfound"), "PaymentResult list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<PaymentResult>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				PaymentResultTable prTable = new PaymentResultTable(query);
+				PaymentRequestTable pr_prTable = (this.Depth > 0) ? new PaymentRequestTable(query) : null;
+				LookupSessionTable pr_pr_lsTable = (this.Depth > 1) ? new LookupSessionTable(query) : null;
+				CustomerTable pr_pr_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				UserSessionTable pr_pr_usTable = (this.Depth > 1) ? new UserSessionTable(query) : null;
+				ServiceOfferTable pr_pr_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable pr_pr_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				UserHttpRequestTable pr_pr_uhrTable = (this.Depth > 1) ? new UserHttpRequestTable(query) : null;
+				PaymentTable pr_pTable = (this.Depth > 0) ? new PaymentTable(query) : null;
+				PaymentRequestTable pr_p_prTable = (this.Depth > 1) ? new PaymentRequestTable(query) : null;
+				CustomerTable pr_p_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				ServiceOfferTable pr_p_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable pr_p_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+
+        List<PaymentResult> result = new List<PaymentResult>();
+        do
+        {
+          
+					LookupSession pr_pr_lsObject = (this.Depth > 1) ? pr_pr_lsTable.CreateInstance() : null;
+					Customer pr_pr_cObject = (this.Depth > 1) ? pr_pr_cTable.CreateInstance() : null;
+					UserSession pr_pr_usObject = (this.Depth > 1) ? pr_pr_usTable.CreateInstance() : null;
+					ServiceOffer pr_pr_soObject = (this.Depth > 1) ? pr_pr_soTable.CreateInstance() : null;
+					BusinessModelEntry pr_pr_bmeObject = (this.Depth > 1) ? pr_pr_bmeTable.CreateInstance() : null;
+					UserHttpRequest pr_pr_uhrObject = (this.Depth > 1) ? pr_pr_uhrTable.CreateInstance() : null;
+					PaymentRequest pr_prObject = (this.Depth > 0) ? pr_prTable.CreateInstance(pr_pr_lsObject, pr_pr_cObject, pr_pr_usObject, pr_pr_soObject, pr_pr_bmeObject, pr_pr_uhrObject) : null;
+					PaymentRequest pr_p_prObject = (this.Depth > 1) ? pr_p_prTable.CreateInstance() : null;
+					Customer pr_p_cObject = (this.Depth > 1) ? pr_p_cTable.CreateInstance() : null;
+					ServiceOffer pr_p_soObject = (this.Depth > 1) ? pr_p_soTable.CreateInstance() : null;
+					BusinessModelEntry pr_p_bmeObject = (this.Depth > 1) ? pr_p_bmeTable.CreateInstance() : null;
+					Payment pr_pObject = (this.Depth > 0) ? pr_pTable.CreateInstance(pr_p_prObject, pr_p_cObject, pr_p_soObject, pr_p_bmeObject) : null;
+					PaymentResult prObject = (this.Depth > -1) ? prTable.CreateInstance(pr_prObject, pr_pObject) : null;
+					result.Add(prObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pr", "customloadmany", "exception"), "PaymentResult list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "PaymentResult", "Exception while loading (custom/many) PaymentResult object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, PaymentResult data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[PaymentResult] ([PaymentRequestID],[IsOriginalPayment],[PaymentID],[ValidTo]) VALUES(@PaymentRequestID,@IsOriginalPayment,@PaymentID,@ValidTo); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@PaymentRequestID", data.PaymentRequest.ID);
+				sqlCmd.Parameters.AddWithValue("@IsOriginalPayment", data.IsOriginalPayment.HasValue ? (object)data.IsOriginalPayment.Value : DBNull.Value).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@PaymentID", data.Payment == null ? DBNull.Value : (object)data.Payment.ID);
+				sqlCmd.Parameters.AddWithValue("@ValidTo", data.ValidTo).SqlDbType = SqlDbType.DateTime2;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pr", "insert", "noprimarykey"), "PaymentResult could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "PaymentResult", "Exception while inserting PaymentResult object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pr", "insert", "exception"), "PaymentResult could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "PaymentResult", "Exception while inserting PaymentResult object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, PaymentResult data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[PaymentResult] SET " +
+												"[PaymentRequestID] = @PaymentRequestID, " + 
+												"[IsOriginalPayment] = @IsOriginalPayment, " + 
+												"[PaymentID] = @PaymentID, " + 
+												"[ValidTo] = @ValidTo, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [PaymentResultID] = @PaymentResultID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@PaymentRequestID", data.PaymentRequest.ID);
+				sqlCmd.Parameters.AddWithValue("@IsOriginalPayment", data.IsOriginalPayment.HasValue ? (object)data.IsOriginalPayment.Value : DBNull.Value).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@PaymentID", data.Payment == null ? DBNull.Value : (object)data.Payment.ID);
+				sqlCmd.Parameters.AddWithValue("@ValidTo", data.ValidTo).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@PaymentResultID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pr", "update", "norecord"), "PaymentResult could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "PaymentResult", "Exception while updating PaymentResult object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pr", "update", "morerecords"), "PaymentResult was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "PaymentResult", "Exception while updating PaymentResult object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pr", "update", "exception"), "PaymentResult could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "PaymentResult", "Exception while updating PaymentResult object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, PaymentResult data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[PaymentResult] WHERE PaymentResultID = @PaymentResultID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@PaymentResultID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pr", "delete", "norecord"), "PaymentResult could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "PaymentResult", "Exception while deleting PaymentResult object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pr", "delete", "exception"), "PaymentResult could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "PaymentResult", "Exception while deleting PaymentResult object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

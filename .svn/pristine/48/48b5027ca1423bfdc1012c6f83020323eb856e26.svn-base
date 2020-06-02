@@ -1,0 +1,569 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using MobilePaywall.Data;
+using MobilePaywall.Merchant.Models;
+using System.Xml.Serialization;
+using System.IO;
+using System.Xml;
+using Senti.Data;
+using System.Data;
+
+namespace MobilePaywall
+{
+  public class ServiceTask : TaskBase
+  {
+    private ConfigurationModel _temporaryData = null;
+
+    public ConfigurationModel TemporaryData { get { return this._temporaryData; } }
+
+    public ServiceTask()
+    {
+      this._temporaryData = new ConfigurationModel();
+    }
+
+    public ServiceTask(Service service)
+    {
+      this._temporaryData = new ConfigurationModel(service);
+    }
+
+    public ServiceTask(Task task)
+      : base(task)
+    {
+      this._temporaryData = this.Deserialize<ConfigurationModel>();
+    } 
+
+    public override string Serialize()
+    {
+      XmlSerializer serializer = new XmlSerializer(typeof(ConfigurationModel));
+
+      XmlWriterSettings settings = new XmlWriterSettings();
+      settings.Encoding = new UnicodeEncoding(false, false); // no BOM in a .NET string
+      settings.Indent = false;
+      settings.OmitXmlDeclaration = false;
+
+      using (StringWriter textWriter = new StringWriter())
+      {
+        using (XmlWriter xmlWriter = XmlWriter.Create(textWriter, settings))
+          serializer.Serialize(xmlWriter, this.TemporaryData);
+        return textWriter.ToString();
+      }
+    }
+
+    public bool UpdateOrInsert(ClientSession clientSession)
+    {
+      ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted);
+      connection.Transaction.Begin();
+
+      // ServiceConfiguration
+      ServiceConfiguration serviceConfiguration = null;
+
+      Service service = null;
+      if (this.ActionType == ServiceConfigAction.Edit)
+        service = Service.CreateManager().Load(connection, this.TemporaryData.Service.ServiceID.Value);
+
+      if (this.ActionType == ServiceConfigAction.Edit)
+        serviceConfiguration = ServiceConfiguration.CreateManager().Load(connection, this.TemporaryData.ServiceConfiguration.ServiceConfigurationID.Value);
+
+      if (serviceConfiguration != null)
+      {
+        serviceConfiguration.Intstance = this.TemporaryData.Instance.Instance;
+        serviceConfiguration.Name = string.Format("({0}){1} service configuration", this.TemporaryData.Service.CountryModel.Country.TwoLetterIsoCode, this.TemporaryData.Service.Name.Trim());
+      }
+      else
+        serviceConfiguration = new ServiceConfiguration(-1, this.TemporaryData.Instance.Instance, string.Format("({0}){1} service configuration", this.TemporaryData.Service.CountryModel.Country.TwoLetterIsoCode, this.TemporaryData.Service.Name.Trim()), DateTime.Now, DateTime.Now);
+
+      serviceConfiguration.UpdateOrInsertWithHistory(connection, clientSession, service);
+
+
+      // Service
+      if (service != null)
+      {
+        service.Application = this.TemporaryData.Service.ApplicationModel.Application;
+        service.Product = this.TemporaryData.Service.ProductModel.Product;
+        service.Merchant = this.TemporaryData.Service.MerchantModel.Merchant;
+        service.ServiceStatus = this.TemporaryData.Service.ServiceStatus;
+        service.ServiceType = this.TemporaryData.Service.ServiceTypeModel.ServiceType;
+        service.UserSessionType = this.TemporaryData.Service.UserSessionTypeModel.UserSessionType;
+        service.FallbackCountry = this.TemporaryData.Service.CountryModel.Country;
+        service.FallbackLanguage = this.TemporaryData.Service.LanguageModel.Language;
+        service.FallbackAgeRating = this.TemporaryData.Service.AgeRatingModel.AgeRating;
+        service.FallbackAgeRatingSelectionMode = this.TemporaryData.Service.AgeRatingSelectionMode;
+        service.BusinessModel = BusinessModel.CreateManager().Load(connection, 1);
+        service.Template = TemporaryData.Service.TemplateModel.Template;
+        service.Name = TemporaryData.Service.Name.Trim();
+        service.VisibleName = TemporaryData.Service.Name.Trim();
+        service.Description = string.Format("{0}, {1}, {2}, {3}", TemporaryData.Service.CountryModel.Country.TwoLetterIsoCode, TemporaryData.Service.ProductModel.Product.Name, TemporaryData.Service.MerchantModel.Merchant.Name, TemporaryData.PaymentConfigurationServiceOffersMaps.FirstOrDefault().PaymentConfigurationModel.PaymentProviderModel.PaymentProvider.Name);
+      }
+      else
+      {
+        bool serviceNameExists = Service.CreateManager().Load(connection, TemporaryData.Service.Name) != null ? true : false;
+        if (serviceNameExists)
+          return false;
+
+        service = new Service(-1,
+                              Guid.NewGuid(),
+                              TemporaryData.Service.ApplicationModel.Application,
+                              TemporaryData.Service.ProductModel.Product,
+                              TemporaryData.Service.MerchantModel.Merchant,
+                              TemporaryData.Service.ServiceStatus,
+                              TemporaryData.Service.ServiceTypeModel.ServiceType,
+                              TemporaryData.Service.UserSessionTypeModel.UserSessionType,
+                              TemporaryData.Service.CountryModel.Country,
+                              TemporaryData.Service.LanguageModel.Language,
+                              TemporaryData.Service.AgeRatingModel.AgeRating,
+                              TemporaryData.Service.AgeRatingSelectionMode,
+                              serviceConfiguration,
+                              BusinessModel.CreateManager().Load(connection, 1),
+                              TemporaryData.Service.TemplateModel.Template,
+                              TemporaryData.Service.Name.Trim(),
+                              TemporaryData.Service.Name.Trim(), // VisibleName
+                              string.Format("{0}, {1}, {2}, {3}", TemporaryData.Service.CountryModel.Country.TwoLetterIsoCode, TemporaryData.Service.ProductModel.Product.Name, TemporaryData.Service.MerchantModel.Merchant.Name, TemporaryData.PaymentConfigurationServiceOffersMaps.FirstOrDefault().PaymentConfigurationModel.PaymentProviderModel.PaymentProvider.Name),
+                              DateTime.Now, DateTime.Now);
+      }
+      service.UpdateOrInsertWithHistory(connection, clientSession, service);
+
+      // Domain
+      List<Domain> newDomains = new List<Domain>();
+      List<Domain> oldDomains = Domain.CreateManager().Load(connection, service);
+      foreach (DomainModel domainModel in this.TemporaryData.Domains)
+      {
+        Domain domain = null;
+        if (this.ActionType == ServiceConfigAction.Edit)
+          domain = Domain.CreateManager().Load(connection, domainModel.DomainID != null ? domainModel.DomainID.Value : -1);
+
+        if (domain != null)
+        {
+          oldDomains.Remove(domain);
+          domain.DomainName = domainModel.DomainName.Trim();
+        }
+        else
+          domain = new Domain(-1, service, domainModel.DomainName.Trim(), DateTime.Now, DateTime.Now);
+
+        newDomains.Add(domain);
+        domain.UpdateOrInsertWithHistory(connection, clientSession, service);
+      }
+      //delete all Domains that remained in the list
+      foreach (Domain oldDomain in oldDomains)
+        oldDomain.DeleteWithHistory(connection, clientSession, service);
+
+
+      // ServiceConfigurationEntry
+      List<ServiceConfigurationEntry> oldConfigEntries = ServiceConfigurationEntry.CreateManager().Load(connection, serviceConfiguration); //get all ServiceConfigurationEntries that are currently in database
+
+      foreach (ServiceConfigurationEntryMap serviceConfigurationEntryMap in this.TemporaryData.ServiceConfigurationEntryMaps)
+        foreach (ServiceConfigurationEntryModel serviceConfigurationEntryModel in serviceConfigurationEntryMap.ServiceConfigurationEntryModels)
+        {
+          ServiceConfigurationEntry serviceConfigurationEntry = null;
+          if (this.ActionType == ServiceConfigAction.Edit)
+            serviceConfigurationEntry = ServiceConfigurationEntry.CreateManager().Load(connection, serviceConfigurationEntryModel.ServiceConfigurationEntryID != null ? serviceConfigurationEntryModel.ServiceConfigurationEntryID.Value : -1);
+
+          if (serviceConfigurationEntry != null)
+          {
+            oldConfigEntries.Remove(serviceConfigurationEntry); //remove the one that is being updated
+
+            serviceConfigurationEntry.Country = serviceConfigurationEntryMap.CountryModel.Country;
+            serviceConfigurationEntry.MobileOperator = serviceConfigurationEntryModel.MobileOperatorModel != null ? serviceConfigurationEntryModel.MobileOperatorModel.MobileOperator : null;
+            serviceConfigurationEntry.LookupMode = serviceConfigurationEntryMap.LookupMode;
+            serviceConfigurationEntry.AgeVerificationMode = serviceConfigurationEntryMap.AgeVerificationMode;
+            serviceConfigurationEntry.AgeRating = serviceConfigurationEntryModel.AgeRatingModel.AgeRating;
+            serviceConfigurationEntry.AgeRatingSelectionMode = serviceConfigurationEntryModel.AgeRatingSelectionMode;
+            serviceConfigurationEntry.ShortMessageProvider = serviceConfigurationEntryMap.ShortMessageProviderModel.ShortMessageProvider;
+            serviceConfigurationEntry.IsAgeVerificationRequired = serviceConfigurationEntryModel.IsAgeVerificationRequired;
+            serviceConfigurationEntry.IsWelcomePageRequired = serviceConfigurationEntryModel.IsWelcomePageRequired;
+            serviceConfigurationEntry.IsPaymentEnabled = serviceConfigurationEntryModel.IsPaymentEnabled;
+          }
+          else
+            serviceConfigurationEntry = new ServiceConfigurationEntry(-1,
+                                                                      serviceConfiguration,
+                                                                      serviceConfigurationEntryMap.CountryModel.Country,
+                                                                      serviceConfigurationEntryModel.MobileOperatorModel != null ? serviceConfigurationEntryModel.MobileOperatorModel.MobileOperator : null,
+                                                                      serviceConfigurationEntryMap.LookupMode,
+                                                                      serviceConfigurationEntryMap.AgeVerificationMode,
+                                                                      serviceConfigurationEntryModel.AgeRatingModel.AgeRating,
+                                                                      serviceConfigurationEntryModel.AgeRatingSelectionMode,
+                                                                      serviceConfigurationEntryMap.ShortMessageProviderModel.ShortMessageProvider,
+                                                                      false,
+                                                                      serviceConfigurationEntryModel.IsAgeVerificationRequired,
+                                                                      serviceConfigurationEntryModel.IsWelcomePageRequired,
+                                                                      false, // aco: IsLandingPageRequired
+                                                                      serviceConfigurationEntryModel.IsPaymentEnabled,
+                                                                      string.Empty, // aco: Shortcode
+                                                                      string.Empty, // aco: Keyword
+                                                                      DateTime.Now, DateTime.Now);
+          serviceConfigurationEntry.UpdateOrInsertWithHistory(connection, clientSession, service);
+        }
+
+      //delete all ServiceConfigurationEntries that remained in list
+      foreach (ServiceConfigurationEntry entry in oldConfigEntries)
+        entry.DeleteWithHistory(connection, clientSession, service);
+
+
+      // BehaviorModel, PaymentConfiguration, ServiceOffer and ContentAccessPolicy
+      List<ServiceOffer> oldServiceOffers = ServiceOffer.CreateManager().Load(connection, service);
+      List<PaymentConfiguration> oldPaymentConfigurations = ( from o in oldServiceOffers
+                                                              select o.PaymentConfiguration).Distinct().ToList();
+
+      foreach (PaymentConfigurationServiceOffersMap paymentConfigurationServiceOffersMap in this.TemporaryData.PaymentConfigurationServiceOffersMaps)
+      {
+        PaymentConfiguration paymentConfiguration = null;
+        BehaviorModel behaviorModel = null;
+
+        if (this.ActionType == ServiceConfigAction.Edit)
+          paymentConfiguration = PaymentConfiguration.CreateManager().Load(connection, paymentConfigurationServiceOffersMap.PaymentConfigurationModel.PaymentConfigurationID != null ? paymentConfigurationServiceOffersMap.PaymentConfigurationModel.PaymentConfigurationID.Value : -1);
+
+        if (paymentConfiguration != null)
+        {
+          oldPaymentConfigurations.Remove(paymentConfiguration);
+
+          behaviorModel = BehaviorModel.CreateManager().Load(connection, paymentConfiguration.BehaviorModel.ID);
+          behaviorModel.ExternalBehaviorModelGuid = new Guid(paymentConfigurationServiceOffersMap.PaymentConfigurationModel.BehaviorModelModel.ExternalBehaviorModelGuid.Trim());
+          behaviorModel.Name = paymentConfigurationServiceOffersMap.PaymentConfigurationModel.BehaviorModelModel.Name.Trim();
+          behaviorModel.ExternalServiceID = paymentConfigurationServiceOffersMap.PaymentConfigurationModel.BehaviorModelModel.ExternalServiceID != null ? paymentConfigurationServiceOffersMap.PaymentConfigurationModel.BehaviorModelModel.ExternalServiceID.Trim() : null;
+          behaviorModel.Description = string.Format("{0} {1} service {2}", service.Name, paymentConfigurationServiceOffersMap.PaymentConfigurationModel.PaymentProviderModel.PaymentProvider.Name, service.FallbackCountry.GlobalName);
+          behaviorModel.UpdateWithHistory(connection, clientSession, service);
+
+          paymentConfiguration.Name = paymentConfigurationServiceOffersMap.PaymentConfigurationModel.Name;
+          //paymentConfiguration.Name = string.Format("{0}_{1}_{2}_{3}_{4}", service.FallbackCountry.TwoLetterIsoCode, paymentConfigurationServiceOffersMap.PaymentConfigurationModel.PaymentInterfaceModel.PaymentInterface.Name.ToUpper(), paymentConfigurationServiceOffersMap.PaymentConfigurationModel.PaymentProviderModel.PaymentProvider.Name.ToUpper(), service.Name.ToUpper(), paymentConfigurationServiceOffersMap.PaymentConfigurationModel.ProductModel.Product.Name.ToUpper());
+          paymentConfiguration.PaymentCredentials = paymentConfigurationServiceOffersMap.PaymentConfigurationModel.PaymentCredentialsModel.PaymentCredentials;
+          paymentConfiguration.PaymentInterface = paymentConfigurationServiceOffersMap.PaymentConfigurationModel.PaymentInterfaceModel.PaymentInterface;
+          paymentConfiguration.PaymentProvider = paymentConfigurationServiceOffersMap.PaymentConfigurationModel.PaymentProviderModel.PaymentProvider;
+          paymentConfiguration.PaymentType = paymentConfigurationServiceOffersMap.PaymentConfigurationModel.PaymentType;
+          paymentConfiguration.Product = paymentConfigurationServiceOffersMap.PaymentConfigurationModel.ProductModel.Product;
+        }
+        else
+        {
+          behaviorModel = new BehaviorModel(-1,
+                                            new Guid(paymentConfigurationServiceOffersMap.PaymentConfigurationModel.BehaviorModelModel.ExternalBehaviorModelGuid.Trim()),
+                                            paymentConfigurationServiceOffersMap.PaymentConfigurationModel.BehaviorModelModel.Name.Trim(),
+                                            paymentConfigurationServiceOffersMap.PaymentConfigurationModel.BehaviorModelModel.ExternalServiceID != null ? paymentConfigurationServiceOffersMap.PaymentConfigurationModel.BehaviorModelModel.ExternalServiceID.Trim() : null, // externalServiceID
+                                            string.Format("{0} {1} service {2}", service.Name, paymentConfigurationServiceOffersMap.PaymentConfigurationModel.PaymentProviderModel.PaymentProvider.Name, service.FallbackCountry.GlobalName),
+                                            DateTime.Now, DateTime.Now);
+          behaviorModel.InsertWithHistory(connection, clientSession, service);
+
+          paymentConfiguration = new PaymentConfiguration(-1,
+            //string.Format("{0}_{1}_{2}_{3}_{4}", service.FallbackCountry.TwoLetterIsoCode, paymentConfigurationServiceOffersMap.PaymentConfigurationModel.PaymentInterfaceModel.PaymentInterface.Name.ToUpper(), paymentConfigurationServiceOffersMap.PaymentConfigurationModel.PaymentProviderModel.PaymentProvider.Name.ToUpper(), service.Name.ToUpper(), service.Product.Name.ToUpper()),
+                                                          paymentConfigurationServiceOffersMap.PaymentConfigurationModel.Name,
+                                                          null,
+                                                          paymentConfigurationServiceOffersMap.PaymentConfigurationModel.PaymentCredentialsModel.PaymentCredentials,
+                                                          paymentConfigurationServiceOffersMap.PaymentConfigurationModel.PaymentInterfaceModel.PaymentInterface,
+                                                          paymentConfigurationServiceOffersMap.PaymentConfigurationModel.PaymentProviderModel.PaymentProvider,
+                                                          behaviorModel,
+                                                          paymentConfigurationServiceOffersMap.PaymentConfigurationModel.PaymentType,
+                                                          paymentConfigurationServiceOffersMap.PaymentConfigurationModel.ProductModel.Product,
+                                                          DateTime.Now, DateTime.Now);
+        }
+        paymentConfiguration.UpdateOrInsertWithHistory(connection, clientSession, service);
+        
+        foreach (ServiceOfferModel serviceOfferModel in paymentConfigurationServiceOffersMap.ServiceOffers)
+        {
+          ServiceOffer serviceOffer = null;
+          ContentAccessPolicy contentAccessPolicy = null;
+          if (this.ActionType == ServiceConfigAction.Edit)
+            serviceOffer = ServiceOffer.CreateManager().Load(connection, serviceOfferModel.ServiceOfferID != null ? serviceOfferModel.ServiceOfferID.Value : -1);
+
+          if (serviceOffer != null)
+          {
+            oldServiceOffers.Remove(serviceOffer);
+
+            contentAccessPolicy = ContentAccessPolicy.CreateManager().Load(connection, serviceOffer.ContentAccessPolicy.ID);
+            contentAccessPolicy.BusinessModel = serviceOfferModel.ContentAccessPolicyModel.BusinessModelModel.BusinessModel;
+            contentAccessPolicy.BusinessModelEntry = serviceOfferModel.ContentAccessPolicyModel.BusinessModelEntryModel.BusinessModelEntry;
+            contentAccessPolicy.ContentGroup = serviceOfferModel.ContentAccessPolicyModel.ContentGroupModel != null ? serviceOfferModel.ContentAccessPolicyModel.ContentGroupModel.ContentGroup : null;
+            contentAccessPolicy.Content = serviceOfferModel.ContentAccessPolicyModel.ContentModel != null ? serviceOfferModel.ContentAccessPolicyModel.ContentModel.Content : null;
+            contentAccessPolicy.TemporarySetupAccessMode = serviceOfferModel.ContentAccessPolicyModel.TemporarySetupAccessMode;
+            contentAccessPolicy.TemporaryAccessInSeconds = serviceOfferModel.ContentAccessPolicyModel.TemporaryAccessInSeconds * 60;
+            contentAccessPolicy.NumberOfItems = serviceOfferModel.ContentAccessPolicyModel.NumberOfItems;
+            contentAccessPolicy.NumberOfItemDownloads = serviceOfferModel.ContentAccessPolicyModel.NumberOfItemDownloads;
+            contentAccessPolicy.NumberOfTotalDownloads = serviceOfferModel.ContentAccessPolicyModel.NumberOfTotalDownloads;
+            contentAccessPolicy.IntervalInSeconds = serviceOfferModel.ContentAccessPolicyModel.IntervalInSeconds * 86400;
+            contentAccessPolicy.UpdateWithHistory(connection, clientSession, service);
+
+            serviceOffer.Name = serviceOfferModel.Name != null ? serviceOfferModel.Name.Trim() : string.Format("VOD Unlimited - {0}", service.Name);
+            //serviceOffer.Name = string.Format("VOD Unlimited - {0}", service.Name);
+            serviceOffer.Description = string.Format("{0} unlimited service offer", service.Name);                                            
+            serviceOffer.BusinessModelEntry = serviceOfferModel.ContentAccessPolicyModel.BusinessModelEntryModel.BusinessModelEntry;
+            serviceOffer.ContentAccessPolicy = contentAccessPolicy;
+            serviceOffer.IsDefault = serviceOfferModel.IsDefault;
+            serviceOffer.IsActive = serviceOfferModel.IsActive;
+            serviceOffer.ValidFrom = serviceOfferModel.ValidFrom;
+            serviceOffer.ValidTo = serviceOfferModel.ValidTo;
+          }
+          else
+          {
+            contentAccessPolicy = new ContentAccessPolicy(-1,
+                                                        serviceOfferModel.ContentAccessPolicyModel.BusinessModelModel.BusinessModel,
+                                                        serviceOfferModel.ContentAccessPolicyModel.BusinessModelEntryModel.BusinessModelEntry,
+                                                        service,
+                                                        serviceOfferModel.ContentAccessPolicyModel.ContentGroupModel != null ? serviceOfferModel.ContentAccessPolicyModel.ContentGroupModel.ContentGroup : null,
+                                                        serviceOfferModel.ContentAccessPolicyModel.ContentModel != null ? serviceOfferModel.ContentAccessPolicyModel.ContentModel.Content : null,
+                                                        serviceOfferModel.ContentAccessPolicyModel.TemporarySetupAccessMode,
+                                                        serviceOfferModel.ContentAccessPolicyModel.TemporaryAccessInSeconds * 60,
+                                                        serviceOfferModel.ContentAccessPolicyModel.NumberOfItems,
+                                                        serviceOfferModel.ContentAccessPolicyModel.NumberOfItemDownloads,
+                                                        serviceOfferModel.ContentAccessPolicyModel.NumberOfTotalDownloads,
+                                                        serviceOfferModel.ContentAccessPolicyModel.IntervalInSeconds * 86400, //it was entered in days
+                                                        DateTime.Now, DateTime.Now);
+            contentAccessPolicy.InsertWithHistory(connection, clientSession, service);
+
+            serviceOffer = new ServiceOffer(-1,
+                                            serviceOfferModel.Name != null ? serviceOfferModel.Name.Trim() : string.Format("VOD Unlimited - {0}", service.Name),
+                                            string.Format("{0} unlimited service offer", service.Name),
+                                            service,
+                                            serviceOfferModel.ContentAccessPolicyModel.BusinessModelEntryModel.BusinessModelEntry,
+                                            paymentConfiguration,
+                                            contentAccessPolicy,
+                                            serviceOfferModel.IsDefault,
+                                            serviceOfferModel.IsActive,
+                                            serviceOfferModel.ValidFrom,
+                                            serviceOfferModel.ValidTo,
+                                            DateTime.Now, DateTime.Now);
+          }
+          serviceOffer.UpdateOrInsertWithHistory(connection, clientSession, service);
+        }        
+      }
+      foreach (ServiceOffer offer in oldServiceOffers)
+        offer.DeleteWithHistory(connection, clientSession, service);
+      
+      // ServiceLookupMethodMap
+      List<ServiceLookupMethodMap> oldServiceLookupMethodMaps = ServiceLookupMethodMap.CreateManager().Load(connection, service);
+      int indexSLMM = 0;
+      foreach (ServiceLookupMethodMapModel serviceLookupMethodMapModel in this.TemporaryData.ServiceLookupMethodMaps)
+      {
+        ServiceLookupMethodMap serviceLookupMethodMap = null;
+        if (this.ActionType == ServiceConfigAction.Edit)
+          serviceLookupMethodMap = ServiceLookupMethodMap.CreateManager().Load(connection, serviceLookupMethodMapModel.ServiceLookupMethodMapID != null? serviceLookupMethodMapModel.ServiceLookupMethodMapID.Value : -1);
+
+        PaymentConfiguration paymentConfig = PaymentConfiguration.CreateManager().Load(connection, serviceLookupMethodMapModel.PaymentConfigurationModel.Name);
+
+        if (serviceLookupMethodMap != null)
+        {
+          oldServiceLookupMethodMaps.Remove(serviceLookupMethodMap);
+
+          serviceLookupMethodMap.Country = serviceLookupMethodMapModel.CountryModel.Country;
+          serviceLookupMethodMap.LookupMethod = serviceLookupMethodMapModel.LookupMethod;
+          serviceLookupMethodMap.PaymentConfiguration = paymentConfig;
+          serviceLookupMethodMap.Description = string.Format("{0}_{1}_{2}{3}", paymentConfig.PaymentInterface.Name, serviceLookupMethodMapModel.CountryModel.Country.TwoLetterIsoCode, service.Name.ToUpper(), (indexSLMM > 0 ? "_" + indexSLMM.ToString() : ""));
+        }
+        else
+          serviceLookupMethodMap = new ServiceLookupMethodMap(-1, service,
+                                                              serviceLookupMethodMapModel.CountryModel.Country,
+                                                              serviceLookupMethodMapModel.LookupMethod,
+                                                              paymentConfig,
+                                                              string.Format("{0}_{1}_{2}{3}", paymentConfig.PaymentInterface.Name, serviceLookupMethodMapModel.CountryModel.Country.TwoLetterIsoCode, service.Name.ToUpper(), (indexSLMM > 0 ? "_" + indexSLMM.ToString() : "")),
+                                                              DateTime.Now, DateTime.Now);
+
+        serviceLookupMethodMap.UpdateOrInsertWithHistory(connection, clientSession, service);
+        indexSLMM++;
+      }
+
+      foreach (ServiceLookupMethodMap slmm in oldServiceLookupMethodMaps)
+        slmm.DeleteWithHistory(connection, clientSession, service);
+
+
+      foreach (PaymentConfiguration paymentCofig in oldPaymentConfigurations)
+        paymentCofig.DeleteWithHistory(connection, clientSession, service);
+
+      // ServiceThumbnailConversionProfileMap and ServiceVideoConversionProfileMap
+      if (this.ActionType == ServiceConfigAction.Insert)
+      {
+        ServiceThumbnailConversionProfileMap serviceThumbnailConversionProfileMap = new ServiceThumbnailConversionProfileMap(-1, service, ThumbnailConversionProfile.CreateManager().Load(connection, 1), true, DateTime.Now, DateTime.Now);
+        serviceThumbnailConversionProfileMap.InsertWithHistory(connection, clientSession, service);
+
+        List<VideoConversionProfile> videoConversionProfiles = new List<VideoConversionProfile>();
+        videoConversionProfiles.Add(VideoConversionProfile.CreateManager().Load(connection, 1)); //MPEG-4 H264
+        videoConversionProfiles.Add(VideoConversionProfile.CreateManager().Load(connection, 3)); //webm
+
+        foreach (VideoConversionProfile vcp in videoConversionProfiles)
+        {
+          ServiceVideoConversionProfileMap serviceVideoConversionProfileMap = new ServiceVideoConversionProfileMap(-1, service, vcp, true, DateTime.Now, DateTime.Now);
+          serviceVideoConversionProfileMap.InsertWithHistory(connection, clientSession, service);
+        }
+      }
+
+      // ServiceContentGroupMap
+      List<ServiceContentGroupMap> oldServiceContentGroupMap = ServiceContentGroupMap.CreateManager().Load(connection, service);
+      IContentGroupManager cgManager = ContentGroup.CreateManager();
+      foreach (int contentGroupID in this.TemporaryData.ContentGroups)
+      {
+        ServiceContentGroupMap serviceContentGroupMap = null;
+        if (this.ActionType == ServiceConfigAction.Edit)
+          serviceContentGroupMap = ServiceContentGroupMap.CreateManager().Load(connection, service, cgManager.Load(connection, contentGroupID));
+
+        if (serviceContentGroupMap != null)
+          oldServiceContentGroupMap.Remove(serviceContentGroupMap);
+        else
+        {
+          serviceContentGroupMap = new ServiceContentGroupMap(-1, service, cgManager.Load(connection, contentGroupID), true, DateTime.Now, DateTime.Now);
+          serviceContentGroupMap.InsertWithHistory(connection, clientSession, service);
+        }
+      }
+      foreach (ServiceContentGroupMap scgm in oldServiceContentGroupMap)
+        scgm.DeleteWithHistory(connection, clientSession, service);
+
+      // ServiceContentStorageMap
+      List<ServiceContentStorageMap> oldServiceContentStorageMap = ServiceContentStorageMap.CreateManager().Load(connection, service);
+      IContentStorageManager csManager = ContentStorage.CreateManager();
+
+      foreach (int contentStorageID in this.TemporaryData.ContentStorages)
+      {
+        ServiceContentStorageMap serviceContentStorageMap = null;
+        if (this.ActionType == ServiceConfigAction.Edit)
+          serviceContentStorageMap = ServiceContentStorageMap.CreateManager().Load(connection, service, csManager.Load(contentStorageID));
+
+        if (serviceContentStorageMap != null)
+          oldServiceContentStorageMap.Remove(serviceContentStorageMap);
+        else
+        {
+          serviceContentStorageMap = new ServiceContentStorageMap(-1, service, csManager.Load(connection, contentStorageID), DateTime.Now, DateTime.Now);
+          serviceContentStorageMap.InsertWithHistory(connection, clientSession, service);
+        }
+      }
+      foreach (ServiceContentStorageMap scsm in oldServiceContentStorageMap)
+        scsm.DeleteWithHistory(connection, clientSession, service);
+
+
+      // TranslationKey (pay attention in the future to this part - in case of service that supports more than one country)
+      ITranslationKeyManager tkManager = TranslationKey.CreateManager();
+      TranslationKey translationKey = null;
+
+      ITranslationGroupKeyManager tgkManager = TranslationGroupKey.CreateManager();
+      TranslationGroupKey tgkTerms = tgkManager.Load(connection, 49);
+      TranslationGroupKey tgkImprint = tgkManager.Load(connection, 46);
+
+      ITranslationValueManager tvManager = TranslationValue.CreateManager();
+      TranslationValue translationValueTerms = null;
+      TranslationValue translationValueImprint = null;
+      
+      TranslationKey fallbackTranslationKey = tkManager.Load(connection, service.FallbackLanguage);
+
+      if (fallbackTranslationKey == null)
+      {
+        fallbackTranslationKey = new TranslationKey(-1, TranslationKey.CreateManager().Load(connection, 1), Translation.CreateManager().Load(connection, 1), service.FallbackLanguage, null, string.Format("{0}_paywall", service.FallbackCountry.CountryCode.ToLower()), DateTime.Now, DateTime.Now);
+        fallbackTranslationKey.InsertWithHistory(connection, clientSession, service);
+      }
+
+      translationKey = tkManager.Load(connection, service);
+      
+      if (translationKey != null)
+      {
+        translationKey.Name = string.Format("{0}_web_{1}", service.FallbackCountry.CountryCode.ToLower(), newDomains.FirstOrDefault().DomainName);
+        translationKey.Language = service.FallbackLanguage;
+        translationKey.FallbackTranslationKey = fallbackTranslationKey;
+
+        translationValueTerms = tvManager.Load(connection, translationKey, tgkTerms);
+        translationValueImprint = tvManager.Load(connection, translationKey, tgkImprint);
+      }
+      else
+        translationKey = new TranslationKey(-1, fallbackTranslationKey, Translation.CreateManager().Load(connection, 1), service.FallbackLanguage, service, string.Format("{0}_web_{1}", service.FallbackCountry.CountryCode.ToLower(), newDomains.FirstOrDefault().DomainName), DateTime.Now, DateTime.Now);
+
+      translationKey.UpdateOrInsertWithHistory(connection, clientSession, service);
+
+
+      //Terms and Imprint are set (through this form) only for FallbackCountry and FallbackLanguage
+      //Terms
+      if (translationValueTerms != null && translationValueTerms.Value != this.TemporaryData.Terms)
+      {
+        if (this.TemporaryData.Terms != null)
+        {
+          translationValueTerms.Value = this.TemporaryData.Terms;
+          translationValueTerms.UpdateWithHistory(connection, clientSession, service);
+        }
+        else
+          translationValueTerms.DeleteWithHistory(connection, clientSession, service);
+      }
+      else if (translationValueTerms == null && this.TemporaryData.Terms != null)
+      {
+        translationValueTerms = new TranslationValue(-1, translationKey, tgkTerms, this.TemporaryData.Terms, DateTime.Now, DateTime.Now);
+        translationValueTerms.InsertWithHistory(connection, clientSession, service);
+      }
+
+      //Imprint
+      if (translationValueImprint != null && translationValueImprint.Value != this.TemporaryData.Imprint)
+      {
+        if (this.TemporaryData.Imprint != null)
+        {
+          translationValueImprint.Value = this.TemporaryData.Imprint;
+          translationValueImprint.UpdateWithHistory(connection, clientSession, service);
+        }
+        else
+          translationValueImprint.DeleteWithHistory(connection, clientSession, service);
+      }
+      else if (translationValueImprint == null && this.TemporaryData.Imprint != null)
+      {
+        translationValueImprint = new TranslationValue(-1, translationKey, tgkImprint, this.TemporaryData.Imprint, DateTime.Now, DateTime.Now);
+        translationValueImprint.InsertWithHistory(connection, clientSession, service);
+      }
+
+
+      ////For every Language on tab2, which is different from FallbackLanguage, set TranslationKey
+      //List<Language> otherLanguages = ( from scem in this.TemporaryData.ServiceConfigurationEntryMaps
+      //                                  where scem.LanguageModel.Language.ID != service.FallbackLanguage.ID
+      //                                  select scem.LanguageModel.Language).Distinct().ToList();
+
+      //foreach (Language language in otherLanguages)
+      //{
+      //  Country country = (from scem in this.TemporaryData.ServiceConfigurationEntryMaps
+      //                     where scem.LanguageModel.Language.ID == language.ID
+      //                     select scem.CountryModel.Country).FirstOrDefault();
+
+      //  fallbackTranslationKey = tkManager.Load(connection, language);
+
+      //  if (fallbackTranslationKey == null)
+      //  {
+      //    fallbackTranslationKey = new TranslationKey(-1, TranslationKey.CreateManager().Load(connection, 1), Translation.CreateManager().Load(connection, 1), language, null, string.Format("{0}_paywall", country.CountryCode.ToLower()), DateTime.Now, DateTime.Now);
+      //    fallbackTranslationKey.Insert(connection);
+      //  }
+
+      //  if (this.ActionType == ServiceConfigAction.Edit)
+      //    translationKey = tkManager.Load(connection, language, service);
+
+      //  if (translationKey != null)
+      //    translationKey.Name = string.Format("{0}_web_{1}", country.CountryCode.ToLower(), newDomains.FirstOrDefault().DomainName);
+      //  else
+      //    translationKey = new TranslationKey(-1, fallbackTranslationKey, Translation.CreateManager().Load(connection, 1), language, service, string.Format("{0}_web_{1}", country.CountryCode.ToLower(), newDomains.FirstOrDefault().DomainName), DateTime.Now, DateTime.Now);
+
+      //  translationKey.UpdateOrInsert(connection);
+      //}
+
+
+      //connection.Transaction.Rollback(); //just for testing
+      connection.Transaction.Commit();
+      return true;
+    }
+
+    //public ServiceTaskModel Deserialize()
+    //{
+    //  if (string.IsNullOrEmpty(this.TaskData.Data))
+    //    return null;
+
+    //  XmlSerializer serializer = new XmlSerializer(typeof(ServiceTaskModel));
+    //  XmlReaderSettings settings = new XmlReaderSettings();
+    //  // No settings need modifying here
+
+    //  using (StringReader textReader = new StringReader(this.TaskData.Data))
+    //  {
+    //    using (XmlReader xmlReader = XmlReader.Create(textReader, settings))
+    //      return (ServiceTaskModel)serializer.Deserialize(xmlReader);
+    //  }
+    //}
+
+    //public override T Deserialize<T>()
+    //{
+    //  if (string.IsNullOrEmpty(this.TaskData.Data))
+    //    return null;
+
+    //  XmlSerializer serializer = new XmlSerializer(typeof(ServiceTaskModel));
+    //  XmlReaderSettings settings = new XmlReaderSettings();
+    //  // No settings need modifying here
+
+    //  using (StringReader textReader = new StringReader(this.TaskData.Data))
+    //  {
+    //    using (XmlReader xmlReader = XmlReader.Create(textReader, settings))
+    //      return (ServiceTaskModel)serializer.Deserialize(xmlReader);
+    //  }
+    //}
+  }
+}

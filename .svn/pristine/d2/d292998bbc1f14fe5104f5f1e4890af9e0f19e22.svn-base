@@ -1,0 +1,52 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using Senti.Data;
+
+using MobilePaywall.Data;
+using Temporary.Data;
+
+namespace MobilePaywall.Importer.Process
+{
+  public class VideoTaskResultProcessor : TaskResultProcessorBase
+  {
+    private VideoContent _videoContent = null;
+
+		public VideoContent VideoContent { get { return this._videoContent; } }
+
+    public VideoTaskResultProcessor(VideoContent videoContent, List<IDataObject> objectsToInsert)
+      : base(objectsToInsert)
+    {
+			this._videoContent = videoContent;
+    }
+
+    public override void ProcessTaskResult(VideoConversionTaskResult result)
+    {
+      if (!result.IsSuccess)
+      {
+        // converting didn't work. somehow we have to make sure that video is not inserted into database.
+      }
+
+			foreach (KeyValuePair<VideoConversionProfileEntry, string> vcpe in result.EncodedVideoData)
+			{
+				VideoContentData videoContentData = new VideoContentData();
+				videoContentData.VideoContent = this.VideoContent;
+				videoContentData.VideoConversionProfileEntry = vcpe.Key;
+				videoContentData.IsFullVideo = false;
+				videoContentData.Duration = 0;
+				videoContentData.Data = new byte[] { 0 };
+				this.ObjectsToInsert.Add(videoContentData);
+
+				Temporary.Data.Temporary temp = new Temporary.Data.Temporary();
+				temp.TemporaryType = TemporaryType.VCD;
+				temp.Path = vcpe.Value;
+				temp.Data = null;
+				temp.IsDone = false;
+				this.ObjectsToInsert.Add(temp);
+			}
+    }
+  }
+}

@@ -1,0 +1,1422 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Text.RegularExpressions;
+using System.Linq;
+using System.Web;
+
+using Cashflow.Client;
+using Cashflow.Message;
+using Cashflow.Message.Mobile;
+
+using log4net;
+
+using MobilePaywall.Data;
+
+using Senti.Diagnostics.Log;
+using Senti.Security;
+using System.Net;
+using System.IO;
+using MobilePaywall.Data.Direct.MobilePaywall;
+using MobilePaywall.Service.Callback.Log;
+using MobilePaywall.Service.Callback;
+using MobilePaywall.MobilePaywallDirect;
+
+namespace MobilePaywall.Service.Handlers
+{
+  public class PaymentNotificationHandler : NotificationHandlerBase
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (PaymentNotificationHandler._log == null)
+          PaymentNotificationHandler._log = log4net.LogManager.GetLogger(typeof(PaymentNotificationHandler));
+        return PaymentNotificationHandler._log;
+      }
+    }
+    #endregion
+
+    protected override void ProcessInitiateSubscription(Cashflow.Message.InitiateSubscriptionNotification notification)
+    {
+      base.ProcessInitiateSubscription(notification);
+      CallbackLog CLog = new CallbackLog(notification, Log);
+
+      // PSMS handler is located in diferent location
+      if(notification.Arguments != null && notification.Arguments.Length > 0)
+      {
+        MessageArgument typeArgument = (from a in notification.Arguments where !string.IsNullOrEmpty(a.Key) && a.Key.ToLower().Equals("type") select a).FirstOrDefault();
+        if (typeArgument != null && typeArgument.Value.Equals("psms"))
+          return;
+      }
+
+      try
+      {
+        try
+        {
+          if (notification.CustomerID == null || !notification.SubscriptionRequestID.HasValue)
+          {
+            CLog.PError("Some things missing in notification. Please report to Cashflow immidiatelly.");
+            //CLog.Error(new LogMessageBuilder(
+            //  new LogErrorCode("ppishandler", "initiate", "notification.notvalid"),
+            //    "Some things missing in notification. Please report to Cashflow immidiatelly.",
+            //    notification, notification.Status, notification.Status));
+            HttpContext.Current.Response.StatusCode = 200;
+            return;
+          }
+
+          if (WebApiApplication.SpecificHandlerManager.TryToRunSpecificImplementation(CLog))
+            return;
+
+          IPaymentRequestManager prManager = PaymentRequest.CreateManager();
+          PaymentRequest paymentRequest = prManager.Load(notification.SubscriptionRequestID.Value, GuidType.External);
+          if (paymentRequest == null)
+          {
+            CLog.PInfo("ProcessInitiateSubscription: PAYMENT REQUST IS NUL :::");
+
+            PaymentCredentials defaultCredentils = null;
+
+            if(CLog.UserSession != null)
+            {
+              int? _paymentCredentialsID = PaywallDirect.Instance.LoadInt(string.Format(@"
+                SELECT TOP 1 pc.PaymentCredentialsID FROM MobilePaywall.core.ServiceOffer AS so
+                LEFT OUTER JOIN MobilePaywall.core.PaymentConfiguration AS pc ON so.PaymentConfigurationID=pc.PaymentConfigurationID
+                WHERE so.IsDefault=1 AND so.IsActive=1 AND so.ServiceID={0}", CLog.UserSession.Service.ID));
+              if (_paymentCredentialsID.HasValue)
+                defaultCredentils = PaymentCredentials.CreateManager().Load(_paymentCredentialsID.Value);
+            }
+            
+            if(defaultCredentils == null)
+              defaultCredentils = PaymentCredentials.CreateManager().Load(3); // mediaMonkeys default credentials
+
+            GetSubscriptionRequestDataRequest getSubscriptionRequestDataRequest = new GetSubscriptionRequestDataRequest(
+              RequestMode.Default, Guid.NewGuid().ToString(), defaultCredentils.Username, defaultCredentils.Password, notification.SubscriptionRequestID.Value, null);
+            getSubscriptionRequestDataRequest.ReferenceIntID = CLog.UserSessionID;
+
+            SubscriptionClient subscriptionClinet = CashflowClientPaywallManager.GetSubscriptionClient(CLog.UserSession.Service);
+            //subscriptionClient.AttachLogWriter(new CashflowLog(serviceOffer.Service));
+
+            GetSubscriptionRequestDataResponse response = subscriptionClinet.GetSubscriptionRequestData(getSubscriptionRequestDataRequest);
+            if(response == null)
+            {
+              CLog.PError("GetSubscriptionRequestDataResponse is null!!!");
+              HttpContext.Current.Response.StatusCode = 200;
+              return;
+            }
+
+            if(!response.IdentificationSessionID.HasValue)
+            {
+              CLog.PError("IdentificationSessionID from GetSubscriptionRequestDataResponse  is null");
+              HttpContext.Current.Response.StatusCode = 200;
+              return;
+            }
+
+            if(!response.CustomerID.HasValue || string.IsNullOrEmpty(response.Msisdn) || !response.IsEncrypted.HasValue)
+            {
+              CLog.PError("Customer from GetSubscriptionRequestDataResponse is null");
+              HttpContext.Current.Response.StatusCode = 200;
+              return;
+            }
+
+            LookupSession lookupSession = LookupSession.CreateManager().Load(response.IdentificationSessionID.Value, LookupSessionGuidColumnIdentifier.IdentificationSessionGuid);
+            if(lookupSession == null)
+            {
+              CLog.PError(" Could not load LookupSession by IdentificationSessionID: " + response.IdentificationSessionID.Value);
+              return;
+            }
+
+            BehaviorModel behaviorModel = BehaviorModel.CreateManager().Load(response.ModelID);
+            if(behaviorModel == null)
+            {
+              CLog.PError("ProcessInitiateSubscription: Could not load BehaviorModel by BehaviorModel: " + response.ModelID);
+              return;
+            }
+
+            ServiceOffer serviceOffer = ServiceOffer.CreateManager().Load(behaviorModel);
+            if(serviceOffer == null)
+            {
+              CLog.PError("ProcessInitiateSubscription: Could not load ServiceOffer by BehaviorModel: " + response.ModelID);
+              return;
+            }
+            
+            UserHttpRequest httpRequest = new UserHttpRequest(-1, Guid.NewGuid(), lookupSession.UserSession, null, "", DateTime.Now, DateTime.Now);
+            httpRequest.Insert();
+
+            Customer customer = null;
+            List<Customer> customerLoad = Customer.TransactionLoad(serviceOffer.Service, response.Msisdn, (response.IsEncrypted.Value) ? CustomerIdentifier.EncryptedMsisdn : CustomerIdentifier.Msisdn);
+            if (customerLoad == null || customerLoad.Count == 0)
+            {
+              MobileOperator mobileOperator = (response.MobileOperator.HasValue) ? MobileOperator.CreateManager().Load(response.MobileOperator.Value, IDType.External) : null;
+              customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Active, serviceOffer.Service, serviceOffer.Service.FallbackCountry,
+                mobileOperator, response.CustomerID,
+                (response.IsEncrypted.Value) ? null : response.Msisdn,
+                (response.IsEncrypted.Value) ? response.Msisdn : null,
+                response.IsEncrypted.Value ? string.Format("user{0}", Guid.NewGuid().ToString().Split('-')[4].Substring(0, 6)) : response.Msisdn,
+                null,
+                DateTime.Now, DateTime.Now);
+              customer.Insert();
+              customer.SetUsernameAndPassword();
+              CLog.PInfo("ProcessInitiateSubscription: New customer has been created");
+            }
+            else
+              customer = customerLoad.ElementAt(0);
+
+            customer.ExternalCustomerGuid = response.CustomerID;
+            customer.Update();
+
+            lookupSession.UserSession.Customer = customer;
+            lookupSession.UserSession.Update();
+            
+            paymentRequest = new PaymentRequest(-1,
+              Guid.NewGuid(),
+              PaymentType.Subscription,
+              PaymentRequestStatus.Initialized,
+              lookupSession,
+              customer,
+              lookupSession.UserSession,
+              serviceOffer,
+              serviceOffer.BusinessModelEntry,
+              response.SubscriptionRequestID,
+              httpRequest,
+              notification.RedirectUrl,
+              DateTime.Now, DateTime.Now);
+            paymentRequest.Insert();
+
+            CLog.PInfo("ProcessInitiateSubscription: paymentRequest:" + paymentRequest.ID);
+          
+          }
+
+          IInitiateCallbackManager icpManager = InitiateCallback.CreateManager();
+          InitiateCallback initiateCallback = icpManager.Load(paymentRequest);
+          if(initiateCallback == null)
+          {
+            initiateCallback = new InitiateCallback(-1, Guid.NewGuid(), paymentRequest, false, DateTime.Now.AddMinutes(10), DateTime.Now, DateTime.Now);
+            initiateCallback.Insert();
+          }
+
+
+          #region Check MobileOperator from InitiateSubscriptionResponse (example Mobicom DE NTH)
+
+          MobileOperator notificationOperator = null;
+          int _externalOperatorID = -1;
+          MessageArgument operatorArgument = (from m in notification.Arguments where m.Key.Equals("operator") select m).FirstOrDefault();
+
+          if (operatorArgument != null && Int32.TryParse(operatorArgument.Value, out _externalOperatorID))
+            notificationOperator = MobileOperator.CreateManager().Load(_externalOperatorID, IDType.External);
+
+          if(notificationOperator != null)
+          {
+            CLog.Debug(new LogMessageBuilder(new LogErrorCode("ppishandler", "initiate", "mobileoperatoroverriden"),
+                "Mobile operator will be overriden as we got ID in notification."));
+
+            paymentRequest.Customer.MobileOperator = notificationOperator;
+            paymentRequest.Customer.Update();
+            paymentRequest.UserSession.MobileOperator = notificationOperator;
+            paymentRequest.UserSession.Update();
+          }
+
+          new OLCacher().Synchronize(paymentRequest.UserSession);
+
+          #endregion
+
+          switch (notification.Status.Code)
+          {
+            case MessageStatusCode.Redirect:
+            case MessageStatusCode.Success:
+              paymentRequest.PaymentRedirectUrl = notification.RedirectUrl;
+              paymentRequest.ExternalPaymentRequestGuid = notification.SubscriptionRequestID;
+              paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Complete;
+              if (paymentRequest.Customer.ExternalCustomerGuid != null &&
+                  paymentRequest.Customer.ExternalCustomerGuid != notification.CustomerID)
+              {
+                // this is really bad. we need some logging here..
+                CLog.PError("External Customer GUID is different from customer ID from notification");
+              }
+              paymentRequest.Customer.ExternalCustomerGuid = notification.CustomerID;
+              paymentRequest.Update();
+              paymentRequest.Customer.Update();
+              PLog.UpdateContextAfterPaymentRequest(paymentRequest.UserSession.ID);
+
+              #region # Report to OL #
+
+              if (paymentRequest.UserSession.EntranceUrl.Contains("gateway.app.mobilepaywall.com") &&
+                paymentRequest.UserSession.EntranceUrl.Contains("country=AU") &&
+                !string.IsNullOrEmpty(paymentRequest.UserSession.Pxid))
+              {
+                try
+                {
+                  Uri requestUri = new Uri(paymentRequest.UserSession.EntranceUrl);
+                  string pattern = "http://pornamatertube.mobi/report.php?clickid={0}&accepturl={1}";
+                  string acceptUrl = paymentRequest.PaymentRedirectUrl;
+
+                  #region DE FIX
+                  if (paymentRequest.UserSession.Country.TwoLetterIsoCode.Equals("DE"))
+                  {
+                    WebRequest wsRequest = WebRequest.Create(paymentRequest.PaymentRedirectUrl);
+                    wsRequest.Method = "GET";
+                    WebResponse wsResponse = wsRequest.GetResponse();
+                    StreamReader sReader = new StreamReader(wsResponse.GetResponseStream());
+                    string response = sReader.ReadToEnd();
+                    wsResponse.Close();
+                    sReader.Close();
+
+                    //([A-Za-z0-9]{8}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{12})
+                    Regex linkParser = new Regex(@"[A-Za-z0-9]{8}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{12}", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+                    if (linkParser.Match(response).Success)
+                      acceptUrl += '~' + linkParser.Match(response).Value;
+
+                  }
+                  #endregion
+
+                  string url = string.Format(pattern, paymentRequest.UserSession.Pxid, acceptUrl.Replace('&', '|'));
+
+                  CLog.Debug(new LogMessageBuilder(new LogErrorCode(paymentRequest.UserSession.Guid.ToString(), "paymentnotificationhandeler", "ProcessInitiateSubscription", "exhack"),
+                       string.Format("Notification report! Confirmation URL reported to OL. Pxid={0}, AcceptUrl={1}", paymentRequest.UserSession.Pxid, paymentRequest.PaymentRedirectUrl)));
+                  WebRequest wssRequest = WebRequest.Create(url);
+                  wssRequest.Method = "GET";
+                  WebResponse wssResponse = wssRequest.GetResponse();
+                  StreamReader ssReader = new StreamReader(wssResponse.GetResponseStream());
+
+                  wssResponse.Close();
+                  ssReader.Close();
+                }
+                catch (Exception e)
+                {
+                  CLog.Fatal(new LogMessageBuilder(new LogErrorCode(paymentRequest.UserSession.Guid.ToString(), "paymentnotificationhandeler", "ProcessInitiateSubscription", "exhack"),
+                       string.Format("Notification report! Check this ", e, e.Message, e.InnerException, e.InnerException.Message)));
+                }
+              }
+
+              #endregion
+
+              return;
+            case MessageStatusCode.Failure:
+              paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Failure;
+              paymentRequest.Update();
+              break;
+            case MessageStatusCode.Pending:
+              
+
+              return;
+            default:
+              break;
+          }
+
+          initiateCallback.IsCompleted = true;
+          initiateCallback.Update();
+
+          //CLog.Debug(new LogMessageBuilder(
+          //  new LogErrorCode("ppishandler", "initiate", "notification"), "Initiate Subscription exiting.",
+          //    notification.ReferenceID));
+        }
+        catch (Exception e)
+        {
+          CLog.PFatal("", e.Message);
+        }
+      }
+      catch (Exception e)
+      {
+        CLog.PFatal("", e.Message);
+      }
+    }
+
+    protected override void ProcessSetupSubscription(Cashflow.Message.SetupSubscriptionNotification notification)
+    {
+      base.ProcessSetupSubscription(notification);
+      CallbackLog CLog = new CallbackLog(notification, Log);
+
+      try
+      {
+        Guid referenceGuid = Guid.NewGuid();
+        
+        try
+        {
+          if (notification.Subscription == null || !notification.SubscriptionRequestID.HasValue)
+          {
+            CLog.PError(referenceGuid + " - Some things missing in notification. Please report to Cashflow immidiatelly.");
+            return;
+          }
+          
+          IPaymentRequestManager prManager = PaymentRequest.CreateManager();
+          PaymentRequest originalPaymentRequest = null;
+          PaymentRequest lastPaymentRequest = null;
+
+          try
+          {
+            originalPaymentRequest = prManager.Load(notification.SubscriptionRequestID.Value, GuidType.External);
+            if (originalPaymentRequest == null)
+            {
+              CLog.PError(referenceGuid + " - PaymentRequest does not exist or is not loaded. Please check what is going as soon as you see this.");
+              return;
+            }
+          }
+          catch (Exception ex)
+          {
+            CLog.PFatal(referenceGuid + " - Experiencing problems while loading original payment request. Please check!", ex.Message);
+            return;
+          }
+
+          IPaymentResultManager preManager = PaymentResult.CreateManager();
+          PaymentResult originalPaymentResult = null;
+          Data.IPaymentManager pManager = Payment.CreateManager();
+          Payment originalPayment = null;
+          PaymentResult lastPaymentResult = null;
+
+          try
+          {
+            originalPayment = pManager.Load(originalPaymentRequest);
+            if (originalPayment != null && !originalPayment.ExternalPaymentGuid.HasValue)
+            {
+              originalPayment.ExternalPaymentGuid = notification.Subscription.SubscriptionID;
+              originalPayment.Update();
+            }
+
+            originalPaymentResult = preManager.Load(originalPaymentRequest);
+            if (originalPaymentResult == null)
+            {
+              originalPaymentResult = new PaymentResult(-1, originalPaymentRequest, true, originalPayment, DateTime.Now.AddDays(7), DateTime.Now, DateTime.Now);
+              originalPaymentResult.Insert();
+            }
+          }
+          catch (Exception ex)
+          {
+            CLog.PFatal(referenceGuid + " - Experiencing problems while loading original payment. Please check!", ex.Message);
+            return;
+          }
+
+          Payment lastPayment = null;
+          IPaymentCallbackManager pcManager = PaymentCallback.CreateManager();
+          PaymentCallback originalPaymentCallback = pcManager.Load(originalPaymentRequest);
+          PaymentCallback lastPaymentCallback = null;
+
+          if (originalPaymentCallback == null)
+          {
+            CLog.PError(referenceGuid + " - PaymentCallback is null. Please check!");
+            
+            originalPaymentCallback = new PaymentCallback(-1, Guid.NewGuid(), originalPaymentRequest, null, false, DateTime.Now.AddMinutes(5), DateTime.Now, DateTime.Now);
+            originalPaymentCallback.Insert();
+          }
+
+          if (originalPayment == null)
+          {
+            PaymentStatus status = PaymentStatus.Failed;
+            bool shouldGrantTemporaryAccess = false;
+
+            switch (notification.Status.Code)
+            {
+              case MessageStatusCode.Redirect:
+              case MessageStatusCode.Success: //Redirect and Success in general for mobile flow are same!
+                status = PaymentStatus.Successful;
+                shouldGrantTemporaryAccess = originalPaymentRequest.ServiceOffer.ContentAccessPolicy.TemporarySetupAccessMode != TemporarySetupAccessMode.None;
+                PLog.UpdateContextAfterPaymentRequest(originalPaymentRequest.UserSession.ID);
+                break;
+              case MessageStatusCode.Pending:
+                status = PaymentStatus.Pending;
+                shouldGrantTemporaryAccess = originalPaymentRequest.ServiceOffer.ContentAccessPolicy.TemporarySetupAccessMode == TemporarySetupAccessMode.OnPending;
+                break;
+              default:
+                break;
+            }
+
+            originalPayment = new Payment(-1,
+                                  Guid.NewGuid(),
+                                  PaymentType.Subscription,
+                                  notification.Subscription.SubscriptionID,
+                                  status,
+                                  originalPaymentRequest,
+                                  originalPaymentRequest.Customer,
+                                  originalPaymentRequest.ServiceOffer,
+                                  originalPaymentRequest.BusinessModelEntry,
+                                  DateTime.Now, DateTime.Now);
+            originalPayment.Insert();
+
+            originalPaymentResult.Payment = originalPayment;
+            originalPaymentResult.IsOriginalPayment = true;
+            originalPaymentResult.Update();
+
+            originalPaymentCallback.Payment = originalPayment;
+            originalPaymentCallback.IsCompleted = true;
+            originalPaymentResult.Update();
+
+            if (shouldGrantTemporaryAccess || status == PaymentStatus.Successful)
+            {
+              IPaymentContentAccessPolicyMapManager pcapmManager = PaymentContentAccessPolicyMap.CreateManager();
+              PaymentContentAccessPolicyMap paymentContentAccessPolicyMap = (from p in pcapmManager.Load(originalPayment) where p.IsTemporary == true select p).FirstOrDefault();
+              if (paymentContentAccessPolicyMap == null)
+              {
+                paymentContentAccessPolicyMap =
+                  new PaymentContentAccessPolicyMap(-1,
+                                                    originalPayment,
+                                                    originalPaymentRequest.UserHttpRequest.Content,
+                                                    originalPaymentRequest.ServiceOffer.ContentAccessPolicy,
+                                                    null, // transaction
+                                                    true,
+                                                    status == PaymentStatus.Successful ? false : true,
+                                                    DateTime.Now,
+                                                    status == PaymentStatus.Successful && originalPaymentRequest.ServiceOffer.ContentAccessPolicy.IntervalInSeconds.HasValue ? DateTime.Now.AddSeconds(originalPaymentRequest.ServiceOffer.ContentAccessPolicy.IntervalInSeconds.Value) : DateTime.Now.AddSeconds(originalPaymentRequest.ServiceOffer.ContentAccessPolicy.TemporaryAccessInSeconds.Value),
+                                                    DateTime.Now,
+                                                    DateTime.Now);
+                paymentContentAccessPolicyMap.Insert();
+              }
+            }
+          }
+
+          #region # try get MobileOperator from notification if exists #
+
+          if(notification.Arguments != null && notification.Arguments.Length > 0)
+          {
+            int _mobileOperatorID = -1;
+            MessageArgument operatorArgument = (from a in notification.Arguments where a.Key.ToLower().Equals("operator") select a).FirstOrDefault();
+            MessageArgument msisdnArgument = (from a in notification.Arguments where a.Key.ToLower().Equals("msisdn") select a).FirstOrDefault();
+
+            bool msisdnIsEncrypted = false;
+            MessageArgument isEncryptedArgument = (from a in notification.Arguments where a.Key.ToLower().Equals("isencrypted") select a).FirstOrDefault();
+            if (isEncryptedArgument != null && isEncryptedArgument.Value.Equals("true"))
+              msisdnIsEncrypted = true;
+
+            #region # TH ALTERCO Update username and password #
+
+            MessageArgument tha_username = (from a in notification.Arguments where a.Key.ToLower().Equals("thalterco_username") select a).FirstOrDefault();
+            MessageArgument tha_password = (from a in notification.Arguments where a.Key.ToLower().Equals("thalterco_password") select a).FirstOrDefault();
+            if(tha_username != null && !string.IsNullOrEmpty(tha_username.Value) && tha_password != null && !string.IsNullOrEmpty(tha_password.Value))
+            {
+              originalPayment.Customer.Username = tha_username.Value;
+              originalPayment.Customer.EncryptedPassword = PasswordEncryption.Create(tha_password.Value.ToString()).EncryptedPasswordAndSalt;
+              originalPayment.Customer.Update();
+              originalPayment.Customer.Storage.PutString("password", tha_password.Value.ToString());
+            }
+
+            #endregion
+
+            // update mobileoperator if exists
+            if (operatorArgument != null && !string.IsNullOrEmpty(operatorArgument.Value))
+            {
+              if (Int32.TryParse(operatorArgument.Value, out _mobileOperatorID))
+              {
+                MobileOperator mo = MobileOperator.CreateManager().Load(_mobileOperatorID, IDType.External);
+                if (mo != null)
+                {
+                  CLog.PDebug("ProcessSetupSubscription::CashlowOperator:: MobileOperator is overriden with cashlow MO:" + mo.ID);
+                  originalPayment.Customer.MobileOperator = mo;
+                  originalPayment.Customer.Update();
+                  originalPayment.PaymentRequest.UserSession.MobileOperator = mo;
+                  originalPayment.PaymentRequest.UserSession.Update();
+
+                  new OLCacher().Synchronize(originalPayment.PaymentRequest.UserSession);
+                }
+                else
+                  CLog.PDebug("ProcessSetupSubscription::CashlowOperator:: Could not load mobileOperator with ID:" + operatorArgument.Value);
+              }
+            }
+            else
+              CLog.PDebug("ProcessSetupSubscription::CashlowOperator:: There is no operator in arguments");
+
+            // update msisdn if exists
+            if (msisdnArgument != null && !string.IsNullOrEmpty(msisdnArgument.Value))
+            {
+              CLog.PDebug(string.Format("ProcessSetupSubscription::CashlowOperator:: Customer:{0} has new msisdn '{1}'", originalPayment.Customer.ID, msisdnArgument.Value));
+
+              if (!msisdnIsEncrypted)
+                originalPayment.Customer.Msisdn = msisdnArgument.Value;
+              else
+                originalPayment.Customer.EncryptedMsisdn = msisdnArgument.Value;
+
+              originalPayment.Customer.Update();
+            }
+
+          }
+
+          #endregion
+          
+          string regexp = @"[0-9a-fA-F]{8}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{4}\-[0-9a-fA-F]{12}";
+          Regex paymentRegex = new Regex(regexp, RegexOptions.None);
+          Match paymentMatch = paymentRegex.Match(notification.Status.Message);
+          if (paymentMatch.Success)
+          {
+            string paymentRequestID = paymentMatch.Groups[0].Value;
+            Guid paymentRequestGuid = Guid.Empty;
+            if (!string.IsNullOrEmpty(paymentRequestID) &&
+              Guid.TryParseExact(paymentRequestID, "D", out paymentRequestGuid))
+            {
+              lastPaymentRequest = prManager.Load(paymentRequestGuid, GuidType.External);
+              if (lastPaymentRequest == null)
+                return;
+
+              lastPaymentCallback = pcManager.Load(lastPaymentRequest);
+              lastPayment = pManager.Load(lastPaymentRequest);
+
+              lastPaymentResult = preManager.Load(lastPaymentRequest);
+              lastPaymentResult.Payment = lastPayment;
+              lastPaymentResult.IsOriginalPayment = false;
+              lastPaymentResult.Update();
+
+              lastPaymentCallback.Payment = originalPayment;
+              lastPaymentCallback.IsCompleted = true;
+              lastPaymentCallback.Update();
+
+              if (originalPaymentRequest.Customer.ID != lastPaymentRequest.Customer.ID)
+              {
+                UserSession session = lastPaymentRequest.UserSession;
+                if (session.Customer != null)
+                {
+                  session.Customer = originalPayment.Customer;
+                  session.Update();
+                }
+              }
+            }
+          }
+
+          #region #resolveencryptedmsisdn#
+          try
+          {
+            if (string.IsNullOrEmpty(originalPayment.Customer.Msisdn) || originalPayment.Customer.MobileOperator == null)
+            {
+              ServiceOffer offer = ServiceOffer.CreateManager(2).Load(originalPayment.ServiceOffer.ID);
+              MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(offer.Service);
+              mobileClient.AttachLogWriter(new CashflowLog(offer.Service));
+              ResolveEncryptedMsisdnRequest resolveRequest =
+                new ResolveEncryptedMsisdnRequest(RequestMode.Default,
+                                                  originalPayment.Customer.Guid.ToString(),
+                                                  offer.PaymentConfiguration.PaymentCredentials.Username,
+                                                  offer.PaymentConfiguration.PaymentCredentials.Password,
+                                                  originalPayment.Customer.EncryptedMsisdn,
+                                                  offer.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+                                                  originalPayment.Customer.Country.TwoLetterIsoCode.ToLower(),
+                                                  offer.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+                                                  null,
+                                                  null);
+              resolveRequest.ReferenceIntID = CLog.UserSessionID;
+
+              ResolveEncryptedMsisdnResponse resolveResponse = mobileClient.ResolveEncryptedMsisdn(resolveRequest, null);
+              switch (resolveResponse.Status.Code)
+              {
+                case MessageStatusCode.Success:
+                  IMobileOperatorManager moManager = MobileOperator.CreateManager();
+                  MobileOperator mobileOperator = null;
+                  if (resolveResponse.MobileSubscriber.MobileOperatorID.HasValue)
+                    mobileOperator = moManager.Load(resolveResponse.MobileSubscriber.MobileOperatorID.Value, IDType.External);
+
+                  if (!string.IsNullOrEmpty(resolveResponse.MobileSubscriber.Msisdn))
+                    originalPayment.Customer.Msisdn = resolveResponse.MobileSubscriber.Msisdn;
+
+                  originalPayment.Customer.Update();
+                  break;
+                default:
+                  break;
+              }
+            }
+          }
+          catch (Exception ex)
+          {
+            CLog.PFatal(referenceGuid + "Exception occured while processing ResolveEncryptedMsisdn.", ex.Message);
+          }
+          #endregion
+
+          //CLog.Debug(new LogMessageBuilder(
+          //  new LogErrorCode("ppsshandler", "setup", "notification"), referenceGuid + " - Initiate Setup exiting.",
+          //    notification.ReferenceID, originalPaymentRequest, lastPaymentRequest, originalPaymentCallback, lastPaymentCallback, originalPayment, originalPaymentResult, lastPaymentResult));
+
+          CLog.PDebug(referenceGuid + " - Initiate Setup exiting.");
+        }
+        catch (Exception ex)
+        {
+          CLog.PFatal("", ex.Message);
+        }
+      }
+      catch (Exception e)
+      {
+        CLog.PFatal("", e.Message);
+      }
+    }
+
+    ///This method is invoked first upon received Charge Notification and serve to create Payment if it is not created
+    ///already from ProcessSetupSubscription and Transaction should be created from here!
+    protected override void ProcessChargeSubscription(Cashflow.Message.ChargeSubscriptionNotification notification)
+    {
+      base.ProcessChargeSubscription(notification);
+      CallbackLog CLog = new CallbackLog(notification, Log);
+
+      try
+      {
+        if (notification.Status.Code != Cashflow.Message.MessageStatusCode.Success)
+        {
+          CLog.PDebug("Notification which arrived is unsuccessful and we will not process it.");
+          //CLog.Warn(new LogMessageBuilder(new LogErrorCode("ppcshandler", "charge", "nosense"),
+          //  "Notification which arrived is unsuccessful and we will not process it.",
+          //  notification.Status, notification.Subscription, notification.Transaction));
+          return;
+        }
+
+        //if (WebApiApplication.SpecificHandlerManager.TryToRunSpecificImplementation(CLog))
+        //  return;
+
+        Data.IPaymentManager pManager = Data.Payment.CreateManager(2);
+        Data.Payment payment = pManager.Load(notification.Subscription.SubscriptionID, GuidType.External);
+        IBehaviorModelManager bmManager = BehaviorModel.CreateManager();
+        BehaviorModel behaviorModel = bmManager.Load(notification.Subscription.Model.ModelID);
+        if (payment == null)
+        {
+          if (behaviorModel == null)
+          {
+            CLog.PDebug("Payment is probably from MobileMafia. We do not have specified model registered in our database.");
+            return;
+          }
+          
+          IPaymentRequestManager prManager = PaymentRequest.CreateManager(2);
+          PaymentRequest paymentRequest = prManager.Load(notification.Subscription.SubscriptionRequestID, GuidType.External);
+          if (paymentRequest == null)
+          {
+            CLog.PError("PaymentRequest was not loaded so Payment can't be created. Please check why there is no PaymentRequest!");
+            return;
+          }
+
+          payment = new Payment(-1, Guid.NewGuid(), PaymentType.Subscription, notification.Subscription.SubscriptionID, PaymentStatus.Successful, paymentRequest,
+            paymentRequest.Customer, paymentRequest.ServiceOffer, paymentRequest.ServiceOffer.BusinessModelEntry, DateTime.Now, DateTime.Now);
+          payment.Insert();
+        }
+
+        if (payment.Customer.CustomerStatus != CustomerStatus.Active)
+        {
+          payment.Customer.CustomerStatus = CustomerStatus.Active;
+          payment.Customer.Update();
+        }
+
+        if (payment.PaymentStatus != PaymentStatus.Successful && payment.PaymentStatus != PaymentStatus.Cancelled)
+        {
+          payment.PaymentStatus = PaymentStatus.Successful;
+          payment.Update();
+        }
+        
+        ITransactionManager tManager = Transaction.CreateManager();
+        Transaction transaction = tManager.Load(notification.Transaction.TransactionGroupID, notification.Transaction.TransactionID, GuidType.External);
+
+
+        #region # try get MobileOperator from notification if exists #
+
+        if (notification.Arguments != null && notification.Arguments.Length > 0)
+        {
+          int _mobileOperatorID = -1;
+          MessageArgument operatorArgument = (from a in notification.Arguments where a.Key.ToLower().Equals("operator") select a).FirstOrDefault();
+          MessageArgument msisdnArgument = (from a in notification.Arguments where a.Key.ToLower().Equals("msisdn") select a).FirstOrDefault();
+
+          bool msisdnIsEncrypted = false;
+          MessageArgument isEncryptedArgument = (from a in notification.Arguments where a.Key.ToLower().Equals("isencrypted") select a).FirstOrDefault();
+          if (isEncryptedArgument != null && isEncryptedArgument.Value.Equals("true"))
+            msisdnIsEncrypted = true;
+
+          // update mobileoperator if exists
+          if (operatorArgument != null && !string.IsNullOrEmpty(operatorArgument.Value))
+          {
+            if (Int32.TryParse(operatorArgument.Value, out _mobileOperatorID))
+            {
+              MobileOperator mo = MobileOperator.CreateManager().Load(_mobileOperatorID, IDType.External);
+              if (mo != null)
+              {
+                CLog.PDebug("ProcessChargeSubscription::CashlowOperator:: MobileOperator is overriden with cashlow MO:" + mo.ID);
+                payment.Customer.MobileOperator = mo;
+                payment.Customer.Update();
+                payment.PaymentRequest.UserSession.MobileOperator = mo;
+                payment.PaymentRequest.UserSession.Update();
+
+                new OLCacher().Synchronize(payment.PaymentRequest.UserSession);
+              }
+              else
+                CLog.PDebug("ProcessChargeSubscription::CashlowOperator:: Could not load mobileOperator with ID:" + operatorArgument.Value);
+            }
+          }
+          else
+            CLog.PDebug("ProcessChargeSubscription::CashlowOperator:: There is no operator in arguments");
+
+          // update msisdn if exists
+          if (msisdnArgument != null && !string.IsNullOrEmpty(msisdnArgument.Value))
+          {
+            CLog.PDebug(string.Format("ProcessChargeSubscription::CashlowOperator:: Customer:{0} has new msisdn '{1}'", payment.Customer.ID, msisdnArgument.Value));
+
+            if (!msisdnIsEncrypted)
+              payment.Customer.Msisdn = msisdnArgument.Value;
+            else
+              payment.Customer.EncryptedMsisdn = msisdnArgument.Value;
+
+            payment.Customer.Update();
+          }
+
+        }
+
+        #endregion
+
+        if (transaction == null)
+        {
+          TransactionStatus status = TransactionStatus.Failed;
+          switch (notification.Transaction.Status)
+          {
+            case Cashflow.Message.Data.TransactionStatus.Executed:
+              status = TransactionStatus.Executed;
+              break;
+            case Cashflow.Message.Data.TransactionStatus.Pending:
+              status = TransactionStatus.Pending;
+              break;
+            default:
+              status = TransactionStatus.Failed;
+              break;
+          }
+
+          transaction = new Transaction(-1,
+            Guid.NewGuid(),
+            payment,
+            notification.Transaction.TransactionGroupID,
+            notification.Transaction.TransactionID,
+            status,
+            TransactionType.Debit,
+            DateTime.Now, DateTime.Now);
+          transaction.Insert();
+
+
+          // TODO : Check if this is working
+          (payment.ServiceOffer.Service.
+            Instantiate(payment.ServiceOffer.Service.Application.RuntimeType.Instantiate(payment.ServiceOffer.Service.Application))).
+              OnChargeSubscription(payment);
+          
+        }
+
+
+        #region #resolveencryptedmsisdn#
+
+        try
+        {
+          if (string.IsNullOrEmpty(payment.Customer.Msisdn) || payment.Customer.MobileOperator == null || payment.Customer.Service.FallbackCountry.TwoLetterIsoCode.Equals("AU"))
+          {
+            ServiceOffer offer = ServiceOffer.CreateManager(2).Load(payment.ServiceOffer.ID);
+            MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(offer.Service);
+            mobileClient.AttachLogWriter(new CashflowLog(offer.Service));
+            ResolveEncryptedMsisdnRequest resolveRequest =
+              new ResolveEncryptedMsisdnRequest(RequestMode.Default,
+                                                payment.Customer.Guid.ToString(),
+                                                offer.PaymentConfiguration.PaymentCredentials.Username,
+                                                offer.PaymentConfiguration.PaymentCredentials.Password,
+                                                payment.Customer.EncryptedMsisdn,
+                                                offer.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+                                                payment.Customer.Country.TwoLetterIsoCode.ToLower(),
+                                                offer.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+                                                null,
+                                                null);
+            resolveRequest.ReferenceIntID = CLog.UserSessionID;
+
+            ResolveEncryptedMsisdnResponse resolveResponse = mobileClient.ResolveEncryptedMsisdn(resolveRequest, null);
+            switch (resolveResponse.Status.Code)
+            {
+              case MessageStatusCode.Success:
+                IMobileOperatorManager moManager = MobileOperator.CreateManager();
+                MobileOperator mobileOperator = null;
+                if (resolveResponse.MobileSubscriber.MobileOperatorID.HasValue)
+                  mobileOperator = moManager.Load(resolveResponse.MobileSubscriber.MobileOperatorID.Value, IDType.External);
+
+                if (!string.IsNullOrEmpty(resolveResponse.MobileSubscriber.Msisdn))
+                  payment.Customer.Msisdn = resolveResponse.MobileSubscriber.Msisdn;
+
+                payment.Customer.Update();
+                break;
+              default:
+                break;
+            }
+          }
+        }
+        catch (Exception ex)
+        {
+          CLog.PFatal("Exception occured while processing ResolveEncryptedMsisdn.", ex.ToString());
+        }
+
+        #endregion
+
+        ICustomerUtil cUtil = new WebCustomerUtil(payment.Customer, payment.PaymentRequest);
+        if (!cUtil.Resolve())
+          return;
+        
+        Data.IServiceManager sManager = Data.Service.CreateManager();
+        Data.Service service = sManager.Load(payment.Customer.Service.Guid);
+
+        
+        if(service.Name.Equals("mobile-erotik-tube.com") || 
+          service.Name.Equals("ero-clips.com"))
+        {
+
+          int transactionCount = DirectTransactionTable.TransactionCount(payment);
+          if(transactionCount != 1)
+          {
+            Log.Debug(new LogMessageBuilder(new LogErrorCode("ppcshandler", "charge", "general"), string.Format("SMS_NOT_SEND; Because payment {0} has {1} transactions! ", payment.ID, transactionCount)));
+            return;
+          }
+
+          IServiceConfigurationEntryManager sceManager = ServiceConfigurationEntry.CreateManager();
+          ServiceConfigurationEntry serviceConfigurationEntry = sceManager.Load(service.ServiceConfiguration, payment.Customer.Country, payment.Customer.MobileOperator);
+
+          //Customer c = Customer.CreateManager().Load(5097935);  //  aco number
+          ShortMessage shortMessage = new ShortMessage(-1, Guid.NewGuid(), serviceConfigurationEntry.ShortMessageProvider, payment.Customer,
+            string.Format("Sie haben sich erfolgreich auf {0} abonniert. http://{0}/vertragsbestatigung", service.Name), Guid.NewGuid().ToString().Split('-')[1].ToString(), ShortMessageStatus.Unknown, DateTime.Now, DateTime.Now);
+          shortMessage.Insert();
+
+          Log.Debug(new LogMessageBuilder(new LogErrorCode("ppcshandler", "charge", "general"), "SMS_SENT TO " + payment.Customer.Msisdn + "; with text: " + shortMessage.Text));
+
+          IShortMessageProvider shortMessageProvider = serviceConfigurationEntry.ShortMessageProvider.Instantiate(shortMessage);
+          shortMessageProvider.Send();
+        }
+
+      }
+      catch (Exception e)
+      {
+        CLog.PFatal("", e.ToString());
+      }
+    }
+
+    protected override void ProcessCancelSubscription(Cashflow.Message.CancelSubscriptionNotification notification)
+    {
+      base.ProcessCancelSubscription(notification);
+      CallbackLog CLog = new CallbackLog(notification, Log);
+
+      try
+      {
+        CLog.Debug(new LogMessageBuilder(
+        new LogErrorCode("ppcshandler", "cancel", "notification"), "Cancel notification arrived.",
+        notification, notification.Status, notification.Subscription));
+
+        if (notification.Subscription == null)
+        {
+          CLog.Error(new LogMessageBuilder(
+            new LogErrorCode("ppcshandler", "cancel", "notification.notvalid"),
+              "Some things missing in notification. Please report to Cashflow immidiatelly.",
+              notification, notification.Status, notification.Subscription));
+          return;
+        }
+
+        if (WebApiApplication.SpecificHandlerManager.TryToRunSpecificImplementation(CLog))
+          return;
+
+        Data.IPaymentManager pManager = Payment.CreateManager();
+        Payment payment = pManager.Load(notification.Subscription.SubscriptionID, GuidType.External);
+        if (payment == null)
+          return;
+
+        payment.PaymentStatus = PaymentStatus.Cancelled;
+        payment.Update();
+      }
+      catch (Exception e)
+      {
+        CLog.Fatal(new LogMessageBuilder(new LogErrorCode("ppcshandler", "charge", "general"),
+          "Exception occur."), e);
+      }
+    }
+
+    protected override void ProcessInitiatePurchase(InitiatePurchaseNotification notification)
+    {
+      base.ProcessInitiatePurchase(notification);
+      CallbackLog CLog = new CallbackLog(notification, Log);
+
+      //MobileTerminatedArguments mta = notification.Arguments.Where<;
+
+      // PSMS handler is located in diferent location
+      if (notification.Arguments != null && notification.Arguments.Length > 0)
+      {
+        MessageArgument typeArgument = (from a in notification.Arguments where !string.IsNullOrEmpty(a.Key) && a.Key.ToLower().Equals("type") select a).FirstOrDefault();
+        if (typeArgument != null && typeArgument.Value.Equals("psms"))
+          return;
+      }
+
+      LogMessageBuilder builder = null;
+      if (notification.CustomerID == null || string.IsNullOrEmpty(notification.RedirectUrl) || notification.PurchaseRequestID == null)
+      {
+        // Check notification does it contain all necessary informations! 
+        builder = new LogMessageBuilder(
+          new LogErrorCode("paywall.service.callback", "paymentnotificationhandler", "processinitiatepurchase"),
+          "Customer is null OR RedirectUrl is null OR PurchaseRequest is null. A:" + notification.Arguments.Length, notification);
+        if (Log.IsErrorEnabled)
+          CLog.Error(builder);
+
+        return;
+      }
+
+      if (WebApiApplication.SpecificHandlerManager.TryToRunSpecificImplementation(CLog))
+        return;
+
+      if (!notification.PurchaseRequestID.HasValue)
+      {
+        builder = new LogMessageBuilder(
+          new LogErrorCode("paywall.service.callback", "paymentnotificationhandler", "processinitiatepurchase"),
+          "PurchaseRequestID has no value", notification);
+        if (Log.IsErrorEnabled)
+          CLog.Error(builder);
+
+        return;
+      }
+
+      IPaymentRequestManager prManager = PaymentRequest.CreateManager();
+      PaymentRequest paymentRequest = prManager.Load(notification.PurchaseRequestID.Value, GuidType.External);
+
+      if (paymentRequest == null)
+      {
+        builder = new LogMessageBuilder(
+          new LogErrorCode("paywall.service.callback", "paymentnotificationhandler", "processinitiatepurchase"),
+          "paymentRequest is null", notification);
+        if (Log.IsErrorEnabled)
+          CLog.Error(builder);
+
+        return;
+      }
+
+      switch (notification.Status.Code)
+      {
+        case MessageStatusCode.Redirect:
+        case MessageStatusCode.Success: //Redirect and Success in general for mobile flow are same!
+          // Check does notification contains RedirectUrl & Customer if not throw exception and log error!
+          // this check is done in IF section above???
+
+          paymentRequest.PaymentRedirectUrl = notification.RedirectUrl;
+          paymentRequest.ExternalPaymentRequestGuid = notification.PurchaseRequestID;
+          paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Complete;
+          if (paymentRequest.Customer.ExternalCustomerGuid != null &&
+              paymentRequest.Customer.ExternalCustomerGuid != notification.CustomerID)
+          {
+            // this is really bad. we need some logging here..
+            builder = new LogMessageBuilder(
+                new LogErrorCode("paywall.service.callback", "paymentnotificationhandler", "processinitiatepurchase"),
+                "paymentRequest.Customer.ExternalCustomerGuid is null OR paymentRequest.Customer.ExternalCustomerGuid is not equal to notification.CustomerID", paymentRequest, notification);
+
+            if (Log.IsErrorEnabled)
+              CLog.Error(builder);
+          }
+          paymentRequest.Customer.ExternalCustomerGuid = notification.CustomerID;
+          paymentRequest.Update();
+          paymentRequest.Customer.Update();
+          return;
+        case MessageStatusCode.Failure:
+          paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Failure;
+          paymentRequest.Update();
+          break;
+        case MessageStatusCode.Pending:
+          break;
+        default:
+          break;
+      }
+    }
+
+    protected override void ProcessExecutePurchase(ExecutePurchaseNotification notification)
+    {
+      base.ProcessExecutePurchase(notification);
+      CallbackLog CLog = new CallbackLog(notification, Log);
+      Guid reference = Guid.NewGuid();
+
+      try
+      {
+
+        LogMessageBuilder builder = null;
+        if (!notification.PurchaseRequestID.HasValue)
+        {
+          //INFO: Cashflow error! Log: FATAL!
+          CLog.Fatal(new LogMessageBuilder(
+            new LogErrorCode("pcphandler", "execute", "notification.notvalid"),
+                reference + " Some things missing in notification. Please report to Cashflow immidiatelly.",
+            notification.Status, notification.Customer, notification.Purchase));
+          return;
+        }
+
+        if (WebApiApplication.SpecificHandlerManager.TryToRunSpecificImplementation(CLog))
+          return;
+
+        IPaymentRequestManager prManager = PaymentRequest.CreateManager();
+        PaymentRequest paymentRequest = prManager.Load(notification.PurchaseRequestID.Value, GuidType.External);
+
+        if (paymentRequest == null)
+        {
+          //INFO: Internal error! Something went wrong - probably in PaymentManagerBase from MobilePaywall.Core.
+          builder = new LogMessageBuilder(
+            new LogErrorCode("pcphandler", "execute", "request"),
+            reference + " paymentRequest is null. Something went wrong - probably in PaymentManagerBase from MobilePaywall.Core.", notification);
+          if (Log.IsFatalEnabled)
+            CLog.Fatal(builder);
+          return;
+        }
+
+        PaymentResult paymentResult = PaymentResult.CreateManager().Load(paymentRequest);
+        PaymentCallback paymentCallback = PaymentCallback.CreateManager().Load(paymentRequest);
+
+        Data.IPaymentManager pManager = Payment.CreateManager();
+        Payment payment = pManager.Load(paymentRequest);
+        if (payment == null)
+        {
+          switch (notification.Status.Code)
+          {
+            case MessageStatusCode.Redirect:
+            case MessageStatusCode.Success: //Redirect and Success in general for mobile flow are same!
+              payment = new Payment(-1,
+                                    Guid.NewGuid(),
+                                    PaymentType.Purchase,
+                                    notification.Purchase.PurchaseID,
+                                    PaymentStatus.Successful,
+                                    paymentRequest,
+                                    paymentRequest.Customer,
+                                    paymentRequest.ServiceOffer,
+                                    paymentRequest.BusinessModelEntry,
+                                    DateTime.Now, DateTime.Now);
+              payment.Insert();
+
+              if (paymentRequest.ServiceOffer.ContentAccessPolicy.TemporarySetupAccessMode != TemporarySetupAccessMode.None)
+              {
+                PaymentContentAccessPolicyMap paymentContentAccessPolicyMap = new PaymentContentAccessPolicyMap(-1,
+                  payment,
+                  paymentRequest.UserHttpRequest.Content,
+                  paymentRequest.ServiceOffer.ContentAccessPolicy,
+                  null, // transaction
+                  true,
+                  true,
+                  DateTime.Now,
+                  paymentRequest.ServiceOffer.ContentAccessPolicy.IntervalInSeconds.HasValue ? DateTime.Now.AddSeconds(paymentRequest.ServiceOffer.ContentAccessPolicy.IntervalInSeconds.Value) : DateTime.Now.AddSeconds(paymentRequest.ServiceOffer.ContentAccessPolicy.TemporaryAccessInSeconds.Value),
+                  DateTime.Now, DateTime.Now);
+                paymentContentAccessPolicyMap.Insert();
+              }
+
+              break;
+            case MessageStatusCode.Failure:
+              paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Failure;
+              paymentRequest.Update();
+              break;
+            case MessageStatusCode.Pending:
+              break;
+            default:
+              break;
+          }
+        }
+
+        if (payment != null)
+        {
+          if (!payment.ExternalPaymentGuid.HasValue)
+          {
+            payment.ExternalPaymentGuid = notification.Purchase.PurchaseID;
+            payment.PaymentStatus = notification.Status.Code == MessageStatusCode.Success ? PaymentStatus.Successful : notification.Status.Code == MessageStatusCode.Failure ? PaymentStatus.Failed : payment.PaymentStatus;
+            payment.Update();
+          }
+
+        }
+
+        if (paymentCallback != null)
+        {
+          paymentCallback.Payment = payment;
+          paymentCallback.IsCompleted = true;
+          paymentCallback.Update();
+        }
+
+        if (paymentResult != null)
+        {
+          paymentResult.Payment = payment;
+          paymentResult.IsOriginalPayment = true;
+          paymentResult.Update();
+        }
+
+        #region # Msisdn for Thailand #
+
+        if(payment.ServiceOffer.Service.FallbackCountry.TwoLetterIsoCode.ToUpper().Equals("TH") && payment.ServiceOffer.PaymentConfiguration.PaymentProvider.ID == 10)
+        {
+          MessageArgument msisdnArgument = (from m in notification.Arguments where m.Key.Equals("msisdn") select m).FirstOrDefault();
+          if(msisdnArgument != null)
+          {
+            payment.Customer.Msisdn = msisdnArgument.Value;
+            payment.Customer.MobileOperator = MobileOperator.CreateManager().Load(406); // TH_UNKNOWN
+            payment.Customer.Update();
+          }
+        }
+
+        #endregion
+
+        #region #resolveencryptedmsisdn#
+        try
+        {
+          if (string.IsNullOrEmpty(payment.Customer.Msisdn) || payment.Customer.MobileOperator == null)
+          {
+            ServiceOffer offer = ServiceOffer.CreateManager(2).Load(payment.ServiceOffer.ID);
+            MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(offer.Service);
+            mobileClient.AttachLogWriter(new CashflowLog(offer.Service));
+            ResolveEncryptedMsisdnRequest resolveRequest =
+              new ResolveEncryptedMsisdnRequest(RequestMode.Default,
+                                                payment.Customer.Guid.ToString(),
+                                                offer.PaymentConfiguration.PaymentCredentials.Username,
+                                                offer.PaymentConfiguration.PaymentCredentials.Password,
+                                                payment.Customer.EncryptedMsisdn,
+                                                offer.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+                                                payment.Customer.Country.TwoLetterIsoCode.ToLower(),
+                                                offer.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+                                                null,
+                                                null);
+            resolveRequest.ReferenceIntID = CLog.UserSessionID;
+
+            ResolveEncryptedMsisdnResponse resolveResponse = mobileClient.ResolveEncryptedMsisdn(resolveRequest, null);
+            switch (resolveResponse.Status.Code)
+            {
+              case MessageStatusCode.Success:
+                IMobileOperatorManager moManager = MobileOperator.CreateManager();
+                MobileOperator mobileOperator = null;
+                if (resolveResponse.MobileSubscriber.MobileOperatorID.HasValue)
+                  mobileOperator = moManager.Load(resolveResponse.MobileSubscriber.MobileOperatorID.Value, IDType.External);
+
+                if (!string.IsNullOrEmpty(resolveResponse.MobileSubscriber.Msisdn))
+                  payment.Customer.Msisdn = resolveResponse.MobileSubscriber.Msisdn;
+
+                payment.Customer.Update();
+                break;
+              default:
+                break;
+            }
+          }
+        }
+        catch (Exception ex)
+        {
+          CLog.Fatal(new LogMessageBuilder(new LogErrorCode("pcphandler", "resolve", "problem"),
+            "Exception occured while processing ResolveEncryptedMsisdn."), ex);
+        }
+        #endregion
+      }
+      catch (Exception e)
+      {
+        CLog.Fatal(new LogMessageBuilder(new LogErrorCode("pcphandler", "charge", "nosense"),
+            reference + " ExecutePurchaseNotification fatal: " + e.Message + "; " + e.InnerException.Message,
+            e, e.InnerException));
+      }
+
+
+    }
+
+    protected override void ProcessChargePurchase(ChargePurchaseNotification notification)
+    {
+      Guid reference = Guid.NewGuid();
+      CallbackLog CLog = new CallbackLog(notification, Log);
+      try
+      {
+        base.ProcessChargePurchase(notification);
+
+        CLog.Warn(new LogMessageBuilder(new LogErrorCode("pcphandler", "charge", "purchase"),
+            reference + " ChargePurchaseNotification arrived",
+            notification.Status, notification.Purchase, notification.Transaction));
+
+        if (notification.Status.Code != Cashflow.Message.MessageStatusCode.Success)
+        {
+          CLog.Warn(new LogMessageBuilder(new LogErrorCode("pcphandler", "charge", "purchase"),
+            reference + " Notification which arrived is unsuccessful and we will not process it.",
+            notification.Status, notification.Purchase, notification.Transaction));
+          return;
+        }
+
+        if (WebApiApplication.SpecificHandlerManager.TryToRunSpecificImplementation(CLog))
+          return;
+
+        Data.IPaymentManager pManager = Data.Payment.CreateManager(2);
+        Data.Payment payment = pManager.Load(notification.Purchase.PurchaseID, GuidType.External);
+        IBehaviorModelManager bmManager = BehaviorModel.CreateManager();
+        BehaviorModel behaviorModel = bmManager.Load(notification.Purchase.Model.ModelID);
+        if (payment == null)
+        {
+          if (behaviorModel == null)
+          {
+            CLog.Debug(new LogMessageBuilder(new LogErrorCode("pcphandler", "charge", "purchase"),
+             reference + " Payment is probably from MobileMafia. We do not have specified model registered in our database.",
+             notification.Status, notification.Purchase, notification.Transaction, notification.Purchase.Model));
+            return;
+          }
+
+          CLog.Error(new LogMessageBuilder(new LogErrorCode("pcphandler", "charge", "purchase"),
+             reference + " Payment was not loaded.",
+             notification.Status, notification.Purchase, notification.Transaction));
+          return;
+        }
+
+        if (payment.Customer.CustomerStatus != CustomerStatus.Active)
+        {
+          payment.Customer.CustomerStatus = CustomerStatus.Active;
+          payment.Customer.Update();
+        }
+
+        if (payment.PaymentStatus != PaymentStatus.Successful && payment.PaymentStatus != PaymentStatus.Cancelled)
+        {
+          payment.PaymentStatus = PaymentStatus.Successful;
+          payment.Update();
+        }
+
+        ITransactionManager tManager = Transaction.CreateManager();
+        Transaction transaction = tManager.Load(notification.Transaction.TransactionGroupID, notification.Transaction.TransactionID, GuidType.External);
+
+        if (transaction == null)
+        {
+          TransactionStatus status = TransactionStatus.Failed;
+          switch (notification.Transaction.Status)
+          {
+            case Cashflow.Message.Data.TransactionStatus.Executed:
+              status = TransactionStatus.Executed;
+              break;
+            case Cashflow.Message.Data.TransactionStatus.Pending:
+              status = TransactionStatus.Pending;
+              break;
+            default:
+              status = TransactionStatus.Failed;
+              break;
+          }
+
+          transaction = new Transaction(-1,
+                                        Guid.NewGuid(),
+                                        payment,
+                                        notification.Transaction.TransactionGroupID,
+                                        notification.Transaction.TransactionID,
+                                        status,
+                                        TransactionType.Debit,
+                                        DateTime.Now,
+                                        DateTime.Now);
+          transaction.Insert();
+          
+          // TODO : Check if this is working
+          (payment.ServiceOffer.Service.
+            Instantiate(payment.ServiceOffer.Service.Application.RuntimeType.Instantiate(payment.ServiceOffer.Service.Application))).
+              OnChargePurchase(payment);
+
+        }
+
+        #region #resolveencryptedmsisdn#
+        try
+        {
+          if (string.IsNullOrEmpty(payment.Customer.Msisdn) || payment.Customer.MobileOperator == null)
+          {
+            ServiceOffer offer = ServiceOffer.CreateManager(2).Load(payment.ServiceOffer.ID);
+            MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(offer.Service);
+            mobileClient.AttachLogWriter(new CashflowLog(offer.Service));
+            ResolveEncryptedMsisdnRequest resolveRequest =
+              new ResolveEncryptedMsisdnRequest(RequestMode.Default,
+                                                payment.Customer.Guid.ToString(),
+                                                offer.PaymentConfiguration.PaymentCredentials.Username,
+                                                offer.PaymentConfiguration.PaymentCredentials.Password,
+                                                payment.Customer.EncryptedMsisdn,
+                                                offer.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+                                                payment.Customer.Country.TwoLetterIsoCode.ToLower(),
+                                                offer.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+                                                null,
+                                                null);
+            resolveRequest.ReferenceIntID = CLog.UserSessionID;
+
+            ResolveEncryptedMsisdnResponse resolveResponse = mobileClient.ResolveEncryptedMsisdn(resolveRequest, null);
+            switch (resolveResponse.Status.Code)
+            {
+              case MessageStatusCode.Success:
+                IMobileOperatorManager moManager = MobileOperator.CreateManager();
+                MobileOperator mobileOperator = null;
+                if (resolveResponse.MobileSubscriber.MobileOperatorID.HasValue)
+                  mobileOperator = moManager.Load(resolveResponse.MobileSubscriber.MobileOperatorID.Value, IDType.External);
+
+                if (!string.IsNullOrEmpty(resolveResponse.MobileSubscriber.Msisdn))
+                  payment.Customer.Msisdn = resolveResponse.MobileSubscriber.Msisdn;
+
+                payment.Customer.Update();
+                break;
+              default:
+                break;
+            }
+          }
+        }
+        catch (Exception ex)
+        {
+          CLog.Fatal(new LogMessageBuilder(new LogErrorCode("pcphandler", "resolve", "problem"),
+            "Exception occured while processing ResolveEncryptedMsisdn."), ex);
+        }
+        #endregion
+      }
+      catch (Exception e)
+      {
+        CLog.Fatal(new LogMessageBuilder(new LogErrorCode("pcphandler", "charge", "nosense"),
+            reference + " ChargePurchaseNotification fatal: " + e.Message + "; " + e.InnerException.Message,
+            e, e.InnerException));
+      }
+
+    }
+
+    protected override void ProcessCancelPurchase(CancelPurchaseNotification notification)
+    {
+      base.ProcessCancelPurchase(notification);
+    }
+
+    //protected override void ProcessInitiatePurchaseAfterPremiumSMS(InitiatePurchaseNotification notification)
+    //{
+    //  base.ProcessInitiatePurchase(notification);
+
+    //  LogMessageBuilder builder = null;
+    //  if (notification.CustomerID == null || string.IsNullOrEmpty(notification.RedirectUrl) || notification.PurchaseRequestID == null)
+    //  {
+    //    // Check notification does it contain all necessary informations! 
+    //    builder = new LogMessageBuilder(
+    //      new LogErrorCode("paywall.service.callback", "paymentnotificationhandler", "processinitiatepurchase"),
+    //      "Customer is null OR RedirectUrl is null OR PurchaseRequest is null.", notification);
+    //    if (Log.IsErrorEnabled)
+    //      Log.Error(builder);
+
+    //    return;
+    //  }
+
+    //  if (!notification.PurchaseRequestID.HasValue)
+    //  {
+    //    builder = new LogMessageBuilder(
+    //      new LogErrorCode("paywall.service.callback", "paymentnotificationhandler", "processinitiatepurchase"),
+    //      "PurchaseRequestID has no value", notification);
+    //    if (Log.IsErrorEnabled)
+    //      Log.Error(builder);
+
+    //    return;
+    //  }
+
+    //  IPaymentRequestManager prManager = PaymentRequest.CreateManager();
+    //  PaymentRequest paymentRequest = prManager.Load(notification.PurchaseRequestID.Value, GuidType.External);
+
+    //  if (paymentRequest == null)
+    //  {
+    //    builder = new LogMessageBuilder(
+    //      new LogErrorCode("paywall.service.callback", "paymentnotificationhandler", "processinitiatepurchase"),
+    //      "paymentRequest is null", notification);
+    //    if (Log.IsErrorEnabled)
+    //      Log.Error(builder);
+
+    //    return;
+    //  }
+
+    //  switch (notification.Status.Code)
+    //  {
+    //    case MessageStatusCode.Redirect:
+    //    case MessageStatusCode.Success: //Redirect and Success in general for mobile flow are same!
+    //      // Check does notification contains RedirectUrl & Customer if not throw exception and log error!
+    //      // this check is done in IF section above???
+
+    //      paymentRequest.PaymentRedirectUrl = notification.RedirectUrl;
+    //      paymentRequest.ExternalPaymentRequestGuid = notification.PurchaseRequestID;
+    //      paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Complete;
+    //      if (paymentRequest.Customer.ExternalCustomerGuid != null &&
+    //          paymentRequest.Customer.ExternalCustomerGuid != notification.CustomerID)
+    //      {
+    //        // this is really bad. we need some logging here..
+    //        builder = new LogMessageBuilder(
+    //            new LogErrorCode("paywall.service.callback", "paymentnotificationhandler", "processinitiatepurchase"),
+    //            "paymentRequest.Customer.ExternalCustomerGuid is null OR paymentRequest.Customer.ExternalCustomerGuid is not equal to notification.CustomerID", paymentRequest, notification);
+
+    //        if (Log.IsErrorEnabled)
+    //          Log.Error(builder);
+    //      }
+    //      paymentRequest.Customer.ExternalCustomerGuid = notification.CustomerID;
+    //      paymentRequest.Update();
+    //      paymentRequest.Customer.Update();
+    //      return;
+    //    case MessageStatusCode.Failure:
+    //      paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Failure;
+    //      paymentRequest.Update();
+    //      break;
+    //    case MessageStatusCode.Pending:
+    //      break;
+    //    default:
+    //      break;
+    //  }
+    //}
+
+
+
+
+  }
+}

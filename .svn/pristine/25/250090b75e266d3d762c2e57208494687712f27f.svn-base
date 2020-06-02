@@ -1,0 +1,138 @@
+﻿using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+using MoreLinq;
+
+using Senti.Diagnostics.Log;
+
+using log4net;
+using System.Globalization;
+
+namespace MobilePaywall.Merchant.Controllers
+{
+  public class StatisticController : PaywallController
+  {
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (StatisticController._log == null)
+          StatisticController._log = LogManager.GetLogger(typeof(StatisticController));
+        return StatisticController._log;
+      }
+    }
+
+   
+
+    // GET: Statistic
+    public ActionResult Index()
+    {
+      //return View(this.Statistics(Split.None, new List<Group>(), new Filter()));
+      //return View(this.Statistics(Split.None, new List<Group>(), new QueryBuilder(), "statistic"));
+      ViewBag.Title = "Statistics Table";
+      ViewBag.Page = "index";
+      return View();
+    }
+
+
+    public ActionResult Revenue()
+    {
+      ClientComponentAccessPolicy ccap = ClientComponentAccessPolicy.CreateManager().Load(PaywallHttpContext.Current.ClientSession.Client, Component.CreateManager().Load(5)); //Payout Component ID = 5
+      bool allowPayout = (ccap != null && ccap.AccessMode == AccessMode.Allowed);
+
+      if (!allowPayout)
+      {
+        ViewBag.Message = "You don't have permission to see this page.";
+        return View("~/Views/Shared/Template/Error.cshtml");
+      }
+
+      ViewBag.Title = "Revenue Statistics";
+      ViewBag.Page = "revenue";
+      return View("~/Views/Statistic/Index.cshtml");
+    }
+    
+
+    [HttpPost]
+    public PartialViewResult Table(/*string rqsMerchants, string rqsServices, string rqsCountries, string rqsOperators*/)
+    {
+      Dictionary<int, Service> allowedServices = PaywallHttpContext.Current.ClientSession.Client.AllowedServices;
+      //if (allowedServices == null || allowedServices.Count == 0)
+      //  return PartialView("~/Views/Statistic/_Table.cshtml");
+
+      #region #properties#
+      //Filter filter = null;
+      QueryBuilder queryBuilder = null;
+      List<Group> groupBy = new List<Group>();
+      Split split = Split.None;
+
+      List<string> filterByInstances = null;
+      List<string> filterByMerchants = null;
+			List<string> filterByServices = null;
+      List<string> filterByProviders = null;
+      List<string> filterByCountries = null;
+      List<string> filterByCountryCodes = null;
+      List<string> filterByOperators = null;
+      List<string> requestedGroupBy = null;
+      string requestedShow = string.Empty;
+      DateTime startDate = DateTime.Now;
+      DateTime endDate = DateTime.Now;
+      string search = string.Empty;
+      string page = string.Empty;
+      #endregion
+
+      Merchant.Statistics statistics = null;
+      try
+      {
+        #region #parsing and initialization#
+        filterByInstances = this.Request.Form["rqsInstances"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsInstances"]) ? this.Request.Form["rqsInstances"].Split(',').ToList() : new List<string>();
+        filterByMerchants = this.Request.Form["rqsMerchants"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsMerchants"]) ? this.Request.Form["rqsMerchants"].Split(',').ToList() : new List<string>();
+				filterByServices = this.Request.Form["rqsServices"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsServices"]) ? this.Request.Form["rqsServices"].Split(',').ToList() : new List<string>();
+        filterByProviders = this.Request.Form["rqsProviders"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsProviders"]) ? this.Request.Form["rqsProviders"].Split(',').ToList() : new List<string>();
+        filterByCountries = this.Request.Form["rqsCountries"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsCountries"]) ? this.Request.Form["rqsCountries"].Split(',').ToList() : new List<string>();
+        filterByCountryCodes = this.Request.Form["rqsCountryCodes"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsCountryCodes"]) ? this.Request.Form["rqsCountryCodes"].Split(',').ToList() : new List<string>();
+        filterByOperators = this.Request.Form["rqsOperators"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsOperators"]) ? this.Request.Form["rqsOperators"].Split(',').ToList() : new List<string>();
+        requestedGroupBy = this.Request.Form["rqsGroupBy"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsGroupBy"]) ? this.Request.Form["rqsGroupBy"].Split(',').ToList() : new List<string>();
+        requestedShow = this.Request.Form["rqsShow"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsShow"]) ? this.Request.Form["rqsShow"] : string.Empty;
+        startDate = this.Request.Form["rqsStart"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsStart"]) ? DateTime.ParseExact(string.Format("{0} 00:00:00", this.Request.Form["rqsStart"]), "dd/MM/yyyy HH:mm:ss", null) : DateTime.Now;
+        endDate = this.Request.Form["rqsEnd"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsEnd"]) ? DateTime.ParseExact(string.Format("{0} 23:59:59", this.Request.Form["rqsEnd"]), "dd/MM/yyyy HH:mm:ss", null) : DateTime.Now;
+        search = this.Request.Form["rqsSearch"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsSearch"]) ? this.Request.Form["rqsSearch"] : string.Empty;
+        page = this.Request.Form["page"];
+
+        //filter = new Filter(startDate, endDate, filterByMerchants, filterByServices, filterByCountries, filterByOperators, search);
+        
+        foreach (string gb in requestedGroupBy)
+          groupBy.Add((Group)Int32.Parse(gb));
+
+        if (!string.IsNullOrEmpty(requestedShow))
+          split = (Split)Int32.Parse(requestedShow);
+
+        ClientAccessPolicyModel capModel = new ClientAccessPolicyModel();
+        List<ClientAccessPolicy> caps = (from cap in ClientAccessPolicy.CreateManager().Load(PaywallHttpContext.Current.ClientSession.Client) select cap).ToList();
+
+        bool useOLCache = startDate >= DateTime.ParseExact("29/09/2016 00:00:00", "dd/MM/yyyy HH:mm:ss", null) ? true : false;
+
+        queryBuilder = new QueryBuilder(startDate, endDate, split, groupBy, filterByInstances, filterByMerchants, filterByServices, filterByProviders, filterByCountries, filterByCountryCodes, filterByOperators, search, allowedServices, useOLCache, page);
+        #endregion
+
+        statistics = this.Statistics(split, groupBy, queryBuilder, page.Equals("index") ? "statistic" : "revenue");
+      }
+      catch (Exception ex)
+      {
+        Log.Fatal(new LogMessageBuilder(new LogErrorCode("statistic", "table", "data"), "Exception while loading data."));
+				statistics = new Statistics();
+      }
+
+      string view = page.Equals("index") ? "~/Views/Statistic/_Table.cshtml" : "~/Views/Statistic/_Revenue.cshtml";
+
+      return PartialView(view, statistics);
+    }
+
+    
+  }
+}

@@ -1,0 +1,581 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(UserContentAccessHistory))] 
+  public partial class UserContentAccessHistoryManager : MobilePaywall.Data.Sql.SqlManagerBase<UserContentAccessHistory>, IUserContentAccessHistoryManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override UserContentAccessHistory LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							UserContentAccessHistoryTable.GetColumnNames("[ucah]") + 
+							(this.Depth > 0 ? "," + PaymentContentAccessPolicyMapTable.GetColumnNames("[ucah_pcapm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentTable.GetColumnNames("[ucah_pcapm_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[ucah_pcapm_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentAccessPolicyTable.GetColumnNames("[ucah_pcapm_cap]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TransactionTable.GetColumnNames("[ucah_pcapm_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[ucah_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[ucah_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[ucah_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[ucah_c_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[ucah_c_ar]") : string.Empty) + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[ucah_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[ucah_us_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[ucah_us_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + DomainTable.GetColumnNames("[ucah_us_d]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[ucah_us_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[ucah_us_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[ucah_us_mo]") : string.Empty) + 
+					" FROM [core].[UserContentAccessHistory] AS [ucah] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentContentAccessPolicyMap] AS [ucah_pcapm] ON [ucah].[PaymentContentAccessPolicyMapID] = [ucah_pcapm].[PaymentContentAccessPolicyMapID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Payment] AS [ucah_pcapm_p] ON [ucah_pcapm].[PaymentID] = [ucah_pcapm_p].[PaymentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [ucah_pcapm_c] ON [ucah_pcapm].[ContentID] = [ucah_pcapm_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentAccessPolicy] AS [ucah_pcapm_cap] ON [ucah_pcapm].[ContentAccessPolicyID] = [ucah_pcapm_cap].[ContentAccessPolicyID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Transaction] AS [ucah_pcapm_t] ON [ucah_pcapm].[TransactionID] = [ucah_pcapm_t].[TransactionID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [ucah_c] ON [ucah].[ContentID] = [ucah_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroup] AS [ucah_c_cg] ON [ucah_c].[ContentGroupID] = [ucah_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentType] AS [ucah_c_ct] ON [ucah_c].[ContentTypeID] = [ucah_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorage] AS [ucah_c_cs] ON [ucah_c].[ContentStorageID] = [ucah_c_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [ucah_c_ar] ON [ucah_c].[AgeRatingID] = [ucah_c_ar].[AgeRatingID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [ucah_us] ON [ucah].[UserSessionID] = [ucah_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [ucah_us_ust] ON [ucah_us].[UserSessionTypeID] = [ucah_us_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [ucah_us_s] ON [ucah_us].[ServiceID] = [ucah_us_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Domain] AS [ucah_us_d] ON [ucah_us].[DomainID] = [ucah_us_d].[DomainID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [ucah_us_c] ON [ucah_us].[CustomerID] = [ucah_us_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c1] ON [ucah_us].[CountryID] = [c1].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [ucah_us_l] ON [ucah_us].[LanguageID] = [ucah_us_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [ucah_us_mo] ON [ucah_us].[MobileOperatorID] = [ucah_us_mo].[MobileOperatorID] ";
+				sqlCmdText += "WHERE [ucah].[UserContentAccessHistoryID] = @UserContentAccessHistoryID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@UserContentAccessHistoryID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ucah", "loadinternal", "notfound"), "UserContentAccessHistory could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				UserContentAccessHistoryTable ucahTable = new UserContentAccessHistoryTable(query);
+				PaymentContentAccessPolicyMapTable ucah_pcapmTable = (this.Depth > 0) ? new PaymentContentAccessPolicyMapTable(query) : null;
+				PaymentTable ucah_pcapm_pTable = (this.Depth > 1) ? new PaymentTable(query) : null;
+				ContentTable ucah_pcapm_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				ContentAccessPolicyTable ucah_pcapm_capTable = (this.Depth > 1) ? new ContentAccessPolicyTable(query) : null;
+				TransactionTable ucah_pcapm_tTable = (this.Depth > 1) ? new TransactionTable(query) : null;
+				ContentTable ucah_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable ucah_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable ucah_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable ucah_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+				AgeRatingTable ucah_c_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				UserSessionTable ucah_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+				UserSessionTypeTable ucah_us_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				ServiceTable ucah_us_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				DomainTable ucah_us_dTable = (this.Depth > 1) ? new DomainTable(query) : null;
+				CustomerTable ucah_us_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				CountryTable c1Table = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable ucah_us_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				MobileOperatorTable ucah_us_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+
+        
+				Payment ucah_pcapm_pObject = (this.Depth > 1) ? ucah_pcapm_pTable.CreateInstance() : null;
+				Content ucah_pcapm_cObject = (this.Depth > 1) ? ucah_pcapm_cTable.CreateInstance() : null;
+				ContentAccessPolicy ucah_pcapm_capObject = (this.Depth > 1) ? ucah_pcapm_capTable.CreateInstance() : null;
+				Transaction ucah_pcapm_tObject = (this.Depth > 1) ? ucah_pcapm_tTable.CreateInstance() : null;
+				PaymentContentAccessPolicyMap ucah_pcapmObject = (this.Depth > 0) ? ucah_pcapmTable.CreateInstance(ucah_pcapm_pObject, ucah_pcapm_cObject, ucah_pcapm_capObject, ucah_pcapm_tObject) : null;
+				ContentGroup ucah_c_cgObject = (this.Depth > 1) ? ucah_c_cgTable.CreateInstance() : null;
+				ContentType ucah_c_ctObject = (this.Depth > 1) ? ucah_c_ctTable.CreateInstance() : null;
+				ContentStorage ucah_c_csObject = (this.Depth > 1) ? ucah_c_csTable.CreateInstance() : null;
+				AgeRating ucah_c_arObject = (this.Depth > 1) ? ucah_c_arTable.CreateInstance() : null;
+				Content ucah_cObject = (this.Depth > 0) ? ucah_cTable.CreateInstance(ucah_c_cgObject, ucah_c_ctObject, ucah_c_csObject, ucah_c_arObject) : null;
+				UserSessionType ucah_us_ustObject = (this.Depth > 1) ? ucah_us_ustTable.CreateInstance() : null;
+				Service ucah_us_sObject = (this.Depth > 1) ? ucah_us_sTable.CreateInstance() : null;
+				Domain ucah_us_dObject = (this.Depth > 1) ? ucah_us_dTable.CreateInstance() : null;
+				Customer ucah_us_cObject = (this.Depth > 1) ? ucah_us_cTable.CreateInstance() : null;
+				Country c1Object = (this.Depth > 1) ? c1Table.CreateInstance() : null;
+				Language ucah_us_lObject = (this.Depth > 1) ? ucah_us_lTable.CreateInstance() : null;
+				MobileOperator ucah_us_moObject = (this.Depth > 1) ? ucah_us_moTable.CreateInstance() : null;
+				UserSession ucah_usObject = (this.Depth > 0) ? ucah_usTable.CreateInstance(ucah_us_ustObject, ucah_us_sObject, ucah_us_dObject, ucah_us_cObject, c1Object, ucah_us_lObject, ucah_us_moObject) : null;
+				UserContentAccessHistory ucahObject = ucahTable.CreateInstance(ucah_pcapmObject, ucah_cObject, ucah_usObject);
+				sqlReader.Close();
+
+				return ucahObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ucah", "loadinternal", "exception"), "UserContentAccessHistory could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "UserContentAccessHistory", "Exception while loading UserContentAccessHistory object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public UserContentAccessHistory Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							UserContentAccessHistoryTable.GetColumnNames("[ucah]") + 
+							(this.Depth > 0 ? "," + PaymentContentAccessPolicyMapTable.GetColumnNames("[ucah_pcapm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentTable.GetColumnNames("[ucah_pcapm_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[ucah_pcapm_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentAccessPolicyTable.GetColumnNames("[ucah_pcapm_cap]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TransactionTable.GetColumnNames("[ucah_pcapm_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[ucah_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[ucah_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[ucah_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[ucah_c_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[ucah_c_ar]") : string.Empty) + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[ucah_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[ucah_us_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[ucah_us_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + DomainTable.GetColumnNames("[ucah_us_d]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[ucah_us_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[ucah_us_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[ucah_us_mo]") : string.Empty) +  
+					" FROM [core].[UserContentAccessHistory] AS [ucah] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentContentAccessPolicyMap] AS [ucah_pcapm] ON [ucah].[PaymentContentAccessPolicyMapID] = [ucah_pcapm].[PaymentContentAccessPolicyMapID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Payment] AS [ucah_pcapm_p] ON [ucah_pcapm].[PaymentID] = [ucah_pcapm_p].[PaymentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [ucah_pcapm_c] ON [ucah_pcapm].[ContentID] = [ucah_pcapm_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentAccessPolicy] AS [ucah_pcapm_cap] ON [ucah_pcapm].[ContentAccessPolicyID] = [ucah_pcapm_cap].[ContentAccessPolicyID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Transaction] AS [ucah_pcapm_t] ON [ucah_pcapm].[TransactionID] = [ucah_pcapm_t].[TransactionID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [ucah_c] ON [ucah].[ContentID] = [ucah_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroup] AS [ucah_c_cg] ON [ucah_c].[ContentGroupID] = [ucah_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentType] AS [ucah_c_ct] ON [ucah_c].[ContentTypeID] = [ucah_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorage] AS [ucah_c_cs] ON [ucah_c].[ContentStorageID] = [ucah_c_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [ucah_c_ar] ON [ucah_c].[AgeRatingID] = [ucah_c_ar].[AgeRatingID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [ucah_us] ON [ucah].[UserSessionID] = [ucah_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [ucah_us_ust] ON [ucah_us].[UserSessionTypeID] = [ucah_us_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [ucah_us_s] ON [ucah_us].[ServiceID] = [ucah_us_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Domain] AS [ucah_us_d] ON [ucah_us].[DomainID] = [ucah_us_d].[DomainID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [ucah_us_c] ON [ucah_us].[CustomerID] = [ucah_us_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c1] ON [ucah_us].[CountryID] = [c1].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [ucah_us_l] ON [ucah_us].[LanguageID] = [ucah_us_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [ucah_us_mo] ON [ucah_us].[MobileOperatorID] = [ucah_us_mo].[MobileOperatorID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ucah", "customload", "notfound"), "UserContentAccessHistory could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				UserContentAccessHistoryTable ucahTable = new UserContentAccessHistoryTable(query);
+				PaymentContentAccessPolicyMapTable ucah_pcapmTable = (this.Depth > 0) ? new PaymentContentAccessPolicyMapTable(query) : null;
+				PaymentTable ucah_pcapm_pTable = (this.Depth > 1) ? new PaymentTable(query) : null;
+				ContentTable ucah_pcapm_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				ContentAccessPolicyTable ucah_pcapm_capTable = (this.Depth > 1) ? new ContentAccessPolicyTable(query) : null;
+				TransactionTable ucah_pcapm_tTable = (this.Depth > 1) ? new TransactionTable(query) : null;
+				ContentTable ucah_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable ucah_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable ucah_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable ucah_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+				AgeRatingTable ucah_c_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				UserSessionTable ucah_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+				UserSessionTypeTable ucah_us_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				ServiceTable ucah_us_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				DomainTable ucah_us_dTable = (this.Depth > 1) ? new DomainTable(query) : null;
+				CustomerTable ucah_us_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				CountryTable c1Table = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable ucah_us_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				MobileOperatorTable ucah_us_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+
+        
+				Payment ucah_pcapm_pObject = (this.Depth > 1) ? ucah_pcapm_pTable.CreateInstance() : null;
+				Content ucah_pcapm_cObject = (this.Depth > 1) ? ucah_pcapm_cTable.CreateInstance() : null;
+				ContentAccessPolicy ucah_pcapm_capObject = (this.Depth > 1) ? ucah_pcapm_capTable.CreateInstance() : null;
+				Transaction ucah_pcapm_tObject = (this.Depth > 1) ? ucah_pcapm_tTable.CreateInstance() : null;
+				PaymentContentAccessPolicyMap ucah_pcapmObject = (this.Depth > 0) ? ucah_pcapmTable.CreateInstance(ucah_pcapm_pObject, ucah_pcapm_cObject, ucah_pcapm_capObject, ucah_pcapm_tObject) : null;
+				ContentGroup ucah_c_cgObject = (this.Depth > 1) ? ucah_c_cgTable.CreateInstance() : null;
+				ContentType ucah_c_ctObject = (this.Depth > 1) ? ucah_c_ctTable.CreateInstance() : null;
+				ContentStorage ucah_c_csObject = (this.Depth > 1) ? ucah_c_csTable.CreateInstance() : null;
+				AgeRating ucah_c_arObject = (this.Depth > 1) ? ucah_c_arTable.CreateInstance() : null;
+				Content ucah_cObject = (this.Depth > 0) ? ucah_cTable.CreateInstance(ucah_c_cgObject, ucah_c_ctObject, ucah_c_csObject, ucah_c_arObject) : null;
+				UserSessionType ucah_us_ustObject = (this.Depth > 1) ? ucah_us_ustTable.CreateInstance() : null;
+				Service ucah_us_sObject = (this.Depth > 1) ? ucah_us_sTable.CreateInstance() : null;
+				Domain ucah_us_dObject = (this.Depth > 1) ? ucah_us_dTable.CreateInstance() : null;
+				Customer ucah_us_cObject = (this.Depth > 1) ? ucah_us_cTable.CreateInstance() : null;
+				Country c1Object = (this.Depth > 1) ? c1Table.CreateInstance() : null;
+				Language ucah_us_lObject = (this.Depth > 1) ? ucah_us_lTable.CreateInstance() : null;
+				MobileOperator ucah_us_moObject = (this.Depth > 1) ? ucah_us_moTable.CreateInstance() : null;
+				UserSession ucah_usObject = (this.Depth > 0) ? ucah_usTable.CreateInstance(ucah_us_ustObject, ucah_us_sObject, ucah_us_dObject, ucah_us_cObject, c1Object, ucah_us_lObject, ucah_us_moObject) : null;
+				UserContentAccessHistory ucahObject = ucahTable.CreateInstance(ucah_pcapmObject, ucah_cObject, ucah_usObject);
+				sqlReader.Close();
+
+				return ucahObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ucah", "customload", "exception"), "UserContentAccessHistory could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "UserContentAccessHistory", "Exception while loading (custom/single) UserContentAccessHistory object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<UserContentAccessHistory> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							UserContentAccessHistoryTable.GetColumnNames("[ucah]") + 
+							(this.Depth > 0 ? "," + PaymentContentAccessPolicyMapTable.GetColumnNames("[ucah_pcapm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentTable.GetColumnNames("[ucah_pcapm_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[ucah_pcapm_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentAccessPolicyTable.GetColumnNames("[ucah_pcapm_cap]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TransactionTable.GetColumnNames("[ucah_pcapm_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[ucah_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[ucah_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[ucah_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[ucah_c_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[ucah_c_ar]") : string.Empty) + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[ucah_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[ucah_us_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[ucah_us_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + DomainTable.GetColumnNames("[ucah_us_d]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[ucah_us_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[ucah_us_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[ucah_us_mo]") : string.Empty) +  
+					" FROM [core].[UserContentAccessHistory] AS [ucah] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentContentAccessPolicyMap] AS [ucah_pcapm] ON [ucah].[PaymentContentAccessPolicyMapID] = [ucah_pcapm].[PaymentContentAccessPolicyMapID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Payment] AS [ucah_pcapm_p] ON [ucah_pcapm].[PaymentID] = [ucah_pcapm_p].[PaymentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [ucah_pcapm_c] ON [ucah_pcapm].[ContentID] = [ucah_pcapm_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentAccessPolicy] AS [ucah_pcapm_cap] ON [ucah_pcapm].[ContentAccessPolicyID] = [ucah_pcapm_cap].[ContentAccessPolicyID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Transaction] AS [ucah_pcapm_t] ON [ucah_pcapm].[TransactionID] = [ucah_pcapm_t].[TransactionID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [ucah_c] ON [ucah].[ContentID] = [ucah_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroup] AS [ucah_c_cg] ON [ucah_c].[ContentGroupID] = [ucah_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentType] AS [ucah_c_ct] ON [ucah_c].[ContentTypeID] = [ucah_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorage] AS [ucah_c_cs] ON [ucah_c].[ContentStorageID] = [ucah_c_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [ucah_c_ar] ON [ucah_c].[AgeRatingID] = [ucah_c_ar].[AgeRatingID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [ucah_us] ON [ucah].[UserSessionID] = [ucah_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [ucah_us_ust] ON [ucah_us].[UserSessionTypeID] = [ucah_us_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [ucah_us_s] ON [ucah_us].[ServiceID] = [ucah_us_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Domain] AS [ucah_us_d] ON [ucah_us].[DomainID] = [ucah_us_d].[DomainID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [ucah_us_c] ON [ucah_us].[CustomerID] = [ucah_us_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c1] ON [ucah_us].[CountryID] = [c1].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [ucah_us_l] ON [ucah_us].[LanguageID] = [ucah_us_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [ucah_us_mo] ON [ucah_us].[MobileOperatorID] = [ucah_us_mo].[MobileOperatorID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ucah", "customloadmany", "notfound"), "UserContentAccessHistory list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<UserContentAccessHistory>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				UserContentAccessHistoryTable ucahTable = new UserContentAccessHistoryTable(query);
+				PaymentContentAccessPolicyMapTable ucah_pcapmTable = (this.Depth > 0) ? new PaymentContentAccessPolicyMapTable(query) : null;
+				PaymentTable ucah_pcapm_pTable = (this.Depth > 1) ? new PaymentTable(query) : null;
+				ContentTable ucah_pcapm_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				ContentAccessPolicyTable ucah_pcapm_capTable = (this.Depth > 1) ? new ContentAccessPolicyTable(query) : null;
+				TransactionTable ucah_pcapm_tTable = (this.Depth > 1) ? new TransactionTable(query) : null;
+				ContentTable ucah_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable ucah_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable ucah_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable ucah_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+				AgeRatingTable ucah_c_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				UserSessionTable ucah_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+				UserSessionTypeTable ucah_us_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				ServiceTable ucah_us_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				DomainTable ucah_us_dTable = (this.Depth > 1) ? new DomainTable(query) : null;
+				CustomerTable ucah_us_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				CountryTable c1Table = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable ucah_us_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				MobileOperatorTable ucah_us_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+
+        List<UserContentAccessHistory> result = new List<UserContentAccessHistory>();
+        do
+        {
+          
+					Payment ucah_pcapm_pObject = (this.Depth > 1) ? ucah_pcapm_pTable.CreateInstance() : null;
+					Content ucah_pcapm_cObject = (this.Depth > 1) ? ucah_pcapm_cTable.CreateInstance() : null;
+					ContentAccessPolicy ucah_pcapm_capObject = (this.Depth > 1) ? ucah_pcapm_capTable.CreateInstance() : null;
+					Transaction ucah_pcapm_tObject = (this.Depth > 1) ? ucah_pcapm_tTable.CreateInstance() : null;
+					PaymentContentAccessPolicyMap ucah_pcapmObject = (this.Depth > 0) ? ucah_pcapmTable.CreateInstance(ucah_pcapm_pObject, ucah_pcapm_cObject, ucah_pcapm_capObject, ucah_pcapm_tObject) : null;
+					ContentGroup ucah_c_cgObject = (this.Depth > 1) ? ucah_c_cgTable.CreateInstance() : null;
+					ContentType ucah_c_ctObject = (this.Depth > 1) ? ucah_c_ctTable.CreateInstance() : null;
+					ContentStorage ucah_c_csObject = (this.Depth > 1) ? ucah_c_csTable.CreateInstance() : null;
+					AgeRating ucah_c_arObject = (this.Depth > 1) ? ucah_c_arTable.CreateInstance() : null;
+					Content ucah_cObject = (this.Depth > 0) ? ucah_cTable.CreateInstance(ucah_c_cgObject, ucah_c_ctObject, ucah_c_csObject, ucah_c_arObject) : null;
+					UserSessionType ucah_us_ustObject = (this.Depth > 1) ? ucah_us_ustTable.CreateInstance() : null;
+					Service ucah_us_sObject = (this.Depth > 1) ? ucah_us_sTable.CreateInstance() : null;
+					Domain ucah_us_dObject = (this.Depth > 1) ? ucah_us_dTable.CreateInstance() : null;
+					Customer ucah_us_cObject = (this.Depth > 1) ? ucah_us_cTable.CreateInstance() : null;
+					Country c1Object = (this.Depth > 1) ? c1Table.CreateInstance() : null;
+					Language ucah_us_lObject = (this.Depth > 1) ? ucah_us_lTable.CreateInstance() : null;
+					MobileOperator ucah_us_moObject = (this.Depth > 1) ? ucah_us_moTable.CreateInstance() : null;
+					UserSession ucah_usObject = (this.Depth > 0) ? ucah_usTable.CreateInstance(ucah_us_ustObject, ucah_us_sObject, ucah_us_dObject, ucah_us_cObject, c1Object, ucah_us_lObject, ucah_us_moObject) : null;
+					UserContentAccessHistory ucahObject = (this.Depth > -1) ? ucahTable.CreateInstance(ucah_pcapmObject, ucah_cObject, ucah_usObject) : null;
+					result.Add(ucahObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ucah", "customloadmany", "exception"), "UserContentAccessHistory list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "UserContentAccessHistory", "Exception while loading (custom/many) UserContentAccessHistory object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, UserContentAccessHistory data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[UserContentAccessHistory] ([PaymentContentAccessPolicyMapID],[ContentID],[UserSessionID]) VALUES(@PaymentContentAccessPolicyMapID,@ContentID,@UserSessionID); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@PaymentContentAccessPolicyMapID", data.PaymentContentAccessPolicyMap.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentID", data.Content.ID);
+				sqlCmd.Parameters.AddWithValue("@UserSessionID", data.UserSession.ID);
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ucah", "insert", "noprimarykey"), "UserContentAccessHistory could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "UserContentAccessHistory", "Exception while inserting UserContentAccessHistory object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ucah", "insert", "exception"), "UserContentAccessHistory could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "UserContentAccessHistory", "Exception while inserting UserContentAccessHistory object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, UserContentAccessHistory data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[UserContentAccessHistory] SET " +
+												"[PaymentContentAccessPolicyMapID] = @PaymentContentAccessPolicyMapID, " + 
+												"[ContentID] = @ContentID, " + 
+												"[UserSessionID] = @UserSessionID, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [UserContentAccessHistoryID] = @UserContentAccessHistoryID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@PaymentContentAccessPolicyMapID", data.PaymentContentAccessPolicyMap.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentID", data.Content.ID);
+				sqlCmd.Parameters.AddWithValue("@UserSessionID", data.UserSession.ID);
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@UserContentAccessHistoryID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ucah", "update", "norecord"), "UserContentAccessHistory could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "UserContentAccessHistory", "Exception while updating UserContentAccessHistory object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ucah", "update", "morerecords"), "UserContentAccessHistory was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "UserContentAccessHistory", "Exception while updating UserContentAccessHistory object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ucah", "update", "exception"), "UserContentAccessHistory could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "UserContentAccessHistory", "Exception while updating UserContentAccessHistory object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, UserContentAccessHistory data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[UserContentAccessHistory] WHERE UserContentAccessHistoryID = @UserContentAccessHistoryID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@UserContentAccessHistoryID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ucah", "delete", "norecord"), "UserContentAccessHistory could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "UserContentAccessHistory", "Exception while deleting UserContentAccessHistory object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ucah", "delete", "exception"), "UserContentAccessHistory could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "UserContentAccessHistory", "Exception while deleting UserContentAccessHistory object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

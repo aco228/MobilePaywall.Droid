@@ -1,0 +1,150 @@
+﻿using Cashflow.Message;
+using log4net;
+using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers._Specific._ProviderSpecific.IxoPay
+{
+  public class IxoPayController : Controller
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (IxoPayController._log == null)
+          IxoPayController._log = LogManager.GetLogger(typeof(IxoPayController));
+        return IxoPayController._log;
+      }
+    }
+    #endregion
+
+    public ActionResult Index()
+    {
+      Country country = Country.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.ID);
+      string msisdn = Request["msisdn"] != null ? country.FixNumber(Request["msisdn"].ToString()) : "";
+      string returnUrl = Request["retutnUrl"] != null ? Request["returnUrl"].ToString() : "http://" + PaywallHttpContext.Current.Service.ServiceData.Name + "/";
+      char continueChar = returnUrl.Contains('?') ? '&' : '?';
+
+      if (string.IsNullOrEmpty(msisdn))
+      {
+        returnUrl +=
+          continueChar + "sessionID=" + PaywallHttpContext.Current.Session.SessionData.Guid +
+          "&sessionIntID=" + PaywallHttpContext.Current.Session.SessionData.ID +
+          "&lang=" + PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode +
+          "&err=true";
+        return Redirect(returnUrl);
+      }
+
+
+      PaywallHttpContext.Current.Session.SessionData.Referrer = Request.UrlReferrer != null ? Request.UrlReferrer.ToString() : null;
+      PaywallHttpContext.Current.Session.SessionData.Update(); //we add referer to session
+
+      //Customer customer = Customer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData, msisdn, CustomerIdentifier.Msisdn).FirstOrDefault();
+      Customer customer = Customer.LoadCustomerByServiceMsisdn(PaywallHttpContext.Current.Service.ServiceData, msisdn);
+      if (customer == null) //if customer doesn't exists
+      {
+        customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Pending, PaywallHttpContext.Current.Service.ServiceData,
+          PaywallHttpContext.Current.Service.ServiceData.FallbackCountry, null, null, msisdn, "", "", new byte[] { 0 }, DateTime.Now, DateTime.Now);
+        customer.Update();
+      }
+      else if (customer.CustomerStatus == CustomerStatus.Active) return Redirect("/");
+
+      PaywallHttpContext.Current.Session.SessionData.Customer = customer;
+      PaywallHttpContext.Current.Session.SessionData.Update();
+      (new OLCacher()).Synchronize(PaywallHttpContext.Current.Session.SessionData); //synhronise with cashflow
+
+      returnUrl +=
+        continueChar + "sessionID=" + PaywallHttpContext.Current.Session.SessionData.Guid +
+        "&sessionIntID=" + PaywallHttpContext.Current.Session.SessionData.ID +
+        "&lang=" + PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode +
+        "&customerID=" + customer.ID +
+        "&err=false";
+
+
+      return Redirect(returnUrl);
+    }
+
+    public ActionResult Setup()
+    {
+      Country country = Country.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.ID);
+      string msisdn = Request["kontonummer"] != null ? country.FixNumber(Request["kontonummer"].ToString()) : string.Empty;
+      string sessionID = Request["sessionID"] != null ? Request["sessionID"].ToString() : string.Empty;
+
+      string blz = Request["blz"] != null ? Request["blz"].ToString() : string.Empty;
+      string bic = Request["bic"] != null ? Request["bic"].ToString() : string.Empty;
+      string personal = Request["personal"] != null ? Request["personal"].ToString() : string.Empty;
+      string email = Request["email"] != null ? Request["email"].ToString() : string.Empty;
+      string mandatoryID = Request["mandatoryID"] != null ? Request["mandatoryID"].ToString() : string.Empty;
+      string mandatoryDate = Request["mandatoryDate"] != null ? Request["mandatoryDate"].ToString() : string.Empty;
+      string orderID = Request["orderID"] != null ? Request["orderID"].ToString() : string.Empty;
+      string contarctID = Request["contarctID"] != null ? Request["contarctID"].ToString() : string.Empty;
+      
+      //Log.Error("IXO::blz:  " + blz + " bic: " + bic + " msisd: " + msisdn + " personal: " + personal + " mandateID: " + mandatoryID);
+      
+      if (msisdn.Contains("33228"))
+        return this.Json(new { status = true, message = "Test IXO"});
+      
+      ServiceOffer so = PaywallHttpContext.Current.Service.DefaultServiceOffer;
+      LookupSession ls = LookupSession.CreateManager().Load(PaywallHttpContext.Current.Session.SessionData);
+      UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), PaywallHttpContext.Current.Session.SessionData, null, PaywallHttpContext.Current.Service.ServiceData.Name, DateTime.Now, DateTime.Now); uhr.Insert();
+      PaymentRequest paymentRequest = new PaymentRequest(-1, Guid.NewGuid(), PaymentType.Subscription, PaymentRequestStatus.Pending, ls, PaywallHttpContext.Current.Session.SessionData.Customer,
+        PaywallHttpContext.Current.Session.SessionData, PaywallHttpContext.Current.Service.DefaultServiceOffer, PaywallHttpContext.Current.Service.DefaultServiceOffer.BusinessModelEntry,
+        null, uhr, "", DateTime.Now, DateTime.Now);
+      paymentRequest.Insert();
+
+      BillingInfoArguments bilingArgs = new BillingInfoArguments {
+        FirstName = PaywallHttpContext.Current.Session.SessionData.Customer.Username.ToString(),
+        LastName = PaywallHttpContext.Current.Session.SessionData.Customer.Username.ToString()
+      };
+      
+      BankAccountArguments bankArgs = new BankAccountArguments
+      {
+        Country = PaywallHttpContext.Current.Session.Country.GlobalName.ToString(),
+        AccountNumber = "TEST: 123123",
+        BankCode = "TEST bankCode: 32121",
+        AccountType = BankAccountType.Checking
+      };
+
+      SepaArguments sepaArgas = new SepaArguments
+      {
+        MandateId = mandatoryID,
+        MandateDate = mandatoryDate,
+        OrderId =  orderID,
+        ContractId = contarctID
+      };
+      
+      InitiateSubscriptionResponse response = CashflowClientPaywallManager.GetInitiateSubscriptionResponse(PaywallHttpContext.Current.Session, string.Empty, bilingArgs, bankArgs, sepaArgas);
+
+      if (response.Status.Code == MessageStatusCode.Redirect || response.Status.Code == MessageStatusCode.Success)
+      {
+        paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Complete;
+        paymentRequest.ExternalPaymentRequestGuid = response.SubscriptionRequestID;
+        paymentRequest.Update();
+        PaywallHttpContext.Current.Session.SessionData.Customer.ExternalCustomerGuid = response.CustomerID;
+        PaywallHttpContext.Current.Session.SessionData.Customer.Update();
+
+        //Log.Debug("TPay.Setup:: Initiate is SUCESS:");
+      }
+      else
+      {
+        paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Failure;
+        paymentRequest.Update();
+        //Log.Error("TPay.Setup:: Initiate is NOT SUCESS:");
+      }
+
+      return this.Json(new { status = true });
+    }
+
+
+
+
+  }
+}

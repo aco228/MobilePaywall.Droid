@@ -1,0 +1,157 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using MobilePaywall.Data;
+using Senti.Data;
+using System.Data;
+
+namespace MobilePaywall.Migrator
+{
+  public class PaywallItem
+  {
+    private Guid _modelID = Guid.Empty;
+    //TODO: This should be dynamic.
+    private int _serviceID = -1;
+    private List<int> _offers = null;
+
+    private BehaviorModel _behaviorModel = null;
+    private Service _service = null;
+    private List<CashflowItem> _cashflowItems = null;
+    private List<PaywallItemEntry> _paywallEntries = null;
+
+    public BehaviorModel BehaviorModel { get { return this._behaviorModel; } set { this._behaviorModel = value; } }
+    public Service Service { get { return this._service; } set { this._service = value; } }
+    public List<CashflowItem> CashflowItems { get { return this._cashflowItems; } set { this._cashflowItems = value; } }
+    public List<PaywallItemEntry> PaywallEntries { get { return this._paywallEntries; } set { this._paywallEntries = value; } }
+
+    public PaywallItem()
+    {
+
+    }
+
+    public PaywallItem(List<CashflowItem> cashflowItem)
+    {
+      this._cashflowItems = cashflowItem;
+    }
+
+    public PaywallItem(Guid modelID, List<CashflowItem> cashflowItems)
+      : this(cashflowItems)
+    {
+      this._modelID = modelID;
+    }
+
+    public PaywallItem(BehaviorModel behaviorModel, Service service)
+    {
+      this._behaviorModel = behaviorModel;
+      this._service = service;
+    }
+
+    public void Initialize()
+    {
+      IBehaviorModelManager bmManager = BehaviorModel.CreateManager();
+      this._behaviorModel = bmManager.Load(this._modelID);
+      if (this._behaviorModel == null)
+        return;
+      //this._model = new BehaviorModel(-1, this.InputModel.Guid, this.InputModel.Name, null, DateTime.Now, DateTime.Now);
+
+      ServiceOffer so = ServiceOffer.CreateManager().Load(this._behaviorModel);
+      if (so == null)
+        return;
+
+      this._service = so.Service;
+      if (this._service == null)
+        return;
+
+      this._offers = new List<int>();
+      this._offers.Add(so.ID);
+
+      this._paywallEntries = new List<PaywallItemEntry>();
+      foreach (CashflowItem item in this._cashflowItems)
+        this._paywallEntries.Add(new PaywallItemEntry(this._behaviorModel, this._service, item));
+    }
+
+    public void Migrate()
+    {
+      foreach (PaywallItemEntry entry in this._paywallEntries)
+        entry.Insert();
+    }
+
+
+    public void UpdatePassword()
+    {
+      Data.IPaymentManager pManager = Data.Payment.CreateManager();
+      List<Payment> tempPayments = null;
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        try
+        {
+          connection.Transaction.Begin();
+          List<Payment> payments = pManager.Load(connection);
+          tempPayments = (from payment in payments where this._offers.Contains(payment.ServiceOffer.ID) select payment).ToList();
+          connection.Transaction.Commit();
+        }
+        catch (Exception ex)
+        {
+          connection.Transaction.Rollback();
+        }
+      }
+
+      foreach (Payment p in tempPayments)
+      {
+        MobileMafia.Portal.Data.ICashflowCustomerManager ccManager = MobileMafia.Portal.Data.CashflowCustomer.CreateManager();
+        MobileMafia.Portal.Data.CashflowCustomer cashflowCustomer = ccManager.Load(p.Customer.ExternalCustomerGuid.Value);
+        if (cashflowCustomer == null)
+          continue;
+
+        Customer customer = p.Customer;
+        customer.EncryptedPassword = cashflowCustomer.Customer.Password;
+        customer.Update();
+      }
+    }
+
+    public void UpdateTrackingInformations()
+    {
+      Data.IPaymentManager pManager = Data.Payment.CreateManager();
+      List<Payment> tempPayments = null;
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        try
+        {
+          connection.Transaction.Begin();
+          List<Payment> payments = pManager.Load(connection);
+          tempPayments = (from payment in payments where this._offers.Contains(payment.ServiceOffer.ID) select payment).ToList();
+          connection.Transaction.Commit();
+        }
+        catch (Exception ex)
+        {
+          connection.Transaction.Rollback();
+        }
+      }
+
+      foreach (Payment p in tempPayments)
+      {
+        if (!p.ExternalPaymentGuid.HasValue)
+          continue;
+
+        MobileMafia.Portal.Data.ISubscriptionManager sManager = MobileMafia.Portal.Data.Subscription.CreateManager();
+        MobileMafia.Portal.Data.Subscription subscription = sManager.Load(p.ExternalPaymentGuid.Value);
+        if (subscription == null)
+          continue;
+
+        IPaymentRequestManager prManager = PaymentRequest.CreateManager();
+        PaymentRequest paymentRequest = prManager.Load(p.PaymentRequest.ID);
+        if (paymentRequest == null)
+          continue;
+
+        UserSession userSession = paymentRequest.UserSession;
+        userSession.TrackingID = subscription.TrackingID;
+        userSession.FingerprintID = subscription.FingerprintID;
+        userSession.Update();
+      }
+    }
+
+  }
+}

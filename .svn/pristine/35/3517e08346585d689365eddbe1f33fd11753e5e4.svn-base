@@ -1,0 +1,139 @@
+﻿@model MobilePaywall.Web.Models.ContentListViewModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+}
+
+@Scripts.Render("~/Script/Home")
+@Scripts.Render("~/Script/Pink/Home")
+
+@*
+  +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=
+*@
+
+@section belgium{
+  <style>
+    #belgiumCheck{ margin-top:30px; padding:10px; }
+  </style>
+  <div class="__checkbox" id="belgiumCheck" ischecked="false">
+    <table>
+      <tr>
+        <td>
+          <div class="custom_checkbox"></div>
+        </td>
+        <td>
+          Bij inschrijving bevestig ik dat ik ouder ben dan 18 jaar en ik bevestig de voorwaarden te hebben gelezen en te accepteren en hierbij geef ik mijn herroepingsrecht op de aankoop van dit product op.
+        </td>
+      </tr>
+    </table>
+  </div>
+}
+
+@if (PaymentHelper.HasPayment())
+{
+  <script>
+    $(document).ready(function () {
+      $('#belgiumCheck').hide();
+    });
+  </script>
+}
+else
+{
+  <style>
+    .content_video { pointer-events: none; }
+    #belgiumCheck { background-color: rgba(255, 255, 255, 0.21); width: 90%; margin-left: 5%; }
+  </style>
+  <script>
+    $(document).ready(function () {
+      if ($('#belgiumCheck').length > 0) {
+        $('#belgiumCheck').click(function () {
+          if ($(this).attr('ischecked') == 'true') {
+            $('.content_video').css('pointer-events', 'none');
+            $(this).attr('ischecked', 'false');
+            $(this).find('.custom_checkbox').removeClass('custom_checkbox_checked');
+          }
+          else {
+            $('.content_video').css('pointer-events', 'initial');
+            $(this).attr('ischecked', 'true');
+            $(this).find('.custom_checkbox').addClass('custom_checkbox_checked');
+          }
+        });
+      }
+    });
+  </script>
+
+}
+
+@*
+  +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=
+*@
+
+@{
+  //Change it to take random content!
+  Random rnd = new Random();
+  int index = rnd.Next(0, Model.Content.Count);
+  MobilePaywall.IContent content = Model.Content.ElementAt(index);
+  MobilePaywall.Video video = content as MobilePaywall.Video;
+}
+
+<div id="contentVideoOfDay" class="row">
+  <div class="header row">@Translations.Web.Home.Header1</div>
+
+    <a href="@Model.AppendSessionID(content)" class="___clink">
+        <div class="content_video col-sm-12 col-xs-12" id="conten_video_ofDay">
+            <div class="content_video_inside" id="conten_video_ofDay_in">
+                <div class="content_video_playIcon  @item.ContentIconClass"></div>
+                <div class="content_video_title">Koop nu</div>
+                <img src="@content.GetThumbnailUrl(this.Request.UserAgent)" alt="Alternate Text" />
+            </div>
+        </div>
+    </a>
+
+  <div style="clear:both"></div>
+</div>
+
+<div id="contentVideos" class="row">
+  <div class="header row">@Translations.Web.Home.Header2</div>
+
+  <div id="contentVideoContainer">
+    @foreach (MobilePaywall.IContent item in Model.Content)
+    {
+      <a href="@item.GetAccessUrl(this.Request.UserAgent, PaywallHttpContext.Current.HttpContext.Session.SessionID)">
+        <div class="content_video col-sm-6 col-xs-6">
+          <div class="content_video_inside">
+            <div class="content_video_playIcon"></div>
+            <div class="content_video_title">Koop nu</div>
+            <img src="@item.GetThumbnailUrl(this.Request.UserAgent)" alt="Alternate Text" style="width:100%" />
+          </div>
+        </div>
+      </a>
+    }
+  </div>
+  <div style="clear:both"></div>
+
+  <div id="contentVideoControls" class="row">
+    <div class="content_videoControl" id="controlLoadMore">@Translations.Web.Controls.More</div>
+  </div>
+
+</div>
+
+<script>
+  var _videoController = null;
+  var _contentHome = null;
+  
+  $(document).ready(function () {
+    _videoController = new VideoController();
+    _videoController.TextPending = '@Translations.Web.Pending.PleaseWait';
+
+    @if(Model.Category != null)
+    {
+      @Html.Raw(Server.HtmlDecode("_homeVideoControler.CategoryID = '" + Model.Category.ID + "';"));
+    }
+    
+    _contentHome = new ContentHome();
+  });
+</script>
+
+
+
+
+

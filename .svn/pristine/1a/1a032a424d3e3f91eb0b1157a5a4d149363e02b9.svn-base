@@ -1,0 +1,500 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(PremiumMessage))] 
+  public partial class PremiumMessageManager : MobilePaywall.Data.Sql.SqlManagerBase<PremiumMessage>, IPremiumMessageManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override PremiumMessage LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							PremiumMessageTable.GetColumnNames("[pm]") + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[pm_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[pm_us_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[pm_us_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + DomainTable.GetColumnNames("[pm_us_d]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[pm_us_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[pm_us_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[pm_us_mo]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ShortcodeKeywordServiceOfferMapTable.GetColumnNames("[pm_sksom]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ShortcodeTable.GetColumnNames("[pm_sksom_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + KeywordTable.GetColumnNames("[pm_sksom_k]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[pm_sksom_so]") : string.Empty) + 
+					" FROM [core].[PremiumMessage] AS [pm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [pm_us] ON [pm].[UserSessionID] = [pm_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [pm_us_ust] ON [pm_us].[UserSessionTypeID] = [pm_us_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [pm_us_s] ON [pm_us].[ServiceID] = [pm_us_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Domain] AS [pm_us_d] ON [pm_us].[DomainID] = [pm_us_d].[DomainID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [pm_us_c] ON [pm_us].[CustomerID] = [pm_us_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c1] ON [pm_us].[CountryID] = [c1].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [pm_us_l] ON [pm_us].[LanguageID] = [pm_us_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [pm_us_mo] ON [pm_us].[MobileOperatorID] = [pm_us_mo].[MobileOperatorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ShortcodeKeywordServiceOfferMap] AS [pm_sksom] ON [pm].[ShortcodeKeywordServiceOfferMapID] = [pm_sksom].[ShortcodeKeywordServiceOfferMapID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Shortcode] AS [pm_sksom_s] ON [pm_sksom].[ShortcodeID] = [pm_sksom_s].[ShortcodeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Keyword] AS [pm_sksom_k] ON [pm_sksom].[KeywordID] = [pm_sksom_k].[KeywordID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [pm_sksom_so] ON [pm_sksom].[ServiceOfferID] = [pm_sksom_so].[ServiceOfferID] ";
+				sqlCmdText += "WHERE [pm].[PremiumMessageID] = @PremiumMessageID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@PremiumMessageID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pm", "loadinternal", "notfound"), "PremiumMessage could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				PremiumMessageTable pmTable = new PremiumMessageTable(query);
+				UserSessionTable pm_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+				UserSessionTypeTable pm_us_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				ServiceTable pm_us_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				DomainTable pm_us_dTable = (this.Depth > 1) ? new DomainTable(query) : null;
+				CustomerTable pm_us_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				CountryTable c1Table = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable pm_us_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				MobileOperatorTable pm_us_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				ShortcodeKeywordServiceOfferMapTable pm_sksomTable = (this.Depth > 0) ? new ShortcodeKeywordServiceOfferMapTable(query) : null;
+				ShortcodeTable pm_sksom_sTable = (this.Depth > 1) ? new ShortcodeTable(query) : null;
+				KeywordTable pm_sksom_kTable = (this.Depth > 1) ? new KeywordTable(query) : null;
+				ServiceOfferTable pm_sksom_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+
+        
+				UserSessionType pm_us_ustObject = (this.Depth > 1) ? pm_us_ustTable.CreateInstance() : null;
+				Service pm_us_sObject = (this.Depth > 1) ? pm_us_sTable.CreateInstance() : null;
+				Domain pm_us_dObject = (this.Depth > 1) ? pm_us_dTable.CreateInstance() : null;
+				Customer pm_us_cObject = (this.Depth > 1) ? pm_us_cTable.CreateInstance() : null;
+				Country c1Object = (this.Depth > 1) ? c1Table.CreateInstance() : null;
+				Language pm_us_lObject = (this.Depth > 1) ? pm_us_lTable.CreateInstance() : null;
+				MobileOperator pm_us_moObject = (this.Depth > 1) ? pm_us_moTable.CreateInstance() : null;
+				UserSession pm_usObject = (this.Depth > 0) ? pm_usTable.CreateInstance(pm_us_ustObject, pm_us_sObject, pm_us_dObject, pm_us_cObject, c1Object, pm_us_lObject, pm_us_moObject) : null;
+				Shortcode pm_sksom_sObject = (this.Depth > 1) ? pm_sksom_sTable.CreateInstance() : null;
+				Keyword pm_sksom_kObject = (this.Depth > 1) ? pm_sksom_kTable.CreateInstance() : null;
+				ServiceOffer pm_sksom_soObject = (this.Depth > 1) ? pm_sksom_soTable.CreateInstance() : null;
+				ShortcodeKeywordServiceOfferMap pm_sksomObject = (this.Depth > 0) ? pm_sksomTable.CreateInstance(pm_sksom_sObject, pm_sksom_kObject, pm_sksom_soObject) : null;
+				PremiumMessage pmObject = pmTable.CreateInstance(pm_usObject, pm_sksomObject);
+				sqlReader.Close();
+
+				return pmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pm", "loadinternal", "exception"), "PremiumMessage could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "PremiumMessage", "Exception while loading PremiumMessage object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public PremiumMessage Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							PremiumMessageTable.GetColumnNames("[pm]") + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[pm_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[pm_us_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[pm_us_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + DomainTable.GetColumnNames("[pm_us_d]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[pm_us_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[pm_us_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[pm_us_mo]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ShortcodeKeywordServiceOfferMapTable.GetColumnNames("[pm_sksom]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ShortcodeTable.GetColumnNames("[pm_sksom_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + KeywordTable.GetColumnNames("[pm_sksom_k]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[pm_sksom_so]") : string.Empty) +  
+					" FROM [core].[PremiumMessage] AS [pm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [pm_us] ON [pm].[UserSessionID] = [pm_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [pm_us_ust] ON [pm_us].[UserSessionTypeID] = [pm_us_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [pm_us_s] ON [pm_us].[ServiceID] = [pm_us_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Domain] AS [pm_us_d] ON [pm_us].[DomainID] = [pm_us_d].[DomainID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [pm_us_c] ON [pm_us].[CustomerID] = [pm_us_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c1] ON [pm_us].[CountryID] = [c1].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [pm_us_l] ON [pm_us].[LanguageID] = [pm_us_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [pm_us_mo] ON [pm_us].[MobileOperatorID] = [pm_us_mo].[MobileOperatorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ShortcodeKeywordServiceOfferMap] AS [pm_sksom] ON [pm].[ShortcodeKeywordServiceOfferMapID] = [pm_sksom].[ShortcodeKeywordServiceOfferMapID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Shortcode] AS [pm_sksom_s] ON [pm_sksom].[ShortcodeID] = [pm_sksom_s].[ShortcodeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Keyword] AS [pm_sksom_k] ON [pm_sksom].[KeywordID] = [pm_sksom_k].[KeywordID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [pm_sksom_so] ON [pm_sksom].[ServiceOfferID] = [pm_sksom_so].[ServiceOfferID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pm", "customload", "notfound"), "PremiumMessage could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				PremiumMessageTable pmTable = new PremiumMessageTable(query);
+				UserSessionTable pm_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+				UserSessionTypeTable pm_us_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				ServiceTable pm_us_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				DomainTable pm_us_dTable = (this.Depth > 1) ? new DomainTable(query) : null;
+				CustomerTable pm_us_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				CountryTable c1Table = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable pm_us_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				MobileOperatorTable pm_us_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				ShortcodeKeywordServiceOfferMapTable pm_sksomTable = (this.Depth > 0) ? new ShortcodeKeywordServiceOfferMapTable(query) : null;
+				ShortcodeTable pm_sksom_sTable = (this.Depth > 1) ? new ShortcodeTable(query) : null;
+				KeywordTable pm_sksom_kTable = (this.Depth > 1) ? new KeywordTable(query) : null;
+				ServiceOfferTable pm_sksom_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+
+        
+				UserSessionType pm_us_ustObject = (this.Depth > 1) ? pm_us_ustTable.CreateInstance() : null;
+				Service pm_us_sObject = (this.Depth > 1) ? pm_us_sTable.CreateInstance() : null;
+				Domain pm_us_dObject = (this.Depth > 1) ? pm_us_dTable.CreateInstance() : null;
+				Customer pm_us_cObject = (this.Depth > 1) ? pm_us_cTable.CreateInstance() : null;
+				Country c1Object = (this.Depth > 1) ? c1Table.CreateInstance() : null;
+				Language pm_us_lObject = (this.Depth > 1) ? pm_us_lTable.CreateInstance() : null;
+				MobileOperator pm_us_moObject = (this.Depth > 1) ? pm_us_moTable.CreateInstance() : null;
+				UserSession pm_usObject = (this.Depth > 0) ? pm_usTable.CreateInstance(pm_us_ustObject, pm_us_sObject, pm_us_dObject, pm_us_cObject, c1Object, pm_us_lObject, pm_us_moObject) : null;
+				Shortcode pm_sksom_sObject = (this.Depth > 1) ? pm_sksom_sTable.CreateInstance() : null;
+				Keyword pm_sksom_kObject = (this.Depth > 1) ? pm_sksom_kTable.CreateInstance() : null;
+				ServiceOffer pm_sksom_soObject = (this.Depth > 1) ? pm_sksom_soTable.CreateInstance() : null;
+				ShortcodeKeywordServiceOfferMap pm_sksomObject = (this.Depth > 0) ? pm_sksomTable.CreateInstance(pm_sksom_sObject, pm_sksom_kObject, pm_sksom_soObject) : null;
+				PremiumMessage pmObject = pmTable.CreateInstance(pm_usObject, pm_sksomObject);
+				sqlReader.Close();
+
+				return pmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pm", "customload", "exception"), "PremiumMessage could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "PremiumMessage", "Exception while loading (custom/single) PremiumMessage object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<PremiumMessage> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							PremiumMessageTable.GetColumnNames("[pm]") + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[pm_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[pm_us_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[pm_us_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + DomainTable.GetColumnNames("[pm_us_d]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[pm_us_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[pm_us_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[pm_us_mo]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ShortcodeKeywordServiceOfferMapTable.GetColumnNames("[pm_sksom]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ShortcodeTable.GetColumnNames("[pm_sksom_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + KeywordTable.GetColumnNames("[pm_sksom_k]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[pm_sksom_so]") : string.Empty) +  
+					" FROM [core].[PremiumMessage] AS [pm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [pm_us] ON [pm].[UserSessionID] = [pm_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [pm_us_ust] ON [pm_us].[UserSessionTypeID] = [pm_us_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [pm_us_s] ON [pm_us].[ServiceID] = [pm_us_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Domain] AS [pm_us_d] ON [pm_us].[DomainID] = [pm_us_d].[DomainID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [pm_us_c] ON [pm_us].[CustomerID] = [pm_us_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c1] ON [pm_us].[CountryID] = [c1].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [pm_us_l] ON [pm_us].[LanguageID] = [pm_us_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [pm_us_mo] ON [pm_us].[MobileOperatorID] = [pm_us_mo].[MobileOperatorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ShortcodeKeywordServiceOfferMap] AS [pm_sksom] ON [pm].[ShortcodeKeywordServiceOfferMapID] = [pm_sksom].[ShortcodeKeywordServiceOfferMapID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Shortcode] AS [pm_sksom_s] ON [pm_sksom].[ShortcodeID] = [pm_sksom_s].[ShortcodeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Keyword] AS [pm_sksom_k] ON [pm_sksom].[KeywordID] = [pm_sksom_k].[KeywordID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [pm_sksom_so] ON [pm_sksom].[ServiceOfferID] = [pm_sksom_so].[ServiceOfferID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pm", "customloadmany", "notfound"), "PremiumMessage list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<PremiumMessage>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				PremiumMessageTable pmTable = new PremiumMessageTable(query);
+				UserSessionTable pm_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+				UserSessionTypeTable pm_us_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				ServiceTable pm_us_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				DomainTable pm_us_dTable = (this.Depth > 1) ? new DomainTable(query) : null;
+				CustomerTable pm_us_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				CountryTable c1Table = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable pm_us_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				MobileOperatorTable pm_us_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				ShortcodeKeywordServiceOfferMapTable pm_sksomTable = (this.Depth > 0) ? new ShortcodeKeywordServiceOfferMapTable(query) : null;
+				ShortcodeTable pm_sksom_sTable = (this.Depth > 1) ? new ShortcodeTable(query) : null;
+				KeywordTable pm_sksom_kTable = (this.Depth > 1) ? new KeywordTable(query) : null;
+				ServiceOfferTable pm_sksom_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+
+        List<PremiumMessage> result = new List<PremiumMessage>();
+        do
+        {
+          
+					UserSessionType pm_us_ustObject = (this.Depth > 1) ? pm_us_ustTable.CreateInstance() : null;
+					Service pm_us_sObject = (this.Depth > 1) ? pm_us_sTable.CreateInstance() : null;
+					Domain pm_us_dObject = (this.Depth > 1) ? pm_us_dTable.CreateInstance() : null;
+					Customer pm_us_cObject = (this.Depth > 1) ? pm_us_cTable.CreateInstance() : null;
+					Country c1Object = (this.Depth > 1) ? c1Table.CreateInstance() : null;
+					Language pm_us_lObject = (this.Depth > 1) ? pm_us_lTable.CreateInstance() : null;
+					MobileOperator pm_us_moObject = (this.Depth > 1) ? pm_us_moTable.CreateInstance() : null;
+					UserSession pm_usObject = (this.Depth > 0) ? pm_usTable.CreateInstance(pm_us_ustObject, pm_us_sObject, pm_us_dObject, pm_us_cObject, c1Object, pm_us_lObject, pm_us_moObject) : null;
+					Shortcode pm_sksom_sObject = (this.Depth > 1) ? pm_sksom_sTable.CreateInstance() : null;
+					Keyword pm_sksom_kObject = (this.Depth > 1) ? pm_sksom_kTable.CreateInstance() : null;
+					ServiceOffer pm_sksom_soObject = (this.Depth > 1) ? pm_sksom_soTable.CreateInstance() : null;
+					ShortcodeKeywordServiceOfferMap pm_sksomObject = (this.Depth > 0) ? pm_sksomTable.CreateInstance(pm_sksom_sObject, pm_sksom_kObject, pm_sksom_soObject) : null;
+					PremiumMessage pmObject = (this.Depth > -1) ? pmTable.CreateInstance(pm_usObject, pm_sksomObject) : null;
+					result.Add(pmObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pm", "customloadmany", "exception"), "PremiumMessage list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "PremiumMessage", "Exception while loading (custom/many) PremiumMessage object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, PremiumMessage data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[PremiumMessage] ([PremiumMessageGuid],[PremiumMessageDirectionID],[PremiumMessageStatusID],[UserSessionID],[ShortcodeKeywordServiceOfferMapID],[Text]) VALUES(@PremiumMessageGuid,@PremiumMessageDirectionID,@PremiumMessageStatusID,@UserSessionID,@ShortcodeKeywordServiceOfferMapID,@Text); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@PremiumMessageGuid", data.Guid);
+				sqlCmd.Parameters.AddWithValue("@PremiumMessageDirectionID", (int)data.PremiumMessageDirection);
+				sqlCmd.Parameters.AddWithValue("@PremiumMessageStatusID", (int)data.PremiumMessageStatus);
+				sqlCmd.Parameters.AddWithValue("@UserSessionID", data.UserSession.ID);
+				sqlCmd.Parameters.AddWithValue("@ShortcodeKeywordServiceOfferMapID", data.ShortcodeKeywordServiceOfferMap.ID);
+				sqlCmd.Parameters.AddWithValue("@Text", !string.IsNullOrEmpty(data.Text) ? (object)data.Text : DBNull.Value).SqlDbType = SqlDbType.NText;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pm", "insert", "noprimarykey"), "PremiumMessage could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "PremiumMessage", "Exception while inserting PremiumMessage object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pm", "insert", "exception"), "PremiumMessage could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "PremiumMessage", "Exception while inserting PremiumMessage object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, PremiumMessage data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[PremiumMessage] SET " +
+												"[PremiumMessageGuid] = @PremiumMessageGuid, " + 
+												"[PremiumMessageDirectionID] = @PremiumMessageDirectionID, " + 
+												"[PremiumMessageStatusID] = @PremiumMessageStatusID, " + 
+												"[UserSessionID] = @UserSessionID, " + 
+												"[ShortcodeKeywordServiceOfferMapID] = @ShortcodeKeywordServiceOfferMapID, " + 
+												"[Text] = @Text, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [PremiumMessageID] = @PremiumMessageID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@PremiumMessageGuid", data.Guid);
+				sqlCmd.Parameters.AddWithValue("@PremiumMessageDirectionID", (int)data.PremiumMessageDirection);
+				sqlCmd.Parameters.AddWithValue("@PremiumMessageStatusID", (int)data.PremiumMessageStatus);
+				sqlCmd.Parameters.AddWithValue("@UserSessionID", data.UserSession.ID);
+				sqlCmd.Parameters.AddWithValue("@ShortcodeKeywordServiceOfferMapID", data.ShortcodeKeywordServiceOfferMap.ID);
+				sqlCmd.Parameters.AddWithValue("@Text", !string.IsNullOrEmpty(data.Text) ? (object)data.Text : DBNull.Value).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@PremiumMessageID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pm", "update", "norecord"), "PremiumMessage could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "PremiumMessage", "Exception while updating PremiumMessage object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pm", "update", "morerecords"), "PremiumMessage was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "PremiumMessage", "Exception while updating PremiumMessage object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pm", "update", "exception"), "PremiumMessage could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "PremiumMessage", "Exception while updating PremiumMessage object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, PremiumMessage data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[PremiumMessage] WHERE PremiumMessageID = @PremiumMessageID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@PremiumMessageID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pm", "delete", "norecord"), "PremiumMessage could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "PremiumMessage", "Exception while deleting PremiumMessage object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pm", "delete", "exception"), "PremiumMessage could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "PremiumMessage", "Exception while deleting PremiumMessage object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

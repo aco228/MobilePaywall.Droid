@@ -1,0 +1,74 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Data.Direct.MobilePaywall;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web.Models
+{
+  // SUMMARY: TemplateSortContentModel for sorting service specif in SortCotnent.cshtml
+  public class TemplateSortContentModel : PaywallViewModelBase
+  {
+    private List<Content> _contents = null;
+    private List<IContent> _icontents = null;
+    private int _templateServiceContentSortID = -1;
+    private int _contentGroupID = -1;
+    private string _contentJS_IDs = "0";
+
+    public List<Content> Content { get { return this._contents != null ? this._contents : new List<Content>(); } }
+    public List<IContent> IContent { get { return this._icontents != null ? this._icontents : new List<IContent>(); } }
+    public int TemplateServiceContentSortID { get { return this._templateServiceContentSortID; } }
+    public int ContentGroupID { get { return this._contentGroupID; } }
+    public string ContentJS_IDs { get { return this._contentJS_IDs; } }
+
+    public TemplateSortContentModel(PaywallHttpContext context, Service service)
+      : base(context)
+    {
+      List<ServiceContentGroupMap> map = ServiceContentGroupMap.CreateManager().Load(service);
+      List<ContentGroup> contentGroups = new List<ContentGroup>();
+      foreach (ServiceContentGroupMap m in map)
+        contentGroups.Add(m.ContentGroup);
+
+      List<Data.Content> contents = new List<Content>();
+      IContentManager cmanager = Data.Content.CreateManager();
+      foreach (ContentGroup cg in contentGroups)
+        contents.AddRange(cmanager.Load(cg));
+
+      this._contentGroupID = contentGroups.FirstOrDefault().ID;
+      this._icontents = new List<IContent>();
+
+      List<TemplateServiceContentSort> contentSort = TemplateServiceContentSort.CreateManager().Load(service);
+
+      if (contentSort == null || contentSort.Count == 0)
+      {
+        this._contents = contents;
+
+        foreach (Data.Content c in this._contents)
+          this._icontents.Add(c.Instantiate());
+
+        return;
+      }
+
+      this._contents = new List<Content>();
+      foreach (TemplateServiceContentSort tscs in contentSort)
+      {
+        this._contents.AddRange(tscs.SortContent(contents));
+        this._templateServiceContentSortID = tscs.ID;
+
+        foreach (int cid in tscs.DisplayedContent)
+          this._contentJS_IDs += "," + cid;
+      }
+
+      
+      foreach (Data.Content c in this._contents)
+        this._icontents.Add(c.Instantiate());
+
+      if (this._contents.Count == 0)
+        this._contents = contents;
+
+    }
+  }
+}

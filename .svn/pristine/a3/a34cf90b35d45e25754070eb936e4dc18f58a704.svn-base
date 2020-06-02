@@ -1,0 +1,68 @@
+﻿@{
+  TPayService service = PaywallHttpContext.Current.Service as TPayService;
+
+  if (service != null && service.ServiceData.ServiceStatus == ServiceStatus.Online)
+  {
+    var dateString = DateTime.UtcNow.ToString("u");
+    var language = "ar";
+    var theme = "light";
+    string publicKey = "XWMM7jl5RcsItKKAGb26";
+    string privateKey = "4d3Xe9kMpoO27euTwXbu";
+    var digest = "";
+    string lookupLink = "";
+    string headerenrichmentLink = "";
+
+
+    bool isLive = !service.Storage.GetBool(TPayService.Keys.IsLive.ToString()).HasValue ||
+      !service.Storage.GetBool(TPayService.Keys.IsLive.ToString()).Value;
+
+    using (var hash = new System.Security.Cryptography.HMACSHA256(System.Text.Encoding.UTF8.GetBytes(privateKey)))
+    {
+      var message = dateString + language + theme;
+      digest = publicKey + ":" + string.Join("", hash.ComputeHash(System.Text.Encoding.UTF8.GetBytes(message)).Select(b => b.ToString("x2")));
+    }
+
+    if (isLive)
+    {
+      lookupLink = string.Format("http://lookup.tpay.me/idxml.ashx/js-staging?date={0}&lang={1}&theme={2}&digest={3}",
+        HttpUtility.UrlEncode(dateString), language, theme, digest);
+      headerenrichmentLink = string.Format("http://lookup.tpay.me/headerenrichment/script-staging?date={0}&lang={1}&theme={2}&sessionId=[sessionId]&digest={3}",
+        HttpUtility.UrlEncode(dateString), language, theme, digest);
+    }
+    else
+    {
+      lookupLink = string.Format("http://lookup.tpay.me/idxml.ashx/js?date={0}&lang={1}&theme={2}&digest={3}",
+        HttpUtility.UrlEncode(dateString), language, theme, digest);
+      headerenrichmentLink = string.Format("http://lookup.tpay.me/headerenrichment/script?date={0}&lang={1}&theme={2}&sessionId=[sessionId]&digest={3}",
+        HttpUtility.UrlEncode(dateString), language, theme, digest);
+    }
+
+    <script src="@lookupLink"></script>
+    <script src="~/Scripts/_Specific/TPay/TPayWrapper.js"></script>
+    <script src="~/Scripts/_Specific/TPay/base.js"></script>
+    <script>
+      var _tpayManager = null;
+      $(document).ready(function () {
+        _tpayManager = new TPayManager();
+        _tpayManager.userSessionID = @PaywallHttpContext.Current.Session.SessionData.ID;
+        _tpayManager.mobileOperatorID = @PaywallHttpContext.Current.Session.SessionData.MobileOperatorID;
+        _tpayManager.customerID = @Html.Raw(PaywallHttpContext.Current.Session.SessionData.Customer != null ? PaywallHttpContext.Current.Session.SessionData.Customer.ID.ToString() : "-1");
+        _tpayManager.productSku = '@PaywallHttpContext.Current.Service.Storage.GetString(TPayService.Keys.ProductSku.ToString())';
+        _tpayManager.subscriptionPlan = '@PaywallHttpContext.Current.Service.Storage.GetString(TPayService.Keys.SubscriptionPlanID.ToString())';
+        _tpayManager.catalogName = '@PaywallHttpContext.Current.Session.Storage.GetString(TPayService.Keys.CatalogName.ToString())';
+        _tpayManager.headerEnrichmentLink = '@headerenrichmentLink';
+        _tpayManager.language = '@(PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("EG") ? "en" : "ar")';
+        _tpayManager.init();
+      });
+    </script>
+
+    <link rel="stylesheet" type="text/css" href="~/Content/_Specific/TPay/main.css">
+
+    <div id="_tpay_loader">
+      <div id="_tpay_loader_text">@Translations.Web.Pending.PleaseWait</div>
+    </div>
+
+    Html.RenderPartial("~/Views/_Shared/_Specific/TPay/Subscription.cshtml");
+
+  }
+}

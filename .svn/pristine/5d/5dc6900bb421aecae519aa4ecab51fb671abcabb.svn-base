@@ -1,0 +1,51 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class LookupSessionResultManager : ILookupSessionResultManager
+  {
+    public LookupSessionResult Load(UserSession userSession, SelectionMode selectionMode)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, userSession, selectionMode);
+    }
+
+    public LookupSessionResult Load(IConnectionInfo connection, UserSession userSession, SelectionMode selectionMode)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, userSession, selectionMode);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, userSession, selectionMode);
+    }
+
+    public LookupSessionResult Load(ISqlConnectionInfo connection, UserSession userSession, SelectionMode selectionMode)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[lsr_ls].UserSessionID = @UserSessionID";
+      string orderBy = string.Empty;
+      switch (selectionMode)
+      {
+        case SelectionMode.MostRecentOrderedByIsFinalResult:
+          orderBy += "[lsr].IsFinalResult DESC, ";
+          break;
+        default:
+          break;
+      }
+      orderBy += "[lsr].LookupSessionResultID DESC";
+
+      parameters.Arguments.Add("UserSessionID", userSession.ID);
+      return this.Load(connection, parameters);
+      //return this.LoadMany(connection, parameters);
+    }
+  }
+}

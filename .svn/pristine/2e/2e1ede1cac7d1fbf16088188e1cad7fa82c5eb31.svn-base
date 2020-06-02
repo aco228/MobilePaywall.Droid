@@ -1,0 +1,95 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.MobilePaywallDirect;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+
+namespace MobilePaywall.Web.Controllers._Specific.GR
+{
+  public class GreeceCustomerResult
+  {
+    private bool _hasError = false;
+    private bool _isNewCustomer = false;
+    private string _errorJsonMessage = string.Empty;
+    private string _customerPassword = string.Empty;
+    private Customer _customer = null;
+    private LookupSession _lookupSession = null;
+    
+    public bool HasError { get { return this._hasError; } set { this._hasError = value; } }
+    public bool IsNewCustomer { get { return this._isNewCustomer; } set { this._isNewCustomer = value; } }
+    public string ErrorJsonMessage { get { return this._errorJsonMessage; } set { this._errorJsonMessage = value; } }
+    public string CustomerPassword { get { return this._customerPassword; } set { this._customerPassword = value; } }
+    public Customer Customer { get { return this._customer; } set { this._customer = value; } }
+    public LookupSession LookupSession { get { return this._lookupSession; } set { this._lookupSession = value; } }
+
+    public bool IsPinConfirmed
+    {
+      get
+      {
+        if (this._customer == null)
+          return false;
+
+        bool? isPinConfirmed = this._customer.Storage.GetBool(GreeceUserSession.CustomerStorageKeys.PinConfirmed.ToString());
+        return isPinConfirmed.HasValue && isPinConfirmed.Value;
+      }
+    }
+
+    public static int? CheckIfCustomerHasActivePayment(string msisdn)
+    {
+      PaywallDirect db = PaywallDirect.Instance;
+      int? activePayments = db.LoadInt(@" SELECT COUNT(*) AS br FROM MobilePaywall.core.Customer AS c
+        LEFT OUTER JOIN MobilePaywall.core.Payment AS p ON p.CustomerID=c.CustomerID
+        WHERE p.PaymentID IS NOT NULL AND p.PaymentStatusID=3 AND c.ServiceID=" + PaywallHttpContext.Current.Service.ServiceData.ID + " AND c.Msisdn='"+msisdn+"'");
+
+      if (activePayments.HasValue && activePayments.Value > 0)
+        return db.LoadInt(@"SELECT TOP 1 c.CustomerID FROM MobilePaywall.core.Customer AS c
+          LEFT OUTER JOIN MobilePaywall.core.Payment AS p ON p.CustomerID=c.CustomerID
+          WHERE p.PaymentID IS NOT NULL AND p.PaymentStatusID=3 AND c.ServiceID=" + PaywallHttpContext.Current.Service.ServiceData.ID + " AND c.Msisdn='" + msisdn + "'");
+
+      db.Execute("UPDATE MobilePaywall.core.Customer SET CustomerStatusID=2 WHERE Msisdn='"+msisdn+"';");
+      return null;
+    }
+
+    public static GreeceCustomerResult GenerateError(string message)
+    {
+      GreeceCustomerResult result = new GreeceCustomerResult();
+      result.HasError = true;
+      result.ErrorJsonMessage = message;
+      return result;
+    }
+
+    public static GreeceCustomerResult GenerateNewCustomer(Customer customer, string password, LookupSession ls)
+    {
+      if (customer == null)
+        return GreeceCustomerResult.GenerateError("Application error");
+
+      GreeceCustomerResult result = new GreeceCustomerResult();
+      customer.Storage.PutString("password", password);
+      result.Customer = customer;
+      result.CustomerPassword = password;
+      result.IsNewCustomer = true;
+      result.LookupSession = ls;
+      return result;
+    }
+
+    public static GreeceCustomerResult GenerateOldCustomer(Customer customer, LookupSession ls)
+    {
+      if (customer == null)
+        return GreeceCustomerResult.GenerateError("Application error");
+
+      GreeceCustomerResult result = new GreeceCustomerResult();
+      result.Customer = customer;
+      result.IsNewCustomer = false;
+      result.CustomerPassword = customer.Storage.GetString("password");
+      result.LookupSession = ls;
+      return result;
+    }
+    
+    public static GreeceCustomerResult GenerateTest()
+    {
+      return new GreeceCustomerResult();
+    }
+
+  }
+}

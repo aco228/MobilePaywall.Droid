@@ -1,0 +1,344 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ShortMessageProvider))] 
+  public partial class ShortMessageProviderManager : MobilePaywall.Data.Sql.SqlManagerBase<ShortMessageProvider>, IShortMessageProviderManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ShortMessageProvider LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ShortMessageProviderTable.GetColumnNames("[smp]") + 
+							(this.Depth > 0 ? "," + ShortMessageProviderTypeTable.GetColumnNames("[smp_smpt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ShortMessageProviderConfigurationTable.GetColumnNames("[smp_smpc]") : string.Empty) + 
+					" FROM [core].[ShortMessageProvider] AS [smp] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ShortMessageProviderType] AS [smp_smpt] ON [smp].[ShortMessageProviderTypeID] = [smp_smpt].[ShortMessageProviderTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ShortMessageProviderConfiguration] AS [smp_smpc] ON [smp].[ShortMessageProviderConfigurationID] = [smp_smpc].[ShortMessageProviderConfigurationID] ";
+				sqlCmdText += "WHERE [smp].[ShortMessageProviderID] = @ShortMessageProviderID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ShortMessageProviderID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smp", "loadinternal", "notfound"), "ShortMessageProvider could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ShortMessageProviderTable smpTable = new ShortMessageProviderTable(query);
+				ShortMessageProviderTypeTable smp_smptTable = (this.Depth > 0) ? new ShortMessageProviderTypeTable(query) : null;
+				ShortMessageProviderConfigurationTable smp_smpcTable = (this.Depth > 0) ? new ShortMessageProviderConfigurationTable(query) : null;
+
+        
+				ShortMessageProviderType smp_smptObject = (this.Depth > 0) ? smp_smptTable.CreateInstance() : null;
+				ShortMessageProviderConfiguration smp_smpcObject = (this.Depth > 0) ? smp_smpcTable.CreateInstance() : null;
+				ShortMessageProvider smpObject = smpTable.CreateInstance(smp_smptObject, smp_smpcObject);
+				sqlReader.Close();
+
+				return smpObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smp", "loadinternal", "exception"), "ShortMessageProvider could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ShortMessageProvider", "Exception while loading ShortMessageProvider object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ShortMessageProvider Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ShortMessageProviderTable.GetColumnNames("[smp]") + 
+							(this.Depth > 0 ? "," + ShortMessageProviderTypeTable.GetColumnNames("[smp_smpt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ShortMessageProviderConfigurationTable.GetColumnNames("[smp_smpc]") : string.Empty) +  
+					" FROM [core].[ShortMessageProvider] AS [smp] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ShortMessageProviderType] AS [smp_smpt] ON [smp].[ShortMessageProviderTypeID] = [smp_smpt].[ShortMessageProviderTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ShortMessageProviderConfiguration] AS [smp_smpc] ON [smp].[ShortMessageProviderConfigurationID] = [smp_smpc].[ShortMessageProviderConfigurationID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smp", "customload", "notfound"), "ShortMessageProvider could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ShortMessageProviderTable smpTable = new ShortMessageProviderTable(query);
+				ShortMessageProviderTypeTable smp_smptTable = (this.Depth > 0) ? new ShortMessageProviderTypeTable(query) : null;
+				ShortMessageProviderConfigurationTable smp_smpcTable = (this.Depth > 0) ? new ShortMessageProviderConfigurationTable(query) : null;
+
+        
+				ShortMessageProviderType smp_smptObject = (this.Depth > 0) ? smp_smptTable.CreateInstance() : null;
+				ShortMessageProviderConfiguration smp_smpcObject = (this.Depth > 0) ? smp_smpcTable.CreateInstance() : null;
+				ShortMessageProvider smpObject = smpTable.CreateInstance(smp_smptObject, smp_smpcObject);
+				sqlReader.Close();
+
+				return smpObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smp", "customload", "exception"), "ShortMessageProvider could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ShortMessageProvider", "Exception while loading (custom/single) ShortMessageProvider object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ShortMessageProvider> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ShortMessageProviderTable.GetColumnNames("[smp]") + 
+							(this.Depth > 0 ? "," + ShortMessageProviderTypeTable.GetColumnNames("[smp_smpt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ShortMessageProviderConfigurationTable.GetColumnNames("[smp_smpc]") : string.Empty) +  
+					" FROM [core].[ShortMessageProvider] AS [smp] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ShortMessageProviderType] AS [smp_smpt] ON [smp].[ShortMessageProviderTypeID] = [smp_smpt].[ShortMessageProviderTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ShortMessageProviderConfiguration] AS [smp_smpc] ON [smp].[ShortMessageProviderConfigurationID] = [smp_smpc].[ShortMessageProviderConfigurationID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smp", "customloadmany", "notfound"), "ShortMessageProvider list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ShortMessageProvider>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ShortMessageProviderTable smpTable = new ShortMessageProviderTable(query);
+				ShortMessageProviderTypeTable smp_smptTable = (this.Depth > 0) ? new ShortMessageProviderTypeTable(query) : null;
+				ShortMessageProviderConfigurationTable smp_smpcTable = (this.Depth > 0) ? new ShortMessageProviderConfigurationTable(query) : null;
+
+        List<ShortMessageProvider> result = new List<ShortMessageProvider>();
+        do
+        {
+          
+					ShortMessageProviderType smp_smptObject = (this.Depth > 0) ? smp_smptTable.CreateInstance() : null;
+					ShortMessageProviderConfiguration smp_smpcObject = (this.Depth > 0) ? smp_smpcTable.CreateInstance() : null;
+					ShortMessageProvider smpObject = (this.Depth > -1) ? smpTable.CreateInstance(smp_smptObject, smp_smpcObject) : null;
+					result.Add(smpObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smp", "customloadmany", "exception"), "ShortMessageProvider list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ShortMessageProvider", "Exception while loading (custom/many) ShortMessageProvider object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ShortMessageProvider data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ShortMessageProvider] ([ShortMessageProviderTypeID],[ShortMessageProviderConfigurationID],[Name],[Description]) VALUES(@ShortMessageProviderTypeID,@ShortMessageProviderConfigurationID,@Name,@Description); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ShortMessageProviderTypeID", data.ShortMessageProviderType.ID);
+				sqlCmd.Parameters.AddWithValue("@ShortMessageProviderConfigurationID", data.ShortMessageProviderConfiguration.ID);
+				sqlCmd.Parameters.AddWithValue("@Name", data.Name).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NText;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smp", "insert", "noprimarykey"), "ShortMessageProvider could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ShortMessageProvider", "Exception while inserting ShortMessageProvider object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smp", "insert", "exception"), "ShortMessageProvider could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ShortMessageProvider", "Exception while inserting ShortMessageProvider object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ShortMessageProvider data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ShortMessageProvider] SET " +
+												"[ShortMessageProviderTypeID] = @ShortMessageProviderTypeID, " + 
+												"[ShortMessageProviderConfigurationID] = @ShortMessageProviderConfigurationID, " + 
+												"[Name] = @Name, " + 
+												"[Description] = @Description, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ShortMessageProviderID] = @ShortMessageProviderID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ShortMessageProviderTypeID", data.ShortMessageProviderType.ID);
+				sqlCmd.Parameters.AddWithValue("@ShortMessageProviderConfigurationID", data.ShortMessageProviderConfiguration.ID);
+				sqlCmd.Parameters.AddWithValue("@Name", data.Name).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ShortMessageProviderID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smp", "update", "norecord"), "ShortMessageProvider could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ShortMessageProvider", "Exception while updating ShortMessageProvider object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smp", "update", "morerecords"), "ShortMessageProvider was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ShortMessageProvider", "Exception while updating ShortMessageProvider object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smp", "update", "exception"), "ShortMessageProvider could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ShortMessageProvider", "Exception while updating ShortMessageProvider object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ShortMessageProvider data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ShortMessageProvider] WHERE ShortMessageProviderID = @ShortMessageProviderID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ShortMessageProviderID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smp", "delete", "norecord"), "ShortMessageProvider could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ShortMessageProvider", "Exception while deleting ShortMessageProvider object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smp", "delete", "exception"), "ShortMessageProvider could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ShortMessageProvider", "Exception while deleting ShortMessageProvider object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

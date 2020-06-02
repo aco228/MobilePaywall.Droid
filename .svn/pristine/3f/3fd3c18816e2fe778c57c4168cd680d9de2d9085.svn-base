@@ -1,0 +1,53 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Direct;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.GeoLocation
+{
+  public class GeoResult
+  {
+		private MobileOperator _mobileOperator = null;
+
+    public string Country { get; set; } = string.Empty;
+    public string CountryName { get; set; } = string.Empty;
+
+    public string MCC { get; set; } = null;
+    public string MNC { get; set; } = null;
+
+    public string DeviceType { get; set; } = string.Empty;
+    public string HardwareVendor { get; set; } = string.Empty;
+    public string HardwareName { get; set; } = string.Empty;
+
+		public MobileOperator MobileOperator
+		{
+			get
+			{
+				if (this._mobileOperator != null)
+					return this._mobileOperator;
+
+				if (string.IsNullOrEmpty(this.MNC) || string.IsNullOrEmpty(this.MCC))
+					return null;
+
+				int _mnc, _mcc;
+				if (!int.TryParse(this.MCC, out _mcc) || !int.TryParse(this.MNC, out _mnc))
+					return null;
+
+				int? mnoID = MobilePaywallDirect.Instance.LoadInt(string.Format(
+					@"SELECT MobileOperatorID FROM MobilePaywall.core.MobileOperator AS mno
+						LEFT OUTER JOIN MobilePaywall.core.MobileOperatorCode AS mcc ON mcc.MobileOperatorID=mno.MobileOperatorID
+							WHERE mcc.MCC={0} AND mcc.MNC={1}", _mcc, _mnc));
+
+				if (!mnoID.HasValue)
+					return null;
+
+				this._mobileOperator = MobileOperator.CreateManager().Load(mnoID.Value);
+				return this._mobileOperator;
+			}
+		}
+
+  }
+}

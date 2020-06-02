@@ -1,0 +1,106 @@
+﻿using MobilePaywall.Data;
+using Senti.Diagnostics.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web
+{
+  public class GreeceUserSession : QuizDefaultUserSession
+  {
+
+    public enum CustomerStorageKeys
+    {
+      Pin,
+      PinConfirmed,
+      LastQuizFinishedDate,
+      SmsID,
+      SubscriptionRequestID,
+      IsLPFlow,
+
+      // Session keys 
+      WindMsisdn,
+      IsMsisdnLPHandled
+    }
+
+    private string _generatedPin = string.Empty;
+    
+    // SUMMARY: Get Pin, but dont generate it if he is not generated
+    public string CurrentGeneratedPin
+    {
+      get
+      {
+        if (!string.IsNullOrEmpty(this._generatedPin))
+        return this._generatedPin;
+        this._generatedPin = this.SessionData.Customer.Storage.GetString(GreeceUserSession.CustomerStorageKeys.Pin.ToString());
+        return this._generatedPin;
+      }
+    }
+
+    public GreeceUserSession(IService service, UserSession session)
+      :base(service, session)
+    { }
+    
+    // SUMMARY: Greek specific, generate sms content
+    public string GetPinSmsMessage()
+    {
+      return string.Format("ΚΩΔΙΚΟΣ PIN: {0} ΠΑΡΟΧΟΣ:DIMOCΟ.ΤΗΛΕΦΩΝΟ: 2103009942. ΧΡΕΩΣΗ:2.08ΕΥΡΩx3SMS=6.24ΕΥΡΩ/ΕΒΔ. ΣΥΝ TYXON ΤΕΛΗ ΚΙΝΗΤΗΣ. ΔΙΑΓΩΝΙΣΤΙΚΗ ΣΥΝΔΡΟΜΗΤΙΚΗ ΥΠΗΡΕΣΙΑ SHOPVOUCHER.MOBI.", 
+        this.CurrentGeneratedPin);
+    }
+
+    // SUMMARY: Greek specific, generate welcome message after ge enters correctly pin
+    public string GetWelcomeMessage(ServiceConfigurationEntry sce)
+    {
+      return string.Format("ΕΙΣΑΙ ΜΕΛΟΣ ΣΤΗ ΣΥΝΔΡΟΜΗΤΙΚΗ ΥΠΗΡΕΣΙΑ SHOPVOUCHERS.MOBI. DIMOCO ΤΗΛ:2103009942 ΧΡΕΩΣΗ:2.08ΕΥΡΩx3SMS= 6.24ΕΥΡΩ/ΕΒΔ. ΔΙΑΓΡΑΦΗ: {0} STOP ΣΤΟ {1}",
+        sce.Keyword,
+        sce.Shortcode);
+    }
+
+
+    // SUMMARY: Is 7 days passed from last quiz taken
+    public override bool HasAccessToQuiz()
+    {
+      if (this.SessionData.Customer == null)
+        return false;
+
+      bool? isFromLandingPage = this.SessionData.Customer.Storage.GetBool(GreeceUserSession.CustomerStorageKeys.IsLPFlow.ToString());
+      if (isFromLandingPage.HasValue && isFromLandingPage.Value)
+        return true;
+
+      bool? hasConfirmedPin = this.SessionData.Customer.Storage.GetBool(GreeceUserSession.CustomerStorageKeys.PinConfirmed.ToString());
+      if (!hasConfirmedPin.HasValue || !hasConfirmedPin.Value)
+        return false;
+
+      DateTime? dt = this.SessionData.Customer.Storage.GetDate(GreeceUserSession.CustomerStorageKeys.LastQuizFinishedDate.ToString());
+      
+      if (!dt.HasValue) 
+        return true;
+
+      if(DateTime.Now.Subtract(dt.Value).Days > 7)
+        return true;
+
+      return false;
+    }
+
+    public override void OnLastQuestion()
+    {
+      if (this.SessionData.Customer == null)
+        return;
+      this.SessionData.Customer.Storage.PutDate(GreeceUserSession.CustomerStorageKeys.LastQuizFinishedDate.ToString(), DateTime.Now);
+    }
+    
+    // SUMMARY: Create new PIN code for this customer
+    public void GenerateNewPin()
+    {
+      if (this.SessionData.Customer == null)
+        throw new Exception("Customer is null.. This must not happen");
+
+      this._generatedPin = (new Random()).Next(1000, 9999).ToString();
+      this.SessionData.Customer.Storage.PutString(GreeceUserSession.CustomerStorageKeys.Pin.ToString(), this._generatedPin);
+      this.SessionData.Customer.Storage.PutBool(GreeceUserSession.CustomerStorageKeys.PinConfirmed.ToString(), false);
+    }
+
+  }
+}

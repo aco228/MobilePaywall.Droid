@@ -1,0 +1,164 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Web.Http;
+
+using MobilePaywall.Data;
+using MobilePaywall.Web.Models;
+using System.Threading;
+
+using Senti.Diagnostics.Log;
+
+using log4net;
+using MobilePaywall.MobilePaywallDirect;
+using Direct.Core;
+
+namespace MobilePaywall.Web.Controllers
+{
+  public class CallbackController : ApiController
+	{
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (CallbackController._log == null)
+          CallbackController._log = LogManager.GetLogger(typeof(CallbackController));
+        return CallbackController._log;
+      }
+    }
+    #endregion
+
+		[HttpPost]
+    public CallbackResultModel Lookup(string callback)
+    {
+      Guid callbackGuid = Guid.Empty;
+      if (!Guid.TryParseExact(callback, "D", out callbackGuid))
+      {
+        //if (Log.IsWarnEnabled)
+        //  Log.Warn(new LogMessageBuilder(
+        //    new LogErrorCode("paywall.web", "callback", "payment"),
+        //      "Invalid callback ID", callback));
+      }
+
+      LookupMsisdnCallback lookupCallback = LookupMsisdnCallback.CreateManager(2).Load(callbackGuid);
+
+      bool isCompleted = (callback == null) ? false : lookupCallback.IsCompleted;
+      string requestUrl = (callback == null) ? string.Empty : lookupCallback.LookupSession.LookupUrl;
+
+      return new CallbackResultModel()
+      {
+        IsCompleted = isCompleted,
+        RequestUrl = requestUrl
+      };
+    }
+
+		[HttpPost]
+    public CallbackResultModel Query(string callback)
+    {
+      Guid callbackGuid = Guid.Empty;
+      if (!Guid.TryParseExact(callback, "D", out callbackGuid))
+      {
+        //if (Log.IsWarnEnabled)
+        //  Log.Warn(new LogMessageBuilder(
+        //    new LogErrorCode("paywall.web", "callback", "payment"),
+        //      "Invalid callback ID", callback));
+      }
+
+      QueryIdentificationCallback queryCallback = QueryIdentificationCallback.CreateManager(2).Load(callbackGuid);
+      
+      bool isCompleted = (callback == null) ? false : queryCallback.IsCompleted;
+      string requestUrl = (callback == null) ? string.Empty : queryCallback.LookupSession.UserHttpRequest.RequestedUrl;
+
+      return new CallbackResultModel()
+      {
+        CallbackGuid = callbackGuid,
+        IsCompleted = isCompleted,
+        RequestUrl = requestUrl
+      };
+    }
+
+		[HttpPost]
+    public CallbackResultModel Initiate(string callback)
+    {
+      Guid callbackGuid = Guid.Empty;
+      if (!Guid.TryParseExact(callback, "D", out callbackGuid))
+      {
+        Log.Warn(new LogMessageBuilder(
+          new LogErrorCode("paywall.web", "callback", "payment"),
+            "Invalid callback ID", callback));
+      }
+
+      PaywallDirect db = PaywallDirect.Instance;
+      DirectContainer result = db.LoadContainer(string.Format(@"
+        SELECT InitiateCallbackID, IsCompleted FROM MobilePaywall.async.InitiateCallback AS callback
+        WHERE callback.InitiateCallbackGuid='{0}';", callback));
+
+      if (!result.HasValue || result.GetString("IsCompleted").Equals("0"))
+        return new CallbackResultModel() { CallbackGuid = callbackGuid, IsCompleted = false, RequestUrl = "" };
+
+      string redirectUrl = db.LoadString(string.Format(@"
+        SELECT pr.PaymentRedirectUrl FROM MobilePaywall.core.PaymentRequest AS pr
+        LEFT OUTER JOIN MobilePaywall.async.InitiateCallback AS callback ON callback.PaymentRequestID=pr.PaymentRequestID
+        WHERE callback.InitiateCallbackID={0}", result.GetString("InitiateCallbackID")));
+      
+      if (string.IsNullOrEmpty(redirectUrl))
+        return new CallbackResultModel() { CallbackGuid = callbackGuid, IsCompleted = false, RequestUrl = "" };
+
+      //InitiateCallback initiateCallback = InitiateCallback.CreateManager(2).Load(callbackGuid);
+      //bool isCompleted = (initiateCallback == null) ? false : initiateCallback.IsCompleted;
+      //string requestUrl = (initiateCallback == null || initiateCallback.PaymentRequest == null) ? string.Empty : initiateCallback.PaymentRequest.PaymentRedirectUrl;
+
+      return new CallbackResultModel()
+        { CallbackGuid = callbackGuid, IsCompleted = true, RequestUrl = redirectUrl };
+    }
+
+    [HttpPost]
+    public CallbackResultModel Payment(string callback)
+    {
+      try
+      {
+        Guid callbackGuid = Guid.Empty;
+        if (!Guid.TryParseExact(callback, "D", out callbackGuid))
+        {
+          Log.Warn(new LogMessageBuilder(
+            new LogErrorCode("paywall.web", "callback", "payment"),
+              "Invalid callback ID", callback));
+
+          return new CallbackResultModel() { CallbackGuid = callbackGuid, IsCompleted = false, RequestUrl = string.Empty };
+        }
+
+        PaywallDirect db = PaywallDirect.Instance;
+        DirectContainer result = db.LoadContainer(string.Format(@"
+          SELECT PaymentCallbackID, IsCompleted FROM MobilePaywall.async.PaymentCallback AS callback
+          WHERE callback.PaymentCallbackGuid='{0}';", callbackGuid));
+
+        if(!result.HasValue || result.GetString("IsCompleted").Equals("0"))
+          return new CallbackResultModel() { CallbackGuid = callbackGuid, IsCompleted = false, RequestUrl = "" };
+
+        string redirectUrl = db.LoadString(string.Format(@"
+          SELECT uhr.RequestedUrl FROM MobilePaywall.core.UserHttpRequest AS uhr
+          LEFT OUTER JOIN MobilePaywall.core.PaymentRequest AS pr ON pr.UserHttpRequestID=uhr.UserHttpRequestID
+          LEFT OUTER JOIN MobilePaywall.async.PaymentCallback AS callback ON callback.PaymentRequestID=pr.PaymentRequestID
+          WHERE callback.PaymentCallbackID={0};", result.GetString("PaymentCallbackID")));
+
+        if(string.IsNullOrEmpty(redirectUrl))
+          return new CallbackResultModel() { CallbackGuid = callbackGuid, IsCompleted = false, RequestUrl = "" };
+        
+        return new CallbackResultModel()
+          { CallbackGuid = callbackGuid, IsCompleted = true, RequestUrl = redirectUrl };
+      }
+      catch(Exception e)
+      {
+        return new CallbackResultModel()
+          { CallbackGuid = Guid.Empty, IsCompleted = false, RequestUrl = "", Fatal = e.Message };
+      }
+    }
+
+  }  
+
+}

@@ -1,0 +1,89 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using MobilePaywall.Data;
+using Senti.Diagnostics.Log;
+
+namespace MobilePaywall.Implementation.Cache
+{
+  public class WebCacheUnOptimized : CacheBase
+  {
+
+    public WebCacheUnOptimized() 
+      : base()
+    { }
+
+    public WebCacheUnOptimized(Data.Application application) : base(application)
+    { }
+
+    protected override void LoadGroups()
+    {
+      List<ContentGroup> groups = null;
+      if (this._applicationData == null)
+        groups = (from cg in ContentGroup.LoadAll() where cg.IsEnabled select cg).ToList();
+      else
+        groups = (from scg in ServiceContentGroupMap.LoadByApplication(this.ApplicationData) where scg.ContentGroup.IsEnabled select scg.ContentGroup).ToList();
+
+      if (groups == null)
+        Log.Debug(new LogMessageBuilder(new LogErrorCode("paywall.core", "cache", "groups"), "Groups was not loaded.", this.ApplicationData));
+
+      this._groups = new List<IContentGroup>();
+      foreach (ContentGroup group in groups)
+        this._groups.Add(group.Instantiate());
+    }
+
+    protected override void LoadItems()
+    {
+      if (this._groups == null)
+        return;
+
+      this._items = new List<IContent>();
+      this._contentMap = new SortedDictionary<int, IContent>();
+
+      foreach (IContentGroup group in this._groups)
+      {
+        List<IContent> items = group.LoadContent();
+        this._items.AddRange(items);
+        foreach (IContent item in items)
+        {
+          if (!this._contentMap.ContainsKey(item.ContentData.ID))
+            this._contentMap.Add(item.ContentData.ID, item);
+        }
+      }
+    }
+
+    protected override void LoadThumbnails()
+    {
+      if (this._thumbnails == null)
+      {
+        lock (CacheLockObject)
+        {
+          this._thumbnails = new SortedDictionary<ThumbnailKey, ContentThumbnailData>();
+          this._contentThumbnailMap = new SortedDictionary<int, List<ContentThumbnailData>>();
+          List<ContentThumbnailData> contentThumbnailDataList = null;
+
+          if (this._applicationData == null)
+            contentThumbnailDataList = ContentThumbnailData.LoadAll();
+          else
+            contentThumbnailDataList = ContentThumbnailData.LoadByApplication(this._applicationData);
+
+          foreach (ContentThumbnailData thumbnail in contentThumbnailDataList)
+          {
+            ThumbnailKey key = new ThumbnailKey(thumbnail.ContentThumbnail.Content.ID, thumbnail.ContentThumbnail.ID, thumbnail.ThumbnailConversionProfileEntry.ID);
+            if (this._thumbnails.ContainsKey(key))
+              continue;
+
+            this._thumbnails.Add(key, thumbnail);
+            if (!this._contentThumbnailMap.ContainsKey(thumbnail.ContentThumbnail.Content.ID))
+              this._contentThumbnailMap.Add(thumbnail.ContentThumbnail.Content.ID, new List<ContentThumbnailData>());
+
+            this._contentThumbnailMap[thumbnail.ContentThumbnail.Content.ID].Add(thumbnail);
+          }
+        }
+      }
+    }
+    
+  }
+}

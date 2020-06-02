@@ -1,0 +1,131 @@
+﻿@{
+  Layout = "~/Views/Template/_Layout/_Layout.cshtml";
+  List<MobileOperator> _operators = MobileOperator.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData.FallbackCountry);
+  List<Country> _countries = Country.CreateManager().Load();
+}
+
+<div class="md-card" id="serviceConfiguration">
+  <div class="md-card-content">
+    <h3 class="heading_a">Mobile operator simulation</h3>
+
+    <div class="uk-grid" data-uk-grid-margin="">
+      <div style="width:500px;">
+        <label for="settings_time_format" class="uk-form-label">Mobile operator</label>
+        <select id="selectServiceStatus" name="settings_time_format" data-md-selectize>
+          <option value="-1">NULL</option>
+          @foreach (MobileOperator _operator in _operators)
+          {
+            if (!_operator.ExternalMobileOperatorID.HasValue) { continue; }
+            string selected = (PaywallHttpContext.Current.Session.SessionData.MobileOperator != null && PaywallHttpContext.Current.Session.SessionData.MobileOperator.ID == _operator.ID) ? "selected=\"selected\"" : "";
+            <option value="@_operator.ID" @selected> @_operator.Name</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <div class="uk-grid">
+      <div class="uk-width-medium-1-6">
+        <a class="md-btn md-btn-flat md-btn-flat-primary" href="#" id="btnUpdateMobileOperator" inuse="false">Update</a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="md-card" id="serviceConfiguration">
+  <div class="md-card-content">
+    <h3 class="heading_a">Country simulation</h3>
+
+    <input hidden type="text" id="countryone" value="@PaywallHttpContext.Current.Session.Country.ID" />
+    <input hidden type="text" id="countrytwo" value="@PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.ID" />
+    <div class="uk-grid" data-uk-grid-margin="">
+      <div style="width:500px;">
+        <label for="settings_time_format" class="uk-form-label">Country</label>
+        <select id="selectServiceCountry" name="settings_time_format" data-md-selectize>
+          <option value="-1">NULL</option>
+          <option value="@PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.ID">@PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.GlobalName</option>
+          <option selected value="@PaywallHttpContext.Current.Session.SessionData.Country.ID">@PaywallHttpContext.Current.Session.SessionData.Country.GlobalName</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="uk-grid">
+      <div class="uk-width-medium-1-6">
+        <a class="md-btn md-btn-flat md-btn-flat-primary" href="#" id="btnUpdateCountry" inuse="false">Update</a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  
+ 
+  var currentStatus = '@PaywallHttpContext.Current.Service.ServiceData.ServiceStatus.ToString()';
+
+  document.addEventListener("DOMContentLoaded", function () {
+    var countryone = $('#countryone').val();
+    var countrytwo = $('#countrytwo').val();
+    if (countryone == countrytwo) {
+      $('#selectServiceCountry').append('<option selected value="182">Serbia</option>');
+    }
+    onUpdateServiceStatus();
+    onUpdateServiceCountry();
+    onUpdatePayment();
+  });
+
+
+
+
+  function onUpdateServiceStatus(){
+    $('#btnUpdateMobileOperator').click(function () {
+      if ($(this).attr('inuse') == 'true') return;
+
+      var btn = $(this);
+      var parent = btn.closest('#serviceConfiguration');
+    
+      visual.Confirm('Are you sure you want to make this change?', 'Yes', 'No', function () {
+        var mobileOperator = parent.find('#selectServiceStatus').find('option[selected=selected]').attr('value');
+        
+        var tmplText = btn.text();
+        btn.attr('inuse', 'true');
+        btn.text('...');
+
+        template.call('ApiOperatorSimulation', { mobileOperator: mobileOperator }, function (response) {
+          btn.attr('inuse', 'false');
+          btn.text(tmplText);
+          visual.Alert(response.message);
+        });
+
+      });
+    });
+  }
+
+
+
+  function onUpdateServiceCountry() {
+    $('#btnUpdateCountry').click(function () {
+      if ($(this).attr('inuse') == 'true') return;
+
+      var btn = $(this);
+      var parent = btn.closest('#serviceConfiguration');
+
+      visual.Confirm('Are you sure you want to make this change?', 'Yes', 'No', function () {
+
+        var country = parent.find('#selectServiceCountry').find(":selected").attr('value');
+        var tmplText = btn.text();
+        btn.attr('inuse', 'true');
+        btn.text('...');
+
+        template.call('ApiCountrySimulation', { country: country }, function (response) {
+          btn.attr('inuse', 'false');
+          btn.text(tmplText);
+          visual.Alert(response.message);
+        });
+
+      });
+    });
+  }
+
+
+</script>

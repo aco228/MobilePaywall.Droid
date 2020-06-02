@@ -1,0 +1,44 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class PublishSessionManager : IPublishSessionManager
+  {
+
+    public List<PublishSession> Load(Application app)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, app);
+    }
+
+    public List<PublishSession> Load(IConnectionInfo connection, Application app)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, app);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, app);
+    }
+
+    public List<PublishSession> Load(ISqlConnectionInfo connection, Application app)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[ps].ApplicationID=@ApplicationID";
+      parameters.OrderBy = "[ps].Created DESC";
+      parameters.Arguments.Add("ApplicationID", app.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+  }
+}
+

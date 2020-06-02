@@ -1,0 +1,77 @@
+﻿using Cashflow.Message.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+
+namespace MobilePaywall.Web.Models
+{
+  public class PaymentsViewModel : PaywallViewModelBase
+  {
+    private List<Subscription> _subscriptions = null;
+    private List<Purchase> _purchases = null;
+    private List<Data.Payment> _payments = null;
+    private List<Subscription> _activeSubscriptions = null;
+    private List<Subscription> _inactiveSubscriptions = null;
+
+    public List<Subscription> Subscriptions { get { return _subscriptions; } private set { _subscriptions = value; } }
+    public List<Purchase> Purchases { get { return this._purchases; } private set { this._purchases = value; } }
+    public List<Data.Payment> Payments { get { return this._payments; } private set { this._payments = value; } }
+    public List<Subscription> ActiveSubscriptions { get { return this._activeSubscriptions; } private set { this._activeSubscriptions = value; } }
+    public List<Subscription> InactiveSubscriptions { get { return this._inactiveSubscriptions; } private set { this._inactiveSubscriptions = value; } }
+
+    public string ActiveSubscription
+    {
+      get
+      {
+        if (this._activeSubscriptions != null && this._activeSubscriptions.Count > 0 && this._activeSubscriptions.FirstOrDefault() != null && this._activeSubscriptions.FirstOrDefault().SubscriptionID != null)
+          return this._activeSubscriptions.FirstOrDefault().SubscriptionID.ToString();
+        return "#";
+      }
+    }
+
+    public string Link
+    {
+      get
+      {
+        string guid = "";
+
+        if(this.TemplateMode)
+          return "/template/NotificationCancelSuccess";
+        else
+          guid = this._activeSubscriptions.ElementAt(0).SubscriptionID.ToString();
+        return string.Format("/action/cancel?paymentGuidParam={0}", guid);
+      }
+    }
+
+    public bool TemplatePayment
+    {
+      get
+      {
+        if (this.Context.HttpContext.Request.QueryString["p"] == null)
+          return true;
+        return this.Context.HttpContext.Request.QueryString["p"].ToString().Equals("false") ? false : true;
+      }
+    }
+
+    
+    
+    public PaymentsViewModel(PaywallHttpContext context, List<Subscription> subscriptions, List<Purchase> purchases, List<Data.Payment> payments)
+      : base(context)
+    {
+      this._subscriptions = subscriptions;
+      this._purchases = purchases;
+      this._payments = payments;
+      this.FilterSubscriptions();
+    }
+
+    private void FilterSubscriptions()
+    {
+      if (this._subscriptions == null)
+        return;
+
+      this._activeSubscriptions = (from s in this._subscriptions where s.Status == SubscriptionStatus.Active select s).ToList();
+      this._inactiveSubscriptions = (from s in this._subscriptions where s.Status == SubscriptionStatus.Cancelled select s).ToList();
+    }
+  }
+}

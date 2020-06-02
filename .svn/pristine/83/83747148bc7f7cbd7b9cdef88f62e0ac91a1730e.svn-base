@@ -1,0 +1,109 @@
+﻿using System;
+using System.IO;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Senti.Localization.Extra;
+using Senti.Localization;
+using Senti.Data;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+using MobilePaywall.Localization;
+
+namespace MobilePaywall.Localizator
+{
+	class Program
+	{
+		static void Main(string[] args)
+		{
+			Database dummy = null;
+			DataLayerRuntime runtime = new DataLayerRuntime();
+
+			Program p = new Program();
+
+      p.GenerateCode(@"C:\Users\mpe\Desktop\translation");
+
+      //p.GenerateCSV(@"C:\Users\mpe\Desktop");
+
+      //p.ReadCSVAndUpdateSource(@"C:\Users\mpe\Desktop");
+
+
+			Console.WriteLine("Done!");
+			Console.ReadKey();
+		}
+
+		protected void GenerateCode(string path)
+		{
+			List<Translation> translations = new List<Translation>();
+
+			Data.ILocalizationManager lManager = Data.Localization.CreateManager();
+			List<Data.Localization> localizations = lManager.Load();
+			foreach (Data.Localization localization in localizations)
+			{
+				Translation translation = (from t in translations where t.ID == localization.Translation.ID select t).FirstOrDefault();
+				if (translation != null)
+					continue;
+				translations.Add(localization.Translation);
+
+				PaywallLocalizationProvider provider = new PaywallLocalizationProvider(localization.Translation);
+				LocalizationCodeGenerator generator = new LocalizationCodeGenerator();
+				LocalizationCodeOutputSettings settings = new LocalizationCodeOutputSettings() { OutputDirectory = path };
+
+				generator.Generate(provider, "MobilePaywall.Localization", settings, localization.Translation.Name);
+			}		
+		}
+
+		protected void GenerateCSV(string path)
+		{
+			DirectoryInfo directory = new DirectoryInfo(path);
+			
+			List<Translation> translations = new List<Translation>();
+			Data.ILocalizationManager lManager = Data.Localization.CreateManager();
+			List<Data.Localization> localizations = lManager.Load();
+			foreach (Data.Localization localization in localizations)
+			{
+				Translation translation = (from t in translations where t.ID == localization.Translation.ID select t).FirstOrDefault();
+				if (translation != null)
+					continue;
+				translations.Add(localization.Translation);
+
+				PaywallLocalizationProvider provider = new PaywallLocalizationProvider(localization);
+				LocalizationSerializer serializer = new LocalizationSerializer();
+				PaywallLocalizationKeyDescriptor keyDescriptor = new PaywallLocalizationKeyDescriptor();
+
+				serializer.Serialize(provider, directory.FullName, keyDescriptor);
+			}		
+			
+			return;
+		}
+
+		protected void ReadCSVAndUpdateSource(string path)
+		{
+			DirectoryInfo directory = new DirectoryInfo(path);
+			string[] csvFiles = (from FileInfo file in directory.GetFiles("*.csv")
+													 select file.FullName).ToArray();
+
+			List<Translation> translations = new List<Translation>();
+			Data.ILocalizationManager lManager = Data.Localization.CreateManager();
+			List<Data.Localization> localizations = lManager.Load();
+			foreach (Data.Localization localization in localizations)
+			{
+				Translation translation = (from t in translations where t.ID == localization.Translation.ID select t).FirstOrDefault();
+				if (translation != null)
+					continue;
+
+				translations.Add(localization.Translation);
+
+				PaywallLocalizationProvider provider = new PaywallLocalizationProvider(localization);
+				LocalizationSerializer serializer = new LocalizationSerializer();
+				PaywallLocalizationKeyDescriptor keyDescriptor = new PaywallLocalizationKeyDescriptor();
+
+				IEnumerable<LocalizedContent> localizedContent = serializer.Deserialize(provider, csvFiles, keyDescriptor);
+				provider.UpdateSource(localizedContent);
+			}		
+			return;
+		}
+	}
+}

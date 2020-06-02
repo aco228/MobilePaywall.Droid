@@ -1,0 +1,70 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+
+using MobilePaywall.Data;
+
+using Cashflow.Client;
+using Cashflow.Message;
+
+namespace MobilePaywall
+{
+  public class SubscriptionNotificationContext
+  {
+    public PaymentRequest PaymentRequest { get; set; }
+    public MobilePaywall.Data.Service Service { get; set; }
+    public Customer Customer { get; set; }
+    public UserSession Session { get; set; }
+  }
+
+  public class MobileNotificationContext
+  {
+    /*
+
+    ContentAccessPolicy
+    + TemporarySetupAccessMode -> None, OnPending, OnSuccess, ...
+    + TemporaryAccessInSeconds -> 123456 (nullable)
+
+    PaymentResult
+      PaymentResultID
+      PaymentRequestID -> not nullable
+      IsOriginalPayment -> null if no response yet, true if the payment below belongs to the payment request id, false if the payment is payment which has been done before.
+      PaymentID -> null if no response yet, otherwise the payment which resulted from this payment flow (either belonging to original or old payment request)
+      ValidTo -> until when polling should be done?
+
+    1. Create entry for the payment request for which we're waiting. Insert PaymentRequestID, PaymentID stays null
+    2. Poll PaymentResult table until timeout OR PaymentID != null
+    3. Load Payment by PaymentID, load Customer and PaymentRequest using this payment, compare to current user session (customer)
+    4. If customer is different, assign customer to session.
+
+    */
+  }
+
+  public class PaywallCashflowNotificationHandlerBase : NotificationHandlerBase
+  {
+    protected override void ProcessSetupSubscription(SetupSubscriptionNotification notification)
+    {
+      base.ProcessSetupSubscription(notification);
+      PaymentRequest paymentRequest = PaymentRequest.CreateManager().Load(notification.SubscriptionRequestID.Value, GuidType.External);
+      SubscriptionNotificationContext context = new SubscriptionNotificationContext()
+      {
+        PaymentRequest = paymentRequest,
+        Service = paymentRequest.ServiceOffer.Service,
+        Customer = paymentRequest.Customer,
+        Session = paymentRequest.LookupSession.UserSession
+      };
+
+      //List<PaywallCashflowNotificationHandlerBase> handlers = LoadAllNotificationHandlersHere();
+      //foreach (PaywallCashflowNotificationHandlerBase nh in handlers)
+      //  nh.SetupSubscription(context, notification);
+
+      this.SetupSubscription(context, notification);
+    }
+
+    protected virtual void SetupSubscription(SubscriptionNotificationContext context, SetupSubscriptionNotification notification)
+    {
+
+    }
+  }
+}

@@ -1,0 +1,287 @@
+﻿@model ServiceTask
+@{
+  ViewBag.Title = "New Service";
+  if (Model.TaskData == null && Model.TemporaryData.Service.ServiceID == null)
+  {
+    Model.TemporaryData.Domains.Add(new DomainModel());
+
+    PaymentConfigurationServiceOffersMap pcsomInitial = new PaymentConfigurationServiceOffersMap();
+    ServiceOfferModel som = new ServiceOfferModel();
+    pcsomInitial.ServiceOffers.Add(som);
+    Model.TemporaryData.PaymentConfigurationServiceOffersMaps.Add(pcsomInitial);
+
+
+    ServiceConfigurationEntryMap scemInitial = new ServiceConfigurationEntryMap();
+    scemInitial.ServiceConfigurationEntryModels.Add(new ServiceConfigurationEntryModel());
+    Model.TemporaryData.ServiceConfigurationEntryMaps.Add(scemInitial);
+
+    Model.TemporaryData.ServiceLookupMethodMaps.Add(new ServiceLookupMethodMapModel());
+
+    //setting default values
+    Model.TemporaryData.Service.ServiceTypeModel.ServiceTypeID = 1; //Default Service with default UserSession
+    Model.TemporaryData.Service.UserSessionTypeModel.UserSessionTypeID = 1; //DefaultUserSession
+    Model.TemporaryData.ContentStorages.Add(1); //Internal Database Storage
+
+    Model.TemporaryData.ServiceConfigurationEntryMaps[0].LookupMode = LookupMode.OnSessionCreated;
+    Model.TemporaryData.ServiceConfigurationEntryMaps[0].ShortMessageProviderModel.ShortMessageProviderID = 2; //Mblox - Attag
+    Model.TemporaryData.ServiceConfigurationEntryMaps[0].AgeVerificationMode = AgeVerificationMode.Intercept;
+    Model.TemporaryData.ServiceConfigurationEntryMaps[0].ServiceConfigurationEntryModels[0].AgeRatingSelectionMode = AgeRatingSelectionMode.Exact;
+    Model.TemporaryData.ServiceConfigurationEntryMaps[0].ServiceConfigurationEntryModels[0].IsPaymentEnabled = true;
+
+    Model.TemporaryData.PaymentConfigurationServiceOffersMaps[0].PaymentConfigurationModel.PaymentCredentialsModel.PaymentCredentialsID = 3; //mediamonkeys
+    Model.TemporaryData.PaymentConfigurationServiceOffersMaps[0].PaymentConfigurationModel.PaymentInterfaceModel.PaymentInterfaceID = 1; //WAP
+    Model.TemporaryData.PaymentConfigurationServiceOffersMaps[0].PaymentConfigurationModel.PaymentType = PaymentType.Subscription;
+    Model.TemporaryData.PaymentConfigurationServiceOffersMaps[0].ServiceOffers[0].ContentAccessPolicyModel.BusinessModelModel.BusinessModelID = 1; //Content Flatrate
+    Model.TemporaryData.PaymentConfigurationServiceOffersMaps[0].ServiceOffers[0].ContentAccessPolicyModel.TemporarySetupAccessMode = TemporarySetupAccessMode.OnPending;
+    Model.TemporaryData.PaymentConfigurationServiceOffersMaps[0].ServiceOffers[0].ContentAccessPolicyModel.TemporaryAccessInSeconds = 5; //in minutes. we will convert it to seconds
+    Model.TemporaryData.PaymentConfigurationServiceOffersMaps[0].PaymentConfigurationModel.BehaviorModelModel.ExternalBehaviorModelGuid = "00000000-0000-0000-0000-000000000000";
+  }
+
+  Client client = PaywallHttpContext.Current.ClientSession.Client;
+  bool isCreator = Model.TaskData == null || Model.TaskData.Creator.ID == client.ID;
+  bool isOwner = Model.TaskData == null || ((Model.TaskData.Creator.ID == client.ID && Model.TaskData.Resolver == null) || (Model.TaskData.Resolver != null && Model.TaskData.Resolver.ID == client.ID)) && Model.TaskData.TaskStatus != TaskStatus.Waiting;
+  TaskStatus taskStatus = Model.TaskData != null ? Model.TaskData.TaskStatus : TaskStatus.Incomplete;
+  string taskID = Model.TaskData != null ? Model.TaskData.ID.ToString() : "-1";
+  bool addingNewMerchant = !Model.TemporaryData.Service.MerchantModel.MerchantID.HasValue && !string.IsNullOrEmpty(Model.TemporaryData.NewMerchant.Name);
+  bool isAdministrator = client.ClientType.Name.Equals("Administrator");
+}
+
+<!-- BEGIN PAGE HEADER-->
+<div class="page-bar">
+  <ul class="page-breadcrumb">
+    <li>
+      <i class="icon-settings"></i>
+      <a href="#">@ViewBag.Title</a>
+    </li>
+  </ul>
+</div>
+<!-- END PAGE HEADER-->
+<!-- BEGIN PAGE CONTENT-->
+
+<div class="row">
+  <div class="col-md-12">
+    <div class="portlet light bordered" id="configure_service_simple">
+      <div class="portlet-title">
+        <div class="caption font-blue">
+          <i class="icon-pencil font-blue"></i>
+          <span class="caption-subject bold uppercase"> Request New Service</span>
+        </div>
+      </div>
+      <div class="portlet-body form">
+        @using (Html.BeginRouteForm("TaskSave", FormMethod.Post, new { id = "configure_service_simple_form", @class = "form-horizontal" }))
+        {
+          <input type="hidden" id="inputTaskID" value="@taskID" />
+
+          <div class="form-body">
+
+            <div class="alert alert-danger global-error display-none">
+              @*<button class="close" data-dismiss="alert"></button>*@
+              You have some form errors. Please ensure you filled all the fields correctly.
+            </div>
+            <div class="alert alert-success display-none">
+              <button class="close" data-dismiss="alert"></button>
+              Your form validation is successful!
+            </div>
+            <div class="alert alert-danger display-none" id="merchant_error">
+              If you want to add new merchant please fill all required fields; otherwise, click 'Choose existing'
+            </div>
+            <div class="alert alert-danger display-none" id="name_error">
+              Please enter service name.
+            </div>
+
+
+            <div class="form-group form-md-line-input">
+              @*has-error*@
+              <label class="col-md-2 control-label" for="name">Name <span class="required">*</span></label>
+              <div class="col-md-8">
+                @Html.TextBoxFor(x => x.TemporaryData.Service.Name, new { @class = "form-control", id = "name" })
+                <div class="form-control-focus">
+                </div>
+              </div>
+            </div>
+
+            <div class="add-domain">
+              <button id="add_domain_btn" class="btn green tooltips" data-container="body" data-placement="top" data-original-title="Add domain"><i class="fa fa-plus"></i>@*Add domain*@</button>
+            </div>
+            @for (int domainIndex = 0; domainIndex < Model.TemporaryData.Domains.Count; domainIndex++)
+            {
+              DomainModel domain = Model.TemporaryData.Domains[domainIndex];
+              <div class="form-group form-md-line-input domain-container">
+                @Html.HiddenFor(x => x.TemporaryData.Domains[domainIndex].DomainID, new { @class = "domain-id", id = "domainID" + domainIndex })
+                <label class="col-xs-12 col-md-2 control-label" for="domain@(domainIndex)">
+                  Domain @(domainIndex == 0 ? "" : domainIndex.ToString()) <span class="required">*</span>
+                </label>
+                <div class="col-xs-10 col-md-8">
+                  @Html.TextBoxFor(x => x.TemporaryData.Domains[domainIndex].DomainName, new { @class = "form-control domain ", id = "domain" + domainIndex, Value = domain.DomainName })
+                  <div class="form-control-focus">
+                  </div>
+                </div>
+                <div class="col-xs-1 remove-domain">
+                  <button class="remove-domain-btn btn"><i class="fa fa-times"></i></button>
+                </div>
+              </div>
+            }
+
+
+            <div class="form-group form-md-line-input">
+              <label class="col-md-2 control-label" for="country">Country <span class="required">*</span></label>
+              <div class="col-md-8">
+                @Html.ListBoxFor(x => x.TemporaryData.RequestedCountries, MerchantHelper.Countries, new { @class = "form-control select2", id = "country", data_live_search = "true", data_none_selected_text = "", multiple = "multiple" })
+                <div class="form-control-focus">
+                </div>
+              </div>
+            </div>
+            <h4 class="form-section merchant-section-header font-green-haze @(!addingNewMerchant ? "hidden" : "")">New Company</h4>
+
+            <div class="form-group form-md-line-input @(addingNewMerchant ? "hidden" : "")" id="merchant_choose">
+              <div class="col-xs-1 add-new-merchant-btn">
+                <button id="add_new_merchant_btn" class="btn green tooltips" data-container="body" data-placement="top" data-original-title="Add new merchant">New</button>
+              </div>
+              <label class="control-label col-md-2">Company <span class="required">*</span></label>
+              <div class="col-md-8">
+                @Html.DropDownListFor(x => x.TemporaryData.Service.MerchantModel.MerchantID, MerchantHelper.AllowedMerchants, "", new { @class = "form-control select2", id = "merchant", data_live_search = "true" })
+              </div>
+            </div>
+
+            <div class="@(!addingNewMerchant ? "hidden" : "")" id="merchant_add">
+              <div class="choose-merchant-btn">
+                <button id="choose_merchant_btn" class="btn green tooltips" data-container="body" data-placement="top" data-original-title="Choose existing merchant">Choose existing</button>
+              </div>
+              <div class="form-group form-md-line-input">
+                <label class="control-label col-xs-offset-1 col-sm-offset-0 col-sm-3">
+                  Name <span class="required">*</span>
+                </label>
+                <div class="col-xs-offset-1 col-sm-offset-0 col-xs-10 col-sm-6">
+                  @Html.TextBoxFor(x => x.TemporaryData.NewMerchant.Name, new { @class = "form-control", id = "merchant_name" })
+                </div>
+                <div class="form-control-focus">
+                </div>
+              </div>
+              <div class="form-group form-md-line-input">
+                <label class="control-label col-xs-offset-1 col-sm-offset-0 col-sm-3">
+                  Address <span class="required">*</span>
+                </label>
+                <div class="col-xs-offset-1 col-sm-offset-0 col-xs-10 col-sm-6">
+                  @Html.TextBoxFor(x => x.TemporaryData.NewMerchant.Address, new { @class = "form-control", id = "merchant_address" })
+                </div>
+                <div class="form-control-focus">
+                </div>
+              </div>
+              <div class="form-group form-md-line-input">
+                <label class="control-label col-xs-offset-1 col-sm-offset-0 col-sm-3">
+                  Phone
+                </label>
+                <div class="col-xs-offset-1 col-sm-offset-0 col-xs-10 col-sm-6">
+                  @Html.TextBoxFor(x => x.TemporaryData.NewMerchant.Phone, new { @class = "form-control", id = "merchant_phone" })
+                </div>
+                <div class="form-control-focus">
+                </div>
+              </div>
+              <div class="form-group form-md-line-input">
+                <label class="control-label col-xs-offset-1 col-sm-offset-0 col-sm-3">
+                  E-mail <span class="required">*</span>
+                </label>
+                <div class="col-xs-offset-1 col-sm-offset-0 col-xs-10 col-sm-6">
+                  @Html.TextBoxFor(x => x.TemporaryData.NewMerchant.Email, new { @class = "form-control", type = "email", id = "merchant_email" })
+                </div>
+                <div class="form-control-focus">
+                </div>
+              </div>
+              <div class="form-group form-md-line-input">
+                <label class="control-label col-xs-offset-1 col-sm-offset-0 col-sm-3">
+                  RegistrationNo
+                </label>
+                <div class="col-xs-offset-1 col-sm-offset-0 col-xs-10 col-sm-6">
+                  @Html.TextBoxFor(x => x.TemporaryData.NewMerchant.RegistrationNo, new { @class = "form-control", id = "merchant_regno" })
+                </div>
+                <div class="form-control-focus">
+                </div>
+              </div>
+              <div class="form-group form-md-line-input">
+                <label class="control-label col-xs-offset-1 col-sm-offset-0 col-sm-3">
+                  VatNo
+                </label>
+                <div class="col-xs-offset-1 col-sm-offset-0 col-xs-10 col-sm-6">
+                  @Html.TextBoxFor(x => x.TemporaryData.NewMerchant.VatNo, new { @class = "form-control", id = "merchant_vatno" })
+                </div>
+                <div class="form-control-focus">
+                </div>
+              </div>
+            </div>
+            <h6 class="form-section merchant-section-header @(!addingNewMerchant ? "hidden" : "")"></h6>
+
+            <div class="form-group form-md-line-input">
+              <label class="col-md-2 control-label" for="payment_provider">Payment Provider</label>
+              <div class="col-md-8">
+                @{int? paymentProviderID = Model.TemporaryData.PaymentConfigurationServiceOffersMaps[0].PaymentConfigurationModel.PaymentProviderModel.PaymentProviderID;}
+                @Html.DropDownListFor(x => x.TemporaryData.PaymentConfigurationServiceOffersMaps[0].PaymentConfigurationModel.PaymentProviderModel.PaymentProviderID, MerchantHelper.PaymentProvidersSelected(paymentProviderID), "", new { @class = "form-control select2", id = "payment_provider", data_live_search = "true" })
+                <div class="form-control-focus">
+                </div>
+              </div>
+            </div>
+            <div class="form-group form-md-line-input">
+              <label class="col-md-2 control-label">Type <span class="required">*</span></label>
+              <div class="col-md-8">
+                @Html.DropDownListFor(x => x.TemporaryData.RequestedServiceType, MerchantHelper.CustomServiceTypes, "", new { @class = "form-control select2", id = "service_type", data_live_search = "true" })
+                <div class="form-control-focus">
+                </div>
+              </div>
+            </div>
+            <div class="form-group form-md-line-input">
+              <label class="col-md-2 control-label" for="price">Price (in EUR) <span class="required">*</span></label>
+              <div class="col-md-8">
+                @Html.TextBoxFor(x => x.TemporaryData.Price, new { @class = "form-control", id = "price" })
+                <div class="form-control-focus">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button id="btnCancelEdit" type="button" class="btn default">Cancel</button>
+            @
+            if (Model.TaskData != null && isOwner && Model.TaskData.TaskStatus == TaskStatus.Requested || Model.TaskData == null)
+            {
+            <button type="button" class="button-submit btn blue" action="request">Submit</button>
+            }
+            @if (isAdministrator && Model.TaskData.TaskStatus == TaskStatus.Requested)
+            {
+              <button type="button" class="decline-task btn red" data-task-id="@Model.TaskData.ID" data-action="decline">Decline</button>
+              <button type="button" class="accept-task btn green" data-task-id="@Model.TaskData.ID" data-action="accept">Accept</button>
+            }
+          </div>
+                  }
+      </div>
+    </div>
+  </div>
+</div>
+<!-- END PAGE CONTENT-->
+
+
+@section PageStyles{
+  @Styles.Render("~/pages/service-task/css")
+}
+
+@section PageScripts{
+  @Scripts.Render("~/pages/service-task-simple-form/js")
+}
+
+@section CustomScripts {
+  <script src="~/Scripts/metronic/pages/custom/service-task-simple-form.js"></script>
+  <script>
+    jQuery(document).ready(function () {
+      var clientType = '@PaywallHttpContext.Current.ClientSession.Client.ClientType.Name';
+      var taskAction = '@Model.ActionType';
+      //ComponentsPickers.init();
+      ServiceTaskForm.init(clientType, taskAction);
+      ServiceTask.init(clientType, taskAction);
+
+
+      $('#configure_service_simple .select2').select2({
+        placeholder: "",
+        allowClear: true
+      });
+
+    });
+  </script>
+}

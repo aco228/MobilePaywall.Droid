@@ -1,0 +1,146 @@
+﻿using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall
+{
+  public class Quiz : ContentBase
+  {
+    private QuizContent _quizContent = null;
+    //private List<QuizContent> _thumbnails = null;
+
+    public QuizContent QuizContent { get { return this._quizContent; } }
+    public override string ContentIconClass { get { return "__contentIcon_quiz"; } }
+    public override string DefaultTitle { get { return this._quizContent.Title; } }
+
+    public Quiz(Data.Content content)
+      :base(content)
+    {
+      this._quizContent = QuizContent.CreateManager().Load(content);
+    }
+
+    public Quiz(ICache cache, Content content, QuizContent quizContent)
+      : base(cache, content)
+    {
+      this._quizContent = quizContent;
+    }
+
+    public override bool IsDownloadable { get { return false; } }
+    public override bool IsStreamable { get { return false; } }
+
+    public override ContentInformations GetInformations(Service service, Language language)
+    {
+      QuizContentDetail detail = QuizContentDetail.LoadByServiceAndLanguage(this._quizContent, service, language);
+      if (detail != null)
+        return new ContentInformations()
+        {
+          Title = detail.Title,
+          Description = detail.Description,
+          HtmlTitle = detail.HtmlTitle,
+          MetaDescription = detail.MetaDescription,
+          MetaKeywords = detail.MetaKeywords,
+          Rating = detail.Rating.ToString()
+        };
+      else
+        return new ContentInformations()
+        {
+          Title = this._quizContent.Title,
+          Description = this._quizContent.Description
+        };
+    }
+
+    public override System.Collections.Specialized.NameValueCollection GetMetaInformation(Data.Service service, Data.Language language)
+    {
+      throw new NotImplementedException();
+    }
+
+    public override ContentData GetContentData(string userAgent) { return null; }
+    public override ContentData GetContentData(int id) { return null; }
+
+    public override string GetAccessUrl()
+    {
+      return string.Format("/quiz/?id=" + this._quizContent.Content.ID);
+    }
+
+    public override void UpdateTitle(string title, IUserSession us)
+    {
+      this._quizContent.Title = title;
+      this._quizContent.UpdateWithHistory(us);
+    }
+
+    public override void UpdateDescription(string description, IUserSession us)
+    {
+      this._quizContent.Description = description;
+      this._quizContent.UpdateWithHistory(us);
+    }
+
+    public override List<ContentInformations> GetAllContentDetail()
+    {
+      List<QuizContentDetail> vcd = QuizContentDetail.CreateManager().Load(this._quizContent);
+      List<ContentInformations> result = new List<ContentInformations>();
+
+      foreach (QuizContentDetail v in vcd)
+        result.Add(new ContentInformations()
+        {
+          ID = v.ID,
+          Title = v.Title,
+          Description = v.Description,
+          HtmlTitle = v.HtmlTitle,
+          MetaDescription = v.MetaDescription,
+          MetaKeywords = v.MetaKeywords,
+          Language = v.Language,
+          Service = v.Service,
+          Rating = v.Rating.ToString(),
+        });
+
+      return result;
+    }
+
+    public override void UpdateContentDetails(ContentInformations info, IUserSession us)
+    {
+      if (info.Language == null)
+        return;
+
+      QuizContentDetail dt = null;
+      if (info.Service != null)
+        dt = QuizContentDetail.CreateManager().Load<QuizContentDetail>(this._quizContent, info.Service, info.Language);
+      else
+        dt = QuizContentDetail.CreateManager().Load(this._quizContent, info.Language);
+
+      if (dt == null)
+      {
+        dt = new QuizContentDetail(-1, this._quizContent, null, info.Language, info.Title, info.Description, info.RatingDecimal,null, info.HtmlTitle, info.MetaDescription, info.MetaKeywords, DateTime.Now, DateTime.Now);
+        dt.InsertWithHistory(us);
+        return;
+      }
+
+      dt.Title = info.Title;
+      dt.Service = info.Service;
+      dt.Language = info.Language;
+      dt.Description = info.Description;
+      dt.Rating = info.RatingDecimal;
+      dt.MetaKeywords = info.MetaKeywords;
+      dt.MetaDescription = info.MetaDescription;
+
+      dt.UpdateWithHistory(us);
+    }
+
+    public override void DeleteContentDetails(ContentInformations info, IUserSession us)
+    {
+      if (info.Language == null)
+        return;
+
+      QuizContentDetail dt = null;
+      if (info.Service != null)
+        dt = QuizContentDetail.CreateManager().Load<QuizContentDetail>(this._quizContent, info.Service, info.Language);
+      else
+        dt = QuizContentDetail.CreateManager().Load(this._quizContent, info.Language);
+
+      if (dt != null)
+        dt.DeleteWithHistory(us);
+    }
+  }
+}

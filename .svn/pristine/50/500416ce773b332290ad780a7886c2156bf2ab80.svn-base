@@ -1,0 +1,107 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IAutomationManager 
+  {
+    Automation Load(Service service, MobileOperator mobileOperator);
+    Automation Load(IConnectionInfo connection, Service service, MobileOperator mobileOperator);
+    List<Automation> Load(Service service);
+    List<Automation> Load(IConnectionInfo connection, Service service);
+    List<Automation> Load(AutomationGroup automationGroup);
+    List<Automation> Load(IConnectionInfo connection, AutomationGroup automationGroup);
+
+  }
+
+  public partial class Automation
+  {
+
+    public void InsertWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void UpdateWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+
+    public string MobileOperatorID
+    {
+      get
+      {
+        return this._mobileOperator == null ? "-1" : _mobileOperator.ID.ToString(); 
+      }
+    }
+
+    public string MobileOperatorName
+    {
+      get
+      {
+        return this._mobileOperator == null ? "NULL" : _mobileOperator.Name;
+      }
+    }
+
+    // SUMMARY: Finish automation and goto next one
+    public void Escape()
+    {
+    }
+
+    // SUMMARY: Sort indexes of automations
+    public static void SortIndexes(AutomationGroup automationGroup)
+    {
+      List<Automation> automations = Automation.CreateManager().Load(automationGroup);
+      List<Automation> sorted = (from sa in automations where sa.Index > -1 select sa).ToList();
+      List<Automation> unsorted = (from ua in automations where ua.Index == -1 select ua).ToList();
+
+      int sortIndex = sorted.Count + 1;
+      foreach (Automation automation in unsorted)
+      {
+        automation.Index = sortIndex;
+        automation.Update();
+        sortIndex++;
+      }
+    }
+
+    // SUMMARY: Sort indexes from configuration page.. Data will be [AUTOMATION_ID]|[ORDER_ID]#[AUTOMATION_ID]|[ORDER_ID]#[AUTOMATION_ID]|[ORDER_ID]
+    public static void SortIndexes(string Data)
+    {
+      IAutomationManager aManager = Automation.CreateManager();
+      Country referenceCountry = null;
+       /*
+      using(ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        connection.Transaction.Begin();
+
+        Data = Data.Replace(" ", string.Empty);
+        string[] parts = Data.Split('#');
+        foreach (string part in parts)
+        {
+          string[] data = part.Split('|');
+          if (data.Length != 2)
+            continue;
+
+          int automationID = -1, orderID = -1;
+          if (!Int32.TryParse(data[0], out automationID) || !Int32.TryParse(data[1], out orderID))
+            continue;
+
+          Automation automation = aManager.Load(automationID);
+          if(automation == null)
+            continue;
+          if(referenceCountry == null)
+            referenceCountry = automation.Country;
+
+          automation.Index = orderID;
+          automation.Update(connection);
+        }
+
+        connection.Transaction.Commit();
+        Automation.SortIndexes(referenceCountry);
+      }
+      */
+    }
+
+
+  }
+}
+

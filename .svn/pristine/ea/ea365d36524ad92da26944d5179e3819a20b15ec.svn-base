@@ -1,0 +1,440 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(AndroidClientSession))] 
+  public partial class AndroidClientSessionManager : MobilePaywall.Data.Sql.SqlManagerBase<AndroidClientSession>, IAndroidClientSessionManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override AndroidClientSession LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							AndroidClientSessionTable.GetColumnNames("[acs]") + 
+							(this.Depth > 0 ? "," + AndroidDistributionTable.GetColumnNames("[acs_ad]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AndroidDistributionGroupTable.GetColumnNames("[acs_ad_adg]") : string.Empty) + 
+							(this.Depth > 0 ? "," + AndroidDistributionGroupTable.GetColumnNames("[acs_adg]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[acs_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[acs_c_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CurrencyTable.GetColumnNames("[acs_c_c]") : string.Empty) + 
+					" FROM [core].[AndroidClientSession] AS [acs] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidDistribution] AS [acs_ad] ON [acs].[AndroidDistributionID] = [acs_ad].[AndroidDistributionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidDistributionGroup] AS [acs_ad_adg] ON [acs_ad].[AndroidDistributionGroupID] = [acs_ad_adg].[AndroidDistributionGroupID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidDistributionGroup] AS [acs_adg] ON [acs].[AndroidDistributionGroupID] = [acs_adg].[AndroidDistributionGroupID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [acs_c] ON [acs].[CountryID] = [acs_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [acs_c_l] ON [acs_c].[LanguageID] = [acs_c_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Currency] AS [acs_c_c] ON [acs_c].[CurrencyID] = [acs_c_c].[CurrencyID] ";
+				sqlCmdText += "WHERE [acs].[AndroidClientSessionID] = @AndroidClientSessionID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AndroidClientSessionID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acs", "loadinternal", "notfound"), "AndroidClientSession could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AndroidClientSessionTable acsTable = new AndroidClientSessionTable(query);
+				AndroidDistributionTable acs_adTable = (this.Depth > 0) ? new AndroidDistributionTable(query) : null;
+				AndroidDistributionGroupTable acs_ad_adgTable = (this.Depth > 1) ? new AndroidDistributionGroupTable(query) : null;
+				AndroidDistributionGroupTable acs_adgTable = (this.Depth > 0) ? new AndroidDistributionGroupTable(query) : null;
+				CountryTable acs_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable acs_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				CurrencyTable acs_c_cTable = (this.Depth > 1) ? new CurrencyTable(query) : null;
+
+        
+				AndroidDistributionGroup acs_ad_adgObject = (this.Depth > 1) ? acs_ad_adgTable.CreateInstance() : null;
+				AndroidDistribution acs_adObject = (this.Depth > 0) ? acs_adTable.CreateInstance(acs_ad_adgObject) : null;
+				AndroidDistributionGroup acs_adgObject = (this.Depth > 0) ? acs_adgTable.CreateInstance() : null;
+				Language acs_c_lObject = (this.Depth > 1) ? acs_c_lTable.CreateInstance() : null;
+				Currency acs_c_cObject = (this.Depth > 1) ? acs_c_cTable.CreateInstance() : null;
+				Country acs_cObject = (this.Depth > 0) ? acs_cTable.CreateInstance(acs_c_lObject, acs_c_cObject) : null;
+				AndroidClientSession acsObject = acsTable.CreateInstance(acs_adObject, acs_adgObject, acs_cObject);
+				sqlReader.Close();
+
+				return acsObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acs", "loadinternal", "exception"), "AndroidClientSession could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AndroidClientSession", "Exception while loading AndroidClientSession object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public AndroidClientSession Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AndroidClientSessionTable.GetColumnNames("[acs]") + 
+							(this.Depth > 0 ? "," + AndroidDistributionTable.GetColumnNames("[acs_ad]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AndroidDistributionGroupTable.GetColumnNames("[acs_ad_adg]") : string.Empty) + 
+							(this.Depth > 0 ? "," + AndroidDistributionGroupTable.GetColumnNames("[acs_adg]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[acs_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[acs_c_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CurrencyTable.GetColumnNames("[acs_c_c]") : string.Empty) +  
+					" FROM [core].[AndroidClientSession] AS [acs] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidDistribution] AS [acs_ad] ON [acs].[AndroidDistributionID] = [acs_ad].[AndroidDistributionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidDistributionGroup] AS [acs_ad_adg] ON [acs_ad].[AndroidDistributionGroupID] = [acs_ad_adg].[AndroidDistributionGroupID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidDistributionGroup] AS [acs_adg] ON [acs].[AndroidDistributionGroupID] = [acs_adg].[AndroidDistributionGroupID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [acs_c] ON [acs].[CountryID] = [acs_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [acs_c_l] ON [acs_c].[LanguageID] = [acs_c_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Currency] AS [acs_c_c] ON [acs_c].[CurrencyID] = [acs_c_c].[CurrencyID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acs", "customload", "notfound"), "AndroidClientSession could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AndroidClientSessionTable acsTable = new AndroidClientSessionTable(query);
+				AndroidDistributionTable acs_adTable = (this.Depth > 0) ? new AndroidDistributionTable(query) : null;
+				AndroidDistributionGroupTable acs_ad_adgTable = (this.Depth > 1) ? new AndroidDistributionGroupTable(query) : null;
+				AndroidDistributionGroupTable acs_adgTable = (this.Depth > 0) ? new AndroidDistributionGroupTable(query) : null;
+				CountryTable acs_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable acs_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				CurrencyTable acs_c_cTable = (this.Depth > 1) ? new CurrencyTable(query) : null;
+
+        
+				AndroidDistributionGroup acs_ad_adgObject = (this.Depth > 1) ? acs_ad_adgTable.CreateInstance() : null;
+				AndroidDistribution acs_adObject = (this.Depth > 0) ? acs_adTable.CreateInstance(acs_ad_adgObject) : null;
+				AndroidDistributionGroup acs_adgObject = (this.Depth > 0) ? acs_adgTable.CreateInstance() : null;
+				Language acs_c_lObject = (this.Depth > 1) ? acs_c_lTable.CreateInstance() : null;
+				Currency acs_c_cObject = (this.Depth > 1) ? acs_c_cTable.CreateInstance() : null;
+				Country acs_cObject = (this.Depth > 0) ? acs_cTable.CreateInstance(acs_c_lObject, acs_c_cObject) : null;
+				AndroidClientSession acsObject = acsTable.CreateInstance(acs_adObject, acs_adgObject, acs_cObject);
+				sqlReader.Close();
+
+				return acsObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acs", "customload", "exception"), "AndroidClientSession could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AndroidClientSession", "Exception while loading (custom/single) AndroidClientSession object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<AndroidClientSession> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AndroidClientSessionTable.GetColumnNames("[acs]") + 
+							(this.Depth > 0 ? "," + AndroidDistributionTable.GetColumnNames("[acs_ad]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AndroidDistributionGroupTable.GetColumnNames("[acs_ad_adg]") : string.Empty) + 
+							(this.Depth > 0 ? "," + AndroidDistributionGroupTable.GetColumnNames("[acs_adg]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[acs_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[acs_c_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CurrencyTable.GetColumnNames("[acs_c_c]") : string.Empty) +  
+					" FROM [core].[AndroidClientSession] AS [acs] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidDistribution] AS [acs_ad] ON [acs].[AndroidDistributionID] = [acs_ad].[AndroidDistributionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidDistributionGroup] AS [acs_ad_adg] ON [acs_ad].[AndroidDistributionGroupID] = [acs_ad_adg].[AndroidDistributionGroupID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidDistributionGroup] AS [acs_adg] ON [acs].[AndroidDistributionGroupID] = [acs_adg].[AndroidDistributionGroupID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [acs_c] ON [acs].[CountryID] = [acs_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [acs_c_l] ON [acs_c].[LanguageID] = [acs_c_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Currency] AS [acs_c_c] ON [acs_c].[CurrencyID] = [acs_c_c].[CurrencyID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acs", "customloadmany", "notfound"), "AndroidClientSession list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<AndroidClientSession>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AndroidClientSessionTable acsTable = new AndroidClientSessionTable(query);
+				AndroidDistributionTable acs_adTable = (this.Depth > 0) ? new AndroidDistributionTable(query) : null;
+				AndroidDistributionGroupTable acs_ad_adgTable = (this.Depth > 1) ? new AndroidDistributionGroupTable(query) : null;
+				AndroidDistributionGroupTable acs_adgTable = (this.Depth > 0) ? new AndroidDistributionGroupTable(query) : null;
+				CountryTable acs_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable acs_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				CurrencyTable acs_c_cTable = (this.Depth > 1) ? new CurrencyTable(query) : null;
+
+        List<AndroidClientSession> result = new List<AndroidClientSession>();
+        do
+        {
+          
+					AndroidDistributionGroup acs_ad_adgObject = (this.Depth > 1) ? acs_ad_adgTable.CreateInstance() : null;
+					AndroidDistribution acs_adObject = (this.Depth > 0) ? acs_adTable.CreateInstance(acs_ad_adgObject) : null;
+					AndroidDistributionGroup acs_adgObject = (this.Depth > 0) ? acs_adgTable.CreateInstance() : null;
+					Language acs_c_lObject = (this.Depth > 1) ? acs_c_lTable.CreateInstance() : null;
+					Currency acs_c_cObject = (this.Depth > 1) ? acs_c_cTable.CreateInstance() : null;
+					Country acs_cObject = (this.Depth > 0) ? acs_cTable.CreateInstance(acs_c_lObject, acs_c_cObject) : null;
+					AndroidClientSession acsObject = (this.Depth > -1) ? acsTable.CreateInstance(acs_adObject, acs_adgObject, acs_cObject) : null;
+					result.Add(acsObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acs", "customloadmany", "exception"), "AndroidClientSession list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AndroidClientSession", "Exception while loading (custom/many) AndroidClientSession object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, AndroidClientSession data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[AndroidClientSession] ([AndroidDistributionID],[AndroidDistributionGroupID],[AndroidUniqueID],[TokenID],[CountryID],[Msisdn],[OSVersion],[VersionSDK],[Device],[Company],[Model],[Product],[FingerprintID],[Referrer],[HasSmsPermission],[LastPing]) VALUES(@AndroidDistributionID,@AndroidDistributionGroupID,@AndroidUniqueID,@TokenID,@CountryID,@Msisdn,@OSVersion,@VersionSDK,@Device,@Company,@Model,@Product,@FingerprintID,@Referrer,@HasSmsPermission,@LastPing); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@AndroidDistributionID", data.AndroidDistribution.ID);
+				sqlCmd.Parameters.AddWithValue("@AndroidDistributionGroupID", data.AndroidDistributionGroup.ID);
+				sqlCmd.Parameters.AddWithValue("@AndroidUniqueID", !string.IsNullOrEmpty(data.AndroidUniqueID) ? (object)data.AndroidUniqueID : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@TokenID", !string.IsNullOrEmpty(data.TokenID) ? (object)data.TokenID : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@CountryID", data.Country == null ? DBNull.Value : (object)data.Country.ID);
+				sqlCmd.Parameters.AddWithValue("@Msisdn", !string.IsNullOrEmpty(data.Msisdn) ? (object)data.Msisdn : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@OSVersion", !string.IsNullOrEmpty(data.OSVersion) ? (object)data.OSVersion : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@VersionSDK", !string.IsNullOrEmpty(data.VersionSDK) ? (object)data.VersionSDK : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Device", !string.IsNullOrEmpty(data.Device) ? (object)data.Device : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Company", !string.IsNullOrEmpty(data.Company) ? (object)data.Company : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Model", !string.IsNullOrEmpty(data.Model) ? (object)data.Model : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Product", !string.IsNullOrEmpty(data.Product) ? (object)data.Product : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@FingerprintID", data.FingerprintID.HasValue ? (object)data.FingerprintID : DBNull.Value);
+				sqlCmd.Parameters.AddWithValue("@Referrer", !string.IsNullOrEmpty(data.Referrer) ? (object)data.Referrer : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@HasSmsPermission", data.HasSmsPermission).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@LastPing", data.LastPing).SqlDbType = SqlDbType.DateTime2;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acs", "insert", "noprimarykey"), "AndroidClientSession could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "AndroidClientSession", "Exception while inserting AndroidClientSession object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acs", "insert", "exception"), "AndroidClientSession could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "AndroidClientSession", "Exception while inserting AndroidClientSession object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, AndroidClientSession data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[AndroidClientSession] SET " +
+												"[AndroidDistributionID] = @AndroidDistributionID, " + 
+												"[AndroidDistributionGroupID] = @AndroidDistributionGroupID, " + 
+												"[AndroidUniqueID] = @AndroidUniqueID, " + 
+												"[TokenID] = @TokenID, " + 
+												"[CountryID] = @CountryID, " + 
+												"[Msisdn] = @Msisdn, " + 
+												"[OSVersion] = @OSVersion, " + 
+												"[VersionSDK] = @VersionSDK, " + 
+												"[Device] = @Device, " + 
+												"[Company] = @Company, " + 
+												"[Model] = @Model, " + 
+												"[Product] = @Product, " + 
+												"[FingerprintID] = @FingerprintID, " + 
+												"[Referrer] = @Referrer, " + 
+												"[HasSmsPermission] = @HasSmsPermission, " + 
+												"[LastPing] = @LastPing, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [AndroidClientSessionID] = @AndroidClientSessionID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@AndroidDistributionID", data.AndroidDistribution.ID);
+				sqlCmd.Parameters.AddWithValue("@AndroidDistributionGroupID", data.AndroidDistributionGroup.ID);
+				sqlCmd.Parameters.AddWithValue("@AndroidUniqueID", !string.IsNullOrEmpty(data.AndroidUniqueID) ? (object)data.AndroidUniqueID : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@TokenID", !string.IsNullOrEmpty(data.TokenID) ? (object)data.TokenID : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@CountryID", data.Country == null ? DBNull.Value : (object)data.Country.ID);
+				sqlCmd.Parameters.AddWithValue("@Msisdn", !string.IsNullOrEmpty(data.Msisdn) ? (object)data.Msisdn : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@OSVersion", !string.IsNullOrEmpty(data.OSVersion) ? (object)data.OSVersion : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@VersionSDK", !string.IsNullOrEmpty(data.VersionSDK) ? (object)data.VersionSDK : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Device", !string.IsNullOrEmpty(data.Device) ? (object)data.Device : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Company", !string.IsNullOrEmpty(data.Company) ? (object)data.Company : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Model", !string.IsNullOrEmpty(data.Model) ? (object)data.Model : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Product", !string.IsNullOrEmpty(data.Product) ? (object)data.Product : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@FingerprintID", data.FingerprintID.HasValue ? (object)data.FingerprintID : DBNull.Value);
+				sqlCmd.Parameters.AddWithValue("@Referrer", !string.IsNullOrEmpty(data.Referrer) ? (object)data.Referrer : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@HasSmsPermission", data.HasSmsPermission).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@LastPing", data.LastPing).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@AndroidClientSessionID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acs", "update", "norecord"), "AndroidClientSession could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "AndroidClientSession", "Exception while updating AndroidClientSession object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acs", "update", "morerecords"), "AndroidClientSession was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "AndroidClientSession", "Exception while updating AndroidClientSession object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acs", "update", "exception"), "AndroidClientSession could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "AndroidClientSession", "Exception while updating AndroidClientSession object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, AndroidClientSession data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[AndroidClientSession] WHERE AndroidClientSessionID = @AndroidClientSessionID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AndroidClientSessionID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acs", "delete", "norecord"), "AndroidClientSession could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "AndroidClientSession", "Exception while deleting AndroidClientSession object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acs", "delete", "exception"), "AndroidClientSession could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "AndroidClientSession", "Exception while deleting AndroidClientSession object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

@@ -1,0 +1,210 @@
+﻿using Direct.Core;
+using MobilePaywall.MobilePaywallDirect;
+using MobilePaywall.MobilePaywallDirect.Databases;
+using MobilePaywall.Service.Callback.Code.Undercover;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Text;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Service.Callback.Controllers
+{
+  public class CCSubmitController : Controller
+  {
+
+    #region # log #
+
+    private int? _logID = -1;
+    private MobilePaywallLogDirect db = null;
+
+    private void CreateLog()
+    {
+      db = MobilePaywallLogDirect.Instance;
+      this._logID = this.db.Execute("INSERT INTO MobilePaywallLog.log.CCSubmitLog (Url) VALUES ('" + HttpContext.Request.RawUrl.ToString() + "');");
+    }
+
+    private void Log(string text)
+    {
+      if (!this._logID.HasValue)
+        return;
+      this.db.Execute("INSERT INTO MobilePaywallLog.log.CCSubmitLogData (CCSubmitLogID, Text) VALUES (" + this._logID.Value + ", '" + text + "')");
+    }
+
+    #endregion
+
+    [Route("callback")]
+    public ActionResult Index()
+    {
+      this.CreateLog();
+
+      string txid = Request["txid"] != null ? Request["txid"].ToString().ToLower() : "";
+      string iEvent = Request["event"] != null ? Request["event"].ToString().ToLower() : "";
+      string iZone = Request["zone"] != null ? Request["zone"].ToString().ToLower() : "";
+      bool _isStolen = false;
+
+      /*
+      if (Request["success"] != null && Request["success"].ToString().Equals("1"))
+        iEvent = "subscribed";
+      */
+
+      if (iEvent.Equals("initial"))
+        iEvent = "settle";
+
+      if (iEvent.Equals("subscribed"))
+      {
+        string email = Request["email"] != null ? Request["email"].ToString() : string.Empty;
+        string username = Request["username"] != null ? Request["username"].ToString() : string.Empty;
+        string password = Request["password"] != null ? Request["password"].ToString() : string.Empty;
+        if (!string.IsNullOrEmpty(email) && !string.IsNullOrEmpty(username) && !string.IsNullOrEmpty(password))
+          this.SendPostbackToSports_Subscribe(txid, username, password, email);
+
+        /*
+        string original_referrer = CCSubmitDirect.Instance.LoadString(string.Format("SELECT referrer FROM livesports.cc_client WHERE clickid='{0}' ORDER BY clientid DESC LIMIT 1;", txid));
+        this.Log("Original referrer for this click is: " + original_referrer);
+        Code.Undercover.UndercoverResult undercover = Callback.Code.Undercover.UndercoverAgent.ContinueWithReport_CC(original_referrer);
+        */
+
+        Code.Undercover.UndercoverResult undercover = CCUndercoverAgent.Init(txid);
+        if (!undercover.DontSendConversionToBananaclicks)
+        {
+          this.Log("This transaction will not be stolen and will be sent to banana");
+          this.SendPostbackToBananaclicks(txid);
+        }
+        else
+        {
+          _isStolen = true;
+          this.Log("THIS TRANSACTION WILL BE STOLEN");
+        }
+      }
+
+      if (iEvent.Equals("settle") || iEvent.Equals("initial") || iEvent.Equals("rebill") || iEvent.Equals("subscribed") || iEvent.Equals("chargeback"))
+        this.SendPostbackToSports_Callback(txid, iEvent);
+      
+      bool is_upsell = iZone.ToLower().Contains("upsell");
+      this.SendPostbackToSpots_CallbackInformation(txid, iEvent, HttpContext.Request.RawUrl.ToString(), is_upsell, _isStolen);
+      return new HttpStatusCodeResult(200);
+    }
+
+
+    public ActionResult Baza()
+    {
+      DirectContainer dc = MobilePaywallLogDirect.Instance.LoadContainer("SELECT TOP 1000 * FROM MObilePaywallLog.log.CCSubmitLog WHERE CCSubmitLogID>=11 ORDER BY CCSubmitLogID DESC;");
+      string result = "";
+
+      if (dc == null || !dc.HasValue)
+        return this.Content("Database returned NULL.");
+
+      foreach (var row in dc.Rows)
+      {
+        result += string.Format("<span style=\"color:green;display: inline-block; width:55px;\">{0}:</span>", row.GetString("CCSubmitLogID"));
+        result += string.Format("<span style=\"color:blue;display: inline-block; width:170px;\">{0}:</span>", row.GetString("Created"));
+        result += string.Format("<span style=\"\">{0}:</span>", row.GetString("Url"));
+        result += string.Format("<br>");
+      }
+
+      return this.Content(result);
+    }
+
+    private void SendPostbackToBananaclicks(string transaction_id)
+    {
+      if (string.IsNullOrEmpty(transaction_id))
+      {
+        this.Log("Transaction IS NULL so callback to banana will not be sent");
+        return;
+      }
+
+      string postbackLink = "http://conversions.bananaclicks.com/?transaction_id=" + transaction_id;
+      this.Log("BANANA: " + postbackLink);
+      HttpWebRequest webRequest = (HttpWebRequest)WebRequest.Create(postbackLink);
+      webRequest.AllowAutoRedirect = false;
+      HttpWebResponse response;
+      HttpStatusCode statusCode;
+
+      try
+      {
+        response = (HttpWebResponse)webRequest.GetResponse();
+      }
+      catch (WebException we)
+      {
+        this.Log("Banana postback returned expection: " + we.Message);
+        return;
+      }
+    }
+
+    // SEND TRANSACTION INFORMATIONS
+    private void SendPostbackToSports_Callback(string transaction_id, string type)
+    {
+      string postbackLink = "https://api-livesports.co/callback.php?lxid=" + transaction_id + "&type=" + type;
+      this.Log("TRACKING: " + postbackLink);
+      HttpWebRequest webRequest = (HttpWebRequest)WebRequest.Create(postbackLink);
+      webRequest.AllowAutoRedirect = false;
+      HttpWebResponse response;
+      HttpStatusCode statusCode;
+
+      try
+      {
+        response = (HttpWebResponse)webRequest.GetResponse();
+        this.Log("TRACKING RESPONSE: " + response.ToString());
+      }
+      catch (WebException we)
+      {
+        this.Log("FATAL:;SendPostbackToSports_Callback:: " + we.ToString());
+        return;
+      }
+    }
+
+    // SEND USERNAME AND PASSWORD
+    private void SendPostbackToSports_Subscribe(string transaction_id, string username, string password, string email)
+    {
+      string postbackLink = "https://api-livesports.co/subscribe.php?set=" + string.Format("&lxid={0}&email={1}&username={2}&password={3}", transaction_id, email, username, password);
+      this.Log("USER/PASS: " + postbackLink);
+      HttpWebRequest webRequest = (HttpWebRequest)WebRequest.Create(postbackLink);
+      webRequest.AllowAutoRedirect = false;
+      HttpWebResponse response;
+      HttpStatusCode statusCode;
+
+      try
+      {
+        response = (HttpWebResponse)webRequest.GetResponse();
+        this.Log("USER/PASS RESPONSE: " + response.ToString());
+      }
+      catch (WebException we)
+      {
+        this.Log("FATAL:;SendPostbackToSports_Subscribe:: " + we.ToString());
+        return;
+      }
+    }
+
+    // Send event name and callback url to cc so that informations can be there stored
+    private void SendPostbackToSpots_CallbackInformation(string clickid, string eventName, string callback_url, bool isUpsell, bool isStolen)
+    {
+      string postbackLink = "https://api-livesports.co/callback_for_postbacks.php?clickid=" + clickid +
+        "&event_name=" + eventName +
+        "&callback_url=" + System.Net.WebUtility.UrlEncode(callback_url) +
+        "&upsell=" + (isUpsell ? 1 : 0) +
+        "&isstolen=" + (isStolen ? 1 : 0);
+
+      this.Log("TRACKING: " + postbackLink);
+      HttpWebRequest webRequest = (HttpWebRequest)WebRequest.Create(postbackLink);
+      webRequest.AllowAutoRedirect = false;
+      HttpWebResponse response;
+      HttpStatusCode statusCode;
+
+      try
+      {
+        response = (HttpWebResponse)webRequest.GetResponse();
+        this.Log("TRACKING RESPONSE: " + response.ToString());
+      }
+      catch (WebException we)
+      {
+        this.Log("FATAL:;SendPostbackToSpots_CallbackInformation:: " + we.ToString());
+        return;
+      }
+    }
+
+  }
+}

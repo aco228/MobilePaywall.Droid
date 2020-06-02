@@ -1,0 +1,156 @@
+﻿using MobilePaywall.CustomerCare.Filters;
+using MobilePaywall.CustomerCare.Helper;
+using MobilePaywall.CustomerCare.Models;
+using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+using Cashflow.Client;
+using Cashflow.Message;
+using Senti.Diagnostics.Log;
+using log4net;
+
+namespace MobilePaywall.CustomerCare.Controllers
+{
+	public class PaymentController : PaywallController
+	{
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (PaymentController._log == null)
+          PaymentController._log = LogManager.GetLogger(typeof(PaymentController));
+        return PaymentController._log;
+      }
+    }
+    #endregion
+
+		// GET: Payment
+		public ActionResult Index()
+		{
+      PaymentIndexModel model = new PaymentIndexModel();
+      model.Services = Service.CreateManager().Load();
+      
+			return View("~/Views/Payment/Index.cshtml", model);
+		}
+
+    // SUMMARY: Return partial view 
+    [Authentication(Required = false)]
+		public ActionResult Search(string phoneNumber, string serviceInput, string searchByInput)
+		{
+      if (string.IsNullOrEmpty(phoneNumber))
+        return null;
+
+      phoneNumber = phoneNumber.Replace(" ", string.Empty).Trim();
+      Service service = (!string.IsNullOrEmpty(serviceInput)) ? Service.CreateManager().Load(serviceInput) : null;
+
+      ICustomerUtil cUtil = new WebCustomerUtil();
+      List<Customer> customers = cUtil.FindAll(service, phoneNumber, CustomerStatus.Unknown);
+      //TODO: Get list of all customers with same MSISDN. 
+      //Customer customer = (service != null) ? Customer.CreateManager().Load(service, phoneNumber, CustomerIdentifier.Msisdn, CustomerStatus.Active) : 
+      //                                        Customer.CreateManager().Load(phoneNumber, CustomerIdentifier.Msisdn).FirstOrDefault();
+
+      if (customers == null || customers.Count < 1)
+        return null;
+
+      SearchResultModel model = new SearchResultModel(customers, searchByInput);
+      return View("~/Views/Payment/_SearchResult.cshtml", model);
+		}
+
+		public ActionResult Transactions(string guid)
+		{
+      Guid paymentGuid = Guid.Empty;
+      if (!Guid.TryParse(guid, out paymentGuid))
+        return View("~/Views/Shared/Error.cshtml", new ErrorModel() { Title = "Error", Description = "Error with parsing identifier" });
+
+      Payment payment = Payment.CreateManager().Load(paymentGuid, GuidType.Internal);
+      if (payment == null)
+        return null;
+
+      TransactionsModel model = new TransactionsModel(payment);
+      return View("~/Views/Payment/Transactions.cshtml", model);
+		}
+
+    // SUMMARY: Saving or printing PDF file
+    public void Print(string guid)
+    {
+      Guid paymentGuid = Guid.Empty;
+      if (!Guid.TryParse(guid, out paymentGuid))
+        return;
+      
+      Payment payment = Payment.CreateManager().Load(paymentGuid, GuidType.Internal);
+      if (payment == null)
+        return;
+
+      TransactionsModel model = new TransactionsModel(payment);
+      model.Print(this.PaywallContext.HttpContext);
+    }
+
+		public ActionResult Cancel(string paymentGuid)
+		{
+			if (CashflowProvider.Cancel(paymentGuid))
+				return this.Json(new { status = true, message = "Cancel was successful" });
+			
+			return this.Json(new { status = false, message = "Cancel operation failed" });
+		}
+
+		public ActionResult Refund(string transactionGuid, string paymentGuid, string transactionGroupGuid)
+		{
+      if (CashflowProvider.Refund(CashflowProvider.GetTransaction(transactionGuid, paymentGuid, transactionGroupGuid)))
+        return this.Json(new { status = true, message = "Transaction successfully refunded!" });
+      return this.Json(new { status = false, message = "Transaction was not refunded successfully. Please contact support!" });
+		}
+
+    public ActionResult RemoveAccessPolicy(string pcampm)
+    {
+      int paymentContentAccesssPolicyMapId = -1;
+      if (!Int32.TryParse(pcampm, out paymentContentAccesssPolicyMapId))
+        return this.Json(new { status = false, message = "Wrong parameter" });
+
+      PaymentContentAccessPolicyMap map = PaymentContentAccessPolicyMap.CreateManager().Load(paymentContentAccesssPolicyMapId);
+      if (map == null)
+        return this.Json(new { status = false, message = "An unexpected error has occurred." });
+
+      map.IsValid = false;
+      map.Update();
+      return this.Json(new { status = true, message = "" });
+    }
+
+		public ActionResult RefundAll(string paymentGuidString)
+		{
+			Guid paymentGuid = Guid.Empty;
+			if (!Guid.TryParse(paymentGuidString, out paymentGuid))
+			{
+				return this.Json(new { status = false, message = "Invalid payment guid" });
+			}
+
+			Payment payment = Payment.CreateManager().Load(paymentGuid, GuidType.Internal);
+			if (payment == null)
+				return this.Json(new { status = false, message = "Payment was not found" });
+
+			try
+			{
+				TransactionsModel model = new TransactionsModel(payment, false);
+				string username = model.ServiceLookupMethodMap.PaymentConfiguration.PaymentCredentials.Username;
+				string password = model.ServiceLookupMethodMap.PaymentConfiguration.PaymentCredentials.Password;
+				int failedRefunds = 0;
+				int successfulRefunds = 0;
+				foreach (Cashflow.Message.Data.Transaction trans in model.GetTransactions())
+				{
+					if (CashflowProvider.Refund(trans, username, password)) successfulRefunds++;
+					else failedRefunds++;
+				}
+				return this.Json(new { status = true, message = string.Format("Successfully refunded: {0}\nFailed to refund: {1}", successfulRefunds, failedRefunds) });
+			}
+			catch (Exception e)
+			{
+				return this.Json(new { status = false, message = e.Message });
+			}
+		}
+	}
+}

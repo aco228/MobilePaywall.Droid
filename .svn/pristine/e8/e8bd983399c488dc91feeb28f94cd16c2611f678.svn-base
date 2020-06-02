@@ -1,0 +1,545 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(FooterLink))] 
+  public partial class FooterLinkManager : MobilePaywall.Data.Sql.SqlManagerBase<FooterLink>, IFooterLinkManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override FooterLink LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							FooterLinkTable.GetColumnNames("[fl]") + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[fl_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[fl_c_l]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentProviderTable.GetColumnNames("[fl_pp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[fl_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[fl_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[fl_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[fl_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[fl_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[fl_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[fl_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[fl_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[fl_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[fl_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[fl_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[fl_s_t]") : string.Empty) + 
+					" FROM [core].[FooterLink] AS [fl] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [fl_c] ON [fl].[CountryID] = [fl_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [fl_c_l] ON [fl_c].[LanguageID] = [fl_c_l].[LanguageID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentProvider] AS [fl_pp] ON [fl].[PaymentProviderID] = [fl_pp].[PaymentProviderID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [fl_s] ON [fl].[ServiceID] = [fl_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [fl_s_a] ON [fl_s].[ApplicationID] = [fl_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [fl_s_p] ON [fl_s].[ProductID] = [fl_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [fl_s_m] ON [fl_s].[MerchantID] = [fl_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [fl_s_st] ON [fl_s].[ServiceTypeID] = [fl_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [fl_s_ust] ON [fl_s].[UserSessionTypeID] = [fl_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [fl_s_c] ON [fl_s].[FallbackCountryID] = [fl_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [fl_s_l] ON [fl_s].[FallbackLanguageID] = [fl_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [fl_s_ar] ON [fl_s].[FallbackAgeRatingID] = [fl_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [fl_s_sc] ON [fl_s].[ServiceConfigurationID] = [fl_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [fl_s_bm] ON [fl_s].[BusinessModelID] = [fl_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [fl_s_t] ON [fl_s].[TemplateID] = [fl_s_t].[TemplateID] ";
+				sqlCmdText += "WHERE [fl].[FooterLinkID] = @FooterLinkID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@FooterLinkID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fl", "loadinternal", "notfound"), "FooterLink could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				FooterLinkTable flTable = new FooterLinkTable(query);
+				CountryTable fl_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable fl_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				PaymentProviderTable fl_ppTable = (this.Depth > 0) ? new PaymentProviderTable(query) : null;
+				ServiceTable fl_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable fl_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable fl_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable fl_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable fl_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable fl_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable fl_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable fl_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable fl_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable fl_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable fl_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable fl_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        
+				Language fl_c_lObject = (this.Depth > 1) ? fl_c_lTable.CreateInstance() : null;
+				Country fl_cObject = (this.Depth > 0) ? fl_cTable.CreateInstance(fl_c_lObject) : null;
+				PaymentProvider fl_ppObject = (this.Depth > 0) ? fl_ppTable.CreateInstance() : null;
+				Application fl_s_aObject = (this.Depth > 1) ? fl_s_aTable.CreateInstance() : null;
+				Product fl_s_pObject = (this.Depth > 1) ? fl_s_pTable.CreateInstance() : null;
+				Merchant fl_s_mObject = (this.Depth > 1) ? fl_s_mTable.CreateInstance() : null;
+				ServiceType fl_s_stObject = (this.Depth > 1) ? fl_s_stTable.CreateInstance() : null;
+				UserSessionType fl_s_ustObject = (this.Depth > 1) ? fl_s_ustTable.CreateInstance() : null;
+				Country fl_s_cObject = (this.Depth > 1) ? fl_s_cTable.CreateInstance() : null;
+				Language fl_s_lObject = (this.Depth > 1) ? fl_s_lTable.CreateInstance() : null;
+				AgeRating fl_s_arObject = (this.Depth > 1) ? fl_s_arTable.CreateInstance() : null;
+				ServiceConfiguration fl_s_scObject = (this.Depth > 1) ? fl_s_scTable.CreateInstance() : null;
+				BusinessModel fl_s_bmObject = (this.Depth > 1) ? fl_s_bmTable.CreateInstance() : null;
+				Template fl_s_tObject = (this.Depth > 1) ? fl_s_tTable.CreateInstance() : null;
+				Service fl_sObject = (this.Depth > 0) ? fl_sTable.CreateInstance(fl_s_aObject, fl_s_pObject, fl_s_mObject, fl_s_stObject, fl_s_ustObject, fl_s_cObject, fl_s_lObject, fl_s_arObject, fl_s_scObject, fl_s_bmObject, fl_s_tObject) : null;
+				FooterLink flObject = flTable.CreateInstance(fl_cObject, fl_ppObject, fl_sObject);
+				sqlReader.Close();
+
+				return flObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fl", "loadinternal", "exception"), "FooterLink could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "FooterLink", "Exception while loading FooterLink object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public FooterLink Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							FooterLinkTable.GetColumnNames("[fl]") + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[fl_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[fl_c_l]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentProviderTable.GetColumnNames("[fl_pp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[fl_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[fl_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[fl_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[fl_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[fl_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[fl_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[fl_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[fl_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[fl_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[fl_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[fl_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[fl_s_t]") : string.Empty) +  
+					" FROM [core].[FooterLink] AS [fl] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [fl_c] ON [fl].[CountryID] = [fl_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [fl_c_l] ON [fl_c].[LanguageID] = [fl_c_l].[LanguageID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentProvider] AS [fl_pp] ON [fl].[PaymentProviderID] = [fl_pp].[PaymentProviderID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [fl_s] ON [fl].[ServiceID] = [fl_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [fl_s_a] ON [fl_s].[ApplicationID] = [fl_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [fl_s_p] ON [fl_s].[ProductID] = [fl_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [fl_s_m] ON [fl_s].[MerchantID] = [fl_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [fl_s_st] ON [fl_s].[ServiceTypeID] = [fl_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [fl_s_ust] ON [fl_s].[UserSessionTypeID] = [fl_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [fl_s_c] ON [fl_s].[FallbackCountryID] = [fl_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [fl_s_l] ON [fl_s].[FallbackLanguageID] = [fl_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [fl_s_ar] ON [fl_s].[FallbackAgeRatingID] = [fl_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [fl_s_sc] ON [fl_s].[ServiceConfigurationID] = [fl_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [fl_s_bm] ON [fl_s].[BusinessModelID] = [fl_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [fl_s_t] ON [fl_s].[TemplateID] = [fl_s_t].[TemplateID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fl", "customload", "notfound"), "FooterLink could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				FooterLinkTable flTable = new FooterLinkTable(query);
+				CountryTable fl_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable fl_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				PaymentProviderTable fl_ppTable = (this.Depth > 0) ? new PaymentProviderTable(query) : null;
+				ServiceTable fl_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable fl_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable fl_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable fl_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable fl_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable fl_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable fl_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable fl_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable fl_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable fl_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable fl_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable fl_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        
+				Language fl_c_lObject = (this.Depth > 1) ? fl_c_lTable.CreateInstance() : null;
+				Country fl_cObject = (this.Depth > 0) ? fl_cTable.CreateInstance(fl_c_lObject) : null;
+				PaymentProvider fl_ppObject = (this.Depth > 0) ? fl_ppTable.CreateInstance() : null;
+				Application fl_s_aObject = (this.Depth > 1) ? fl_s_aTable.CreateInstance() : null;
+				Product fl_s_pObject = (this.Depth > 1) ? fl_s_pTable.CreateInstance() : null;
+				Merchant fl_s_mObject = (this.Depth > 1) ? fl_s_mTable.CreateInstance() : null;
+				ServiceType fl_s_stObject = (this.Depth > 1) ? fl_s_stTable.CreateInstance() : null;
+				UserSessionType fl_s_ustObject = (this.Depth > 1) ? fl_s_ustTable.CreateInstance() : null;
+				Country fl_s_cObject = (this.Depth > 1) ? fl_s_cTable.CreateInstance() : null;
+				Language fl_s_lObject = (this.Depth > 1) ? fl_s_lTable.CreateInstance() : null;
+				AgeRating fl_s_arObject = (this.Depth > 1) ? fl_s_arTable.CreateInstance() : null;
+				ServiceConfiguration fl_s_scObject = (this.Depth > 1) ? fl_s_scTable.CreateInstance() : null;
+				BusinessModel fl_s_bmObject = (this.Depth > 1) ? fl_s_bmTable.CreateInstance() : null;
+				Template fl_s_tObject = (this.Depth > 1) ? fl_s_tTable.CreateInstance() : null;
+				Service fl_sObject = (this.Depth > 0) ? fl_sTable.CreateInstance(fl_s_aObject, fl_s_pObject, fl_s_mObject, fl_s_stObject, fl_s_ustObject, fl_s_cObject, fl_s_lObject, fl_s_arObject, fl_s_scObject, fl_s_bmObject, fl_s_tObject) : null;
+				FooterLink flObject = flTable.CreateInstance(fl_cObject, fl_ppObject, fl_sObject);
+				sqlReader.Close();
+
+				return flObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fl", "customload", "exception"), "FooterLink could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "FooterLink", "Exception while loading (custom/single) FooterLink object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<FooterLink> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							FooterLinkTable.GetColumnNames("[fl]") + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[fl_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[fl_c_l]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentProviderTable.GetColumnNames("[fl_pp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[fl_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[fl_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[fl_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[fl_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[fl_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[fl_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[fl_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[fl_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[fl_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[fl_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[fl_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[fl_s_t]") : string.Empty) +  
+					" FROM [core].[FooterLink] AS [fl] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [fl_c] ON [fl].[CountryID] = [fl_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [fl_c_l] ON [fl_c].[LanguageID] = [fl_c_l].[LanguageID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentProvider] AS [fl_pp] ON [fl].[PaymentProviderID] = [fl_pp].[PaymentProviderID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [fl_s] ON [fl].[ServiceID] = [fl_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [fl_s_a] ON [fl_s].[ApplicationID] = [fl_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [fl_s_p] ON [fl_s].[ProductID] = [fl_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [fl_s_m] ON [fl_s].[MerchantID] = [fl_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [fl_s_st] ON [fl_s].[ServiceTypeID] = [fl_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [fl_s_ust] ON [fl_s].[UserSessionTypeID] = [fl_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [fl_s_c] ON [fl_s].[FallbackCountryID] = [fl_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [fl_s_l] ON [fl_s].[FallbackLanguageID] = [fl_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [fl_s_ar] ON [fl_s].[FallbackAgeRatingID] = [fl_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [fl_s_sc] ON [fl_s].[ServiceConfigurationID] = [fl_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [fl_s_bm] ON [fl_s].[BusinessModelID] = [fl_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [fl_s_t] ON [fl_s].[TemplateID] = [fl_s_t].[TemplateID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fl", "customloadmany", "notfound"), "FooterLink list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<FooterLink>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				FooterLinkTable flTable = new FooterLinkTable(query);
+				CountryTable fl_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable fl_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				PaymentProviderTable fl_ppTable = (this.Depth > 0) ? new PaymentProviderTable(query) : null;
+				ServiceTable fl_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable fl_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable fl_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable fl_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable fl_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable fl_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable fl_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable fl_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable fl_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable fl_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable fl_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable fl_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        List<FooterLink> result = new List<FooterLink>();
+        do
+        {
+          
+					Language fl_c_lObject = (this.Depth > 1) ? fl_c_lTable.CreateInstance() : null;
+					Country fl_cObject = (this.Depth > 0) ? fl_cTable.CreateInstance(fl_c_lObject) : null;
+					PaymentProvider fl_ppObject = (this.Depth > 0) ? fl_ppTable.CreateInstance() : null;
+					Application fl_s_aObject = (this.Depth > 1) ? fl_s_aTable.CreateInstance() : null;
+					Product fl_s_pObject = (this.Depth > 1) ? fl_s_pTable.CreateInstance() : null;
+					Merchant fl_s_mObject = (this.Depth > 1) ? fl_s_mTable.CreateInstance() : null;
+					ServiceType fl_s_stObject = (this.Depth > 1) ? fl_s_stTable.CreateInstance() : null;
+					UserSessionType fl_s_ustObject = (this.Depth > 1) ? fl_s_ustTable.CreateInstance() : null;
+					Country fl_s_cObject = (this.Depth > 1) ? fl_s_cTable.CreateInstance() : null;
+					Language fl_s_lObject = (this.Depth > 1) ? fl_s_lTable.CreateInstance() : null;
+					AgeRating fl_s_arObject = (this.Depth > 1) ? fl_s_arTable.CreateInstance() : null;
+					ServiceConfiguration fl_s_scObject = (this.Depth > 1) ? fl_s_scTable.CreateInstance() : null;
+					BusinessModel fl_s_bmObject = (this.Depth > 1) ? fl_s_bmTable.CreateInstance() : null;
+					Template fl_s_tObject = (this.Depth > 1) ? fl_s_tTable.CreateInstance() : null;
+					Service fl_sObject = (this.Depth > 0) ? fl_sTable.CreateInstance(fl_s_aObject, fl_s_pObject, fl_s_mObject, fl_s_stObject, fl_s_ustObject, fl_s_cObject, fl_s_lObject, fl_s_arObject, fl_s_scObject, fl_s_bmObject, fl_s_tObject) : null;
+					FooterLink flObject = (this.Depth > -1) ? flTable.CreateInstance(fl_cObject, fl_ppObject, fl_sObject) : null;
+					result.Add(flObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fl", "customloadmany", "exception"), "FooterLink list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "FooterLink", "Exception while loading (custom/many) FooterLink object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, FooterLink data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[FooterLink] ([CountryID],[PaymentProviderID],[ServiceID],[Data],[NewLineChar],[SeparatorChar]) VALUES(@CountryID,@PaymentProviderID,@ServiceID,@Data,@NewLineChar,@SeparatorChar); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@CountryID", data.Country.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentProviderID", data.PaymentProvider == null ? DBNull.Value : (object)data.PaymentProvider.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service == null ? DBNull.Value : (object)data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@Data", data.Data).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@NewLineChar", data.NewLineChar).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@SeparatorChar", data.SeparatorChar).SqlDbType = SqlDbType.NVarChar;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fl", "insert", "noprimarykey"), "FooterLink could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "FooterLink", "Exception while inserting FooterLink object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fl", "insert", "exception"), "FooterLink could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "FooterLink", "Exception while inserting FooterLink object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, FooterLink data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[FooterLink] SET " +
+												"[CountryID] = @CountryID, " + 
+												"[PaymentProviderID] = @PaymentProviderID, " + 
+												"[ServiceID] = @ServiceID, " + 
+												"[Data] = @Data, " + 
+												"[NewLineChar] = @NewLineChar, " + 
+												"[SeparatorChar] = @SeparatorChar, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [FooterLinkID] = @FooterLinkID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@CountryID", data.Country.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentProviderID", data.PaymentProvider == null ? DBNull.Value : (object)data.PaymentProvider.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service == null ? DBNull.Value : (object)data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@Data", data.Data).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@NewLineChar", data.NewLineChar).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@SeparatorChar", data.SeparatorChar).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@FooterLinkID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fl", "update", "norecord"), "FooterLink could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "FooterLink", "Exception while updating FooterLink object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fl", "update", "morerecords"), "FooterLink was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "FooterLink", "Exception while updating FooterLink object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fl", "update", "exception"), "FooterLink could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "FooterLink", "Exception while updating FooterLink object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, FooterLink data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[FooterLink] WHERE FooterLinkID = @FooterLinkID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@FooterLinkID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fl", "delete", "norecord"), "FooterLink could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "FooterLink", "Exception while deleting FooterLink object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fl", "delete", "exception"), "FooterLink could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "FooterLink", "Exception while deleting FooterLink object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

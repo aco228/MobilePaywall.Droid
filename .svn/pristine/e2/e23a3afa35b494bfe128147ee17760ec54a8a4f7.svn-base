@@ -1,0 +1,51 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IApplicationContentDetailManager 
+  {
+    
+    ApplicationContentDetail Load(ApplicationContent applicationContent, Service service, Language language);
+    ApplicationContentDetail Load(IConnectionInfo connection, ApplicationContent applicationContent, Service service, Language language);
+    T Load<T>(ApplicationContent applicationContent, Service service, Language language);
+    T Load<T>(IConnectionInfo connection, ApplicationContent applicationContent, Service service, Language language);
+    ApplicationContentDetail Load(ApplicationContent applicationContent,Language language);
+    ApplicationContentDetail Load(IConnectionInfo connection, ApplicationContent applicationContent,Language language);
+    
+    List<ApplicationContentDetail> Load(ApplicationContent applicationContent);
+    List<ApplicationContentDetail> Load(IConnectionInfo connection, ApplicationContent applicationContent);
+  }
+
+  public partial class ApplicationContentDetail
+  {
+    public void UpdateWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void UpdateWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void InsertWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void InsertWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void DeleteWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+    public void DeleteWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+
+    public override bool IsDeletable { get { return true; } }
+
+    public static ApplicationContentDetail LoadByApplicationContentServiceAndLanguage(ApplicationContent applicationContent, Service service, Language language)
+    {
+      ApplicationContentDetail applicationContentDetail = null;
+      using(ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        connection.Transaction.Begin();
+        IApplicationContentDetailManager acdManager = ApplicationContentDetail.CreateManager();
+        applicationContentDetail = acdManager.Load(applicationContent, service, language);
+        connection.Transaction.Commit();
+      }
+      return applicationContentDetail;
+    }
+  }
+}
+

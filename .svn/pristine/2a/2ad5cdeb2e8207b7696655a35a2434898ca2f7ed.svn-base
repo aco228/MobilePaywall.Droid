@@ -1,0 +1,171 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+	public partial class PaymentManager : IPaymentManager
+	{
+		public T Load<T>(Customer customer)
+		{
+			using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+				return this.Load<T>(connection, customer);
+		}
+
+    public T Load<T>(IConnectionInfo connection, Customer customer)
+		{
+			ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+			if (sqlConnection != null)
+				return this.Load<T>(sqlConnection, customer);
+			using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load<T>(sqlConnection, customer);
+		}
+
+    public T Load<T>(ISqlConnectionInfo connection, Customer customer)
+		{
+			SqlQueryParameters parameters = new SqlQueryParameters();
+			parameters.Where = "[p].CustomerID = @customerID";
+			parameters.Arguments.Add("customerID", customer.ID);
+      if (typeof(T).Equals(typeof(List<Payment>)))
+        return (T)Convert.ChangeType(this.LoadMany(connection, parameters), typeof(T));
+      else
+      {
+        parameters.OrderBy = "[p].Created DESC";
+        return (T)Convert.ChangeType(this.Load(connection, parameters), typeof(T));
+      }
+		}
+
+		public Payment Load(Guid paymentGuid, GuidType guidType, Customer customer)
+		{
+			using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+				return this.Load(connection, paymentGuid, guidType, customer);
+		}
+
+		public Payment Load(IConnectionInfo connection, Guid paymentGuid, GuidType guidType, Customer customer)
+		{
+			ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+			if (sqlConnection != null)
+				return this.Load(sqlConnection, paymentGuid, guidType, customer);
+			using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+				return this.Load(sqlConnection, paymentGuid, guidType, customer);
+		}
+
+		public Payment Load(ISqlConnectionInfo connection, Guid paymentGuid, GuidType guidType, Customer customer)
+		{
+			SqlQueryParameters parameters = new SqlQueryParameters();
+			string parameter = guidType == GuidType.External ? "ExternalPaymentGuid" : "PaymentGuid";
+			parameters.Where = string.Format("[p].{0} = @{0} AND [p].CustomerID = @CustomerID", parameter);
+			parameters.Arguments.Add(parameter, paymentGuid);
+			parameters.Arguments.Add("CustomerID", customer.ID);
+			return this.Load(connection, parameters);
+		}
+
+    public Payment Load(PaymentRequest paymentRequest)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, paymentRequest);
+    }
+
+    public Payment Load(IConnectionInfo connection, PaymentRequest paymentRequest)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, paymentRequest);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, paymentRequest);
+    }
+
+    public Payment Load(ISqlConnectionInfo connection, PaymentRequest paymentRequest)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[p].PaymentRequestID = @PaymentRequestID";
+      parameters.Arguments.Add("PaymentRequestID", paymentRequest.ID);
+      return this.Load(connection, parameters);
+    }
+
+    public Payment Load(Guid paymentGuid, GuidType guidType)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, paymentGuid, guidType);
+    }
+
+    public Payment Load(IConnectionInfo connection, Guid paymentGuid, GuidType guidType)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, paymentGuid, guidType);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, paymentGuid, guidType);
+    }
+
+    public Payment Load(ISqlConnectionInfo connection, Guid paymentGuid, GuidType guidType)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      string parameter = guidType == GuidType.External ? "ExternalPaymentGuid" : "PaymentGuid";
+      parameters.Where = string.Format("[p].{0} = @{0}", parameter);
+      parameters.Arguments.Add(parameter, paymentGuid);
+      return this.Load(connection, parameters);
+    }
+
+    public List<Payment> Load()
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection);
+    }
+
+    public List<Payment> Load(IConnectionInfo connection)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection);
+    }
+
+    public List<Payment> Load(ISqlConnectionInfo connection)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      //parameters.Where = "a = b OR a = @MyParam";
+      //parameters.OrderBy = "abbr.PrimaryKeyColumnID DESC";
+      //parameters.Arguments.Add("MyParam", "MyValue");
+      //return this.Load(connection, parameters);
+      return this.LoadMany(connection, parameters);
+    }
+		
+
+		public List<Payment> Load(DateTime? from, DateTime? to)
+		{
+			using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+				return this.Load(connection, from, to);
+		}
+
+		public List<Payment> Load(IConnectionInfo connection, DateTime? from, DateTime? to)
+		{
+			ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+			if (sqlConnection != null)
+				return this.Load(sqlConnection, from, to);
+			using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+				return this.Load(sqlConnection, from, to);
+		}
+
+		public List<Payment> Load(ISqlConnectionInfo connection, DateTime? from, DateTime? to)
+		{
+			SqlQueryParameters parameters = new SqlQueryParameters();
+			parameters.Where = "[p].Created >= ISNULL(CONVERT(DATE, @From), CONVERT(DATE, GETDATE())) AND [p].Created <= ISNULL(@To, GETDATE())";
+			parameters.Arguments.Add("From", from == null ? (object)DBNull.Value : from.Value);
+			parameters.Arguments.Add("To", to == null ? (object)DBNull.Value : to.Value);
+			return this.LoadMany(connection, parameters);
+		}
+
+
+	}
+}
+

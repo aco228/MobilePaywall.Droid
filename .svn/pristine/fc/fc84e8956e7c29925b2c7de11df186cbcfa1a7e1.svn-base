@@ -1,0 +1,63 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Http;
+using System.Web.Mvc;
+
+using MobilePaywall.Data;
+using MobilePaywall.CustomerCare;
+using MobilePaywall.CustomerCare.Filters;
+
+namespace MobilePaywall.CustomerCare.Controllers
+{
+  public class ClientController : PaywallController
+  {
+
+    [Authentication(Required = false)]
+    public ActionResult Login(string username, string password)
+    {
+      if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+        return null;
+
+      IClientManager cManager = Client.CreateManager();
+      Client client = cManager.Load(username, password);
+
+      if (client == null)
+        return this.Json(new { status = false, message = "Wrong credentials", redirect = string.Empty });
+      else if (client.ClientStatus == ClientStatus.Inactive)
+        return this.Json(new { status = false, message = "Account is inactive", redirect = string.Empty });
+      else
+      {
+        this.PaywallContext.ClientSession.ValidUntil.AddMinutes(15);
+        this.PaywallContext.ClientSession.IsActive = true;
+        this.PaywallContext.ClientSession.Client = client;
+
+        if (this.PaywallContext.ClientSession.Update())
+        {
+          this.PaywallContext.ClientSession.Client.FilterServices();
+          return this.Json(new { status = true, message = "OK", redirect = "/" });
+        }
+        else
+          return this.Json(new { status = false, message = "Error updating session", redirect = string.Empty });
+
+      }
+    }
+
+    [Authentication(Required=false)]
+    public ActionResult Logout()
+    {
+      if(this.PaywallContext.ClientSession.Client == null)
+        return this.Json(new { status = false, message = "Internal error", redirect = string.Empty });
+
+      this.PaywallContext.ClientSession.IsActive = false;
+
+      if(this.PaywallContext.ClientSession.Update())
+        return this.Json(new { status = true, message = "OK", redirect = "/" });
+      else
+        return this.Json(new { status = false, message = "Internal error", redirect = string.Empty });
+
+    }
+
+  }
+}

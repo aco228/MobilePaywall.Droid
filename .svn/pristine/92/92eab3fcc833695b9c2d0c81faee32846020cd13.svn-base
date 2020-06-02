@@ -1,0 +1,1858 @@
+jQuery(function() {
+    jQuery('[aref]').on('click', function(){
+        createAjaxRequest(jQuery(this));
+        return false;
+    });
+    
+    jQuery("form.ajax_submit").on('submit', function(event){
+        event.preventDefault();
+        createFormSubmitRequest(jQuery(this));
+        return false;
+    });
+
+    jQuery('[autoload]').click();
+});
+
+
+
+
+
+
+(function ($) {
+    if ($.fn.inputmask == undefined) {
+        $.inputmask = {
+            //options default
+            defaults: {
+                placeholder: "_",
+                optionalmarker: {
+                    start: "[",
+                    end: "]"
+                },
+                escapeChar: "\\",
+                mask: null,
+                oncomplete: $.noop, //executes when the mask is complete
+                onincomplete: $.noop, //executes when the mask is incomplete and focus is lost
+                oncleared: $.noop, //executes when the mask is cleared
+                repeat: 0, //repetitions of the mask
+                greedy: true, //true: allocated buffer for the mask and repetitions - false: allocate only if needed
+                autoUnmask: false, //automatically unmask when retrieving the value with $.fn.val or value if the browser supports __lookupGetter__ or getOwnPropertyDescriptor
+                clearMaskOnLostFocus: true,
+                insertMode: true, //insert the input or overwrite the input
+                clearIncomplete: false, //clear the incomplete input on blur
+                aliases: {}, //aliases definitions => see jquery.inputmask.extensions.js
+                onKeyUp: $.noop, //override to implement autocomplete on certain keys for example
+                onKeyDown: $.noop, //override to implement autocomplete on certain keys for example
+                showMaskOnHover: true, //show the mask-placeholder when hovering the empty input
+                //numeric basic properties
+                numericInput: false, //numericInput input direction style (input shifts to the left while holding the caret position)
+                radixPoint: ".", // | ","
+                //numeric basic properties
+                definitions: {
+                    '9': {
+                        validator: "[0-9]",
+                        cardinality: 1
+                    },
+                    'a': {
+                        validator: "[A-Za-z\u0410-\u044F\u0401\u0451]",
+                        cardinality: 1
+                    },
+                    '*': {
+                        validator: "[A-Za-z\u0410-\u044F\u0401\u04510-9]",
+                        cardinality: 1
+                    }
+                },
+                keyCode: {
+                    ALT: 18,
+                    BACKSPACE: 8,
+                    CAPS_LOCK: 20,
+                    COMMA: 188,
+                    COMMAND: 91,
+                    COMMAND_LEFT: 91,
+                    COMMAND_RIGHT: 93,
+                    CONTROL: 17,
+                    DELETE: 46,
+                    DOWN: 40,
+                    END: 35,
+                    ENTER: 13,
+                    ESCAPE: 27,
+                    HOME: 36,
+                    INSERT: 45,
+                    LEFT: 37,
+                    MENU: 93,
+                    NUMPAD_ADD: 107,
+                    NUMPAD_DECIMAL: 110,
+                    NUMPAD_DIVIDE: 111,
+                    NUMPAD_ENTER: 108,
+                    NUMPAD_MULTIPLY: 106,
+                    NUMPAD_SUBTRACT: 109,
+                    PAGE_DOWN: 34,
+                    PAGE_UP: 33,
+                    PERIOD: 190,
+                    RIGHT: 39,
+                    SHIFT: 16,
+                    SPACE: 32,
+                    TAB: 9,
+                    UP: 38,
+                    WINDOWS: 91
+                },
+                ignorables: [8, 9, 13, 16, 17, 18, 20, 27, 33, 34, 35, 36, 37, 38, 39, 40, 46, 91, 93, 108]
+            },
+            val: $.fn.val //store the original jquery val function
+        };
+
+        $.fn.inputmask = function (fn, options) {
+            var opts = $.extend(true, {}, $.inputmask.defaults, options);
+            var pasteEvent = isInputEventSupported('paste') ? 'paste' : 'input';
+
+            var iphone = navigator.userAgent.match(/iphone/i) != null;
+            var android = navigator.userAgent.match(/android.*mobile safari.*/i) != null;
+            if (android) {
+                var browser = navigator.userAgent.match(/mobile safari.*/i);
+                var version = parseInt(new RegExp(/[0-9]+/).exec(browser));
+                android = version <= 533;
+            }
+            var caretposCorrection = null;
+
+            if (typeof fn == "string") {
+                switch (fn) {
+                    case "mask":
+                        //init buffer
+                        var _buffer = getMaskTemplate();
+                        var tests = getTestingChain();
+
+                        return this.each(function () {
+                            mask(this);
+                        });
+                        break;
+                    case "unmaskedvalue":
+                        var tests = this.data('inputmask')['tests'];
+                        var _buffer = this.data('inputmask')['_buffer'];
+                        opts.greedy = this.data('inputmask')['greedy'];
+                        opts.repeat = this.data('inputmask')['repeat'];
+                        opts.definitions = this.data('inputmask')['definitions'];
+                        return unmaskedvalue(this);
+                        break;
+                    case "remove":
+                        var tests, _buffer;
+                        return this.each(function () {
+                            var $input = $(this), input = this;
+                            setTimeout(function () {
+                                if ($input.data('inputmask')) {
+                                    tests = $input.data('inputmask')['tests'];
+                                    _buffer = $input.data('inputmask')['_buffer'];
+                                    opts.greedy = $input.data('inputmask')['greedy'];
+                                    opts.repeat = $input.data('inputmask')['repeat'];
+                                    opts.definitions = $input.data('inputmask')['definitions'];
+                                    //writeout the unmaskedvalue
+                                    input._valueSet(unmaskedvalue($input, true));
+                                    //clear data
+                                    $input.removeData('inputmask');
+                                    //unbind all events
+                                    $input.unbind(".inputmask");
+                                    $input.removeClass('focus.inputmask');
+                                    //restore the value property
+                                    var valueProperty;
+                                    if (Object.getOwnPropertyDescriptor)
+                                        valueProperty = Object.getOwnPropertyDescriptor(input, "value");
+                                    if (valueProperty && valueProperty.get) {
+                                        if (input._valueGet) {
+                                            Object.defineProperty(input, "value", {
+                                                get: input._valueGet,
+                                                set: input._valueSet
+                                            });
+                                        }
+                                    } else if (document.__lookupGetter__ && input.__lookupGetter__("value")) {
+                                        if (input._valueGet) {
+                                            input.__defineGetter__("value", input._valueGet);
+                                            input.__defineSetter__("value", input._valueSet);
+                                        }
+                                    }
+                                    delete input._valueGet;
+                                    delete input._valueSet;
+                                }
+                            }, 0);
+                        });
+                        break;
+                    case "getemptymask": //return the default (empty) mask value, usefull for setting the default value in validation
+                        if (this.data('inputmask'))
+                            return this.data('inputmask')['_buffer'].join('');
+                        else return "";
+                    case "hasMaskedValue": //check wheter the returned value is masked or not; currently only works reliable when using jquery.val fn to retrieve the value
+                        return this.data('inputmask') ? !this.data('inputmask')['autoUnmask'] : false;
+                    default:
+                        //check if the fn is an alias
+                        if (!resolveAlias(fn)) {
+                            //maybe fn is a mask so we try
+                            //set mask
+                            opts.mask = fn;
+                        }
+                        //init buffer
+                        var _buffer = getMaskTemplate();
+                        var tests = getTestingChain();
+
+                        return this.each(function () {
+                            mask(this);
+                        });
+
+                        break;
+                }
+            }
+            if (typeof fn == "object") {
+                opts = $.extend(true, {}, $.inputmask.defaults, fn);
+                resolveAlias(opts.alias); //resolve aliases
+                //init buffer
+                var _buffer = getMaskTemplate();
+                var tests = getTestingChain();
+
+                return this.each(function () {
+                    mask(this);
+                });
+            }
+
+            //helper functions
+            function isInputEventSupported(eventName) {
+                var el = document.createElement('input'),
+                    eventName = 'on' + eventName,
+                    isSupported = (eventName in el);
+                if (!isSupported) {
+                    el.setAttribute(eventName, 'return;');
+                    isSupported = typeof el[eventName] == 'function';
+                }
+                el = null;
+                return isSupported;
+            }
+
+            function resolveAlias(aliasStr) {
+                var aliasDefinition = opts.aliases[aliasStr];
+                if (aliasDefinition) {
+                    if (aliasDefinition.alias) resolveAlias(aliasDefinition.alias); //alias is another alias
+                    $.extend(true, opts, aliasDefinition);  //merge alias definition in the options
+                    $.extend(true, opts, options);  //reapply extra given options
+                    return true;
+                }
+                return false;
+            }
+
+            function getMaskTemplate() {
+                var escaped = false, outCount = 0;
+                if (opts.mask.length == 1 && opts.greedy == false) {
+                    opts.placeholder = "";
+                } //hide placeholder with single non-greedy mask
+                var singleMask = $.map(opts.mask.split(""), function (element, index) {
+                    var outElem = [];
+                    if (element == opts.escapeChar) {
+                        escaped = true;
+                    }
+                    else if ((element != opts.optionalmarker.start && element != opts.optionalmarker.end) || escaped) {
+                        var maskdef = opts.definitions[element];
+                        if (maskdef && !escaped) {
+                            for (var i = 0; i < maskdef.cardinality; i++) {
+                                outElem.push(getPlaceHolder(outCount + i));
+                            }
+                        } else {
+                            outElem.push(element);
+                            escaped = false;
+                        }
+                        outCount += outElem.length;
+                        return outElem;
+                    }
+                });
+
+                //allocate repetitions
+                var repeatedMask = singleMask.slice();
+                for (var i = 1; i < opts.repeat && opts.greedy; i++) {
+                    repeatedMask = repeatedMask.concat(singleMask.slice());
+                }
+
+                return repeatedMask;
+            }
+
+            //test definition => {fn: RegExp/function, cardinality: int, optionality: bool, newBlockMarker: bool, offset: int, casing: null/upper/lower, def: definitionSymbol}
+            function getTestingChain() {
+                var isOptional = false, escaped = false;
+                var newBlockMarker = false; //indicates wheter the begin/ending of a block should be indicated
+
+                return $.map(opts.mask.split(""), function (element, index) {
+                    var outElem = [];
+
+                    if (element == opts.escapeChar) {
+                        escaped = true;
+                    } else if (element == opts.optionalmarker.start && !escaped) {
+                        isOptional = true;
+                        newBlockMarker = true;
+                    }
+                    else if (element == opts.optionalmarker.end && !escaped) {
+                        isOptional = false;
+                        newBlockMarker = true;
+                    }
+                    else {
+                        var maskdef = opts.definitions[element];
+                        if (maskdef && !escaped) {
+                            var prevalidators = maskdef["prevalidator"], prevalidatorsL = prevalidators ? prevalidators.length : 0;
+                            for (var i = 1; i < maskdef.cardinality; i++) {
+                                var prevalidator = prevalidatorsL >= i ? prevalidators[i - 1] : [], validator = prevalidator["validator"], cardinality = prevalidator["cardinality"];
+                                outElem.push({
+                                    fn: validator ? typeof validator == 'string' ? new RegExp(validator) : new function () {
+                                        this.test = validator;
+                                    } : new RegExp("."),
+                                    cardinality: cardinality ? cardinality : 1,
+                                    optionality: isOptional,
+                                    newBlockMarker: isOptional == true ? newBlockMarker : false,
+                                    offset: 0,
+                                    casing: maskdef["casing"],
+                                    def: element
+                                });
+                                if (isOptional == true) //reset newBlockMarker
+                                    newBlockMarker = false;
+                            }
+                            outElem.push({
+                                fn: maskdef.validator ? typeof maskdef.validator == 'string' ? new RegExp(maskdef.validator) : new function () {
+                                    this.test = maskdef.validator;
+                                } : new RegExp("."),
+                                cardinality: maskdef.cardinality,
+                                optionality: isOptional,
+                                newBlockMarker: newBlockMarker,
+                                offset: 0,
+                                casing: maskdef["casing"],
+                                def: element
+                            });
+                        } else {
+                            outElem.push({
+                                fn: null,
+                                cardinality: 0,
+                                optionality: isOptional,
+                                newBlockMarker: newBlockMarker,
+                                offset: 0,
+                                casing: null,
+                                def: element
+                            });
+                            escaped = false;
+                        }
+                        //reset newBlockMarker
+                        newBlockMarker = false;
+                        return outElem;
+                    }
+                });
+            }
+
+            function isValid(pos, c, buffer, strict) { //strict true ~ no correction or autofill
+                if (pos < 0 || pos >= getMaskLength()) return false;
+                var testPos = determineTestPosition(pos), loopend = c ? 1 : 0, chrs = '';
+                for (var i = tests[testPos].cardinality; i > loopend; i--) {
+                    chrs += getBufferElement(buffer, testPos - (i - 1));
+                }
+
+                if (c) {
+                    chrs += c;
+                }
+                //return is false or a json object => { pos: ??, c: ??}
+                return tests[testPos].fn != null ? tests[testPos].fn.test(chrs, buffer, pos, strict, opts) : false;
+            }
+
+            function isMask(pos) {
+                var testPos = determineTestPosition(pos);
+                var test = tests[testPos];
+
+                return test != undefined ? test.fn : false;
+            }
+
+            function determineTestPosition(pos) {
+                return pos % tests.length;
+            }
+
+            function getPlaceHolder(pos) {
+                return opts.placeholder.charAt(pos % opts.placeholder.length);
+            }
+
+            function getMaskLength() {
+                var calculatedLength = _buffer.length;
+                if (!opts.greedy && opts.repeat > 1) {
+                    calculatedLength += (_buffer.length * (opts.repeat - 1));
+                }
+                return calculatedLength;
+            }
+
+            //pos: from position
+            function seekNext(buffer, pos) {
+                var maskL = getMaskLength();
+                if (pos >= maskL) return maskL;
+                var position = pos;
+                while (++position < maskL && !isMask(position)) { };
+                return position;
+            }
+            //pos: from position
+            function seekPrevious(buffer, pos) {
+                var position = pos;
+                if (position <= 0) return 0;
+
+                while (--position > 0 && !isMask(position)) { };
+                return position;
+            }
+
+            function setBufferElement(buffer, position, element) {
+                //position = prepareBuffer(buffer, position);
+
+                var test = tests[determineTestPosition(position)];
+                var elem = element;
+                if (elem != undefined) {
+                    switch (test.casing) {
+                        case "upper":
+                            elem = element.toUpperCase();
+                            break;
+                        case "lower":
+                            elem = element.toLowerCase();
+                            break;
+                    }
+                }
+
+                buffer[position] = elem;
+            }
+            function getBufferElement(buffer, position, autoPrepare) {
+                if (autoPrepare) position = prepareBuffer(buffer, position);
+                return buffer[position];
+            }
+
+            //needed to handle the non-greedy mask repetitions
+            function prepareBuffer(buffer, position, isRTL) {
+                var j;
+                if (isRTL) {
+                    while (position < 0 && buffer.length < getMaskLength()) {
+                        j = _buffer.length - 1;
+                        position = _buffer.length;
+                        while (_buffer[j] !== undefined) {
+                            buffer.unshift(_buffer[j--]);
+                        }
+                    }
+                } else {
+                    while (buffer[position] == undefined && buffer.length < getMaskLength()) {
+                        j = 0;
+                        while (_buffer[j] !== undefined) { //add a new buffer
+                            buffer.push(_buffer[j++]);
+                        }
+                    }
+                }
+
+                return position;
+            }
+
+            function writeBuffer(input, buffer, caretPos) {
+                input._valueSet(buffer.join(''));
+                if (caretPos != undefined) {
+                    if (android) {
+                        setTimeout(function () {
+                            caret(input, caretPos);
+                        }, 100);
+                    }
+                    else caret(input, caretPos);
+                }
+            };
+            function clearBuffer(buffer, start, end) {
+                for (var i = start, maskL = getMaskLength(); i < end && i < maskL; i++) {
+                    setBufferElement(buffer, i, getBufferElement(_buffer.slice(), i));
+                }
+            };
+
+            function setReTargetPlaceHolder(buffer, pos) {
+                var testPos = determineTestPosition(pos);
+                setBufferElement(buffer, pos, getBufferElement(_buffer, testPos));
+            }
+
+            function checkVal(input, buffer, clearInvalid, skipRadixHandling) {
+                var isRTL = $(input).data('inputmask')['isRTL'],
+                    inputValue = truncateInput(input._valueGet(), isRTL).split('');
+
+                if (isRTL) { //align inputValue for RTL/numeric input
+                    var maskL = getMaskLength();
+                    var inputValueRev = inputValue.reverse();
+                    inputValueRev.length = maskL;
+
+                    for (var i = 0; i < maskL; i++) {
+                        var targetPosition = determineTestPosition(maskL - (i + 1));
+                        if (tests[targetPosition].fn == null && inputValueRev[i] != getBufferElement(_buffer, targetPosition)) {
+                            inputValueRev.splice(i, 0, getBufferElement(_buffer, targetPosition));
+                            inputValueRev.length = maskL;
+                        } else {
+                            inputValueRev[i] = inputValueRev[i] || getBufferElement(_buffer, targetPosition);
+                        }
+                    }
+                    inputValue = inputValueRev.reverse();
+                }
+                clearBuffer(buffer, 0, buffer.length);
+                buffer.length = _buffer.length;
+                var lastMatch = -1, checkPosition = -1, np, maskL = getMaskLength(), ivl = inputValue.length, rtlMatch = ivl == 0 ? maskL : -1;
+                for (var i = 0; i < ivl; i++) {
+                    for (var pos = checkPosition + 1; pos < maskL; pos++) {
+                        if (isMask(pos)) {
+                            var c = inputValue[i];
+                            if ((np = isValid(pos, c, buffer, !clearInvalid)) !== false) {
+                                if (np !== true) {
+                                    pos = np.pos || pos; //set new position from isValid
+                                    c = np.c || c; //set new char from isValid
+                                }
+                                setBufferElement(buffer, pos, c);
+                                lastMatch = checkPosition = pos;
+                            } else {
+                                setReTargetPlaceHolder(buffer, pos);
+                                if (c == getPlaceHolder(pos)) {
+                                    checkPosition = pos;
+                                    rtlMatch = pos;
+                                }
+                            }
+                            break;
+                        } else {   //nonmask
+                            setReTargetPlaceHolder(buffer, pos);
+                            if (lastMatch == checkPosition) //once outsync the nonmask cannot be the lastmatch
+                                lastMatch = pos;
+                            checkPosition = pos;
+                            if (inputValue[i] == getBufferElement(buffer, pos))
+                                break;
+                        }
+                    }
+                }
+                //Truncate buffer when using non-greedy masks
+                if (opts.greedy == false) {
+                    var newBuffer = truncateInput(buffer.join(''), isRTL).split('');
+                    while (buffer.length != newBuffer.length) {  //map changes into the original buffer
+                        isRTL ? buffer.shift() : buffer.pop();
+                    }
+                }
+
+                if (clearInvalid) {
+                    writeBuffer(input, buffer);
+                }
+                return isRTL ? (opts.numericInput ? ($.inArray(opts.radixPoint, buffer) != -1 && skipRadixHandling !== true ? $.inArray(opts.radixPoint, buffer) : seekNext(buffer, maskL)) : seekNext(buffer, rtlMatch)) : seekNext(buffer, lastMatch);
+            }
+
+            function escapeRegex(str) {
+                var specials = ['/', '.', '*', '+', '?', '|', '(', ')', '[', ']', '{', '}', '\\'];
+                return str.replace(new RegExp('(\\' + specials.join('|\\') + ')', 'gim'), '\\$1');
+            }
+            function truncateInput(inputValue, rtl) {
+                return rtl ? inputValue.replace(new RegExp("^(" + escapeRegex(_buffer.join('')) + ")*"), "") : inputValue.replace(new RegExp("(" + escapeRegex(_buffer.join('')) + ")*$"), "");
+            }
+
+            function clearOptionalTail(input, buffer) {
+                checkVal(input, buffer, false);
+                var tmpBuffer = buffer.slice();
+                if ($(input).data('inputmask')['isRTL']) {
+                    for (var pos = 0; pos <= tmpBuffer.length - 1; pos++) {
+                        var testPos = determineTestPosition(pos);
+                        if (tests[testPos].optionality) {
+                            if (getPlaceHolder(pos) == buffer[pos] || !isMask(pos))
+                                tmpBuffer.splice(0, 1);
+                            else break;
+                        } else break;
+                    }
+                } else {
+                    for (var pos = tmpBuffer.length - 1; pos >= 0; pos--) {
+                        var testPos = determineTestPosition(pos);
+                        if (tests[testPos].optionality) {
+                            if (getPlaceHolder(pos) == buffer[pos] || !isMask(pos))
+                                tmpBuffer.pop();
+                            else break;
+                        } else break;
+                    }
+                }
+                writeBuffer(input, tmpBuffer);
+            }
+
+            //functionality fn
+            function unmaskedvalue($input, skipDatepickerCheck) {
+                var input = $input[0];
+                if (tests && (skipDatepickerCheck === true || !$input.hasClass('hasDatepicker'))) {
+                    var buffer = _buffer.slice();
+                    checkVal(input, buffer);
+                    return $.map(buffer, function (element, index) {
+                        return isMask(index) && element != getBufferElement(_buffer.slice(), index) ? element : null;
+                    }).join('');
+                }
+                else {
+                    return input._valueGet();
+                }
+            }
+
+            function caret(input, begin, end) {
+                var npt = input.jquery && input.length > 0 ? input[0] : input;
+                if (typeof begin == 'number') {
+                    end = (typeof end == 'number') ? end : begin;
+                    if (opts.insertMode == false && begin == end) end++; //set visualization for insert/overwrite mode
+                    if (npt.setSelectionRange) {
+                        npt.setSelectionRange(begin, end);
+                    } else if (npt.createTextRange) {
+                        var range = npt.createTextRange();
+                        range.collapse(true);
+                        range.moveEnd('character', end);
+                        range.moveStart('character', begin);
+                        range.select();
+                    }
+                    npt.focus();
+                    if (android && end != npt.selectionEnd) caretposCorrection = {
+                        begin: begin,
+                        end: end
+                    };
+                } else {
+                    var caretpos = android ? caretposCorrection : null, caretposCorrection = null;
+                    if (caretpos == null) {
+                        if (npt.setSelectionRange) {
+                            begin = npt.selectionStart;
+                            end = npt.selectionEnd;
+                        } else if (document.selection && document.selection.createRange) {
+                            var range = document.selection.createRange();
+                            begin = 0 - range.duplicate().moveStart('character', -100000);
+                            end = begin + range.text.length;
+                        }
+                        caretpos = {
+                            begin: begin,
+                            end: end
+                        };
+                    }
+                    return caretpos;
+                }
+            };
+
+            function mask(el) {
+                var $input = $(el);
+                if (!$input.is(":input")) return;
+
+                //correct greedy setting if needed
+                opts.greedy = opts.greedy ? opts.greedy : opts.repeat == 0;
+
+                //handle maxlength attribute
+                var maxLength = $input.prop('maxLength');
+                if (getMaskLength() > maxLength && maxLength > -1) { //FF sets no defined max length to -1
+                    if (maxLength < _buffer.length) _buffer.length = maxLength;
+                    if (opts.greedy == false) {
+                        opts.repeat = Math.round(maxLength / _buffer.length);
+                    }
+                }
+                $input.prop('maxLength', getMaskLength() * 2);
+
+                //store tests & original buffer in the input element - used to get the unmasked value
+                $input.data('inputmask', {
+                    'tests': tests,
+                    '_buffer': _buffer,
+                    'greedy': opts.greedy,
+                    'repeat': opts.repeat,
+                    'autoUnmask': opts.autoUnmask,
+                    'definitions': opts.definitions,
+                    'isRTL': false
+                });
+
+                patchValueProperty(el);
+
+                //init vars
+                var buffer = _buffer.slice(),
+                    undoBuffer = el._valueGet(),
+                    skipKeyPressEvent = false, //Safari 5.1.x - modal dialog fires keypress twice workaround
+                    ignorable = false,
+                    lastPosition = -1,
+                    firstMaskPos = seekNext(buffer, -1),
+                    lastMaskPos = seekPrevious(buffer, getMaskLength()),
+                    isRTL = false;
+                if (el.dir == "rtl" || opts.numericInput) {
+                    el.dir = "ltr"
+                    $input.css("text-align", "right");
+                    $input.removeAttr("dir");
+                    var inputData = $input.data('inputmask');
+                    inputData['isRTL'] = true;
+                    $input.data('inputmask', inputData);
+                    isRTL = true;
+                }
+
+                //unbind all events - to make sure that no other mask will interfere when re-masking
+                $input.unbind(".inputmask");
+                $input.removeClass('focus.inputmask');
+                //bind events
+                $input.bind("mouseenter.inputmask", function () {
+                    var $input = $(this), input = this;
+                    if (!$input.hasClass('focus.inputmask') && opts.showMaskOnHover) {
+                        var nptL = input._valueGet().length;
+                        if (nptL < buffer.length) {
+                            if (nptL == 0)
+                                buffer = _buffer.slice();
+                            writeBuffer(input, buffer);
+                        }
+                    }
+                }).bind("blur.inputmask", function () {
+                    var $input = $(this), input = this, nptValue = input._valueGet();
+                    $input.removeClass('focus.inputmask');
+                    if (nptValue != undoBuffer) {
+                        $input.change();
+                    }
+                    if (opts.clearMaskOnLostFocus) {
+                        if (nptValue == _buffer.join(''))
+                            input._valueSet('');
+                        else { //clearout optional tail of the mask
+                            clearOptionalTail(input, buffer);
+                        }
+                    }
+                    if (!isComplete(input)) {
+                        $input.trigger("incomplete");
+                        if (opts.clearIncomplete) {
+                            if (opts.clearMaskOnLostFocus)
+                                input._valueSet('');
+                            else {
+                                buffer = _buffer.slice();
+                                writeBuffer(input, buffer);
+                            }
+                        }
+                    }
+                }).bind("focus.inputmask", function () {
+                    var $input = $(this), input = this;
+                    if (!$input.hasClass('focus.inputmask') && !opts.showMaskOnHover) {
+                        var nptL = input._valueGet().length;
+                        if (nptL < buffer.length) {
+                            if (nptL == 0)
+                                buffer = _buffer.slice();
+                            caret(input, checkVal(input, buffer, true));
+                        }
+                    }
+                    $input.addClass('focus.inputmask');
+                    undoBuffer = input._valueGet();
+                }).bind("mouseleave.inputmask", function () {
+                    var $input = $(this), input = this;
+                    if (opts.clearMaskOnLostFocus) {
+                        if (!$input.hasClass('focus.inputmask')) {
+                            if (input._valueGet() == _buffer.join('') || input._valueGet() == '')
+                                input._valueSet('');
+                            else { //clearout optional tail of the mask
+                                clearOptionalTail(input, buffer);
+                            }
+                        }
+                    }
+                }).bind("click.inputmask", function () {
+                    var input = this;
+                    setTimeout(function () {
+                        var selectedCaret = caret(input);
+                        if (selectedCaret.begin == selectedCaret.end) {
+                            var clickPosition = selectedCaret.begin;
+                            lastPosition = checkVal(input, buffer, false);
+                            if (isRTL)
+                                caret(input, clickPosition > lastPosition && (isValid(clickPosition, buffer[clickPosition], buffer, true) !== false || !isMask(clickPosition)) ? clickPosition : lastPosition);
+                            else
+                                caret(input, clickPosition < lastPosition && (isValid(clickPosition, buffer[clickPosition], buffer, true) !== false || !isMask(clickPosition)) ? clickPosition : lastPosition);
+                        }
+                    }, 0);
+                }).bind('dblclick.inputmask', function () {
+                    var input = this;
+                    setTimeout(function () {
+                        caret(input, 0, lastPosition);
+                    }, 0);
+                }).bind("keydown.inputmask", keydownEvent
+                ).bind("keypress.inputmask", keypressEvent
+                ).bind("keyup.inputmask", keyupEvent
+                ).bind(pasteEvent + ".inputmask, dragdrop.inputmask, drop.inputmask", function () {
+                        var input = this;
+                        setTimeout(function () {
+                            caret(input, checkVal(input, buffer, true));
+                        }, 0);
+                    }).bind('setvalue.inputmask', function () {
+                        var input = this;
+                        undoBuffer = input._valueGet();
+                        checkVal(input, buffer, true);
+                        if (input._valueGet() == _buffer.join(''))
+                            input._valueSet('');
+                    }).bind('complete.inputmask', opts.oncomplete)
+                    .bind('incomplete.inputmask', opts.onincomplete)
+                    .bind('cleared.inputmask', opts.oncleared);
+
+                //apply mask
+                lastPosition = checkVal(el, buffer, true);
+
+                // Wrap document.activeElement in a try/catch block since IE9 throw "Unspecified error" if document.activeElement is undefined when we are in an IFrame.
+                var activeElement;
+                try {
+                    activeElement = document.activeElement;
+                } catch (e) { }
+                if (activeElement === el) { //position the caret when in focus
+                    $input.addClass('focus.inputmask');
+                    caret(el, lastPosition);
+                } else if (opts.clearMaskOnLostFocus) {
+                    if (el._valueGet() == _buffer.join('')) {
+                        el._valueSet('');
+                    } else {
+                        clearOptionalTail(el, buffer);
+                    }
+                }
+
+                installEventRuler(el);
+
+                //private functions
+                function isComplete(npt) {
+                    var complete = true, nptValue = npt._valueGet(), ml = nptValue.length;
+                    for (var i = 0; i < ml; i++) {
+                        if (isMask(i) && nptValue.charAt(i) == getPlaceHolder(i)) {
+                            complete = false;
+                            break;
+                        }
+                    }
+                    return complete;
+                }
+
+
+                function installEventRuler(npt) {
+                    var events = $._data(npt).events;
+
+                    $.each(events, function (eventType, eventHandlers) {
+                        $(npt).bind(eventType + ".inputmask", function (event) {
+                            if (this.readOnly || this.disabled) {
+                                event.stopPropagation();
+                                event.stopImmediatePropagation();
+                                event.preventDefault();
+                                return false;
+                            }
+                        });
+                        //!! the bound handlers are executed in the order they where bound
+                        //reorder the events
+                        var ourHandler = eventHandlers[eventHandlers.length - 1];
+                        for (var i = eventHandlers.length - 1; i > 0; i--) {
+                            eventHandlers[i] = eventHandlers[i - 1];
+                        }
+                        eventHandlers[0] = ourHandler;
+                    });
+                }
+
+                function patchValueProperty(npt) {
+                    var valueProperty;
+                    if (Object.getOwnPropertyDescriptor)
+                        valueProperty = Object.getOwnPropertyDescriptor(npt, "value");
+                    if (valueProperty && valueProperty.get) {
+                        if (!npt._valueGet) {
+
+                            npt._valueGet = valueProperty.get;
+                            npt._valueSet = valueProperty.set;
+
+                            Object.defineProperty(npt, "value", {
+                                get: function () {
+                                    var $self = $(this), inputData = $(this).data('inputmask');
+                                    return inputData && inputData['autoUnmask'] ? $self.inputmask('unmaskedvalue') : this._valueGet() != inputData['_buffer'].join('') ? this._valueGet() : '';
+                                },
+                                set: function (value) {
+                                    this._valueSet(value);
+                                    $(this).triggerHandler('setvalue.inputmask');
+                                }
+                            });
+                        }
+                    } else if (document.__lookupGetter__ && npt.__lookupGetter__("value")) {
+                        if (!npt._valueGet) {
+                            npt._valueGet = npt.__lookupGetter__("value");
+                            npt._valueSet = npt.__lookupSetter__("value");
+
+                            npt.__defineGetter__("value", function () {
+                                var $self = $(this), inputData = $(this).data('inputmask');
+                                return inputData && inputData['autoUnmask'] ? $self.inputmask('unmaskedvalue') : this._valueGet() != inputData['_buffer'].join('') ? this._valueGet() : '';
+                            });
+                            npt.__defineSetter__("value", function (value) {
+                                this._valueSet(value);
+                                $(this).triggerHandler('setvalue.inputmask');
+                            });
+                        }
+                    } else {
+                        if (!npt._valueGet) {
+                            npt._valueGet = function () {
+                                return this.value;
+                            }
+                            npt._valueSet = function (value) {
+                                this.value = value;
+                            }
+                        }
+                        if ($.fn.val.inputmaskpatch != true) {
+                            $.fn.val = function () {
+                                if (arguments.length == 0) {
+                                    var $self = $(this);
+                                    if ($self.data('inputmask')) {
+                                        if ($self.data('inputmask')['autoUnmask'])
+                                            return $self.inputmask('unmaskedvalue');
+                                        else {
+                                            var result = $.inputmask.val.apply($self);
+                                            return result != $self.data('inputmask')['_buffer'].join('') ? result : '';
+                                        }
+                                    } else return $.inputmask.val.apply($self);
+                                } else {
+                                    var args = arguments;
+                                    return this.each(function () {
+                                        var $self = $(this);
+                                        var result = $.inputmask.val.apply($self, args);
+                                        if ($self.data('inputmask')) $self.triggerHandler('setvalue.inputmask');
+                                        return result;
+                                    });
+                                }
+                            };
+                            $.extend($.fn.val, {
+                                inputmaskpatch: true
+                            });
+                        }
+                    }
+                }
+                //shift chars to left from start to end and put c at end position if defined
+                function shiftL(start, end, c) {
+                    while (!isMask(start) && start - 1 >= 0) start--;
+                    for (var i = start; i < end && i < getMaskLength(); i++) {
+                        if (isMask(i)) {
+                            setReTargetPlaceHolder(buffer, i);
+                            var j = seekNext(buffer, i);
+                            var p = getBufferElement(buffer, j);
+                            if (p != getPlaceHolder(j)) {
+                                if (j < getMaskLength() && isValid(i, p, buffer, true) !== false && tests[determineTestPosition(i)].def == tests[determineTestPosition(j)].def) {
+                                    setBufferElement(buffer, i, getBufferElement(buffer, j));
+                                    setReTargetPlaceHolder(buffer, j); //cleanup next position
+                                } else {
+                                    if (isMask(i))
+                                        break;
+                                }
+                            } else if (c == undefined) break;
+                        } else {
+                            setReTargetPlaceHolder(buffer, i);
+                        }
+                    }
+                    if (c != undefined)
+                        setBufferElement(buffer, isRTL ? end : seekPrevious(buffer, end), c);
+
+                    buffer = truncateInput(buffer.join(''), isRTL).split('');
+                    if (buffer.length == 0) buffer = _buffer.slice();
+
+                    return start; //return the used start position
+                }
+                function shiftR(start, end, c, full) { //full => behave like a push right ~ do not stop on placeholders
+                    for (var i = start; i <= end && i < getMaskLength(); i++) {
+                        if (isMask(i)) {
+                            var t = getBufferElement(buffer, i);
+                            setBufferElement(buffer, i, c);
+                            if (t != getPlaceHolder(i)) {
+                                var j = seekNext(buffer, i);
+                                if (j < getMaskLength()) {
+                                    if (isValid(j, t, buffer, true) !== false && tests[determineTestPosition(i)].def == tests[determineTestPosition(j)].def)
+                                        c = t;
+                                    else {
+                                        if (isMask(j))
+                                            break;
+                                        else c = t;
+                                    }
+                                } else break;
+                            } else if (full !== true) break;
+                        } else
+                            setReTargetPlaceHolder(buffer, i);
+                    }
+                    var lengthBefore = buffer.length;
+                    buffer = truncateInput(buffer.join(''), isRTL).split('');
+                    if (buffer.length == 0) buffer = _buffer.slice();
+
+                    return end - (lengthBefore - buffer.length);  //return new start position
+                };
+
+                function keydownEvent(e) {
+                    //Safari 5.1.x - modal dialog fires keypress twice workaround
+                    skipKeyPressEvent = false;
+
+                    var input = this, k = e.keyCode, pos = caret(input);
+
+                    //set input direction according the position to the radixPoint
+                    if (opts.numericInput) {
+                        var nptStr = input._valueGet();
+                        var radixPosition = nptStr.indexOf(opts.radixPoint);
+                        if (radixPosition != -1) {
+                            isRTL = pos.begin <= radixPosition || pos.end <= radixPosition;
+                        }
+                    }
+
+                    //backspace, delete, and escape get special treatment
+                    if (k == opts.keyCode.BACKSPACE || k == opts.keyCode.DELETE || (iphone && k == 127)) {//backspace/delete
+                        var maskL = getMaskLength();
+                        if (pos.begin == 0 && pos.end == maskL) {
+                            buffer = _buffer.slice();
+                            writeBuffer(input, buffer);
+                            caret(input, checkVal(input, buffer, false));
+                        } else if ((pos.end - pos.begin) > 1 || ((pos.end - pos.begin) == 1 && opts.insertMode)) {
+                            clearBuffer(buffer, pos.begin, pos.end);
+                            writeBuffer(input, buffer, isRTL ? checkVal(input, buffer, false) : pos.begin);
+                        } else {
+                            var beginPos = pos.begin - (k == opts.keyCode.DELETE ? 0 : 1);
+                            if (beginPos < firstMaskPos && k == opts.keyCode.DELETE) {
+                                beginPos = firstMaskPos;
+                            }
+                            if (beginPos >= firstMaskPos) {
+                                if (opts.numericInput && opts.greedy && k == opts.keyCode.DELETE && buffer[beginPos] == opts.radixPoint) {
+                                    beginPos = seekNext(buffer, beginPos);
+                                    isRTL = false;
+                                }
+                                if (isRTL) {
+                                    beginPos = shiftR(firstMaskPos, beginPos, getPlaceHolder(beginPos), true);
+                                    beginPos = (opts.numericInput && opts.greedy && k == opts.keyCode.BACKSPACE && buffer[beginPos + 1] == opts.radixPoint) ? beginPos + 1 : seekNext(buffer, beginPos);
+                                } else beginPos = shiftL(beginPos, maskL);
+                                writeBuffer(input, buffer, beginPos);
+                            }
+                        }
+                        if (input._valueGet() == _buffer.join(''))
+                            $(input).trigger('cleared');
+
+                        return false;
+                    } else if (k == opts.keyCode.END || k == opts.keyCode.PAGE_DOWN) { //when END or PAGE_DOWN pressed set position at lastmatch
+                        setTimeout(function () {
+                            var caretPos = checkVal(input, buffer, false, true);
+                            if (!opts.insertMode && caretPos == getMaskLength() && !e.shiftKey) caretPos--;
+                            caret(input, e.shiftKey ? pos.begin : caretPos, caretPos);
+                        }, 0);
+                        return false;
+                    } else if (k == opts.keyCode.HOME || k == opts.keyCode.PAGE_UP) {//Home or page_up
+                        caret(input, 0, e.shiftKey ? pos.begin : 0);
+                        return false;
+                    }
+                    else if (k == opts.keyCode.ESCAPE) {//escape
+                        input._valueSet(undoBuffer);
+                        caret(input, 0, checkVal(input, buffer));
+                        return false;
+                    } else if (k == opts.keyCode.INSERT) {//insert
+                        opts.insertMode = !opts.insertMode;
+                        caret(input, !opts.insertMode && pos.begin == getMaskLength() ? pos.begin - 1 : pos.begin);
+                        return false;
+                    } else if (e.ctrlKey && k == 88) {
+                        setTimeout(function () {
+                            caret(input, checkVal(input, buffer, true));
+                        }, 0);
+                    } else if (!opts.insertMode) { //overwritemode
+                        if (k == opts.keyCode.RIGHT) {//right
+                            var caretPos = pos.begin == pos.end ? pos.end + 1 : pos.end;
+                            caretPos = caretPos < getMaskLength() ? caretPos : pos.end;
+                            caret(input, e.shiftKey ? pos.begin : caretPos, e.shiftKey ? caretPos + 1 : caretPos);
+                            return false;
+                        } else if (k == opts.keyCode.LEFT) {//left
+                            var caretPos = pos.begin - 1;
+                            caretPos = caretPos > 0 ? caretPos : 0;
+                            caret(input, caretPos, e.shiftKey ? pos.end : caretPos);
+                            return false;
+                        }
+                    }
+
+                    opts.onKeyDown.call(this, e, opts); //extra stuff to execute on keydown
+                    ignorable = $.inArray(k, opts.ignorables) != -1;
+                }
+
+                function keypressEvent(e) {
+                    //Safari 5.1.x - modal dialog fires keypress twice workaround
+                    if (skipKeyPressEvent) return false;
+                    skipKeyPressEvent = true;
+
+                    var input = this, $input = $(input);
+
+                    e = e || window.event;
+                    var k = e.which || e.charCode || e.keyCode;
+
+                    if (opts.numericInput && k == opts.radixPoint.charCodeAt(opts.radixPoint.length - 1)) {
+                        var nptStr = input._valueGet();
+                        var radixPosition = nptStr.indexOf(opts.radixPoint);
+                        caret(input, seekNext(buffer, radixPosition != -1 ? radixPosition : getMaskLength()));
+                    }
+
+                    if (e.ctrlKey || e.altKey || e.metaKey || ignorable) {//Ignore
+                        return true;
+                    } else {
+                        if (k) {
+                            $input.trigger('input');
+
+                            var pos = caret(input), c = String.fromCharCode(k), maskL = getMaskLength();
+                            clearBuffer(buffer, pos.begin, pos.end);
+
+                            if (isRTL) {
+                                var p = opts.numericInput ? pos.end : seekPrevious(buffer, pos.end), np;
+                                if ((np = isValid(p == maskL || getBufferElement(buffer, p) == opts.radixPoint ? seekPrevious(buffer, p) : p, c, buffer, false)) !== false) {
+                                    if (np !== true) {
+                                        p = np.pos || pos; //set new position from isValid
+                                        c = np.c || c; //set new char from isValid
+                                    }
+
+                                    var firstUnmaskedPosition = firstMaskPos;
+                                    if (opts.insertMode == true) {
+                                        if (opts.greedy == true) {
+                                            var bfrClone = buffer.slice();
+                                            while (getBufferElement(bfrClone, firstUnmaskedPosition, true) != getPlaceHolder(firstUnmaskedPosition) && firstUnmaskedPosition <= p) {
+                                                firstUnmaskedPosition = firstUnmaskedPosition == maskL ? (maskL + 1) : seekNext(buffer, firstUnmaskedPosition);
+                                            }
+                                        }
+
+                                        if (firstUnmaskedPosition <= p && (opts.greedy || buffer.length < maskL)) {
+                                            if (buffer[firstMaskPos] != getPlaceHolder(firstMaskPos) && buffer.length < maskL) {
+                                                var offset = prepareBuffer(buffer, -1, isRTL);
+                                                if (pos.end != 0) p = p + offset;
+                                                maskL = buffer.length;
+                                            }
+                                            shiftL(firstUnmaskedPosition, opts.numericInput ? seekPrevious(buffer, p) : p, c);
+                                        } else return false;
+                                    } else setBufferElement(buffer, opts.numericInput ? seekPrevious(buffer, p) : p, c);
+                                    writeBuffer(input, buffer, opts.numericInput && p == 0 ? seekNext(buffer, p) : p);
+                                    setTimeout(function () { //timeout needed for IE
+                                        if (isComplete(input))
+                                            $input.trigger("complete");
+                                    }, 0);
+                                } else if (android) writeBuffer(input, buffer, pos.begin);
+                            }
+                            else {
+                                var p = seekNext(buffer, pos.begin - 1), np;
+                                prepareBuffer(buffer, p, isRTL);
+                                if ((np = isValid(p, c, buffer, false)) !== false) {
+                                    if (np !== true) {
+                                        p = np.pos || p; //set new position from isValid
+                                        c = np.c || c; //set new char from isValid
+                                    }
+                                    if (opts.insertMode == true) {
+                                        var lastUnmaskedPosition = getMaskLength();
+                                        var bfrClone = buffer.slice();
+                                        while (getBufferElement(bfrClone, lastUnmaskedPosition, true) != getPlaceHolder(lastUnmaskedPosition) && lastUnmaskedPosition >= p) {
+                                            lastUnmaskedPosition = lastUnmaskedPosition == 0 ? -1 : seekPrevious(buffer, lastUnmaskedPosition);
+                                        }
+                                        if (lastUnmaskedPosition >= p)
+                                            shiftR(p, buffer.length, c);
+                                        else return false;
+                                    }
+                                    else setBufferElement(buffer, p, c);
+                                    var next = seekNext(buffer, p);
+                                    writeBuffer(input, buffer, next);
+
+                                    setTimeout(function () { //timeout needed for IE
+                                        if (isComplete(input))
+                                            $input.trigger("complete");
+                                    }, 0);
+                                } else if (android) writeBuffer(input, buffer, pos.begin);
+                            }
+                            return false;
+                        }
+                    }
+                }
+
+                function keyupEvent(e) {
+                    var $input = $(this), input = this;
+                    var k = e.keyCode;
+                    opts.onKeyUp.call(this, e, opts); //extra stuff to execute on keyup
+                    if (k == opts.keyCode.TAB && $input.hasClass('focus.inputmask') && input._valueGet().length == 0) {
+                        buffer = _buffer.slice();
+                        writeBuffer(input, buffer);
+                        if (!isRTL) caret(input, 0);
+                        undoBuffer = input._valueGet();
+                    }
+                }
+            }
+        };
+    }
+})(jQuery);
+
+/*
+ * jQuery.bind-first library v0.1
+ * Copyright (c) 2012 Vladimir Zhuravlev
+ *
+ * Released under MIT License
+ *
+ * Date: Sun Jan 15 20:05:49 GST 2012
+ **/(function(a){function e(b,c,e){var f=c.split(/\s+/);b.each(function(){for(var b=0;b<f.length;++b){var c=a.trim(f[b]).match(/[^\.]+/i)[0];d(a(this),c,e)}})}function d(a,d,e){var f=c(a),g=f[d];if(!b){var h=g.pop();g.splice(e?0:g.delegateCount||0,0,h)}else e?f.live.unshift(f.live.pop()):g.unshift(g.pop())}function c(c){return b?c.data("events"):a._data(c[0]).events}var b=parseFloat(a.fn.jquery)<1.7;a.fn.bindFirst=function(){var b=a(this),c=a.makeArray(arguments),d=c.shift();d&&(a.fn.bind.apply(b,arguments),e(b,d));return b},a.fn.delegateFirst=function(){var b=a(this),c=a.makeArray(arguments),d=c[1];d&&(c.splice(0,2),a.fn.delegate.apply(b,arguments),e(a(this),d,!0));return b},a.fn.liveFirst=function(){var b=a(this),c=a.makeArray(arguments);c.unshift(b.selector),a.fn.delegateFirst.apply(a(document),c);return b}})(jQuery);
+
+/*
+ * @license Multi Input Mask plugin for jquery
+ * https://github.com/andr-04/inputmask-multi
+ * Copyright (c) 2012 Andrey Egorov
+ * Licensed under the MIT license (http://www.opensource.org/licenses/mit-license.php)
+ * Version: 1.0.2
+ *
+ * Requriements:
+ * https://github.com/RobinHerbots/jquery.inputmask
+ * https://github.com/private-face/jquery.bind-first
+ */
+(function ($) {
+    $.masksLoad = function(url) {
+        var maskList;
+        $.ajax({
+            url: url,
+            async: false,
+            dataType: 'json',
+            success: function (response) {
+                maskList = response;
+            }
+        });
+        return maskList;
+    }
+
+    $.masksSort = function(maskList, defs, match, key) {
+        maskList.sort(function (a, b) {
+            var ia = 0, ib = 0;
+            for (; (ia<a[key].length && ib<b[key].length);) {
+                var cha = a[key].charAt(ia);
+                var chb = b[key].charAt(ib);
+                if (!match.test(cha)) {
+                    ia++;
+                    continue;
+                }
+                if (!match.test(chb)) {
+                    ib++;
+                    continue;
+                }
+                if ($.inArray(cha, defs) != -1 && $.inArray(chb, defs) == -1) {
+                    return 1;
+                }
+                if ($.inArray(cha, defs) == -1 && $.inArray(chb, defs) != -1) {
+                    return -1;
+                }
+                if ($.inArray(cha, defs) == -1 && $.inArray(chb, defs) == -1) {
+                    if (cha != chb) {
+                        return cha < chb ? -1 : 1;
+                    }
+                }
+                ia++;
+                ib++;
+            }
+            for (; (ia<a[key].length || ib<b[key].length);) {
+                if (ia<a[key].length && !match.test(a[key].charAt(ia))) {
+                    ia++;
+                    continue;
+                }
+                if (ib<b[key].length && !match.test(b[key].charAt(ib))) {
+                    ib++;
+                    continue;
+                }
+                if (ia<a[key].length) {
+                    return 1;
+                }
+                if (ib<b[key].length) {
+                    return -1;
+                }
+            }
+            return 0;
+        });
+        return maskList;
+    }
+
+    $.fn.inputmasks = function(maskOpts, mode) {
+        //Helper Functions
+        var caret = function(begin, end) {
+            if (typeof begin == 'number') {
+                end = (typeof end == 'number') ? end : begin;
+                if (this.setSelectionRange) {
+                    this.setSelectionRange(begin, end);
+                } else if (this.createTextRange) {
+                    var range = this.createTextRange();
+                    range.collapse(true);
+                    range.moveEnd('character', end);
+                    range.moveStart('character', begin);
+                    range.select();
+                }
+            } else {
+                if (this.setSelectionRange) {
+                    begin = this.selectionStart;
+                    end = this.selectionEnd;
+                } else if (document.selection && document.selection.createRange) {
+                    var range = document.selection.createRange();
+                    begin = 0 - range.duplicate().moveStart('character', -100000);
+                    end = begin + range.text.length;
+                }
+                return {
+                    begin: begin,
+                    end: end
+                };
+            }
+        };
+
+        var keys = Object.keys || function(obj) {
+                if (obj !== Object(obj)) {
+                    throw new TypeError('Invalid object');
+                }
+                var keys = [];
+                for (var key in obj) {
+                    keys[keys.length] = key;
+                }
+                return keys;
+            };
+
+        maskOpts = $.extend(true, {
+            onMaskChange: $.noop
+        }, maskOpts);
+        var defs = {};
+        for (var def in maskOpts.inputmask.definitions) {
+            var validator = maskOpts.inputmask.definitions[def].validator;
+            switch (typeof validator) {
+                case "string":
+                    defs[def] = new RegExp(validator);
+                    break;
+                case "object":
+                    if ("test" in maskOpts.definitions[def].validator) {
+                        defs[def] = validator;
+                    }
+                    break;
+                case "function":
+                    defs[def] = {
+                        test: validator
+                    };
+                    break;
+            }
+        }
+        maskOpts.inputmask.definitions[maskOpts.replace] = {
+            validator: maskOpts.match.source,
+            cardinality: 1
+        };
+        var iphone = navigator.userAgent.match(/iphone/i) != null;
+        var oldmatch = false;
+        var placeholder = $.extend(true, {}, $.inputmask.defaults, maskOpts.inputmask).placeholder;
+        var insertMode = $.extend(true, {}, $.inputmask.defaults, maskOpts.inputmask).insertMode;
+
+        var maskMatch = function(text) {
+            var mtxt = "";
+            for (var i=0; i<text.length; i++) {
+                var ch = text.charAt(i);
+                if (ch == placeholder) {
+                    break;
+                }
+                if (maskOpts.match.test(ch)) {
+                    mtxt += ch;
+                }
+            }
+            for (var mid in maskOpts.list) {
+                var mask = maskOpts.list[mid][maskOpts.listKey];
+                var pass = true;
+                for (var it=0, im=0; (it<mtxt.length && im<mask.length);) {
+                    var chm = mask.charAt(im);
+                    var cht = mtxt.charAt(it);
+                    if (!maskOpts.match.test(chm) && !(chm in defs)) {
+                        im++;
+                        continue;
+                    }
+                    if (((chm in defs) && defs[chm].test(cht)) || (cht == chm)) {
+                        it++;
+                        im++;
+                    } else {
+                        pass = false;
+                        break;
+                    }
+                }
+                if (pass && it==mtxt.length) {
+                    var determined = mask.substr(im).search(maskOpts.match) == -1;
+                    mask = mask.replace(new RegExp([maskOpts.match.source].concat(keys(defs)).join('|'), 'g'), maskOpts.replace);
+                    var completed = mask.substr(im).search(maskOpts.replace) == -1;
+                    return {
+                        mask: mask,
+                        obj: maskOpts.list[mid],
+                        determined: determined,
+                        completed: completed
+                    };
+                }
+            }
+            return false;
+        }
+
+        var caretApply = function(oldMask, newMask, oldPos) {
+            if (!oldMask) {
+                return 0;
+            }
+            var pos = 0, startPos = 0;
+            for (; pos < oldPos.begin; pos++) {
+                if (oldMask.charAt(pos) == maskOpts.replace) {
+                    startPos++;
+                }
+            }
+            var endPos = 0;
+            for (; pos < oldPos.end; pos++) {
+                if (oldMask.charAt(pos) == maskOpts.replace) {
+                    endPos++;
+                }
+            }
+            for (pos = 0; (pos < newMask.length && (startPos > 0 || newMask.charAt(pos) != maskOpts.replace)); pos++) {
+                if (newMask.charAt(pos) == maskOpts.replace) {
+                    startPos--;
+                }
+            }
+            startPos = pos;
+            for (; (pos < newMask.length && endPos > 0); pos++) {
+                if (newMask.charAt(pos) == maskOpts.replace) {
+                    endPos--;
+                }
+            }
+            endPos = pos;
+            return {
+                begin: startPos,
+                end: endPos
+            };
+        }
+
+        var maskUnbind = function() {
+            $(this)
+                .unbind("keypress.inputmask", masksKeyPress)
+                .unbind("input.inputmask", masksPaste)
+                .unbind("paste.inputmask", masksPaste)
+                .unbind("dragdrop.inputmask", masksPaste)
+                .unbind("drop.inputmask", masksPaste)
+                .unbind("keydown.inputmask", masksKeyDown)
+                .unbind("setvalue.inputmask", masksSetValue)
+                .unbind("blur.inputmask", masksChange);
+        }
+
+        var maskRebind = function() {
+            maskUnbind.call(this);
+            $(this)
+                .bindFirst("keypress.inputmask", masksKeyPress)
+                .bindFirst("input.inputmask", masksPaste)
+                .bindFirst("paste.inputmask", masksPaste)
+                .bindFirst("dragdrop.inputmask", masksPaste)
+                .bindFirst("drop.inputmask", masksPaste)
+                .bindFirst("keydown.inputmask", masksKeyDown)
+                .bindFirst("setvalue.inputmask", masksSetValue)
+                .bind("blur.inputmask", masksChange);
+        }
+
+        var maskApply = function(match, newtext) {
+            if (match && (newtext || match.mask != oldmatch.mask)) {
+                var caretPos;
+                if (!newtext) {
+                    caretPos = caretApply(oldmatch.mask, match.mask, caret.call(this));
+                }
+                if (newtext) {
+                    if (this._valueSet) {
+                        this._valueSet(newtext);
+                    } else {
+                        this.value = newtext;
+                    }
+                }
+                $(this).inputmask(match.mask, $.extend(true, maskOpts.inputmask, {
+                    insertMode: insertMode
+                }));
+                if (!newtext) {
+                    caret.call(this, caretPos.begin, caretPos.end);
+                }
+            }
+            oldmatch = match;
+            maskOpts.onMaskChange.call(this, match.obj, match.determined);
+            return true;
+        }
+
+        var keyboardApply = function(e, text, insert) {
+            var match = maskMatch(text);
+            if (!match || match.obj != oldmatch.obj || match.determined != oldmatch.determined) {
+                if (match) {
+                    maskUnbind.call(this);
+                    if (insert) {
+                        maskApply.call(this, match);
+                        $(this).trigger(e);
+                    } else {
+                        $(this).trigger(e);
+                        maskApply.call(this, match);
+                    }
+                    maskRebind.call(this);
+                }
+                e.stopImmediatePropagation();
+                return false;
+            }
+            return true;
+        }
+
+        var masksKeyDown = function(e) {
+            e = e || window.event;
+            var k = e.which || e.charCode || e.keyCode;
+            if (k == 8 || k == 46 || (iphone && k == 127)) { // delete or backspace
+                var text = this._valueGet();
+                var caretPos = caret.call(this);
+                if (caretPos.begin == caretPos.end || (!insertMode && caretPos.begin == caretPos.end-1)) {
+                    var pos = caretPos.begin;
+                    do {
+                        if (k != 46) { // backspace
+                            pos--;
+                        }
+                        var chr = text.charAt(pos);
+                        text = text.substring(0, pos) + text.substring(pos+1);
+                    } while (pos>0 && pos<text.length && chr != placeholder && !maskOpts.match.test(chr));
+                } else {
+                    var test = text.substring(0, caretPos.begin) + text.substring(caretPos.end);
+                    if (test.search(maskOpts.match) == -1) {
+                        text = test;
+                    }
+                }
+                return keyboardApply.call(this, e, text, false);
+            }
+            if (k == 45) { // insert
+                insertMode = !insertMode;
+            }
+            return true;
+        }
+
+        var masksKeyPress = function(e) {
+            var text = this._valueGet();
+            e = e || window.event;
+            var k = e.which || e.charCode || e.keyCode, c = String.fromCharCode(k);
+            caretPos = caret.call(this);
+            text = text.substring(0, caretPos.begin) + c + text.substring(caretPos.end);
+            return keyboardApply.call(this, e, text, true);
+        }
+
+        var masksChange = function(e) {
+            var match = maskMatch(this._valueGet());
+            maskApply.call(this, match);
+            maskRebind.call(this);
+            return true;
+        }
+
+        var masksSetValue = function(e) {
+            maskInit.call(this);
+            e.stopImmediatePropagation();
+            return true;
+        }
+
+        var maskInit = function() {
+            var text;
+            if (this._valueGet) {
+                text = this._valueGet();
+            } else {
+                text = this.value;
+            }
+            var match = maskMatch(text);
+            while (!match && text.length>0) {
+                text = text.substr(0, text.length-1);
+                match = maskMatch(text);
+            }
+            maskApply.call(this, match, text);
+            maskRebind.call(this);
+        }
+
+        var masksPaste = function(e) {
+            var input = this;
+            setTimeout(function() {
+                maskInit.call(input);
+            }, 0);
+            e.stopImmediatePropagation();
+            return true;
+        }
+
+        switch (mode) {
+            case "isCompleted":
+                var res = maskMatch((this[0]._valueGet && this[0]._valueGet()) || this[0].value);
+                return (res && res.completed);
+            default:
+                this.each(function () {
+                    maskInit.call(this);
+                });
+                return this;
+        }
+    }
+})(jQuery);
+
+
+var country__list = [
+    { "mask": "+247-####", "cc": "AC", "name_en": "Ascension", "desc_en": "", "name_ru": "ÐžÑÑ‚Ñ€Ð¾Ð² Ð’Ð¾Ð·Ð½ÐµÑÐµÐ½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+376-###-###", "cc": "AD", "name_en": "Andorra", "desc_en": "", "name_ru": "ÐÐ½Ð´Ð¾Ñ€Ñ€Ð°", "desc_ru": "" },
+    { "mask": "+971-5#-###-####", "cc": "AE", "name_en": "United Arab Emirates", "desc_en": "mobile", "name_ru": "ÐžÐ±ÑŠÐµÐ´Ð¸Ð½ÐµÐ½Ð½Ñ‹Ðµ ÐÑ€Ð°Ð±ÑÐºÐ¸Ðµ Ð­Ð¼Ð¸Ñ€Ð°Ñ‚Ñ‹", "desc_ru": "Ð¼Ð¾Ð±Ð¸Ð»ÑŒÐ½Ñ‹Ðµ" },
+    { "mask": "+971-#-###-####", "cc": "AE", "name_en": "United Arab Emirates", "desc_en": "", "name_ru": "ÐžÐ±ÑŠÐµÐ´Ð¸Ð½ÐµÐ½Ð½Ñ‹Ðµ ÐÑ€Ð°Ð±ÑÐºÐ¸Ðµ Ð­Ð¼Ð¸Ñ€Ð°Ñ‚Ñ‹", "desc_ru": "" },
+    { "mask": "+93-##-###-####", "cc": "AF", "name_en": "Afghanistan", "desc_en": "", "name_ru": "ÐÑ„Ð³Ð°Ð½Ð¸ÑÑ‚Ð°Ð½", "desc_ru": "" },
+    { "mask": "+1(268)###-####", "cc": "AG", "name_en": "Antigua & Barbuda", "desc_en": "", "name_ru": "ÐÐ½Ñ‚Ð¸Ð³ÑƒÐ° Ð¸ Ð‘Ð°Ñ€Ð±ÑƒÐ´Ð°", "desc_ru": "" },
+    { "mask": "+1(264)###-####", "cc": "AI", "name_en": "Anguilla", "desc_en": "", "name_ru": "ÐÐ½Ð³Ð¸Ð»ÑŒÑ", "desc_ru": "" },
+    { "mask": "+355(###)###-###", "cc": "AL", "name_en": "Albania", "desc_en": "", "name_ru": "ÐÐ»Ð±Ð°Ð½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+374-##-###-###", "cc": "AM", "name_en": "Armenia", "desc_en": "", "name_ru": "ÐÑ€Ð¼ÐµÐ½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+599-###-####", "cc": "AN", "name_en": "Caribbean Netherlands", "desc_en": "", "name_ru": "ÐšÐ°Ñ€Ð¸Ð±ÑÐºÐ¸Ðµ ÐÐ¸Ð´ÐµÑ€Ð»Ð°Ð½Ð´Ñ‹", "desc_ru": "" },
+    { "mask": "+599-###-####", "cc": "AN", "name_en": "Netherlands Antilles", "desc_en": "", "name_ru": "ÐÐ¸Ð´ÐµÑ€Ð»Ð°Ð½Ð´ÑÐºÐ¸Ðµ ÐÐ½Ñ‚Ð¸Ð»ÑŒÑÐºÐ¸Ðµ Ð¾ÑÑ‚Ñ€Ð¾Ð²Ð°", "desc_ru": "" },
+    { "mask": "+599-9###-####", "cc": "AN", "name_en": "Netherlands Antilles", "desc_en": "Curacao", "name_ru": "ÐÐ¸Ð´ÐµÑ€Ð»Ð°Ð½Ð´ÑÐºÐ¸Ðµ ÐÐ½Ñ‚Ð¸Ð»ÑŒÑÐºÐ¸Ðµ Ð¾ÑÑ‚Ñ€Ð¾Ð²Ð°", "desc_ru": "ÐšÑŽÑ€Ð°ÑÐ°Ð¾" },
+    { "mask": "+244(###)###-###", "cc": "AO", "name_en": "Angola", "desc_en": "", "name_ru": "ÐÐ½Ð³Ð¾Ð»Ð°", "desc_ru": "" },
+    { "mask": "+672-1##-###", "cc": "AQ", "name_en": "Australian bases in Antarctica", "desc_en": "", "name_ru": "ÐÐ²ÑÑ‚Ñ€Ð°Ð»Ð¸Ð¹ÑÐºÐ°Ñ Ð°Ð½Ñ‚Ð°Ñ€ÐºÑ‚Ð¸Ñ‡ÐµÑÐºÐ°Ñ Ð±Ð°Ð·Ð°", "desc_ru": "" },
+    { "mask": "+54(###)###-####", "cc": "AR", "name_en": "Argentina", "desc_en": "", "name_ru": "ÐÑ€Ð³ÐµÐ½Ñ‚Ð¸Ð½Ð°", "desc_ru": "" },
+    { "mask": "+1(684)###-####", "cc": "AS", "name_en": "American Samoa", "desc_en": "", "name_ru": "ÐÐ¼ÐµÑ€Ð¸ÐºÐ°Ð½ÑÐºÐ¾Ðµ Ð¡Ð°Ð¼Ð¾Ð°", "desc_ru": "" },
+    { "mask": "+43(###)###-####", "cc": "AT", "name_en": "Austria", "desc_en": "", "name_ru": "ÐÐ²ÑÑ‚Ñ€Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+61-#-####-####", "cc": "AU", "name_en": "Australia", "desc_en": "", "name_ru": "ÐÐ²ÑÑ‚Ñ€Ð°Ð»Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+297-###-####", "cc": "AW", "name_en": "Aruba", "desc_en": "", "name_ru": "ÐÑ€ÑƒÐ±Ð°", "desc_ru": "" },
+    { "mask": "+994-##-###-##-##", "cc": "AZ", "name_en": "Azerbaijan", "desc_en": "", "name_ru": "ÐÐ·ÐµÑ€Ð±Ð°Ð¹Ð´Ð¶Ð°Ð½", "desc_ru": "" },
+    { "mask": "+387-##-#####", "cc": "BA", "name_en": "Bosnia and Herzegovina", "desc_en": "", "name_ru": "Ð‘Ð¾ÑÐ½Ð¸Ñ Ð¸ Ð“ÐµÑ€Ñ†ÐµÐ³Ð¾Ð²Ð¸Ð½Ð°", "desc_ru": "" },
+    { "mask": "+387-##-####", "cc": "BA", "name_en": "Bosnia and Herzegovina", "desc_en": "", "name_ru": "Ð‘Ð¾ÑÐ½Ð¸Ñ Ð¸ Ð“ÐµÑ€Ñ†ÐµÐ³Ð¾Ð²Ð¸Ð½Ð°", "desc_ru": "" },
+    { "mask": "+1(246)###-####", "cc": "BB", "name_en": "Barbados", "desc_en": "", "name_ru": "Ð‘Ð°Ñ€Ð±Ð°Ð´Ð¾Ñ", "desc_ru": "" },
+    { "mask": "+880-##-###-###", "cc": "BD", "name_en": "Bangladesh", "desc_en": "", "name_ru": "Ð‘Ð°Ð½Ð³Ð»Ð°Ð´ÐµÑˆ", "desc_ru": "" },
+    { "mask": "+32(###)###-###", "cc": "BE", "name_en": "Belgium", "desc_en": "", "name_ru": "Ð‘ÐµÐ»ÑŒÐ³Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+226-##-##-####", "cc": "BF", "name_en": "Burkina Faso", "desc_en": "", "name_ru": "Ð‘ÑƒÑ€ÐºÐ¸Ð½Ð° Ð¤Ð°ÑÐ¾", "desc_ru": "" },
+    { "mask": "+359(###)###-###", "cc": "BG", "name_en": "Bulgaria", "desc_en": "", "name_ru": "Ð‘Ð¾Ð»Ð³Ð°Ñ€Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+973-####-####", "cc": "BH", "name_en": "Bahrain", "desc_en": "", "name_ru": "Ð‘Ð°Ñ…Ñ€ÐµÐ¹Ð½", "desc_ru": "" },
+    { "mask": "+257-##-##-####", "cc": "BI", "name_en": "Burundi", "desc_en": "", "name_ru": "Ð‘ÑƒÑ€ÑƒÐ½Ð´Ð¸", "desc_ru": "" },
+    { "mask": "+229-##-##-####", "cc": "BJ", "name_en": "Benin", "desc_en": "", "name_ru": "Ð‘ÐµÐ½Ð¸Ð½", "desc_ru": "" },
+    { "mask": "+1(441)###-####", "cc": "BM", "name_en": "Bermuda", "desc_en": "", "name_ru": "Ð‘ÐµÑ€Ð¼ÑƒÐ´ÑÐºÐ¸Ðµ Ð¾ÑÑ‚Ñ€Ð¾Ð²Ð°", "desc_ru": "" },
+    { "mask": "+673-###-####", "cc": "BN", "name_en": "Brunei Darussalam", "desc_en": "", "name_ru": "Ð‘Ñ€ÑƒÐ½ÐµÐ¹-Ð”Ð°Ñ€ÑƒÑÑÐ°Ð»Ð°Ð¼", "desc_ru": "" },
+    { "mask": "+591-#-###-####", "cc": "BO", "name_en": "Bolivia", "desc_en": "", "name_ru": "Ð‘Ð¾Ð»Ð¸Ð²Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+55-##-####-####", "cc": "BR", "name_en": "Brazil", "desc_en": "", "name_ru": "Ð‘Ñ€Ð°Ð·Ð¸Ð»Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+1(242)###-####", "cc": "BS", "name_en": "Bahamas", "desc_en": "", "name_ru": "Ð‘Ð°Ð³Ð°Ð¼ÑÐºÐ¸Ðµ ÐžÑÑ‚Ñ€Ð¾Ð²Ð°", "desc_ru": "" },
+    { "mask": "+975-17-###-###", "cc": "BT", "name_en": "Bhutan", "desc_en": "", "name_ru": "Ð‘ÑƒÑ‚Ð°Ð½", "desc_ru": "" },
+    { "mask": "+975-#-###-###", "cc": "BT", "name_en": "Bhutan", "desc_en": "", "name_ru": "Ð‘ÑƒÑ‚Ð°Ð½", "desc_ru": "" },
+    { "mask": "+267-##-###-###", "cc": "BW", "name_en": "Botswana", "desc_en": "", "name_ru": "Ð‘Ð¾Ñ‚ÑÐ²Ð°Ð½Ð°", "desc_ru": "" },
+    { "mask": "+375(##)###-##-##", "cc": "BY", "name_en": "Belarus", "desc_en": "", "name_ru": "Ð‘ÐµÐ»Ð°Ñ€ÑƒÑÑŒ (Ð‘ÐµÐ»Ð¾Ñ€ÑƒÑÑÐ¸Ñ)", "desc_ru": "" },
+    { "mask": "+501-###-####", "cc": "BZ", "name_en": "Belize", "desc_en": "", "name_ru": "Ð‘ÐµÐ»Ð¸Ð·", "desc_ru": "" },
+    { "mask": "+243(###)###-###", "cc": "CD", "name_en": "Dem. Rep. Congo", "desc_en": "", "name_ru": "Ð”ÐµÐ¼. Ð ÐµÑÐ¿. ÐšÐ¾Ð½Ð³Ð¾ (ÐšÐ¸Ð½ÑˆÐ°ÑÐ°)", "desc_ru": "" },
+    { "mask": "+236-##-##-####", "cc": "CF", "name_en": "Central African Republic", "desc_en": "", "name_ru": "Ð¦ÐµÐ½Ñ‚Ñ€Ð°Ð»ÑŒÐ½Ð¾Ð°Ñ„Ñ€Ð¸ÐºÐ°Ð½ÑÐºÐ°Ñ Ð ÐµÑÐ¿ÑƒÐ±Ð»Ð¸ÐºÐ°", "desc_ru": "" },
+    { "mask": "+242-##-###-####", "cc": "CG", "name_en": "Congo (Brazzaville)", "desc_en": "", "name_ru": "ÐšÐ¾Ð½Ð³Ð¾ (Ð‘Ñ€Ð°Ð·Ð·Ð°Ð²Ð¸Ð»ÑŒ)", "desc_ru": "" },
+    { "mask": "+41-##-###-####", "cc": "CH", "name_en": "Switzerland", "desc_en": "", "name_ru": "Ð¨Ð²ÐµÐ¹Ñ†Ð°Ñ€Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+225-##-###-###", "cc": "CI", "name_en": "Cote dâ€™IvoireÂ (Ivory Coast)", "desc_en": "", "name_ru": "ÐšÐ¾Ñ‚-Ð´â€™Ð˜Ð²ÑƒÐ°Ñ€", "desc_ru": "" },
+    { "mask": "+682-##-###", "cc": "CK", "name_en": "Cook Islands", "desc_en": "", "name_ru": "ÐžÑÑ‚Ñ€Ð¾Ð²Ð° ÐšÑƒÐºÐ°", "desc_ru": "" },
+    { "mask": "+56-#-####-####", "cc": "CL", "name_en": "Chile", "desc_en": "", "name_ru": "Ð§Ð¸Ð»Ð¸", "desc_ru": "" },
+    { "mask": "+237-####-####", "cc": "CM", "name_en": "Cameroon", "desc_en": "", "name_ru": "ÐšÐ°Ð¼ÐµÑ€ÑƒÐ½", "desc_ru": "" },
+    { "mask": "+86(###)####-####", "cc": "CN", "name_en": "China (PRC)", "desc_en": "", "name_ru": "ÐšÐ¸Ñ‚Ð°Ð¹ÑÐºÐ°Ñ Ð.Ð .", "desc_ru": "" },
+    { "mask": "+86(###)####-###", "cc": "CN", "name_en": "China (PRC)", "desc_en": "", "name_ru": "ÐšÐ¸Ñ‚Ð°Ð¹ÑÐºÐ°Ñ Ð.Ð .", "desc_ru": "" },
+    { "mask": "+86-##-#####-#####", "cc": "CN", "name_en": "China (PRC)", "desc_en": "", "name_ru": "ÐšÐ¸Ñ‚Ð°Ð¹ÑÐºÐ°Ñ Ð.Ð .", "desc_ru": "" },
+    { "mask": "+57(###)###-####", "cc": "CO", "name_en": "Colombia", "desc_en": "", "name_ru": "ÐšÐ¾Ð»ÑƒÐ¼Ð±Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+506-####-####", "cc": "CR", "name_en": "Costa Rica", "desc_en": "", "name_ru": "ÐšÐ¾ÑÑ‚Ð°-Ð Ð¸ÐºÐ°", "desc_ru": "" },
+    { "mask": "+53-#-###-####", "cc": "CU", "name_en": "Cuba", "desc_en": "", "name_ru": "ÐšÑƒÐ±Ð°", "desc_ru": "" },
+    { "mask": "+238(###)##-##", "cc": "CV", "name_en": "Cape Verde", "desc_en": "", "name_ru": "ÐšÐ°Ð±Ð¾-Ð’ÐµÑ€Ð´Ðµ", "desc_ru": "" },
+    { "mask": "+599-###-####", "cc": "CW", "name_en": "Curacao", "desc_en": "", "name_ru": "ÐšÑŽÑ€Ð°ÑÐ°Ð¾", "desc_ru": "" },
+    { "mask": "+357-##-###-###", "cc": "CY", "name_en": "Cyprus", "desc_en": "", "name_ru": "ÐšÐ¸Ð¿Ñ€", "desc_ru": "" },
+    { "mask": "+420(###)###-###", "cc": "CZ", "name_en": "Czech Republic", "desc_en": "", "name_ru": "Ð§ÐµÑ…Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+49(####)###-####", "cc": "DE", "name_en": "Germany", "desc_en": "", "name_ru": "Ð“ÐµÑ€Ð¼Ð°Ð½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+49(###)###-####", "cc": "DE", "name_en": "Germany", "desc_en": "", "name_ru": "Ð“ÐµÑ€Ð¼Ð°Ð½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+49(###)##-####", "cc": "DE", "name_en": "Germany", "desc_en": "", "name_ru": "Ð“ÐµÑ€Ð¼Ð°Ð½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+49(###)##-###", "cc": "DE", "name_en": "Germany", "desc_en": "", "name_ru": "Ð“ÐµÑ€Ð¼Ð°Ð½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+49(###)##-##", "cc": "DE", "name_en": "Germany", "desc_en": "", "name_ru": "Ð“ÐµÑ€Ð¼Ð°Ð½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+49-###-###", "cc": "DE", "name_en": "Germany", "desc_en": "", "name_ru": "Ð“ÐµÑ€Ð¼Ð°Ð½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+253-##-##-##-##", "cc": "DJ", "name_en": "Djibouti", "desc_en": "", "name_ru": "Ð”Ð¶Ð¸Ð±ÑƒÑ‚Ð¸", "desc_ru": "" },
+    { "mask": "+45-##-##-##-##", "cc": "DK", "name_en": "Denmark", "desc_en": "", "name_ru": "Ð”Ð°Ð½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+1(767)###-####", "cc": "DM", "name_en": "Dominica", "desc_en": "", "name_ru": "Ð”Ð¾Ð¼Ð¸Ð½Ð¸ÐºÐ°", "desc_ru": "" },
+    { "mask": "+1(809)###-####", "cc": "DO", "name_en": "Dominican Republic", "desc_en": "", "name_ru": "Ð”Ð¾Ð¼Ð¸Ð½Ð¸ÐºÐ°Ð½ÑÐºÐ°Ñ Ð ÐµÑÐ¿ÑƒÐ±Ð»Ð¸ÐºÐ°", "desc_ru": "" },
+    { "mask": "+1(829)###-####", "cc": "DO", "name_en": "Dominican Republic", "desc_en": "", "name_ru": "Ð”Ð¾Ð¼Ð¸Ð½Ð¸ÐºÐ°Ð½ÑÐºÐ°Ñ Ð ÐµÑÐ¿ÑƒÐ±Ð»Ð¸ÐºÐ°", "desc_ru": "" },
+    { "mask": "+1(849)###-####", "cc": "DO", "name_en": "Dominican Republic", "desc_en": "", "name_ru": "Ð”Ð¾Ð¼Ð¸Ð½Ð¸ÐºÐ°Ð½ÑÐºÐ°Ñ Ð ÐµÑÐ¿ÑƒÐ±Ð»Ð¸ÐºÐ°", "desc_ru": "" },
+    { "mask": "+213-##-###-####", "cc": "DZ", "name_en": "Algeria", "desc_en": "", "name_ru": "ÐÐ»Ð¶Ð¸Ñ€", "desc_ru": "" },
+    { "mask": "+593-##-###-####", "cc": "EC", "name_en": "Ecuador ", "desc_en": "mobile", "name_ru": "Ð­ÐºÐ²Ð°Ð´Ð¾Ñ€ ", "desc_ru": "Ð¼Ð¾Ð±Ð¸Ð»ÑŒÐ½Ñ‹Ðµ" },
+    { "mask": "+593-#-###-####", "cc": "EC", "name_en": "Ecuador", "desc_en": "", "name_ru": "Ð­ÐºÐ²Ð°Ð´Ð¾Ñ€", "desc_ru": "" },
+    { "mask": "+372-####-####", "cc": "EE", "name_en": "Estonia ", "desc_en": "mobile", "name_ru": "Ð­ÑÑ‚Ð¾Ð½Ð¸Ñ ", "desc_ru": "Ð¼Ð¾Ð±Ð¸Ð»ÑŒÐ½Ñ‹Ðµ" },
+    { "mask": "+372-###-####", "cc": "EE", "name_en": "Estonia", "desc_en": "", "name_ru": "Ð­ÑÑ‚Ð¾Ð½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+20(###)###-####", "cc": "EG", "name_en": "Egypt", "desc_en": "", "name_ru": "Ð•Ð³Ð¸Ð¿ÐµÑ‚", "desc_ru": "" },
+    { "mask": "+291-#-###-###", "cc": "ER", "name_en": "Eritrea", "desc_en": "", "name_ru": "Ð­Ñ€Ð¸Ñ‚Ñ€ÐµÑ", "desc_ru": "" },
+    { "mask": "+34(###)###-###", "cc": "ES", "name_en": "Spain", "desc_en": "", "name_ru": "Ð˜ÑÐ¿Ð°Ð½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+251-##-###-####", "cc": "ET", "name_en": "Ethiopia", "desc_en": "", "name_ru": "Ð­Ñ„Ð¸Ð¾Ð¿Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+358(###)###-##-##", "cc": "FI", "name_en": "Finland", "desc_en": "", "name_ru": "Ð¤Ð¸Ð½Ð»ÑÐ½Ð´Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+679-##-#####", "cc": "FJ", "name_en": "Fiji", "desc_en": "", "name_ru": "Ð¤Ð¸Ð´Ð¶Ð¸", "desc_ru": "" },
+    { "mask": "+500-#####", "cc": "FK", "name_en": "Falkland Islands", "desc_en": "", "name_ru": "Ð¤Ð¾Ð»ÐºÐ»ÐµÐ½Ð´ÑÐºÐ¸Ðµ Ð¾ÑÑ‚Ñ€Ð¾Ð²Ð°", "desc_ru": "" },
+    { "mask": "+691-###-####", "cc": "FM", "name_en": "F.S. Micronesia", "desc_en": "", "name_ru": "Ð¤.Ð¨. ÐœÐ¸ÐºÑ€Ð¾Ð½ÐµÐ·Ð¸Ð¸", "desc_ru": "" },
+    { "mask": "+298-###-###", "cc": "FO", "name_en": "Faroe Islands", "desc_en": "", "name_ru": "Ð¤Ð°Ñ€ÐµÑ€ÑÐºÐ¸Ðµ Ð¾ÑÑ‚Ñ€Ð¾Ð²Ð°", "desc_ru": "" },
+    { "mask": "+262-#####-####", "cc": "FR", "name_en": "Mayotte", "desc_en": "", "name_ru": "ÐœÐ°Ð¹Ð¾Ñ‚Ñ‚Ð°", "desc_ru": "" },
+    { "mask": "+33(###)###-###", "cc": "FR", "name_en": "France", "desc_en": "", "name_ru": "Ð¤Ñ€Ð°Ð½Ñ†Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+508-##-####", "cc": "FR", "name_en": "St Pierre & Miquelon", "desc_en": "", "name_ru": "Ð¡ÐµÐ½-ÐŸÑŒÐµÑ€ Ð¸ ÐœÐ¸ÐºÐµÐ»Ð¾Ð½", "desc_ru": "" },
+    { "mask": "+590(###)###-###", "cc": "FR", "name_en": "Guadeloupe", "desc_en": "", "name_ru": "Ð“Ð²Ð°Ð´ÐµÐ»ÑƒÐ¿Ð°", "desc_ru": "" },
+    { "mask": "+241-#-##-##-##", "cc": "GA", "name_en": "Gabon", "desc_en": "", "name_ru": "Ð“Ð°Ð±Ð¾Ð½", "desc_ru": "" },
+    { "mask": "+1(473)###-####", "cc": "GD", "name_en": "Grenada", "desc_en": "", "name_ru": "Ð“Ñ€ÐµÐ½Ð°Ð´Ð°", "desc_ru": "" },
+    { "mask": "+995(###)###-###", "cc": "GE", "name_en": "Rep. of Georgia", "desc_en": "", "name_ru": "Ð“Ñ€ÑƒÐ·Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+594-#####-####", "cc": "GF", "name_en": "Guiana (French)", "desc_en": "", "name_ru": "Ð¤Ñ€. Ð“Ð²Ð¸Ð°Ð½Ð°", "desc_ru": "" },
+    { "mask": "+233(###)###-###", "cc": "GH", "name_en": "Ghana", "desc_en": "", "name_ru": "Ð“Ð°Ð½Ð°", "desc_ru": "" },
+    { "mask": "+350-###-#####", "cc": "GI", "name_en": "Gibraltar", "desc_en": "", "name_ru": "Ð“Ð¸Ð±Ñ€Ð°Ð»Ñ‚Ð°Ñ€", "desc_ru": "" },
+    { "mask": "+299-##-##-##", "cc": "GL", "name_en": "Greenland", "desc_en": "", "name_ru": "Ð“Ñ€ÐµÐ½Ð»Ð°Ð½Ð´Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+220(###)##-##", "cc": "GM", "name_en": "Gambia", "desc_en": "", "name_ru": "Ð“Ð°Ð¼Ð±Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+224-##-###-###", "cc": "GN", "name_en": "Guinea", "desc_en": "", "name_ru": "Ð“Ð²Ð¸Ð½ÐµÑ", "desc_ru": "" },
+    { "mask": "+240-##-###-####", "cc": "GQ", "name_en": "Equatorial Guinea", "desc_en": "", "name_ru": "Ð­ÐºÐ²Ð°Ñ‚Ð¾Ñ€Ð¸Ð°Ð»ÑŒÐ½Ð°Ñ Ð“Ð²Ð¸Ð½ÐµÑ", "desc_ru": "" },
+    { "mask": "+30(###)###-####", "cc": "GR", "name_en": "Greece", "desc_en": "", "name_ru": "Ð“Ñ€ÐµÑ†Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+502-#-###-####", "cc": "GT", "name_en": "Guatemala", "desc_en": "", "name_ru": "Ð“Ð²Ð°Ñ‚ÐµÐ¼Ð°Ð»Ð°", "desc_ru": "" },
+    { "mask": "+1(671)###-####", "cc": "GU", "name_en": "Guam", "desc_en": "", "name_ru": "Ð“ÑƒÐ°Ð¼", "desc_ru": "" },
+    { "mask": "+245-#-######", "cc": "GW", "name_en": "Guinea-Bissau", "desc_en": "", "name_ru": "Ð“Ð²Ð¸Ð½ÐµÑ-Ð‘Ð¸ÑÐ°Ñƒ", "desc_ru": "" },
+    { "mask": "+592-###-####", "cc": "GY", "name_en": "Guyana", "desc_en": "", "name_ru": "Ð“Ð°Ð¹Ð°Ð½Ð°", "desc_ru": "" },
+    { "mask": "+852-####-####", "cc": "HK", "name_en": "Hong Kong", "desc_en": "", "name_ru": "Ð“Ð¾Ð½ÐºÐ¾Ð½Ð³", "desc_ru": "" },
+    { "mask": "+504-####-####", "cc": "HN", "name_en": "Honduras", "desc_en": "", "name_ru": "Ð“Ð¾Ð½Ð´ÑƒÑ€Ð°Ñ", "desc_ru": "" },
+    { "mask": "+385-##-###-###", "cc": "HR", "name_en": "Croatia", "desc_en": "", "name_ru": "Ð¥Ð¾Ñ€Ð²Ð°Ñ‚Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+509-##-##-####", "cc": "HT", "name_en": "Haiti", "desc_en": "", "name_ru": "Ð“Ð°Ð¸Ñ‚Ð¸", "desc_ru": "" },
+    { "mask": "+36(###)###-###", "cc": "HU", "name_en": "Hungary", "desc_en": "", "name_ru": "Ð’ÐµÐ½Ð³Ñ€Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+62(8##)###-####", "cc": "ID", "name_en": "Indonesia ", "desc_en": "mobile", "name_ru": "Ð˜Ð½Ð´Ð¾Ð½ÐµÐ·Ð¸Ñ ", "desc_ru": "Ð¼Ð¾Ð±Ð¸Ð»ÑŒÐ½Ñ‹Ðµ" },
+    { "mask": "+62-##-###-##", "cc": "ID", "name_en": "Indonesia", "desc_en": "", "name_ru": "Ð˜Ð½Ð´Ð¾Ð½ÐµÐ·Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+62-##-###-###", "cc": "ID", "name_en": "Indonesia", "desc_en": "", "name_ru": "Ð˜Ð½Ð´Ð¾Ð½ÐµÐ·Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+62-##-###-####", "cc": "ID", "name_en": "Indonesia", "desc_en": "", "name_ru": "Ð˜Ð½Ð´Ð¾Ð½ÐµÐ·Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+62(8##)###-###", "cc": "ID", "name_en": "Indonesia ", "desc_en": "mobile", "name_ru": "Ð˜Ð½Ð´Ð¾Ð½ÐµÐ·Ð¸Ñ ", "desc_ru": "Ð¼Ð¾Ð±Ð¸Ð»ÑŒÐ½Ñ‹Ðµ" },
+    { "mask": "+62(8##)###-##-###", "cc": "ID", "name_en": "Indonesia ", "desc_en": "mobile", "name_ru": "Ð˜Ð½Ð´Ð¾Ð½ÐµÐ·Ð¸Ñ ", "desc_ru": "Ð¼Ð¾Ð±Ð¸Ð»ÑŒÐ½Ñ‹Ðµ" },
+    { "mask": "+353(###)###-###", "cc": "IE", "name_en": "Ireland", "desc_en": "", "name_ru": "Ð˜Ñ€Ð»Ð°Ð½Ð´Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+972-5#-###-####", "cc": "IL", "name_en": "Israel ", "desc_en": "mobile", "name_ru": "Ð˜Ð·Ñ€Ð°Ð¸Ð»ÑŒ ", "desc_ru": "Ð¼Ð¾Ð±Ð¸Ð»ÑŒÐ½Ñ‹Ðµ" },
+    { "mask": "+972-#-###-####", "cc": "IL", "name_en": "Israel", "desc_en": "", "name_ru": "Ð˜Ð·Ñ€Ð°Ð¸Ð»ÑŒ", "desc_ru": "" },
+    { "mask": "+91(####)###-###", "cc": "IN", "name_en": "India", "desc_en": "", "name_ru": "Ð˜Ð½Ð´Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+246-###-####", "cc": "IO", "name_en": "Diego Garcia", "desc_en": "", "name_ru": "Ð”Ð¸ÐµÐ³Ð¾-Ð“Ð°Ñ€ÑÐ¸Ñ", "desc_ru": "" },
+    { "mask": "+964(###)###-####", "cc": "IQ", "name_en": "Iraq", "desc_en": "", "name_ru": "Ð˜Ñ€Ð°Ðº", "desc_ru": "" },
+    { "mask": "+98(###)###-####", "cc": "IR", "name_en": "Iran", "desc_en": "", "name_ru": "Ð˜Ñ€Ð°Ð½", "desc_ru": "" },
+    { "mask": "+354-###-####", "cc": "IS", "name_en": "Iceland", "desc_en": "", "name_ru": "Ð˜ÑÐ»Ð°Ð½Ð´Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+39(###)####-###", "cc": "IT", "name_en": "Italy", "desc_en": "", "name_ru": "Ð˜Ñ‚Ð°Ð»Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+1(876)###-####", "cc": "JM", "name_en": "Jamaica", "desc_en": "", "name_ru": "Ð¯Ð¼Ð°Ð¹ÐºÐ°", "desc_ru": "" },
+    { "mask": "+962-#-####-####", "cc": "JO", "name_en": "Jordan", "desc_en": "", "name_ru": "Ð˜Ð¾Ñ€Ð´Ð°Ð½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+81-##-####-####", "cc": "JP", "name_en": "Japan ", "desc_en": "mobile", "name_ru": "Ð¯Ð¿Ð¾Ð½Ð¸Ñ ", "desc_ru": "Ð¼Ð¾Ð±Ð¸Ð»ÑŒÐ½Ñ‹Ðµ" },
+    { "mask": "+81(###)###-###", "cc": "JP", "name_en": "Japan", "desc_en": "", "name_ru": "Ð¯Ð¿Ð¾Ð½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+254-###-######", "cc": "KE", "name_en": "Kenya", "desc_en": "", "name_ru": "ÐšÐµÐ½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+996(###)###-###", "cc": "KG", "name_en": "Kyrgyzstan", "desc_en": "", "name_ru": "ÐšÐ¸Ñ€Ð³Ð¸Ð·Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+855-##-###-###", "cc": "KH", "name_en": "Cambodia", "desc_en": "", "name_ru": "ÐšÐ°Ð¼Ð±Ð¾Ð´Ð¶Ð°", "desc_ru": "" },
+    { "mask": "+686-##-###", "cc": "KI", "name_en": "Kiribati", "desc_en": "", "name_ru": "ÐšÐ¸Ñ€Ð¸Ð±Ð°Ñ‚Ð¸", "desc_ru": "" },
+    { "mask": "+269-##-#####", "cc": "KM", "name_en": "Comoros", "desc_en": "", "name_ru": "ÐšÐ¾Ð¼Ð¾Ñ€Ñ‹", "desc_ru": "" },
+    { "mask": "+1(869)###-####", "cc": "KN", "name_en": "Saint Kitts & Nevis", "desc_en": "", "name_ru": "Ð¡ÐµÐ½Ñ‚-ÐšÐ¸Ñ‚Ñ Ð¸ ÐÐµÐ²Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+850-191-###-####", "cc": "KP", "name_en": "DPR Korea (North) ", "desc_en": "mobile", "name_ru": "ÐšÐ¾Ñ€ÐµÐ¹ÑÐºÐ°Ñ ÐÐ”Ð  ", "desc_ru": "Ð¼Ð¾Ð±Ð¸Ð»ÑŒÐ½Ñ‹Ðµ" },
+    { "mask": "+850-##-###-###", "cc": "KP", "name_en": "DPR Korea (North)", "desc_en": "", "name_ru": "ÐšÐ¾Ñ€ÐµÐ¹ÑÐºÐ°Ñ ÐÐ”Ð ", "desc_ru": "" },
+    { "mask": "+850-###-####-###", "cc": "KP", "name_en": "DPR Korea (North)", "desc_en": "", "name_ru": "ÐšÐ¾Ñ€ÐµÐ¹ÑÐºÐ°Ñ ÐÐ”Ð ", "desc_ru": "" },
+    { "mask": "+850-###-###", "cc": "KP", "name_en": "DPR Korea (North)", "desc_en": "", "name_ru": "ÐšÐ¾Ñ€ÐµÐ¹ÑÐºÐ°Ñ ÐÐ”Ð ", "desc_ru": "" },
+    { "mask": "+850-####-####", "cc": "KP", "name_en": "DPR Korea (North)", "desc_en": "", "name_ru": "ÐšÐ¾Ñ€ÐµÐ¹ÑÐºÐ°Ñ ÐÐ”Ð ", "desc_ru": "" },
+    { "mask": "+850-####-#############", "cc": "KP", "name_en": "DPR Korea (North)", "desc_en": "", "name_ru": "ÐšÐ¾Ñ€ÐµÐ¹ÑÐºÐ°Ñ ÐÐ”Ð ", "desc_ru": "" },
+    { "mask": "+82-##-###-####", "cc": "KR", "name_en": "Korea (South)", "desc_en": "", "name_ru": "Ð ÐµÑÐ¿. ÐšÐ¾Ñ€ÐµÑ", "desc_ru": "" },
+    { "mask": "+965-####-####", "cc": "KW", "name_en": "Kuwait", "desc_en": "", "name_ru": "ÐšÑƒÐ²ÐµÐ¹Ñ‚", "desc_ru": "" },
+    { "mask": "+1(345)###-####", "cc": "KY", "name_en": "Cayman Islands", "desc_en": "", "name_ru": "ÐšÐ°Ð¹Ð¼Ð°Ð½Ð¾Ð²Ñ‹ Ð¾ÑÑ‚Ñ€Ð¾Ð²Ð°", "desc_ru": "" },
+    { "mask": "+7(6##)###-##-##", "cc": "KZ", "name_en": "Kazakhstan", "desc_en": "", "name_ru": "ÐšÐ°Ð·Ð°Ñ…ÑÑ‚Ð°Ð½", "desc_ru": "" },
+    { "mask": "+7(7##)###-##-##", "cc": "KZ", "name_en": "Kazakhstan", "desc_en": "", "name_ru": "ÐšÐ°Ð·Ð°Ñ…ÑÑ‚Ð°Ð½", "desc_ru": "" },
+    { "mask": "+856(20##)###-###", "cc": "LA", "name_en": "Laos ", "desc_en": "mobile", "name_ru": "Ð›Ð°Ð¾Ñ ", "desc_ru": "Ð¼Ð¾Ð±Ð¸Ð»ÑŒÐ½Ñ‹Ðµ" },
+    { "mask": "+856-##-###-###", "cc": "LA", "name_en": "Laos", "desc_en": "", "name_ru": "Ð›Ð°Ð¾Ñ", "desc_ru": "" },
+    { "mask": "+961-##-###-###", "cc": "LB", "name_en": "Lebanon ", "desc_en": "mobile", "name_ru": "Ð›Ð¸Ð²Ð°Ð½ ", "desc_ru": "Ð¼Ð¾Ð±Ð¸Ð»ÑŒÐ½Ñ‹Ðµ" },
+    { "mask": "+961-#-###-###", "cc": "LB", "name_en": "Lebanon", "desc_en": "", "name_ru": "Ð›Ð¸Ð²Ð°Ð½", "desc_ru": "" },
+    { "mask": "+1(758)###-####", "cc": "LC", "name_en": "Saint Lucia", "desc_en": "", "name_ru": "Ð¡ÐµÐ½Ñ‚-Ð›ÑŽÑÐ¸Ñ", "desc_ru": "" },
+    { "mask": "+423(###)###-####", "cc": "LI", "name_en": "Liechtenstein", "desc_en": "", "name_ru": "Ð›Ð¸Ñ…Ñ‚ÐµÐ½ÑˆÑ‚ÐµÐ¹Ð½", "desc_ru": "" },
+    { "mask": "+94-##-###-####", "cc": "LK", "name_en": "Sri Lanka", "desc_en": "", "name_ru": "Ð¨Ñ€Ð¸-Ð›Ð°Ð½ÐºÐ°", "desc_ru": "" },
+    { "mask": "+231-##-###-###", "cc": "LR", "name_en": "Liberia", "desc_en": "", "name_ru": "Ð›Ð¸Ð±ÐµÑ€Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+266-#-###-####", "cc": "LS", "name_en": "Lesotho", "desc_en": "", "name_ru": "Ð›ÐµÑÐ¾Ñ‚Ð¾", "desc_ru": "" },
+    { "mask": "+370(###)##-###", "cc": "LT", "name_en": "Lithuania", "desc_en": "", "name_ru": "Ð›Ð¸Ñ‚Ð²Ð°", "desc_ru": "" },
+    { "mask": "+352(###)###-###", "cc": "LU", "name_en": "Luxembourg", "desc_en": "", "name_ru": "Ð›ÑŽÐºÑÐµÐ¼Ð±ÑƒÑ€Ð³", "desc_ru": "" },
+    { "mask": "+371-##-###-###", "cc": "LV", "name_en": "Latvia", "desc_en": "", "name_ru": "Ð›Ð°Ñ‚Ð²Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+218-##-###-###", "cc": "LY", "name_en": "Libya", "desc_en": "", "name_ru": "Ð›Ð¸Ð²Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+218-21-###-####", "cc": "LY", "name_en": "Libya", "desc_en": "Tripoli", "name_ru": "Ð›Ð¸Ð²Ð¸Ñ", "desc_ru": "Ð¢Ñ€Ð¸Ð¿Ð¾Ð»Ð¸" },
+    { "mask": "+212-##-####-###", "cc": "MA", "name_en": "Morocco", "desc_en": "", "name_ru": "ÐœÐ°Ñ€Ð¾ÐºÐºÐ¾", "desc_ru": "" },
+    { "mask": "+377(###)###-###", "cc": "MC", "name_en": "Monaco", "desc_en": "", "name_ru": "ÐœÐ¾Ð½Ð°ÐºÐ¾", "desc_ru": "" },
+    { "mask": "+377-##-###-###", "cc": "MC", "name_en": "Monaco", "desc_en": "", "name_ru": "ÐœÐ¾Ð½Ð°ÐºÐ¾", "desc_ru": "" },
+    { "mask": "+373-####-####", "cc": "MD", "name_en": "Moldova", "desc_en": "", "name_ru": "ÐœÐ¾Ð»Ð´Ð¾Ð²Ð°", "desc_ru": "" },
+    { "mask": "+382-##-###-###", "cc": "ME", "name_en": "Montenegro", "desc_en": "", "name_ru": "Ð§ÐµÑ€Ð½Ð¾Ð³Ð¾Ñ€Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+261-##-##-#####", "cc": "MG", "name_en": "Madagascar", "desc_en": "", "name_ru": "ÐœÐ°Ð´Ð°Ð³Ð°ÑÐºÐ°Ñ€", "desc_ru": "" },
+    { "mask": "+692-###-####", "cc": "MH", "name_en": "Marshall Islands", "desc_en": "", "name_ru": "ÐœÐ°Ñ€ÑˆÐ°Ð»Ð»Ð¾Ð²Ñ‹ ÐžÑÑ‚Ñ€Ð¾Ð²Ð°", "desc_ru": "" },
+    { "mask": "+389-##-###-###", "cc": "MK", "name_en": "Republic of Macedonia", "desc_en": "", "name_ru": "Ð ÐµÑÐ¿. ÐœÐ°ÐºÐµÐ´Ð¾Ð½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+223-##-##-####", "cc": "ML", "name_en": "Mali", "desc_en": "", "name_ru": "ÐœÐ°Ð»Ð¸", "desc_ru": "" },
+    { "mask": "+95-##-###-###", "cc": "MM", "name_en": "Burma (Myanmar)", "desc_en": "", "name_ru": "Ð‘Ð¸Ñ€Ð¼Ð° (ÐœÑŒÑÐ½Ð¼Ð°)", "desc_ru": "" },
+    { "mask": "+95-#-###-###", "cc": "MM", "name_en": "Burma (Myanmar)", "desc_en": "", "name_ru": "Ð‘Ð¸Ñ€Ð¼Ð° (ÐœÑŒÑÐ½Ð¼Ð°)", "desc_ru": "" },
+    { "mask": "+95-###-###", "cc": "MM", "name_en": "Burma (Myanmar)", "desc_en": "", "name_ru": "Ð‘Ð¸Ñ€Ð¼Ð° (ÐœÑŒÑÐ½Ð¼Ð°)", "desc_ru": "" },
+    { "mask": "+976-##-##-####", "cc": "MN", "name_en": "Mongolia", "desc_en": "", "name_ru": "ÐœÐ¾Ð½Ð³Ð¾Ð»Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+853-####-####", "cc": "MO", "name_en": "Macau", "desc_en": "", "name_ru": "ÐœÐ°ÐºÐ°Ð¾", "desc_ru": "" },
+    { "mask": "+1(670)###-####", "cc": "MP", "name_en": "Northern Mariana Islands", "desc_en": "", "name_ru": "Ð¡ÐµÐ²ÐµÑ€Ð½Ñ‹Ðµ ÐœÐ°Ñ€Ð¸Ð°Ð½ÑÐºÐ¸Ðµ Ð¾ÑÑ‚Ñ€Ð¾Ð²Ð°Â Ð¡Ð°Ð¹Ð¿Ð°Ð½", "desc_ru": "" },
+    { "mask": "+596(###)##-##-##", "cc": "MQ", "name_en": "Martinique", "desc_en": "", "name_ru": "ÐœÐ°Ñ€Ñ‚Ð¸Ð½Ð¸ÐºÐ°", "desc_ru": "" },
+    { "mask": "+222-##-##-####", "cc": "MR", "name_en": "Mauritania", "desc_en": "", "name_ru": "ÐœÐ°Ð²Ñ€Ð¸Ñ‚Ð°Ð½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+1(664)###-####", "cc": "MS", "name_en": "Montserrat", "desc_en": "", "name_ru": "ÐœÐ¾Ð½Ñ‚ÑÐµÑ€Ñ€Ð°Ñ‚", "desc_ru": "" },
+    { "mask": "+356-####-####", "cc": "MT", "name_en": "Malta", "desc_en": "", "name_ru": "ÐœÐ°Ð»ÑŒÑ‚Ð°", "desc_ru": "" },
+    { "mask": "+230-###-####", "cc": "MU", "name_en": "Mauritius", "desc_en": "", "name_ru": "ÐœÐ°Ð²Ñ€Ð¸ÐºÐ¸Ð¹", "desc_ru": "" },
+    { "mask": "+960-###-####", "cc": "MV", "name_en": "Maldives", "desc_en": "", "name_ru": "ÐœÐ°Ð»ÑŒÐ´Ð¸Ð²ÑÐºÐ¸Ðµ Ð¾ÑÑ‚Ñ€Ð¾Ð²Ð°", "desc_ru": "" },
+    { "mask": "+265-1-###-###", "cc": "MW", "name_en": "Malawi", "desc_en": "Telecom Ltd", "name_ru": "ÐœÐ°Ð»Ð°Ð²Ð¸", "desc_ru": "Telecom Ltd" },
+    { "mask": "+265-#-####-####", "cc": "MW", "name_en": "Malawi", "desc_en": "", "name_ru": "ÐœÐ°Ð»Ð°Ð²Ð¸", "desc_ru": "" },
+    { "mask": "+52(###)###-####", "cc": "MX", "name_en": "Mexico", "desc_en": "", "name_ru": "ÐœÐµÐºÑÐ¸ÐºÐ°", "desc_ru": "" },
+    { "mask": "+52-##-##-####", "cc": "MX", "name_en": "Mexico", "desc_en": "", "name_ru": "ÐœÐµÐºÑÐ¸ÐºÐ°", "desc_ru": "" },
+    { "mask": "+60-##-###-####", "cc": "MY", "name_en": "Malaysia ", "desc_en": "mobile", "name_ru": "ÐœÐ°Ð»Ð°Ð¹Ð·Ð¸Ñ ", "desc_ru": "Ð¼Ð¾Ð±Ð¸Ð»ÑŒÐ½Ñ‹Ðµ" },
+    { "mask": "+60(###)###-###", "cc": "MY", "name_en": "Malaysia", "desc_en": "", "name_ru": "ÐœÐ°Ð»Ð°Ð¹Ð·Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+60-##-###-###", "cc": "MY", "name_en": "Malaysia", "desc_en": "", "name_ru": "ÐœÐ°Ð»Ð°Ð¹Ð·Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+60-#-###-###", "cc": "MY", "name_en": "Malaysia", "desc_en": "", "name_ru": "ÐœÐ°Ð»Ð°Ð¹Ð·Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+258-##-###-###", "cc": "MZ", "name_en": "Mozambique", "desc_en": "", "name_ru": "ÐœÐ¾Ð·Ð°Ð¼Ð±Ð¸Ðº", "desc_ru": "" },
+    { "mask": "+264-##-###-####", "cc": "NA", "name_en": "Namibia", "desc_en": "", "name_ru": "ÐÐ°Ð¼Ð¸Ð±Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+687-##-####", "cc": "NC", "name_en": "New Caledonia", "desc_en": "", "name_ru": "ÐÐ¾Ð²Ð°Ñ ÐšÐ°Ð»ÐµÐ´Ð¾Ð½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+227-##-##-####", "cc": "NE", "name_en": "Niger", "desc_en": "", "name_ru": "ÐÐ¸Ð³ÐµÑ€", "desc_ru": "" },
+    { "mask": "+672-3##-###", "cc": "NF", "name_en": "Norfolk Island", "desc_en": "", "name_ru": "ÐÐ¾Ñ€Ñ„Ð¾Ð»Ðº (Ð¾ÑÑ‚Ñ€Ð¾Ð²)", "desc_ru": "" },
+    { "mask": "+234(###)###-####", "cc": "NG", "name_en": "Nigeria", "desc_en": "", "name_ru": "ÐÐ¸Ð³ÐµÑ€Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+234-##-###-###", "cc": "NG", "name_en": "Nigeria", "desc_en": "", "name_ru": "ÐÐ¸Ð³ÐµÑ€Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+234-##-###-##", "cc": "NG", "name_en": "Nigeria", "desc_en": "", "name_ru": "ÐÐ¸Ð³ÐµÑ€Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+234(###)###-####", "cc": "NG", "name_en": "Nigeria ", "desc_en": "mobile", "name_ru": "ÐÐ¸Ð³ÐµÑ€Ð¸Ñ ", "desc_ru": "Ð¼Ð¾Ð±Ð¸Ð»ÑŒÐ½Ñ‹Ðµ" },
+    { "mask": "+505-####-####", "cc": "NI", "name_en": "Nicaragua", "desc_en": "", "name_ru": "ÐÐ¸ÐºÐ°Ñ€Ð°Ð³ÑƒÐ°", "desc_ru": "" },
+    { "mask": "+31-##-###-####", "cc": "NL", "name_en": "Netherlands", "desc_en": "", "name_ru": "ÐÐ¸Ð´ÐµÑ€Ð»Ð°Ð½Ð´Ñ‹", "desc_ru": "" },
+    { "mask": "+47(###)##-###", "cc": "NO", "name_en": "Norway", "desc_en": "", "name_ru": "ÐÐ¾Ñ€Ð²ÐµÐ³Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+977-##-###-###", "cc": "NP", "name_en": "Nepal", "desc_en": "", "name_ru": "ÐÐµÐ¿Ð°Ð»", "desc_ru": "" },
+    { "mask": "+674-###-####", "cc": "NR", "name_en": "Nauru", "desc_en": "", "name_ru": "ÐÐ°ÑƒÑ€Ñƒ", "desc_ru": "" },
+    { "mask": "+683-####", "cc": "NU", "name_en": "Niue", "desc_en": "", "name_ru": "ÐÐ¸ÑƒÑ", "desc_ru": "" },
+    { "mask": "+64(###)###-###", "cc": "NZ", "name_en": "New Zealand", "desc_en": "", "name_ru": "ÐÐ¾Ð²Ð°Ñ Ð—ÐµÐ»Ð°Ð½Ð´Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+64-##-###-###", "cc": "NZ", "name_en": "New Zealand", "desc_en": "", "name_ru": "ÐÐ¾Ð²Ð°Ñ Ð—ÐµÐ»Ð°Ð½Ð´Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+64(###)###-####", "cc": "NZ", "name_en": "New Zealand", "desc_en": "", "name_ru": "ÐÐ¾Ð²Ð°Ñ Ð—ÐµÐ»Ð°Ð½Ð´Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+968-##-###-###", "cc": "OM", "name_en": "Oman", "desc_en": "", "name_ru": "ÐžÐ¼Ð°Ð½", "desc_ru": "" },
+    { "mask": "+507-###-####", "cc": "PA", "name_en": "Panama", "desc_en": "", "name_ru": "ÐŸÐ°Ð½Ð°Ð¼Ð°", "desc_ru": "" },
+    { "mask": "+51(###)###-###", "cc": "PE", "name_en": "Peru", "desc_en": "", "name_ru": "ÐŸÐµÑ€Ñƒ", "desc_ru": "" },
+    { "mask": "+689-##-##-##", "cc": "PF", "name_en": "French Polynesia", "desc_en": "", "name_ru": "Ð¤Ñ€Ð°Ð½Ñ†ÑƒÐ·ÑÐºÐ°Ñ ÐŸÐ¾Ð»Ð¸Ð½ÐµÐ·Ð¸Ñ (Ð¢Ð°Ð¸Ñ‚Ð¸)", "desc_ru": "" },
+    { "mask": "+675(###)##-###", "cc": "PG", "name_en": "Papua New Guinea", "desc_en": "", "name_ru": "ÐŸÐ°Ð¿ÑƒÐ°-ÐÐ¾Ð²Ð°Ñ Ð“Ð²Ð¸Ð½ÐµÑ", "desc_ru": "" },
+    { "mask": "+63(###)###-####", "cc": "PH", "name_en": "Philippines", "desc_en": "", "name_ru": "Ð¤Ð¸Ð»Ð¸Ð¿Ð¿Ð¸Ð½Ñ‹", "desc_ru": "" },
+    { "mask": "+92(###)###-####", "cc": "PK", "name_en": "Pakistan", "desc_en": "", "name_ru": "ÐŸÐ°ÐºÐ¸ÑÑ‚Ð°Ð½", "desc_ru": "" },
+    { "mask": "+48(###)###-###", "cc": "PL", "name_en": "Poland", "desc_en": "", "name_ru": "ÐŸÐ¾Ð»ÑŒÑˆÐ°", "desc_ru": "" },
+    { "mask": "+970-##-###-####", "cc": "PS", "name_en": "Palestine", "desc_en": "", "name_ru": "ÐŸÐ°Ð»ÐµÑÑ‚Ð¸Ð½Ð°", "desc_ru": "" },
+    { "mask": "+351-##-###-####", "cc": "PT", "name_en": "Portugal", "desc_en": "", "name_ru": "ÐŸÐ¾Ñ€Ñ‚ÑƒÐ³Ð°Ð»Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+680-###-####", "cc": "PW", "name_en": "Palau", "desc_en": "", "name_ru": "ÐŸÐ°Ð»Ð°Ñƒ", "desc_ru": "" },
+    { "mask": "+595(###)###-###", "cc": "PY", "name_en": "Paraguay", "desc_en": "", "name_ru": "ÐŸÐ°Ñ€Ð°Ð³Ð²Ð°Ð¹", "desc_ru": "" },
+    { "mask": "+974-####-####", "cc": "QA", "name_en": "Qatar", "desc_en": "", "name_ru": "ÐšÐ°Ñ‚Ð°Ñ€", "desc_ru": "" },
+    { "mask": "+262-#####-####", "cc": "RE", "name_en": "Reunion", "desc_en": "", "name_ru": "Ð ÐµÑŽÐ½ÑŒÐ¾Ð½", "desc_ru": "" },
+    { "mask": "+40-##-###-####", "cc": "RO", "name_en": "Romania", "desc_en": "", "name_ru": "Ð ÑƒÐ¼Ñ‹Ð½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+381-##-###-####", "cc": "RS", "name_en": "Serbia", "desc_en": "", "name_ru": "Ð¡ÐµÑ€Ð±Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+7(###)###-##-##", "cc": "RU", "name_en": "Russia", "desc_en": "", "name_ru": "Ð Ð¾ÑÑÐ¸Ñ", "desc_ru": "" },
+    { "mask": "+250(###)###-###", "cc": "RW", "name_en": "Rwanda", "desc_en": "", "name_ru": "Ð ÑƒÐ°Ð½Ð´Ð°", "desc_ru": "" },
+    { "mask": "+966-5-####-####", "cc": "SA", "name_en": "Saudi Arabia ", "desc_en": "mobile", "name_ru": "Ð¡Ð°ÑƒÐ´Ð¾Ð²ÑÐºÐ°Ñ ÐÑ€Ð°Ð²Ð¸Ñ ", "desc_ru": "Ð¼Ð¾Ð±Ð¸Ð»ÑŒÐ½Ñ‹Ðµ" },
+    { "mask": "+966-#-###-####", "cc": "SA", "name_en": "Saudi Arabia", "desc_en": "", "name_ru": "Ð¡Ð°ÑƒÐ´Ð¾Ð²ÑÐºÐ°Ñ ÐÑ€Ð°Ð²Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+677-###-####", "cc": "SB", "name_en": "Solomon Islands ", "desc_en": "mobile", "name_ru": "Ð¡Ð¾Ð»Ð¾Ð¼Ð¾Ð½Ð¾Ð²Ñ‹ ÐžÑÑ‚Ñ€Ð¾Ð²Ð° ", "desc_ru": "Ð¼Ð¾Ð±Ð¸Ð»ÑŒÐ½Ñ‹Ðµ" },
+    { "mask": "+677-#####", "cc": "SB", "name_en": "Solomon Islands", "desc_en": "", "name_ru": "Ð¡Ð¾Ð»Ð¾Ð¼Ð¾Ð½Ð¾Ð²Ñ‹ ÐžÑÑ‚Ñ€Ð¾Ð²Ð°", "desc_ru": "" },
+    { "mask": "+248-#-###-###", "cc": "SC", "name_en": "Seychelles", "desc_en": "", "name_ru": "Ð¡ÐµÐ¹ÑˆÐµÐ»Ñ‹", "desc_ru": "" },
+    { "mask": "+249-##-###-####", "cc": "SD", "name_en": "Sudan", "desc_en": "", "name_ru": "Ð¡ÑƒÐ´Ð°Ð½", "desc_ru": "" },
+    { "mask": "+46-##-###-####", "cc": "SE", "name_en": "Sweden", "desc_en": "", "name_ru": "Ð¨Ð²ÐµÑ†Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+65-####-####", "cc": "SG", "name_en": "Singapore", "desc_en": "", "name_ru": "Ð¡Ð¸Ð½Ð³Ð°Ð¿ÑƒÑ€", "desc_ru": "" },
+    { "mask": "+290-####", "cc": "SH", "name_en": "Saint Helena", "desc_en": "", "name_ru": "ÐžÑÑ‚Ñ€Ð¾Ð² Ð¡Ð²ÑÑ‚Ð¾Ð¹ Ð•Ð»ÐµÐ½Ñ‹", "desc_ru": "" },
+    { "mask": "+290-####", "cc": "SH", "name_en": "Tristan da Cunha", "desc_en": "", "name_ru": "Ð¢Ñ€Ð¸ÑÑ‚Ð°Ð½-Ð´Ð°-ÐšÑƒÐ½ÑŒÑ", "desc_ru": "" },
+    { "mask": "+386-##-###-###", "cc": "SI", "name_en": "Slovenia", "desc_en": "", "name_ru": "Ð¡Ð»Ð¾Ð²ÐµÐ½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+421(###)###-###", "cc": "SK", "name_en": "Slovakia", "desc_en": "", "name_ru": "Ð¡Ð»Ð¾Ð²Ð°ÐºÐ¸Ñ", "desc_ru": "" },
+    { "mask": "+232-##-######", "cc": "SL", "name_en": "Sierra Leone", "desc_en": "", "name_ru": "Ð¡ÑŒÐµÑ€Ñ€Ð°-Ð›ÐµÐ¾Ð½Ðµ", "desc_ru": "" },
+    { "mask": "+378-####-######", "cc": "SM", "name_en": "San Marino", "desc_en": "", "name_ru": "Ð¡Ð°Ð½-ÐœÐ°Ñ€Ð¸Ð½Ð¾", "desc_ru": "" },
+    { "mask": "+221-##-###-####", "cc": "SN", "name_en": "Senegal", "desc_en": "", "name_ru": "Ð¡ÐµÐ½ÐµÐ³Ð°Ð»", "desc_ru": "" },
+    { "mask": "+252-##-###-###", "cc": "SO", "name_en": "Somalia", "desc_en": "", "name_ru": "Ð¡Ð¾Ð¼Ð°Ð»Ð¸", "desc_ru": "" },
+    { "mask": "+252-#-###-###", "cc": "SO", "name_en": "Somalia", "desc_en": "", "name_ru": "Ð¡Ð¾Ð¼Ð°Ð»Ð¸", "desc_ru": "" },
+    { "mask": "+252-#-###-###", "cc": "SO", "name_en": "Somalia ", "desc_en": "mobile", "name_ru": "Ð¡Ð¾Ð¼Ð°Ð»Ð¸ ", "desc_ru": "Ð¼Ð¾Ð±Ð¸Ð»ÑŒÐ½Ñ‹Ðµ" },
+    { "mask": "+597-###-####", "cc": "SR", "name_en": "Suriname ", "desc_en": "mobile", "name_ru": "Ð¡ÑƒÑ€Ð¸Ð½Ð°Ð¼ ", "desc_ru": "Ð¼Ð¾Ð±Ð¸Ð»ÑŒÐ½Ñ‹Ðµ" },
+    { "mask": "+597-###-###", "cc": "SR", "name_en": "Suriname", "desc_en": "", "name_ru": "Ð¡ÑƒÑ€Ð¸Ð½Ð°Ð¼", "desc_ru": "" },
+    { "mask": "+211-##-###-####", "cc": "SS", "name_en": "South Sudan", "desc_en": "", "name_ru": "Ð®Ð¶Ð½Ñ‹Ð¹ Ð¡ÑƒÐ´Ð°Ð½", "desc_ru": "" },
+    { "mask": "+239-##-#####", "cc": "ST", "name_en": "Sao Tome and Principe", "desc_en": "", "name_ru": "Ð¡Ð°Ð½-Ð¢Ð¾Ð¼Ðµ Ð¸ ÐŸÑ€Ð¸Ð½ÑÐ¸Ð¿Ð¸", "desc_ru": "" },
+    { "mask": "+503-##-##-####", "cc": "SV", "name_en": "El Salvador", "desc_en": "", "name_ru": "Ð¡Ð°Ð»ÑŒÐ²Ð°Ð´Ð¾Ñ€", "desc_ru": "" },
+    { "mask": "+1(721)###-####", "cc": "SX", "name_en": "Sint Maarten", "desc_en": "", "name_ru": "Ð¡Ð¸Ð½Ñ‚-ÐœÐ°Ð°Ñ€Ñ‚ÐµÐ½", "desc_ru": "" },
+    { "mask": "+963-##-####-###", "cc": "SY", "name_en": "Syrian Arab Republic", "desc_en": "", "name_ru": "Ð¡Ð¸Ñ€Ð¸Ð¹ÑÐºÐ°Ñ Ð°Ñ€Ð°Ð±ÑÐºÐ°Ñ Ñ€ÐµÑÐ¿ÑƒÐ±Ð»Ð¸ÐºÐ°", "desc_ru": "" },
+    { "mask": "+268-##-##-####", "cc": "SZ", "name_en": "Swaziland", "desc_en": "", "name_ru": "Ð¡Ð²Ð°Ð·Ð¸Ð»ÐµÐ½Ð´", "desc_ru": "" },
+    { "mask": "+1(649)###-####", "cc": "TC", "name_en": "Turks & Caicos", "desc_en": "", "name_ru": "Ð¢Ñ‘Ñ€ÐºÑ Ð¸ ÐšÐ°Ð¹ÐºÐ¾Ñ", "desc_ru": "" },
+    { "mask": "+235-##-##-##-##", "cc": "TD", "name_en": "Chad", "desc_en": "", "name_ru": "Ð§Ð°Ð´", "desc_ru": "" },
+    { "mask": "+228-##-###-###", "cc": "TG", "name_en": "Togo", "desc_en": "", "name_ru": "Ð¢Ð¾Ð³Ð¾", "desc_ru": "" },
+    { "mask": "+66-##-###-####", "cc": "TH", "name_en": "Thailand ", "desc_en": "mobile", "name_ru": "Ð¢Ð°Ð¸Ð»Ð°Ð½Ð´ ", "desc_ru": "Ð¼Ð¾Ð±Ð¸Ð»ÑŒÐ½Ñ‹Ðµ" },
+    { "mask": "+66-##-###-###", "cc": "TH", "name_en": "Thailand", "desc_en": "", "name_ru": "Ð¢Ð°Ð¸Ð»Ð°Ð½Ð´", "desc_ru": "" },
+    { "mask": "+992-##-###-####", "cc": "TJ", "name_en": "Tajikistan", "desc_en": "", "name_ru": "Ð¢Ð°Ð´Ð¶Ð¸ÐºÐ¸ÑÑ‚Ð°Ð½", "desc_ru": "" },
+    { "mask": "+690-####", "cc": "TK", "name_en": "Tokelau", "desc_en": "", "name_ru": "Ð¢Ð¾ÐºÐµÐ»Ð°Ñƒ", "desc_ru": "" },
+    { "mask": "+670-###-####", "cc": "TL", "name_en": "East Timor", "desc_en": "", "name_ru": "Ð’Ð¾ÑÑ‚Ð¾Ñ‡Ð½Ñ‹Ð¹ Ð¢Ð¸Ð¼Ð¾Ñ€", "desc_ru": "" },
+    { "mask": "+670-77#-#####", "cc": "TL", "name_en": "East Timor", "desc_en": "Timor Telecom", "name_ru": "Ð’Ð¾ÑÑ‚Ð¾Ñ‡Ð½Ñ‹Ð¹ Ð¢Ð¸Ð¼Ð¾Ñ€", "desc_ru": "Timor Telecom" },
+    { "mask": "+670-78#-#####", "cc": "TL", "name_en": "East Timor", "desc_en": "Timor Telecom", "name_ru": "Ð’Ð¾ÑÑ‚Ð¾Ñ‡Ð½Ñ‹Ð¹ Ð¢Ð¸Ð¼Ð¾Ñ€", "desc_ru": "Timor Telecom" },
+    { "mask": "+993-#-###-####", "cc": "TM", "name_en": "Turkmenistan", "desc_en": "", "name_ru": "Ð¢ÑƒÑ€ÐºÐ¼ÐµÐ½Ð¸ÑÑ‚Ð°Ð½", "desc_ru": "" },
+    { "mask": "+216-##-###-###", "cc": "TN", "name_en": "Tunisia", "desc_en": "", "name_ru": "Ð¢ÑƒÐ½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+676-#####", "cc": "TO", "name_en": "Tonga", "desc_en": "", "name_ru": "Ð¢Ð¾Ð½Ð³Ð°", "desc_ru": "" },
+    { "mask": "+90(###)###-####", "cc": "TR", "name_en": "Turkey", "desc_en": "", "name_ru": "Ð¢ÑƒÑ€Ñ†Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+1(868)###-####", "cc": "TT", "name_en": "Trinidad & Tobago", "desc_en": "", "name_ru": "Ð¢Ñ€Ð¸Ð½Ð¸Ð´Ð°Ð´ Ð¸ Ð¢Ð¾Ð±Ð°Ð³Ð¾", "desc_ru": "" },
+    { "mask": "+688-90####", "cc": "TV", "name_en": "Tuvalu ", "desc_en": "mobile", "name_ru": "Ð¢ÑƒÐ²Ð°Ð»Ñƒ ", "desc_ru": "Ð¼Ð¾Ð±Ð¸Ð»ÑŒÐ½Ñ‹Ðµ" },
+    { "mask": "+688-2####", "cc": "TV", "name_en": "Tuvalu", "desc_en": "", "name_ru": "Ð¢ÑƒÐ²Ð°Ð»Ñƒ", "desc_ru": "" },
+    { "mask": "+886-#-####-####", "cc": "TW", "name_en": "Taiwan", "desc_en": "", "name_ru": "Ð¢Ð°Ð¹Ð²Ð°Ð½ÑŒ", "desc_ru": "" },
+    { "mask": "+886-####-####", "cc": "TW", "name_en": "Taiwan", "desc_en": "", "name_ru": "Ð¢Ð°Ð¹Ð²Ð°Ð½ÑŒ", "desc_ru": "" },
+    { "mask": "+255-##-###-####", "cc": "TZ", "name_en": "Tanzania", "desc_en": "", "name_ru": "Ð¢Ð°Ð½Ð·Ð°Ð½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+380(##)###-##-##", "cc": "UA", "name_en": "Ukraine", "desc_en": "", "name_ru": "Ð£ÐºÑ€Ð°Ð¸Ð½Ð°", "desc_ru": "" },
+    { "mask": "+256(###)###-###", "cc": "UG", "name_en": "Uganda", "desc_en": "", "name_ru": "Ð£Ð³Ð°Ð½Ð´Ð°", "desc_ru": "" },
+    { "mask": "+44-##-####-####", "cc": "GB", "name_en": "United Kingdom", "desc_en": "", "name_ru": "Ð’ÐµÐ»Ð¸ÐºÐ¾Ð±Ñ€Ð¸Ñ‚Ð°Ð½Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+598-#-###-##-##", "cc": "UY", "name_en": "Uruguay", "desc_en": "", "name_ru": "Ð£Ñ€ÑƒÐ³Ð²Ð°Ð¹", "desc_ru": "" },
+    { "mask": "+998-##-###-####", "cc": "UZ", "name_en": "Uzbekistan", "desc_en": "", "name_ru": "Ð£Ð·Ð±ÐµÐºÐ¸ÑÑ‚Ð°Ð½", "desc_ru": "" },
+    { "mask": "+39-6-698-#####", "cc": "VA", "name_en": "Vatican City", "desc_en": "", "name_ru": "Ð’Ð°Ñ‚Ð¸ÐºÐ°Ð½", "desc_ru": "" },
+    { "mask": "+1(784)###-####", "cc": "VC", "name_en": "Saint Vincent & the Grenadines", "desc_en": "", "name_ru": "Ð¡ÐµÐ½Ñ‚-Ð’Ð¸Ð½ÑÐµÐ½Ñ‚ Ð¸ Ð“Ñ€ÐµÐ½Ð°Ð´Ð¸Ð½Ñ‹", "desc_ru": "" },
+    { "mask": "+58(###)###-####", "cc": "VE", "name_en": "Venezuela", "desc_en": "", "name_ru": "Ð’ÐµÐ½ÐµÑÑƒÑÐ»Ð°", "desc_ru": "" },
+    { "mask": "+1(284)###-####", "cc": "VG", "name_en": "British Virgin Islands", "desc_en": "", "name_ru": "Ð‘Ñ€Ð¸Ñ‚Ð°Ð½ÑÐºÐ¸Ðµ Ð’Ð¸Ñ€Ð³Ð¸Ð½ÑÐºÐ¸Ðµ Ð¾ÑÑ‚Ñ€Ð¾Ð²Ð°", "desc_ru": "" },
+    { "mask": "+1(340)###-####", "cc": "VI", "name_en": "US Virgin Islands", "desc_en": "", "name_ru": "ÐÐ¼ÐµÑ€Ð¸ÐºÐ°Ð½ÑÐºÐ¸Ðµ Ð’Ð¸Ñ€Ð³Ð¸Ð½ÑÐºÐ¸Ðµ Ð¾ÑÑ‚Ñ€Ð¾Ð²Ð°", "desc_ru": "" },
+    { "mask": "+84-##-####-###", "cc": "VN", "name_en": "Vietnam", "desc_en": "", "name_ru": "Ð’ÑŒÐµÑ‚Ð½Ð°Ð¼", "desc_ru": "" },
+    { "mask": "+84(###)####-###", "cc": "VN", "name_en": "Vietnam", "desc_en": "", "name_ru": "Ð’ÑŒÐµÑ‚Ð½Ð°Ð¼", "desc_ru": "" },
+    { "mask": "+678-##-#####", "cc": "VU", "name_en": "Vanuatu ", "desc_en": "mobile", "name_ru": "Ð’Ð°Ð½ÑƒÐ°Ñ‚Ñƒ ", "desc_ru": "Ð¼Ð¾Ð±Ð¸Ð»ÑŒÐ½Ñ‹Ðµ" },
+    { "mask": "+678-#####", "cc": "VU", "name_en": "Vanuatu", "desc_en": "", "name_ru": "Ð’Ð°Ð½ÑƒÐ°Ñ‚Ñƒ", "desc_ru": "" },
+    { "mask": "+681-##-####", "cc": "WF", "name_en": "Wallis and Futuna", "desc_en": "", "name_ru": "Ð£Ð¾Ð»Ð»Ð¸Ñ Ð¸ Ð¤ÑƒÑ‚ÑƒÐ½Ð°", "desc_ru": "" },
+    { "mask": "+685-##-####", "cc": "WS", "name_en": "Samoa", "desc_en": "", "name_ru": "Ð¡Ð°Ð¼Ð¾Ð°", "desc_ru": "" },
+    { "mask": "+967-###-###-###", "cc": "YE", "name_en": "Yemen ", "desc_en": "mobile", "name_ru": "Ð™ÐµÐ¼ÐµÐ½ ", "desc_ru": "Ð¼Ð¾Ð±Ð¸Ð»ÑŒÐ½Ñ‹Ðµ" },
+    { "mask": "+967-#-###-###", "cc": "YE", "name_en": "Yemen", "desc_en": "", "name_ru": "Ð™ÐµÐ¼ÐµÐ½", "desc_ru": "" },
+    { "mask": "+967-##-###-###", "cc": "YE", "name_en": "Yemen", "desc_en": "", "name_ru": "Ð™ÐµÐ¼ÐµÐ½", "desc_ru": "" },
+    { "mask": "+27-##-###-####", "cc": "ZA", "name_en": "South Africa", "desc_en": "", "name_ru": "Ð®Ð¶Ð½Ð¾-ÐÑ„Ñ€Ð¸ÐºÐ°Ð½ÑÐºÐ°Ñ Ð ÐµÑÐ¿.", "desc_ru": "" },
+    { "mask": "+260-##-###-####", "cc": "ZM", "name_en": "Zambia", "desc_en": "", "name_ru": "Ð—Ð°Ð¼Ð±Ð¸Ñ", "desc_ru": "" },
+    { "mask": "+263-#-######", "cc": "ZW", "name_en": "Zimbabwe", "desc_en": "", "name_ru": "Ð—Ð¸Ð¼Ð±Ð°Ð±Ð²Ðµ", "desc_ru": "" },
+    { "mask": "+1(###)###-####", "cc": ["US", "CA"], "name_en": "USA and Canada", "desc_en": "", "name_ru": "Ð¡Ð¨Ð Ð¸ ÐšÐ°Ð½Ð°Ð´Ð°", "desc_ru": "" }
+];
+var maskList = $.masksSort(country__list, ['#'], /[0-9]|#/, "mask");
+var maskOpts = {
+    inputmask: {
+        definitions: {
+            '#': {
+                validator: "[0-9]",
+                cardinality: 1
+            }
+        },
+
+        //clearIncomplete: true,
+        showMaskOnHover: false,
+        autoUnmask: true,
+        "oncomplete": function(){
+            valid_phone = true;
+            $(this).removeClass('errors');
+            $('.error').fadeOut(0);
+            //$('.form_messages .step_'+active_step).fadeIn(300);
+        },
+        "onincomplete": function(){
+            valid_phone = false;
+
+        },
+        "oncleared": function(){ valid_phone = false }
+    },
+    match: /[0-9]/,
+    replace: '#',
+    list: maskList,
+    listKey: "mask"
+};
+
+jQuery(window).load(function(){
+    jQuery('#tel').inputmasks(maskOpts);
+    jQuery('#tel1').inputmasks(maskOpts);
+});

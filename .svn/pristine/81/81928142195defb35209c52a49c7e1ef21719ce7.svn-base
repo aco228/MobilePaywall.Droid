@@ -1,0 +1,213 @@
+﻿function Application() {
+
+  this._init = function () {
+    this._logout();
+    this._searchPayments();
+    this._collapse();
+  };
+
+  // SUMMARY: Logout (for all pages)
+  this._logout = function () {
+    var self = this;
+
+    $('.button_logout').click(function (event) {
+      event.preventDefault();
+
+      var btn = $(this);
+      var originalText = btn.text();
+
+      if(btn.attr('inuse') == 'true')
+        return;
+
+      self.Confirm('Logout', 'Are you sure you want to logout?', 'Logout', function () {
+        btn.text('...');
+        btn.attr('inuse', 'true');
+
+        self.Ajax('/client/logout', '', function (response) {
+
+          btn.attr('inuse', 'false');
+          if (!response.status)
+            alert(response.message);
+          else
+            window.location = response.redirect;
+        });
+      });
+    });
+  };
+
+  // SUMMARY: Search payments (if allowed);
+  this._searchPayments = function () {
+    var form = $('.navbarSearchPayments');
+    if (form === undefined)
+      return;
+
+    form.submit(function (event) {
+      event.preventDefault();
+      var search = $('#navbar-search-input').val();
+      window.location = "/payment#" + search + '||all';
+    });
+  };
+
+  // SUMMARY: Rewrite to enable collapse functionality
+  this._collapse = function () {
+    $('body').on('click', '.btn-box-tool', function () {
+      if ($(this).attr('data-widget') != 'collapse')
+        return;
+
+      var elem = $(this);
+      var parent = elem.closest('.box');
+      var icon = elem.find('.fa');
+
+      if (parent.hasClass('collapsed-box'))
+      {
+        parent.removeClass('collapsed-box');
+        icon.removeClass('fa-plus');
+        icon.addClass('fa-minus');
+      }
+      else
+      {
+        parent.addClass('collapsed-box');
+        icon.removeClass('fa-minus');
+        icon.addClass('fa-plus');
+      }
+    });
+  };
+
+  // CUSTOM
+  // SUMMARY: Create loading spinner before ajax call
+  this.AjaxSpinner = function (elem) {
+    if(elem == null || elem === undefined)
+      return '';
+
+    var parent = elem.closest('.box');
+
+    if (parent == null)
+      return;
+
+    var toolBox = parent.find('.box-tools');
+    if (toolBox == null)
+      return;
+
+    var id = this.ID('spinner');
+    var html =  '<span id="'+ id +'" style="display:none" data-toggle="tooltip" title="" class="badge bg-red" data-original-title="Loading...">' +
+                  '<i class="fa fa-refresh fa-spin"></i>' +
+                '</span>';
+    
+    toolBox.prepend(html);
+    $('#' + id).fadeIn(100);
+    return id;
+  };
+
+  // CUSTOM
+  // SUMMARY: Confirm box
+  this.Confirm = function (title, message, btn_text, onClick) {
+    var id = this.ID('modal');
+    var html = '<div class="modal_wrapper" style="display:none" id="'+id+'">'+
+                  '<div class="modal modal-danger">'+
+                    '<div class="modal-dialog">'+
+                      '<div class="modal-content">'+
+                        '<div class="modal-header">'+
+                          '<button type="button" class="close modalClose" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">×</span></button>'+
+                          '<h4 class="modal-title">' + title + '</h4>'+
+                        '</div>'+
+                        '<div class="modal-body">'+
+                          '<p>' + message + '</p>'+
+                        '</div>'+
+                        '<div class="modal-footer">'+
+                          '<button type="button" class="btn btn-outline pull-left modalSubmit" data-dismiss="modal">' + btn_text + '</button>'+
+                          '<button type="button" class="btn btn-outline modalClose">Close</button>' +
+                        '</div>'+
+                      '</div><!-- /.modal-content -->'+
+                    '</div><!-- /.modal-dialog -->'+
+                  '</div><!-- /.modal -->'+
+                '</div>';
+
+    $('.wrapper').append(html);
+    var elem = $('#' + id);
+    elem.fadeIn(300);
+
+    elem.find('.modalClose').click(function () {
+      elem.fadeOut(400, function () { elem.remove(); });
+    });
+
+    if (typeof btn_text === 'undefined')
+      elem.find('.modalSubmit').remove();
+    else
+      elem.find('.modalSubmit').click(function () {
+        if (onClick === undefined) return;
+        onClick();
+        elem.fadeOut(400, function () { elem.remove(); });
+      });
+
+  };
+
+  // CUSTOM
+  // SUMMARY: Fadeout and remove
+  this.FadeOut = function (id, time) {
+    if (id == '' || id === undefined || id == null) return;
+    if (time == '' || time === undefined) time = 500;
+    $('#' + id).fadeOut(time, function(){
+      $(this).remove();
+    });
+  }
+
+  // CUSTOM
+  // SUMMARY: Adds message on top of the box
+  this.BoxMessage = function (message, elem, isDanger, timeout) {
+    if (elem == null || elem == '' || elem === undefined)
+      return;
+
+    var parent = elem.closest('.box');
+    if (parent == null || parent === undefined)
+      return;
+
+    var toolBox = parent.find('.box-tools');
+    if (toolBox == null || toolBox === undefined)
+      return;
+
+    var style = '';
+    if (isDanger == undefined || isDanger) style = 'danger';
+    else style = 'success';
+
+    console.log(elem.attr('class'));
+
+    var id = this.ID('message');
+    var html = '<span id="'+ id +'" style="display:none" class="label label-'+ style +'">' + message + '</span>';
+    toolBox.prepend(html);
+
+    if (timeout === undefined) timeout = 1200;
+    $('#' + id).fadeIn(300);
+    setTimeout(function () {
+      $('#' + id).fadeOut(500, function () { $(this).remove(); });
+    }, timeout);
+  };
+
+  // SUMMARY: Creates unique ID for given element
+  this.ID = function (prefix) {
+    // Creates ID with given prefix (prefix_id)
+    if (typeof prefix == undefined) prefix = ""; else prefix += "_";
+    var text = "";
+    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    for (var i = 0; i < 15; i++) text += possible.charAt(Math.floor(Math.random() * possible.length));
+    return prefix + text;
+  }
+
+  this.Ajax = function (url, data, succ_func, elem) {
+    var spinner = '';
+    $.ajax({
+      url: url,
+      type: 'POST',
+      data: data,
+      beforeSend: function () { spinner = _application.AjaxSpinner(elem); },
+      success: function (response) {
+        $('#' + spinner).removeClass('bg-red');
+        $('#' + spinner).addClass('bg-green');
+        _application.FadeOut(spinner);
+        succ_func(response);
+      }
+    });
+  };
+
+  this._init();
+
+};

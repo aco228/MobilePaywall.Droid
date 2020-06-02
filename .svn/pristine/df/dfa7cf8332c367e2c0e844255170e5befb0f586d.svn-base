@@ -1,0 +1,37 @@
+﻿using MobilePaywall.MobilePaywallDirectWebCore;
+using MobilePaywall.MobilePaywallDirect;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web.MobilePaywallDirectWebCore
+{
+  public class DirectSendNumber
+  {
+    public static int CheckSendNumber(string number)
+    {
+			PaywallDirect db = new PaywallDirect();
+      string command = string.Empty;
+
+      #region # command #
+
+      command = @"SELECT COUNT(*) AS br FROM MobilePaywall.core.Payment AS p
+                  LEFT OUTER JOIN MobilePaywall.core.Customer AS c ON p.CustomerID=c.CustomerID
+                  WHERE c.Msisdn='"+ number +"' AND p.PaymentStatusID=3 AND p.Created >= DATEADD(day, 0, CONVERT(DATE, GETDATE()) )";
+
+      #endregion
+
+      DataTable table = db.Load(command);
+      if (table == null)
+        return 0;
+
+      int result = 0;
+      if(!Int32.TryParse(table.Rows[0][0].ToString(), out result))
+        return 0;
+      return result;
+    }
+  }
+}

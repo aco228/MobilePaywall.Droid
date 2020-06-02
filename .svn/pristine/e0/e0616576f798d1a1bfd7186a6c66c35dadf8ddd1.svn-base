@@ -1,0 +1,83 @@
+﻿@model GreecePaymentPageViewModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+}
+
+@Styles.Render("~/Style/Darkley/Login")
+@Scripts.Render("~/Script/Login")
+
+<style>
+  body{ background: #000!important; }
+  .contactFormWrapper { margin-top: 25px!important; }
+  .checkboxError{ color:red; display:none;  }
+</style>
+
+<div class="contactFormWrapper">
+  <h4 class="contactTitle">Confirm payment</h4>
+  <form class="contactForm _login_form" id="contactForm">
+    <div>
+      <table>
+        <tr>
+          <td style="width:5%;"><input id="checker" type="checkbox" @Html.Raw(Model.HasPayment ? "checked" : "") /></td>
+          <td style="color:white">Έχω λάβει γνώση των <a href="/terms">όρων χρήσης</a> και αποδέχομαι να ενεργοποιήσω το συνδρομητικό διαγωνιστικό παιχνίδι διεκδίκησης επάθλων / υπηρεσία @PaywallHttpContext.Current.Service.ServiceData.Name  με χρέωση δύο ευρώ και οκτώ λεπτά ανά sms, τρία sms ανά εβδομάδα.</td>
+        </tr>
+      </table>
+    </div>
+    <div class="checkboxError">Παρακαλούμε αποδεχτείτε τους όρους χρήσης για να προχωρήσετε</div>
+    <div class="formSubmitButtonErrorsWrapper">
+      <input type="button" class="buttonWrapper contactSubmitButton submitBtn" id="resetPasswordSubmit" value="Επιβεβαίωση" data-form-id="contactForm">
+    </div>
+    <div class="ajax_response"></div>
+  </form>
+</div>
+
+<div style="clear:both;"></div>
+
+<script>
+  $(document).ready(function () {
+
+    var _msisdn = '@Model.Msisnd';
+
+    @Html.Raw(Model.HasPayment ? "setTimeout(function(){ $('.submitBtn').click(); }, 1000);" : "")
+
+    $('.submitBtn').click(function () {
+      var btn = $('.submitBtn');
+      if (btn.attr('inuse') == 'true')
+        return;
+
+      $('.checkboxError').css('display', 'none');
+      var checked = $('#checker').is(':checked');
+      if (!checked) {
+        $('.checkboxError').css('display', 'initial');
+        return;
+      }
+
+      var btnOriginalText = btn.text();
+      btn.text('Wait..');
+      btn.attr('inuse', 'true');
+
+      $.ajax({
+        url: '/GreecePayment/WindConfirm',
+        type: 'POST',
+        data: { input: _msisdn },
+        success: function (response) {
+          console.log(response);
+
+          if (!response.status)
+            _visual.Alert(response.message);
+          else
+            window.location = '/GreeceWelcome';
+
+          btn.attr('inuse', 'false');
+          btn.text(btnOriginalText);
+        }
+      });
+
+    });
+
+  });
+</script>
+
+<div> @{ Html.RenderPartial("_Dislaimer"); } </div>
+
+@section footer{}

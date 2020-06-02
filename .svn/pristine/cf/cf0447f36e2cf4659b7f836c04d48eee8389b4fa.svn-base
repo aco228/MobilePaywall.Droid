@@ -1,0 +1,61 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IAndroidContentDetailManager 
+  {
+    List<AndroidContentDetail> Load(AndroidContent content);
+    List<AndroidContentDetail> Load(IConnectionInfo connection, AndroidContent content);
+    List<AndroidContentDetail> Load(Service service);
+    List<AndroidContentDetail> Load(IConnectionInfo connection, Service service);
+    List<AndroidContentDetail> Load(Service service, Language language);
+    List<AndroidContentDetail> Load(IConnectionInfo connection, Service service, Language language);
+    AndroidContentDetail Load(AndroidContent content, Language language);
+    AndroidContentDetail Load(IConnectionInfo connection, AndroidContent content, Language language);
+    T Load<T>(AndroidContent content, Service service, Language language);
+    T Load<T>(IConnectionInfo connection, AndroidContent content, Service service, Language language);    
+
+
+  }
+
+  public partial class AndroidContentDetail
+  {
+
+    public void UpdateWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void UpdateWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void InsertWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void InsertWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void DeleteWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+    public void DeleteWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+
+    public override bool IsDeletable { get { return true; } }
+
+    public static AndroidContentDetail LoadByServiceAndLanguage(AndroidContent content, Service service, Language language)
+    {
+      AndroidContentDetail detail;
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        connection.Transaction.Begin();
+
+        IAndroidContentDetailManager vcdManager = AndroidContentDetail.CreateManager();
+        detail = vcdManager.Load<AndroidContentDetail>(connection, content, service, language);
+        if (detail == null)
+          detail = vcdManager.Load(connection, content, language);
+        if (detail == null)
+          detail = vcdManager.Load(content).FirstOrDefault();
+
+        connection.Transaction.Commit();
+      }
+      return detail;
+    }
+
+  }
+}
+

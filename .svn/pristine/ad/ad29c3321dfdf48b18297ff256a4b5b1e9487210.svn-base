@@ -1,0 +1,129 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Web.Localization;
+using MobilePaywall.Web.Log;
+using Senti.Diagnostics.Log;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Web;
+
+namespace MobilePaywall.Web.Models
+{
+	public class ErrorViewModel : PaywallViewModelBase
+	{
+
+
+    #region #logging#
+
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (ErrorViewModel._log == null)
+          ErrorViewModel._log = LogManager.GetLogger(typeof(ErrorViewModel));
+        return ErrorViewModel._log;
+      }
+    }
+
+    #endregion #logging#
+
+		private ErrorCode _errorCode = ErrorCode.Unknown;
+		private string _errorTitle = string.Empty;
+		private string _errorDescription = string.Empty;
+		private string _returnToUrl = string.Empty;
+		private UserHttpRequest _originalRequest = null;
+
+		public ErrorCode ErrorCode { get { return _errorCode; } set { _errorCode = value; } }
+		public string ErrorTitle { get { return _errorTitle; } set { _errorTitle = value; } }
+		public string ErrorDescription { get { return _errorDescription; } set { _errorDescription = value; } }
+		public UserHttpRequest OriginalRequest { get { return _originalRequest; } set { _originalRequest = value; } }
+
+		public ErrorViewModel(PaywallHttpContext context, ErrorCode code)
+			: base(context)
+		{
+			this._errorCode = code;
+      this._errorTitle = Translations.Web.Error.ErrTitle;
+      this._errorDescription = Translations.Web.Error.ErrInternal;
+
+			this.GenerateError();
+      this.ReportOL();
+		}
+
+		public ErrorViewModel(PaywallHttpContext context, ErrorCode code, string title, string description)
+			: this(context, code)
+		{
+			this._errorCode = code;
+			this._errorTitle = title;
+      this._errorDescription = description;
+      this.ReportOL();
+		}
+
+		public ErrorViewModel(PaywallHttpContext context, ErrorCode code, string title, string description, string returnToUrl)
+			: this(context, code, title, description)
+		{
+      this._returnToUrl = returnToUrl;
+      this.ReportOL();
+		}
+
+		public ErrorViewModel(PaywallHttpContext context, ErrorCode code, string title, string description, UserHttpRequest request)
+			: this(context, code, title, description)
+		{
+      this._originalRequest = request;
+      this.ReportOL();
+		}
+
+		public ErrorViewModel(PaywallHttpContext context, ErrorCode code, string title, string description, string returnToUrl, UserHttpRequest request) 
+			: this(context, code, title, description, returnToUrl)
+		{
+			this._originalRequest = request;
+      this.ReportOL();
+		}
+
+    public void ReportOL()
+    {
+      return;
+
+      if ((!this.Context.Session.SessionData.EntranceUrl.Contains("pxid=") ||
+        !this.Context.Session.SessionData.EntranceUrl.Contains("country=")) && 
+        !this.Context.Session.SessionData.EntranceUrl.Contains("tp=") )
+        return;
+
+      if (this.Context.HttpContext.Items["errorViewReportSend"] != null)
+        return;
+
+      string pxid = this.Context.Session.SessionData.Pxid;
+      Uri requestUri = new Uri(this.Context.Session.SessionData.EntranceUrl);
+      string pattern = "http://pornamatertube.mobi/report.php?clickid={0}&accepturl={1}";
+      string url = string.Format(pattern, pxid, "errorView");
+
+      Log.Debug( new LogMessageBuilder(new LogErrorCode(this.Context.Session.SessionData.Guid.ToString(), "errorviewModel", "hack", "reportOL"),
+           string.Format("Error view for user with pxid='{0}'. Report has been sent to OL", pxid)));
+
+      WebRequest wssRequest = WebRequest.Create(url);
+      wssRequest.Method = "GET";
+      WebResponse wssResponse = wssRequest.GetResponse();
+      StreamReader ssReader = new StreamReader(wssResponse.GetResponseStream());
+
+      wssResponse.Close();
+      ssReader.Close();
+      this.Context.HttpContext.Items["errorViewReportSend"] = true;
+    }
+
+		private void GenerateError()
+		{
+			if (string.IsNullOrEmpty(this._errorTitle))
+				this._errorTitle = "";
+
+			if (string.IsNullOrEmpty(this._errorDescription))
+				this._errorDescription = "";
+
+			if (string.IsNullOrEmpty(this._returnToUrl))
+				this._returnToUrl = "/";
+		}
+	}
+}

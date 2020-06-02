@@ -1,0 +1,458 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.TrckdPaywall.Data.Sql
+{
+  [DataManager(typeof(Container))] 
+  public partial class ContainerManager : MobilePaywall.Data.Sql.SqlManagerBase<Container>, IContainerManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override Container LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ContainerTable.GetColumnNames("[c]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[c_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[c_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[c_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[c_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[c_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[c_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[c_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[c_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[c_s_t]") : string.Empty) + 
+					" FROM [trckd].[Container] AS [c] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [c_s] ON [c].[ServiceID] = [c_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [c_s_a] ON [c_s].[ApplicationID] = [c_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [c_s_p] ON [c_s].[ProductID] = [c_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [c_s_m] ON [c_s].[MerchantID] = [c_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [c_s_st] ON [c_s].[ServiceTypeID] = [c_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [c_s_ust] ON [c_s].[UserSessionTypeID] = [c_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c_s_c] ON [c_s].[FallbackCountryID] = [c_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [c_s_sc] ON [c_s].[ServiceConfigurationID] = [c_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [c_s_bm] ON [c_s].[BusinessModelID] = [c_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [c_s_t] ON [c_s].[TemplateID] = [c_s_t].[TemplateID] ";
+				sqlCmdText += "WHERE [c].[ContrainerID] = @ContrainerID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ContrainerID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("c", "loadinternal", "notfound"), "Container could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ContainerTable cTable = new ContainerTable(query);
+				ServiceTable c_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable c_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable c_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable c_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable c_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable c_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable c_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				ServiceConfigurationTable c_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable c_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable c_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        
+				MobilePaywall.Data.Application c_s_aObject = (this.Depth > 1) ? c_s_aTable.CreateInstance() : null;
+				Product c_s_pObject = (this.Depth > 1) ? c_s_pTable.CreateInstance() : null;
+        MobilePaywall.Data.Merchant c_s_mObject = (this.Depth > 1) ? c_s_mTable.CreateInstance() : null;
+				ServiceType c_s_stObject = (this.Depth > 1) ? c_s_stTable.CreateInstance() : null;
+				UserSessionType c_s_ustObject = (this.Depth > 1) ? c_s_ustTable.CreateInstance() : null;
+				Country c_s_cObject = (this.Depth > 1) ? c_s_cTable.CreateInstance() : null;
+				ServiceConfiguration c_s_scObject = (this.Depth > 1) ? c_s_scTable.CreateInstance() : null;
+				BusinessModel c_s_bmObject = (this.Depth > 1) ? c_s_bmTable.CreateInstance() : null;
+				Template c_s_tObject = (this.Depth > 1) ? c_s_tTable.CreateInstance() : null;
+				Service c_sObject = (this.Depth > 0) ? c_sTable.CreateInstance(c_s_aObject, c_s_pObject, c_s_mObject, c_s_stObject, c_s_ustObject, c_s_cObject, c_s_scObject, c_s_bmObject, c_s_tObject) : null;
+				Container cObject = cTable.CreateInstance(c_sObject);
+				sqlReader.Close();
+
+				return cObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("c", "loadinternal", "exception"), "Container could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Container", "Exception while loading Container object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public Container Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ContainerTable.GetColumnNames("[c]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[c_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[c_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[c_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[c_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[c_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[c_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[c_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[c_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[c_s_t]") : string.Empty) +  
+					" FROM [trckd].[Container] AS [c] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [c_s] ON [c].[ServiceID] = [c_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [c_s_a] ON [c_s].[ApplicationID] = [c_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [c_s_p] ON [c_s].[ProductID] = [c_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [c_s_m] ON [c_s].[MerchantID] = [c_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [c_s_st] ON [c_s].[ServiceTypeID] = [c_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [c_s_ust] ON [c_s].[UserSessionTypeID] = [c_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c_s_c] ON [c_s].[FallbackCountryID] = [c_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [c_s_sc] ON [c_s].[ServiceConfigurationID] = [c_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [c_s_bm] ON [c_s].[BusinessModelID] = [c_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [c_s_t] ON [c_s].[TemplateID] = [c_s_t].[TemplateID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("c", "customload", "notfound"), "Container could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ContainerTable cTable = new ContainerTable(query);
+				ServiceTable c_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable c_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable c_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable c_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable c_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable c_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable c_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				ServiceConfigurationTable c_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable c_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable c_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        
+				MobilePaywall.Data.Application c_s_aObject = (this.Depth > 1) ? c_s_aTable.CreateInstance() : null;
+				Product c_s_pObject = (this.Depth > 1) ? c_s_pTable.CreateInstance() : null;
+        MobilePaywall.Data.Merchant c_s_mObject = (this.Depth > 1) ? c_s_mTable.CreateInstance() : null;
+				ServiceType c_s_stObject = (this.Depth > 1) ? c_s_stTable.CreateInstance() : null;
+				UserSessionType c_s_ustObject = (this.Depth > 1) ? c_s_ustTable.CreateInstance() : null;
+				Country c_s_cObject = (this.Depth > 1) ? c_s_cTable.CreateInstance() : null;
+				ServiceConfiguration c_s_scObject = (this.Depth > 1) ? c_s_scTable.CreateInstance() : null;
+				BusinessModel c_s_bmObject = (this.Depth > 1) ? c_s_bmTable.CreateInstance() : null;
+				Template c_s_tObject = (this.Depth > 1) ? c_s_tTable.CreateInstance() : null;
+				Service c_sObject = (this.Depth > 0) ? c_sTable.CreateInstance(c_s_aObject, c_s_pObject, c_s_mObject, c_s_stObject, c_s_ustObject, c_s_cObject, c_s_scObject, c_s_bmObject, c_s_tObject) : null;
+				Container cObject = cTable.CreateInstance(c_sObject);
+				sqlReader.Close();
+
+				return cObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("c", "customload", "exception"), "Container could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Container", "Exception while loading (custom/single) Container object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<Container> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ContainerTable.GetColumnNames("[c]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[c_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[c_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[c_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[c_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[c_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[c_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[c_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[c_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[c_s_t]") : string.Empty) +  
+					" FROM [trckd].[Container] AS [c] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [c_s] ON [c].[ServiceID] = [c_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [c_s_a] ON [c_s].[ApplicationID] = [c_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [c_s_p] ON [c_s].[ProductID] = [c_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [c_s_m] ON [c_s].[MerchantID] = [c_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [c_s_st] ON [c_s].[ServiceTypeID] = [c_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [c_s_ust] ON [c_s].[UserSessionTypeID] = [c_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c_s_c] ON [c_s].[FallbackCountryID] = [c_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [c_s_sc] ON [c_s].[ServiceConfigurationID] = [c_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [c_s_bm] ON [c_s].[BusinessModelID] = [c_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [c_s_t] ON [c_s].[TemplateID] = [c_s_t].[TemplateID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("c", "customloadmany", "notfound"), "Container list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<Container>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ContainerTable cTable = new ContainerTable(query);
+				ServiceTable c_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable c_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable c_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable c_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable c_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable c_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable c_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				ServiceConfigurationTable c_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable c_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable c_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        List<Container> result = new List<Container>();
+        do
+        {
+          
+					MobilePaywall.Data.Application c_s_aObject = (this.Depth > 1) ? c_s_aTable.CreateInstance() : null;
+					Product c_s_pObject = (this.Depth > 1) ? c_s_pTable.CreateInstance() : null;
+          MobilePaywall.Data.Merchant c_s_mObject = (this.Depth > 1) ? c_s_mTable.CreateInstance() : null;
+					ServiceType c_s_stObject = (this.Depth > 1) ? c_s_stTable.CreateInstance() : null;
+					UserSessionType c_s_ustObject = (this.Depth > 1) ? c_s_ustTable.CreateInstance() : null;
+					Country c_s_cObject = (this.Depth > 1) ? c_s_cTable.CreateInstance() : null;
+					ServiceConfiguration c_s_scObject = (this.Depth > 1) ? c_s_scTable.CreateInstance() : null;
+					BusinessModel c_s_bmObject = (this.Depth > 1) ? c_s_bmTable.CreateInstance() : null;
+					Template c_s_tObject = (this.Depth > 1) ? c_s_tTable.CreateInstance() : null;
+					Service c_sObject = (this.Depth > 0) ? c_sTable.CreateInstance(c_s_aObject, c_s_pObject, c_s_mObject, c_s_stObject, c_s_ustObject, c_s_cObject, c_s_scObject, c_s_bmObject, c_s_tObject) : null;
+					Container cObject = (this.Depth > -1) ? cTable.CreateInstance(c_sObject) : null;
+					result.Add(cObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("c", "customloadmany", "exception"), "Container list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Container", "Exception while loading (custom/many) Container object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, Container data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [trckd].[Container] ([ContainerGuid],[ServiceID]) VALUES(@ContainerGuid,@ServiceID); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ContainerGuid", data.Guid);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("c", "insert", "noprimarykey"), "Container could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "Container", "Exception while inserting Container object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("c", "insert", "exception"), "Container could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "Container", "Exception while inserting Container object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, Container data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [trckd].[Container] SET " +
+												"[ContainerGuid] = @ContainerGuid, " + 
+												"[ServiceID] = @ServiceID, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ContrainerID] = @ContrainerID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ContainerGuid", data.Guid);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ContainerID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("c", "update", "norecord"), "Container could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "Container", "Exception while updating Container object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("c", "update", "morerecords"), "Container was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "Container", "Exception while updating Container object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("c", "update", "exception"), "Container could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "Container", "Exception while updating Container object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, Container data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [trckd].[Container] WHERE ContrainerID = @ContrainerID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ContrainerID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("c", "delete", "norecord"), "Container could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "Container", "Exception while deleting Container object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("c", "delete", "exception"), "Container could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "Container", "Exception while deleting Container object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

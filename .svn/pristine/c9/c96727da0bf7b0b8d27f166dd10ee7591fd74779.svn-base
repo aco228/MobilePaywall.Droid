@@ -1,0 +1,76 @@
+﻿function ClientManager()
+{
+  this._init = function () {
+    this._addNewClientListener();
+    this._editClientListener();
+    this._initialGoto();
+  };
+
+  // SUMMARY: On refresh
+  this._initialGoto = function () {
+    var guid = location.hash;
+    if (guid == '' || guid[0] != '#')
+      return;
+
+    guid = guid.substring(1);
+
+    $.ajax({
+      url: '/clients/edit/', type: 'POST', data: '&clientGuidInput=' + guid,
+      success: function (response) { $('#ajax_append').html(response); }
+    });
+
+  };
+
+  this._addNewClientListener = function () {
+    var self = this;
+    var btn = $('#buttonAddNewClient');
+    btn.click(function (event) {
+      event.preventDefault();
+
+      if (btn.attr('inuse') == 'true')
+        return;
+
+      btn.attr('inuse', 'true');
+      self._ajax('edit', null, function (response) {
+        btn.attr('inuse', 'false');
+        $('#ajax_append').html(response);
+      }, btn);
+
+    });
+  };
+
+  this._editClientListener = function () {
+    var self = this;
+    $('body').on('click', '.buttonEditClient', function () {
+      var btn = $(this);
+      if ($(this).attr('inuse') == 'true')
+        return;
+
+      var clientGuid = $(this).attr('clientguid');
+      $(this).attr('inuse', 'true');
+      self._ajax('edit', '&clientGuidInput=' + clientGuid, function (response) {
+        location.hash = clientGuid;
+        btn.attr('inuse', 'false');
+        $('#ajax_append').html(response);
+      }, btn);
+    });
+  };
+
+  this._ajax = function (url, data, succ_func, elem) {
+    _application.Ajax('/clients/' + url, data, succ_func, elem);
+
+    //var spinner = '';
+    //$.ajax({
+    //  url: '/clients/' + url,
+    //  type: 'POST',
+    //  data: data,
+    //  beforeSend: function () { spinner = _application.AjaxSpinner(elem);  },
+    //  success: function (response) {
+    //    _application.FadeOut(spinner);
+    //    succ_func(response);
+    //  }
+    //});
+  };
+
+  this._init();
+}

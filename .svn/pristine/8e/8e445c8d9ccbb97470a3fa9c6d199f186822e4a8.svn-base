@@ -1,0 +1,82 @@
+﻿using MobilePaywall.Data;
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Importer
+{
+	public class TemporaryMappingObject
+	{
+
+		private string _contentKey;
+		private Service _service;
+		private Content _content;
+		private VideoContent _videoContent;
+		private List<VideoContentDetail> _videoContentDetailList;
+
+		private string folderPath;  // FullPath for Content :: C://..../ContentKey/
+		private VideoFile mainVideo;
+		private List<ThumbnailFile> mainThumbnails;
+		private List<VideoFile> sceneVideos;
+		
+
+		public string ContentKey
+		{
+			get { return _contentKey; }
+			set { _contentKey = value; }
+		}
+
+		public Service Service
+		{
+			get { return _service; }
+			set { _service = value; }
+		}
+
+		public Content Content
+		{
+			get { return _content; }
+			set { _content = value; }
+		}
+
+		public VideoContent VideoContent
+		{
+			get { return _videoContent; }
+			set { _videoContent = value; }
+		}
+		
+		public List<VideoContentDetail> VideoContentDetailList
+		{
+			get { return _videoContentDetailList; }
+			set { _videoContentDetailList = value; }
+		}
+
+		public bool Insert(ConnectionInfo connection)
+		{
+			try
+			{
+				this._content.Insert(connection);
+				this._videoContent.Content = this._content;
+				this._videoContent.Insert(connection);
+				foreach (VideoContentDetail detail in this._videoContentDetailList)
+				{
+					detail.VideoContent = _videoContent;
+					detail.Service = this._service;
+					detail.Insert(connection);
+				}
+
+				// TODO convert videos and save here
+
+				return true;
+			}
+			catch (Exception e)
+			{
+				Debug.WriteLine(e.Message);
+				return false;
+			}
+		}
+	}
+}

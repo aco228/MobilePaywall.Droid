@@ -1,0 +1,356 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ClientComponentAccessPolicy))] 
+  public partial class ClientComponentAccessPolicyManager : MobilePaywall.Data.Sql.SqlManagerBase<ClientComponentAccessPolicy>, IClientComponentAccessPolicyManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ClientComponentAccessPolicy LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ClientComponentAccessPolicyTable.GetColumnNames("[ccap]") + 
+							(this.Depth > 0 ? "," + ClientTable.GetColumnNames("[ccap_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ClientTypeTable.GetColumnNames("[ccap_c_ct]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ComponentTable.GetColumnNames("[c1]") : string.Empty) + 
+					" FROM [core].[ClientComponentAccessPolicy] AS [ccap] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Client] AS [ccap_c] ON [ccap].[ClientID] = [ccap_c].[ClientID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ClientType] AS [ccap_c_ct] ON [ccap_c].[ClientTypeID] = [ccap_c_ct].[ClientTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Component] AS [c1] ON [ccap].[ComponentID] = [c1].[ComponentID] ";
+				sqlCmdText += "WHERE [ccap].[ClientComponentAccessPolicyID] = @ClientComponentAccessPolicyID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ClientComponentAccessPolicyID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccap", "loadinternal", "notfound"), "ClientComponentAccessPolicy could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ClientComponentAccessPolicyTable ccapTable = new ClientComponentAccessPolicyTable(query);
+				ClientTable ccap_cTable = (this.Depth > 0) ? new ClientTable(query) : null;
+				ClientTypeTable ccap_c_ctTable = (this.Depth > 1) ? new ClientTypeTable(query) : null;
+				ComponentTable c1Table = (this.Depth > 0) ? new ComponentTable(query) : null;
+
+        
+				ClientType ccap_c_ctObject = (this.Depth > 1) ? ccap_c_ctTable.CreateInstance() : null;
+				Client ccap_cObject = (this.Depth > 0) ? ccap_cTable.CreateInstance(ccap_c_ctObject) : null;
+				Component c1Object = (this.Depth > 0) ? c1Table.CreateInstance() : null;
+				ClientComponentAccessPolicy ccapObject = ccapTable.CreateInstance(ccap_cObject, c1Object);
+				sqlReader.Close();
+
+				return ccapObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccap", "loadinternal", "exception"), "ClientComponentAccessPolicy could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ClientComponentAccessPolicy", "Exception while loading ClientComponentAccessPolicy object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ClientComponentAccessPolicy Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ClientComponentAccessPolicyTable.GetColumnNames("[ccap]") + 
+							(this.Depth > 0 ? "," + ClientTable.GetColumnNames("[ccap_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ClientTypeTable.GetColumnNames("[ccap_c_ct]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ComponentTable.GetColumnNames("[c1]") : string.Empty) +  
+					" FROM [core].[ClientComponentAccessPolicy] AS [ccap] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Client] AS [ccap_c] ON [ccap].[ClientID] = [ccap_c].[ClientID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ClientType] AS [ccap_c_ct] ON [ccap_c].[ClientTypeID] = [ccap_c_ct].[ClientTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Component] AS [c1] ON [ccap].[ComponentID] = [c1].[ComponentID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccap", "customload", "notfound"), "ClientComponentAccessPolicy could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ClientComponentAccessPolicyTable ccapTable = new ClientComponentAccessPolicyTable(query);
+				ClientTable ccap_cTable = (this.Depth > 0) ? new ClientTable(query) : null;
+				ClientTypeTable ccap_c_ctTable = (this.Depth > 1) ? new ClientTypeTable(query) : null;
+				ComponentTable c1Table = (this.Depth > 0) ? new ComponentTable(query) : null;
+
+        
+				ClientType ccap_c_ctObject = (this.Depth > 1) ? ccap_c_ctTable.CreateInstance() : null;
+				Client ccap_cObject = (this.Depth > 0) ? ccap_cTable.CreateInstance(ccap_c_ctObject) : null;
+				Component c1Object = (this.Depth > 0) ? c1Table.CreateInstance() : null;
+				ClientComponentAccessPolicy ccapObject = ccapTable.CreateInstance(ccap_cObject, c1Object);
+				sqlReader.Close();
+
+				return ccapObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccap", "customload", "exception"), "ClientComponentAccessPolicy could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ClientComponentAccessPolicy", "Exception while loading (custom/single) ClientComponentAccessPolicy object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ClientComponentAccessPolicy> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ClientComponentAccessPolicyTable.GetColumnNames("[ccap]") + 
+							(this.Depth > 0 ? "," + ClientTable.GetColumnNames("[ccap_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ClientTypeTable.GetColumnNames("[ccap_c_ct]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ComponentTable.GetColumnNames("[c1]") : string.Empty) +  
+					" FROM [core].[ClientComponentAccessPolicy] AS [ccap] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Client] AS [ccap_c] ON [ccap].[ClientID] = [ccap_c].[ClientID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ClientType] AS [ccap_c_ct] ON [ccap_c].[ClientTypeID] = [ccap_c_ct].[ClientTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Component] AS [c1] ON [ccap].[ComponentID] = [c1].[ComponentID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccap", "customloadmany", "notfound"), "ClientComponentAccessPolicy list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ClientComponentAccessPolicy>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ClientComponentAccessPolicyTable ccapTable = new ClientComponentAccessPolicyTable(query);
+				ClientTable ccap_cTable = (this.Depth > 0) ? new ClientTable(query) : null;
+				ClientTypeTable ccap_c_ctTable = (this.Depth > 1) ? new ClientTypeTable(query) : null;
+				ComponentTable c1Table = (this.Depth > 0) ? new ComponentTable(query) : null;
+
+        List<ClientComponentAccessPolicy> result = new List<ClientComponentAccessPolicy>();
+        do
+        {
+          
+					ClientType ccap_c_ctObject = (this.Depth > 1) ? ccap_c_ctTable.CreateInstance() : null;
+					Client ccap_cObject = (this.Depth > 0) ? ccap_cTable.CreateInstance(ccap_c_ctObject) : null;
+					Component c1Object = (this.Depth > 0) ? c1Table.CreateInstance() : null;
+					ClientComponentAccessPolicy ccapObject = (this.Depth > -1) ? ccapTable.CreateInstance(ccap_cObject, c1Object) : null;
+					result.Add(ccapObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccap", "customloadmany", "exception"), "ClientComponentAccessPolicy list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ClientComponentAccessPolicy", "Exception while loading (custom/many) ClientComponentAccessPolicy object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ClientComponentAccessPolicy data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ClientComponentAccessPolicy] ([ClientID],[ComponentID],[AccessModeID]) VALUES(@ClientID,@ComponentID,@AccessModeID); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ClientID", data.Client.ID);
+				sqlCmd.Parameters.AddWithValue("@ComponentID", data.Component.ID);
+				sqlCmd.Parameters.AddWithValue("@AccessModeID", (int)data.AccessMode);
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccap", "insert", "noprimarykey"), "ClientComponentAccessPolicy could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ClientComponentAccessPolicy", "Exception while inserting ClientComponentAccessPolicy object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccap", "insert", "exception"), "ClientComponentAccessPolicy could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ClientComponentAccessPolicy", "Exception while inserting ClientComponentAccessPolicy object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ClientComponentAccessPolicy data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ClientComponentAccessPolicy] SET " +
+												"[ClientID] = @ClientID, " + 
+												"[ComponentID] = @ComponentID, " + 
+												"[AccessModeID] = @AccessModeID, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ClientComponentAccessPolicyID] = @ClientComponentAccessPolicyID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ClientID", data.Client.ID);
+				sqlCmd.Parameters.AddWithValue("@ComponentID", data.Component.ID);
+				sqlCmd.Parameters.AddWithValue("@AccessModeID", (int)data.AccessMode);
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ClientComponentAccessPolicyID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccap", "update", "norecord"), "ClientComponentAccessPolicy could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ClientComponentAccessPolicy", "Exception while updating ClientComponentAccessPolicy object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccap", "update", "morerecords"), "ClientComponentAccessPolicy was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ClientComponentAccessPolicy", "Exception while updating ClientComponentAccessPolicy object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccap", "update", "exception"), "ClientComponentAccessPolicy could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ClientComponentAccessPolicy", "Exception while updating ClientComponentAccessPolicy object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ClientComponentAccessPolicy data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ClientComponentAccessPolicy] WHERE ClientComponentAccessPolicyID = @ClientComponentAccessPolicyID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ClientComponentAccessPolicyID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccap", "delete", "norecord"), "ClientComponentAccessPolicy could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ClientComponentAccessPolicy", "Exception while deleting ClientComponentAccessPolicy object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ccap", "delete", "exception"), "ClientComponentAccessPolicy could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ClientComponentAccessPolicy", "Exception while deleting ClientComponentAccessPolicy object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

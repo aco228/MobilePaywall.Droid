@@ -1,0 +1,421 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using MobilePaywall.Data;
+using Senti.Diagnostics.Log;
+using Cashflow.Client;
+using Cashflow.Message;
+using Cashflow.Message.Mobile;
+using log4net;
+
+namespace MobilePaywall.Implementation.Payment.Specific
+{
+  public class PaywallBasedPaymentManagerWithoutLookup : PaymentManagerBase
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (PaywallBasedPaymentManagerWithoutLookup._log == null)
+          PaywallBasedPaymentManagerWithoutLookup._log = LogManager.GetLogger(typeof(PaywallBasedPaymentManagerWithoutLookup));
+        return PaywallBasedPaymentManagerWithoutLookup._log;
+      }
+    }
+    #endregion
+
+    public PaywallBasedPaymentManagerWithoutLookup(IUserSession session) : base(session)
+    {
+    }
+
+
+    public override PaymentRequest InitiatePayment(LookupSession lookupSession, ServiceOffer serviceOffer, IContent content, string requestRawUrl)
+    {
+      LogMessageBuilder builder = null;
+
+      if(lookupSession == null)
+      {
+        UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), this.Session.SessionData, content.ContentData, requestRawUrl, DateTime.Now, DateTime.Now); uhr.Insert();
+        lookupSession = new LookupSession(-1, Guid.NewGuid(), LookupSessionStatus.Complete, this.Session.SessionData, uhr, Guid.Empty, "-nil-", DateTime.Now, DateTime.Now);
+        lookupSession.Insert();
+      }
+      
+      //INFO: In case of FirstTelecom we are not able to redirect customer again to payment page url which we previously got from
+      //			InitiateSubscriptionResponse. We need to slightly modify url based on data which we have in redirect url or to invoke IntitiateSubscription again.
+      IPaymentRequestManager prManager = PaymentRequest.CreateManager();
+      PaymentRequest request = prManager.Load(this.Session.SessionData);
+      if (request != null && DateTime.Now.Subtract(request.Updated).TotalMinutes < 10)
+      {
+        if (serviceOffer.PaymentConfiguration.PaymentProvider.ID != 2)
+          return request;
+
+        if (serviceOffer.PaymentConfiguration.PaymentProvider.ID == 2)
+        {
+          if ((this.Session.SessionData.MobileOperator.ID == 375 ||
+              this.Session.SessionData.MobileOperator.ID == 379 ||
+              this.Session.SessionData.MobileOperator.ID == 388 ||
+              this.Session.SessionData.MobileOperator.ID == 383 ||
+              this.Session.SessionData.MobileOperator.ID == 380))
+          {
+            if (request.PaymentRedirectUrl.Contains("http://pgw.wap.net-m.net/pgw/io/cp/detect/"))
+            {
+              Uri requestRawUri = new Uri(request.PaymentRedirectUrl);
+              if (!string.IsNullOrEmpty(requestRawUri.Query))
+                request.PaymentRedirectUrl = request.PaymentRedirectUrl.Replace(requestRawUri.Query, string.Empty);
+
+              string netmID = request.PaymentRedirectUrl.Split('/').Skip(request.PaymentRedirectUrl.Split('/').Count() - 2).Take(1).FirstOrDefault();
+              string netmMAC = request.PaymentRedirectUrl.Split('/').Skip(request.PaymentRedirectUrl.Split('/').Count() - 1).Take(1).FirstOrDefault();
+              request.PaymentRedirectUrl = string.Format("http://pgw.wap.net-m.net/pgw/io/cp/confirm?id={0}&mac={1}", netmID, netmMAC);
+              request.Update();
+              return request;
+            }
+            if (request.PaymentRedirectUrl.Contains("http://pgw.wap.net-m.net/pgw/io/cp/confirm"))
+              return request;
+          }
+        }
+      }
+
+      Customer customer = null;
+      if (this.Session.SessionData.Customer != null)
+        customer = this.Session.SessionData.Customer;
+      else
+      {
+        customer = new Customer(-1,
+                                Guid.NewGuid(),
+                                CustomerStatus.Pending,
+                                this.Session.Service.ServiceData,
+                                serviceOffer.Service.FallbackCountry,
+                                null,
+                                null,
+                                string.Empty,
+                                string.Empty,
+                                string.Format("user{0}", Guid.NewGuid().ToString().Split('-')[4].Substring(0, 6)),
+                                null,
+                                DateTime.Now,
+                                DateTime.Now);
+        customer.Insert();
+        customer.SetUsernameAndPassword();
+        this.Session.SessionData.Customer = customer;
+        this.Session.SessionData.Update();
+      }
+
+      UserHttpRequest userHttpRequest = new UserHttpRequest(-1, Guid.NewGuid(), this.Session.SessionData, content.ContentData, requestRawUrl, DateTime.Now, DateTime.Now);
+      userHttpRequest.Insert();
+
+      PaymentRequest paymentRequest = new PaymentRequest(-1,
+                                                        Guid.NewGuid(),
+                                                        serviceOffer.PaymentConfiguration.PaymentType,
+                                                        PaymentRequestStatus.Initialized,
+                                                        lookupSession,
+                                                        customer,
+                                                        this.Session.SessionData,
+                                                        serviceOffer,
+                                                        serviceOffer.BusinessModelEntry,
+                                                        null,
+                                                        userHttpRequest,
+                                                        null,
+                                                        DateTime.Now,
+                                                        DateTime.Now);
+      paymentRequest.Insert();
+
+      PaymentResult paymentResult = new PaymentResult(-1,
+                                                      paymentRequest,
+                                                      null,
+                                                      null,
+                                                      DateTime.Now.AddMinutes(2),
+                                                      DateTime.Now,
+                                                      DateTime.Now);
+      paymentResult.Insert();
+
+      // this is not okay because we need to provide placeholder which Cashflow will change on their side after receiving LookupMsisdnRequest: {{identificationsessionid}}
+      // Do we need to have placeholder at all because it worked without it?
+      string paymentRequestPath = MobilePaywall.Constants.PaymentID + "/" + paymentRequest.Guid.ToString().Replace("-", "");
+      requestRawUrl = UrlManager.PrepareRedirectUrl(requestRawUrl, paymentRequestPath, true);
+
+      InitiateCallback initiateCallback = new InitiateCallback(-1, Guid.NewGuid(), paymentRequest, false, DateTime.Now.AddMinutes(5), DateTime.Now, DateTime.Now);
+      initiateCallback.Insert();
+      paymentRequest.Callback = initiateCallback;
+
+      bool mustRemoveQueryString = true; // TODO: find switch here - only necessary for first telecom...
+      if (mustRemoveQueryString)
+      {
+        Uri requestRawUri = new Uri(requestRawUrl);
+        if (!string.IsNullOrEmpty(requestRawUri.Query))
+          requestRawUrl = requestRawUrl.Replace(requestRawUri.Query, string.Empty);
+      }
+
+      if (serviceOffer.PaymentConfiguration.PaymentType == PaymentType.Subscription)
+      {
+        Guid referenceGuid = Guid.NewGuid();
+
+        Guid externalBehaviorModelGuid = serviceOffer.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid;
+
+        #region # DIMOCO INSTANT FLOW BehaviorModel FIX #
+        //TODO: (MPE) This should be changed. The best would be to add column in PaymentConfiguration "IsAutomated" and based on than to load by that argument instead of changing code each time.
+        //............So, if type is instant load ServiceOffer where IsAutomated in PaymentConfiguration is "true". If there is no any proceed with regular.
+        if (this.Session.SessionData.EntranceUrl.Contains("&type=instant"))
+        {
+          if (this.Session.Service.ServiceData.Name.Equals("erotikclips.mobi"))
+            externalBehaviorModelGuid = Guid.Parse("011F4214-DE1E-4A0A-8BAF-AB3C534647F1");
+          else if (this.Session.Service.ServiceData.Name.Equals("wilde-erovids.me"))
+            externalBehaviorModelGuid = Guid.Parse("b209d107-e00d-4c6f-892d-7b6ed9f09006");
+          else if (this.Session.Service.ServiceData.Name.Equals("erotischvids.mobi"))
+            externalBehaviorModelGuid = Guid.Parse("68D982F9-3D3B-4130-89C8-2B7917CEB948");
+          else if (this.Session.Service.ServiceData.Name.Equals("freche-clips.mobi"))
+            externalBehaviorModelGuid = Guid.Parse("8974152E-541E-4ADA-B557-7C12CD8D561A");
+          else if (this.Session.Service.ServiceData.Name.Equals("xxxmadchen.mobi"))
+            externalBehaviorModelGuid = Guid.Parse("A2B3391E-37C5-490C-BB9D-BC3E97B9A0DF");
+          else if (this.Session.Service.ServiceData.Name.Equals("xxxvogue.mobi"))
+            externalBehaviorModelGuid = Guid.Parse("f63e1730-9e26-44d5-8c18-46834410abc1");
+          else if (this.Session.Service.ServiceData.Name.Equals("lachenfilme.mobi"))
+            externalBehaviorModelGuid = Guid.Parse("D9F096C5-D966-4602-A143-EF79B7C97429");
+          else
+            externalBehaviorModelGuid = Session.Service.GetSpecificBehaviorModel("type=instant");
+
+          Log.Debug(new LogMessageBuilder(new LogErrorCode("paywall.core", "paymentmanagerbase", "initiatepayment"),
+            "# DIMOCO INSTANT FLOW BehaviorModel FIX # for " + this.Session.Service.ServiceData.Name));
+        }
+        #endregion
+
+
+        #region # QUICKFIX: Fortumo redirect to payment page #
+
+        if (this.Session.Service.PaymentProvider.ID == 26)
+          requestRawUrl = string.Format("http://{0}/welcome?paymentRequestGuid={1}", this.Session.Service.ServiceData.Name, paymentRequest.Guid.ToString());
+
+        #endregion
+
+        SubscriptionClient subscriptionClient = CashflowClientPaywallManager.GetSubscriptionClient(this.Session.Service.ServiceData);
+        subscriptionClient.AttachLogWriter(new CashflowLog(this.Session.Service.ServiceData));
+        
+        TestArguments testArguments = new TestArguments();
+        testArguments.IsTest = this.Session.SessionData.EntranceParameterExists("pxid") == false;
+        
+        IArgument argument = new Argument(content, this.Session.Service, this.Session, request);
+        InitiateSubscriptionResponse initiateResponse = CashflowClientPaywallManager.GetInitiateSubscriptionResponse(this.Session, requestRawUrl, new IdentificationResultArguments { },
+          argument.WapTemplateArguments, argument.FirstTelecomTemplateArguments, argument.MobileTanArguments, testArguments);
+
+        MobileOperator notificationOperator = null;
+        #region Check MobileOperator from InitiateSubscriptionResponse (example Mobicom DE NTH)
+
+        if (initiateResponse.Arguments != null && initiateResponse.Arguments.Length > 0)
+          foreach (MessageArgument ms in initiateResponse.Arguments)
+            if (ms.Key.Equals("MobileOperator"))
+            {
+              Log.Debug(new LogMessageBuilder(new LogErrorCode("paywall.core", "paymentmanagerbase", "initiatepayment"),
+                "OVERRIDE_MOBILEOPERATOR - We received mobileOperator from cashflow."));
+
+              notificationOperator = MobileOperator.CreateManager().Load(Int32.Parse(ms.Value), IDType.External);
+              break;
+            }
+        #endregion
+
+        switch (initiateResponse.Status.Code)
+        {
+          case MessageStatusCode.Redirect:
+          case MessageStatusCode.Success:
+            paymentRequest.PaymentRedirectUrl = initiateResponse.RedirectUrl;
+            paymentRequest.ExternalPaymentRequestGuid = initiateResponse.SubscriptionRequestID;
+            paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Complete;
+            if (customer.ExternalCustomerGuid != null &&
+              customer.ExternalCustomerGuid != initiateResponse.CustomerID)
+            {
+              customer.CustomerStatus = CustomerStatus.Obsolete;
+              customer.Update();
+              customer = new Customer(-1,
+                                      Guid.NewGuid(),
+                                      CustomerStatus.Pending,
+                                      this.Session.Service.ServiceData,
+                                      this.Session.Service.ServiceData.FallbackCountry,
+                                      notificationOperator != null ? notificationOperator : this.Session.SessionData.MobileOperator,
+                                      null,
+                                      string.Empty,
+                                      string.Empty,
+                                      string.Format("user{0}", Guid.NewGuid().ToString().Split('-')[4].Substring(0, 6)),
+                                      null,
+                                      DateTime.Now,
+                                      DateTime.Now);
+              customer.Insert();
+              customer.SetUsernameAndPassword();
+              this.Session.SessionData.Customer = customer;
+              if (notificationOperator != null)
+                this.Session.SessionData.MobileOperator = notificationOperator;
+              this.Session.SessionData.Update();
+
+              Log.Fatal(new LogMessageBuilder(new LogErrorCode("paywall.core", "paymentmanagerbase", "initiatepayment"),
+                  "ExternalCustomerGUID is null or different than CustomerID from initiate response", initiateResponse, customer));
+              //INFO: In general it could not happened but for security reasons we check does ExternalCustomerGuid matches, if not we creating new customer.
+            }
+            customer.ExternalCustomerGuid = initiateResponse.CustomerID;
+            if (notificationOperator != null) customer.MobileOperator = notificationOperator;
+            customer.Update();
+            paymentRequest.Update();
+            return paymentRequest;
+          case MessageStatusCode.Failure:
+            //DESC: In case of Failure we should redirect customer to error page.
+            paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Failure;
+            paymentRequest.Update();
+
+            #region # In case when there is active session on provider side #
+            if (initiateResponse.Status.SubCode == MessageStatusSubCode.ActiveSubscriptionExists && initiateResponse.SubscriptionRequestID.HasValue)
+            {
+              PaymentRequest originalPaymentRequest = PaymentRequest.CreateManager().Load(initiateResponse.SubscriptionRequestID.Value, GuidType.External);
+              if (originalPaymentRequest != null)
+              {
+                originalPaymentRequest.PaymentRequestStatus = PaymentRequestStatus.PaymentExists;
+                paymentRequest = originalPaymentRequest;
+              }
+            }
+            #endregion
+
+            break;
+          case MessageStatusCode.Pending:
+            //DESC: In case of Pending we should redirect customer to pending page.
+            paymentRequest.ExternalPaymentRequestGuid = initiateResponse.SubscriptionRequestID;
+            paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Pending;
+            paymentRequest.Update();
+            break;
+          default:
+            break;
+        }
+        return paymentRequest;
+      }
+      else if (serviceOffer.PaymentConfiguration.PaymentType == PaymentType.Purchase)
+      {
+
+        Guid externalBehaviorModelGuid = serviceOffer.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid;
+
+        #region # DIMOCO INSTANT FLOW BehaviorModel FIX #
+        if (this.Session.SessionData.EntranceUrl.Contains("&type=instant"))
+        {
+          if (this.Session.Service.ServiceData.Name.Equals("erotikclips.mobi"))
+            externalBehaviorModelGuid = Guid.Parse("011F4214-DE1E-4A0A-8BAF-AB3C534647F1");
+          else if (this.Session.Service.ServiceData.Name.Equals("wilde-erovids.me"))
+            externalBehaviorModelGuid = Guid.Parse("b209d107-e00d-4c6f-892d-7b6ed9f09006");
+          else if (this.Session.Service.ServiceData.Name.Equals("erotischvids.mobi"))
+            externalBehaviorModelGuid = Guid.Parse("68D982F9-3D3B-4130-89C8-2B7917CEB948");
+          else if (this.Session.Service.ServiceData.Name.Equals("freche-clips.mobi"))
+            externalBehaviorModelGuid = Guid.Parse("8974152E-541E-4ADA-B557-7C12CD8D561A");
+          else if (this.Session.Service.ServiceData.Name.Equals("xxxmadchen.mobi"))
+            externalBehaviorModelGuid = Guid.Parse("A2B3391E-37C5-490C-BB9D-BC3E97B9A0DF");
+          else
+            externalBehaviorModelGuid = Session.Service.GetSpecificBehaviorModel("type=instant");
+
+          Log.Debug(new LogMessageBuilder(new LogErrorCode("paywall.core", "paymentmanagerbase", "initiatepayment"),
+            "# DIMOCO INSTANT FLOW BehaviorModel FIX # for " + this.Session.Service.ServiceData.Name));
+        }
+        #endregion
+
+        #region # QUICKFIX: Fortumo redirect to payment page #
+
+        if (this.Session.Service.PaymentProvider.ID == 26)
+          requestRawUrl = string.Format("http://{0}/welcome?paymentRequestGuid={1}", this.Session.Service.ServiceData.Name, paymentRequest.Guid.ToString());
+
+        #endregion
+
+        TestArguments testArguments = new TestArguments();
+        testArguments.IsTest = this.Session.SessionData.EntranceParameterExists("pxid") == false;
+
+        PurchaseClient purchaseClient = CashflowClientPaywallManager.GetPurchaseClient(serviceOffer.Service);
+        purchaseClient.AttachLogWriter(new CashflowLog(this.Session.Service.ServiceData));
+        InitiatePurchaseRequest initiateRequest = new InitiatePurchaseRequest(RequestMode.Default,
+                                                                              this.Session.SessionData.Guid.ToString(),
+                                                                              serviceOffer.PaymentConfiguration.PaymentCredentials.Username,
+                                                                              serviceOffer.PaymentConfiguration.PaymentCredentials.Password,
+                                                                              serviceOffer.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+                                                                              externalBehaviorModelGuid,
+                                                                              serviceOffer.Service.FallbackCountry.TwoLetterIsoCode,
+                                                                              serviceOffer.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+                                                                              customer.ExternalCustomerGuid,
+                                                                              customer.Guid.ToString(),
+                                                                              null,
+                                                                              null,
+                                                                              this.Session.SessionData.IPAddress,
+                                                                              requestRawUrl,
+                                                                              null,
+                                                                              testArguments.ToMessageArguments());
+        initiateRequest.ReferenceIntID = this.Session.SessionData.ID;
+
+        // QUICKFIX: for United Kingdom
+        if (initiateRequest.Country.Equals("UK"))
+          initiateRequest.Country = "GB";
+
+        IArgument argument = new Argument(content, this.Session.Service, this.Session, request);
+
+        // QUICKFIX: FI Blondit porno description fix (aco)
+        if (this.Session.Service.ServiceData.Name.Equals("blonditporno.mobi"))
+          argument.WapTemplateArguments.Description = "24h käyttöoikeus sivulle";
+
+        InitiatePurchaseResponse initiateResponse = purchaseClient.InitiatePurchase(initiateRequest, new IdentificationResultArguments {  },
+            argument.WapTemplateArguments, argument.FirstTelecomTemplateArguments, argument.MobileTanArguments);
+
+        switch (initiateResponse.Status.Code)
+        {
+          case MessageStatusCode.Redirect:
+          case MessageStatusCode.Success:
+            paymentRequest.PaymentRedirectUrl = initiateResponse.RedirectUrl;
+            paymentRequest.ExternalPaymentRequestGuid = initiateResponse.PurchaseRequestID;
+            paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Complete;
+            if (customer.ExternalCustomerGuid != null &&
+                    customer.ExternalCustomerGuid != initiateResponse.CustomerID)
+            {
+              customer.CustomerStatus = CustomerStatus.Obsolete;
+              customer.Update();
+              customer = new Customer(-1,
+                                      Guid.NewGuid(),
+                                      CustomerStatus.Pending,
+                                      this.Session.Service.ServiceData,
+                                      this.Session.Service.ServiceData.FallbackCountry,
+                                      this.Session.SessionData.MobileOperator,
+                                      null,
+                                      string.Empty,
+                                      string.Empty,
+                                      string.Format("user{0}", Guid.NewGuid().ToString().Split('-')[4].Substring(0, 6)),
+                                      null,
+                                      DateTime.Now,
+                                      DateTime.Now);
+              customer.Insert();
+              customer.SetUsernameAndPassword();
+              this.Session.SessionData.Customer = customer;
+              this.Session.SessionData.Update();
+
+              builder = new LogMessageBuilder(new LogErrorCode("paywall.core", "paymentmanagerbase", "initiatepayment"),
+                  "ExternalCustomerGUID is null or different than CustomerID from initiate response", initiateRequest, initiateResponse, customer);
+              if (Log.IsFatalEnabled)
+                Log.Fatal(builder);
+              //INFO: In general it could not happened but for security reasons we check does ExternalCustomerGuid matches, if not we creating new customer.
+            }
+            customer.ExternalCustomerGuid = initiateResponse.CustomerID;
+            customer.Update();
+            paymentRequest.Update();
+            return paymentRequest;
+          case MessageStatusCode.Failure:
+            //DESC: In case of Failure we should redirect customer to error page.
+            paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Failure;
+            paymentRequest.Update();
+            break;
+          case MessageStatusCode.Pending:
+            //DESC: In case of Pending we should redirect customer to pending page.
+            paymentRequest.ExternalPaymentRequestGuid = initiateResponse.PurchaseRequestID;
+            paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Pending;
+            paymentRequest.Update();
+            break;
+          default:
+            break;
+        }
+        return paymentRequest;
+      }
+      else
+      {
+        // this will never happen.
+        throw new InvalidOperationException("PaymentType must be Subscription or Purchase.");
+      }
+    }
+
+  }
+}

@@ -1,0 +1,68 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class UserContentAccessHistoryManager : IUserContentAccessHistoryManager
+  {
+
+    public List<UserContentAccessHistory> Load(PaymentContentAccessPolicyMap pcapm)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, pcapm);
+    }
+
+    public List<UserContentAccessHistory> Load(IConnectionInfo connection, PaymentContentAccessPolicyMap pcapm)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, pcapm);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, pcapm);
+    }
+
+    public List<UserContentAccessHistory> Load(ISqlConnectionInfo connection, PaymentContentAccessPolicyMap pcapm)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[ucah].PaymentContentAccessPolicyMapID = @PaymentContentAccessPolicyMapID";
+      parameters.Arguments.Add("PaymentContentAccessPolicyMapID", pcapm.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+    public List<UserContentAccessHistory> Load(Payment payment, Customer customer)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, payment, customer);
+    }
+
+    public List<UserContentAccessHistory> Load(IConnectionInfo connection, Payment payment, Customer customer)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, payment, customer);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, payment, customer);
+    }
+
+    public List<UserContentAccessHistory> Load(ISqlConnectionInfo connection, Payment payment, Customer customer)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[ucah_pcapm].PaymentID = @PaymentID AND [ucah_us].CustomerID = @CustomerID";
+      parameters.Arguments.Add("PaymentID", payment.ID);
+      parameters.Arguments.Add("CustomerID", customer.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+
+  }
+}
+

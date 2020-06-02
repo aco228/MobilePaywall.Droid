@@ -1,0 +1,56 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Data.Direct.MobilePaywall;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web.Models
+{
+    public class TemplateServiceTehnicalModel
+    {
+        private List<TemplateMerchant> _merchants = null;
+        private List<PaymentProvider> _providers = null;
+        private List<Country> _countries = null;
+        private bool _isAdministrator = false;
+
+        public List<TemplateMerchant> Merchant { get { return this._merchants; } }
+        public List<PaymentProvider> Providers { get { return this._providers; } }
+        public List<Country> Countries { get { return this._countries; } }
+        public bool IsAdministrator { get { return this._isAdministrator; } set { this._isAdministrator = value; } }
+
+        public static string[] ColorPallete = new string[]
+    {
+      "rgba(255,255,255,.4)",                             // neutral
+      "rgba(162, 232, 152, 0.51)",                        // light green
+      "rgba(90, 253, 68, 0.51)",                          // dark green
+      "rgba(255, 255, 170, 0.39)",                        // yellow
+      "rgba(46, 255, 253, 0.39)",                         // blue
+      "rgba(255, 173, 173, 0.32)",                        // light red
+      "rgba(255, 103, 103, 0.32)"                         // dark red
+    };
+
+        public TemplateServiceTehnicalModel()
+        {
+            this._providers = PaymentProvider.CreateManager().Load();
+            this.LoadCountries();
+
+            List<Data.Merchant> merchants = Data.Merchant.CreateManager().Load();
+            this._merchants = new List<TemplateMerchant>();
+            foreach (Data.Merchant merchant in merchants)
+                this._merchants.Add(new TemplateMerchant(merchant));
+        }
+
+        private void LoadCountries()
+        {
+            this._countries = new List<Country>();
+            List<Service> services = Service.CreateManager().Load();
+            foreach (Service service in services)
+                if (!this._countries.Contains(service.FallbackCountry))
+                    this._countries.Add(service.FallbackCountry);
+        }
+
+    } 
+}

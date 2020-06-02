@@ -1,0 +1,53 @@
+﻿using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.ContentUploader.Video
+{
+	class FFmpegProcessVideoInput
+	{
+		public string InputFilePath = string.Empty;
+		public string Name = "";
+		public VideoCodec VideoCodec = null;
+		public VisualMediaDimensions Dimensions = null;
+		public string OutputFolder = "";
+	}
+	
+	class FFmpegProcessVideo : FFmpegProcessBase
+	{
+		public FFmpegProcessVideo(string pathToTheExe) : base(pathToTheExe)
+		{
+		}
+
+		public FfmpegResult Start(FFmpegProcessVideoInput input)
+		{
+			string outputFile = Path.Combine(input.OutputFolder + input.VideoCodec.Extension);
+
+			//-i {inputfile} -vf scale="'if(gt(a,4/3),{width},-1)':'if(gt(a,4/3),-1,{height})'" {output}
+			//string parameters = ("-i {inputfile} \"scale={width}:ih*{width}/iw, crop={width}:{height}\" {output}").Replace("{inputfile}", string.Format("\"{0}\"", inputFilename))
+			string parameters = input.VideoCodec.Arguments
+				.Replace("{inputfile}", string.Format("\"{0}\"", input.InputFilePath))
+				.Replace("{width}", input.Dimensions.Width.ToString())
+				.Replace("{height}", input.Dimensions.Height.ToString())
+				.Replace("{output}", string.Format("\"{0}\"", outputFile));
+
+			// webm skip
+			if(input.VideoCodec.ID == 16)
+				parameters = string.Format("-i {0} -codec:v libvpx -quality good -cpu-used 0 -b:v 600k -qmin 10 -qmax 42 -maxrate 500k -bufsize 1000k -threads 2 -vf scale=-1:480 -codec:a libvorbis -b:a 128k -f webm {1}",
+																				string.Format("\"{0}\"", input.InputFilePath),
+																				string.Format("\"{0}\"", outputFile));
+
+			bool s = Process(outputFile, parameters);
+			return new FfmpegResult()
+			{
+				Success = s,
+				File = outputFile
+			};
+		}
+
+	}
+}

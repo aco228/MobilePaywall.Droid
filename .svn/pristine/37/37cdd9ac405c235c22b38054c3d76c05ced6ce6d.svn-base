@@ -1,0 +1,133 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+namespace MobilePaywall.Data
+{
+  public partial interface IStatisticManager
+  {
+    List<Statistic> Load();
+    List<Statistic> Load(IConnectionInfo connection);
+    List<Statistic> Load(DateTime from, DateTime to);
+    List<Statistic> Load(IConnectionInfo connection, DateTime from, DateTime to);
+    List<Statistic> Load(DateTime from, DateTime to, What what);
+    List<Statistic> Load(IConnectionInfo connection, DateTime from, DateTime to, What what);
+    List<Statistic> Load(DateTime from, DateTime to, List<Merchant> merchants, List<Service> services, List<Country> countries);
+    List<Statistic> Load(IConnectionInfo connection, DateTime from, DateTime to, List<Merchant> merchants, List<Service> services, List<Country> countries);
+  }
+
+  public partial class Statistic
+  {
+    public DateTime RealTime(DateTime from, DateTime to)
+    {
+      if (this._userSessionCreated >= from && this._userSessionCreated <= to)
+        return this._userSessionCreated;
+      else if (this._sTransactionGuid.HasValue && this._sTransactionCreated.Value >= from && this._sTransactionCreated.Value <= to)
+        return this._sTransactionCreated.Value;
+      else if (this._transactionCreated.HasValue && this._transactionCreated.Value >= from && this._transactionCreated.Value <= to)
+        return this._transactionCreated.Value;
+      else if (this._paymentGuid.HasValue && this._paymentCreated.Value >= from && this._paymentCreated.Value <= to)
+        return this._paymentCreated.Value;
+      else if (this._paymentGuid.HasValue && this._paymentUpdated.Value >= from && this._paymentUpdated.Value <= to)
+        return this._paymentUpdated.Value;
+      else
+        return this._userSessionCreated;      
+    }
+
+    public static List<Statistic> Load()
+    {
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        List<Statistic> statistics = null;
+        try
+        {
+          connection.Transaction.Begin();
+          IStatisticManager svManager = Statistic.CreateManager();
+          statistics = svManager.Load(connection);
+          connection.Transaction.Commit();
+          return statistics;
+        }
+        catch (Exception ex)
+        {
+          connection.Transaction.Rollback();
+          return new List<Statistic>();
+        }
+      }
+    }
+
+    public static List<Statistic> Load(DateTime from, DateTime to, What what)
+    {
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        List<Statistic> statistics = null;
+        try
+        {
+          connection.Transaction.Begin();
+          IStatisticManager svManager = Statistic.CreateManager();
+          statistics = svManager.Load(connection, from, to, what);
+          connection.Transaction.Commit();
+          return statistics;
+        }
+        catch (Exception ex)
+        {
+          connection.Transaction.Rollback();
+          return new List<Statistic>();
+        }
+      }
+    }
+
+    public static List<Statistic> Load(DateTime from, DateTime to)
+    {
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        List<Statistic> statistics = null;
+        try
+        {
+          connection.Transaction.Begin();
+          IStatisticManager svManager = Statistic.CreateManager();
+          statistics = svManager.Load(connection, from, to);
+          connection.Transaction.Commit();
+          return statistics;
+        }
+        catch (Exception ex)
+        {
+          connection.Transaction.Rollback();
+          return new List<Statistic>();
+        }
+      }
+    }
+
+    public static List<Statistic> Load(DateTime from, DateTime to, List<Merchant> merchants, List<Service> services, List<Country> countries)
+    {
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        List<Statistic> statistics = null;
+        try
+        {
+          connection.Transaction.Begin();
+          IStatisticManager svManager = Statistic.CreateManager();
+          statistics = svManager.Load(connection, from, to, merchants, services, countries);
+          connection.Transaction.Commit();
+          return statistics;
+        }
+        catch (Exception ex)
+        {
+          connection.Transaction.Rollback();
+          return new List<Statistic>();
+        }
+      }
+    }
+  }
+
+  public enum What
+  {
+    Unknown = 0,
+    Sessions = 1,
+    Subsequents = 2,
+    Cancellations = 3
+  }
+}
+

@@ -1,0 +1,805 @@
+﻿using Cashflow.Client;
+using Cashflow.Message;
+using Cashflow.Message.Mobile;
+using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Direct;
+using MobilePaywall.Service.Callback.Log;
+using Senti.Diagnostics.Log;
+using Senti.Security;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.ServiceModel;
+using System.Text.RegularExpressions;
+using System.Web;
+using Trckd.Client;
+
+namespace MobilePaywall.Service.Callback.Handlers
+{
+  public class PremiumSmsHandler : NotificationHandlerBase
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (PremiumSmsHandler._log == null)
+          PremiumSmsHandler._log = log4net.LogManager.GetLogger(typeof(PremiumSmsHandler));
+        return PremiumSmsHandler._log;
+      }
+    }
+    #endregion
+
+    /// Initiate
+    // Creates new Customer if customer does not exists (along with dummy UserSession, LookupSession and LookupSessionResult)
+    // Created PaymentRequest
+    protected override void ProcessInitiateSubscription(InitiateSubscriptionNotification notification)
+    {
+      string typeArgument = this.GetNotificationArgumentValue(notification, "Type");
+      if (string.IsNullOrEmpty(typeArgument) || !typeArgument.Equals("psms"))
+        return;
+
+      string TAG = "PSMS_InitiateSubsctiption:: ";
+      CallbackLog CLog = new CallbackLog(notification, Log);
+
+      if(!notification.CustomerID.HasValue || !notification.SubscriptionRequestID.HasValue)
+      {
+        CLog.Fatal(TAG + "notification has no CustomerID or SubscripitonRequestID");
+        return;
+      }
+
+      this.ProcessInitiateNotification(CLog, TAG, true, notification, notification.CustomerID, notification.SubscriptionRequestID, notification.RedirectUrl);
+    }
+
+    protected override void ProcessInitiatePurchase(InitiatePurchaseNotification notification)
+    {
+      string typeArgument = this.GetNotificationArgumentValue(notification, "Type");
+      if (string.IsNullOrEmpty(typeArgument) || !typeArgument.Equals("psms"))
+        return;
+
+      string TAG = "PSMS_InitiatePurchase:: ";
+      CallbackLog CLog = new CallbackLog(notification, Log);
+
+      if (!notification.CustomerID.HasValue || !notification.PurchaseRequestID.HasValue)
+      {
+        CLog.Fatal(TAG + "notification has no CustomerID or SubscripitonRequestID");
+        return;
+      }
+      
+      this.ProcessInitiateNotification(CLog, TAG, false, notification, notification.CustomerID, notification.PurchaseRequestID, notification.RedirectUrl);
+    }
+
+    // SUMMARY: Shared method for processing notification from Subscription and Purchase
+    private void ProcessInitiateNotification(CallbackLog CLog, string TAG, bool isSubscriptionNotification, Notification notification, Guid? customerGuid, Guid? subscriptionPurchaseGuid, string redirectUrl)
+    {
+      MobilePaywallDirect db = MobilePaywallDirect.Instance;
+      Data.Service service = this.GetService(CLog, notification, db);
+      if (service == null)
+      {
+        CLog.Fatal(TAG + "There is no BehaviorModelGuid in notification");
+        return;
+      }
+
+      Customer customer = this.GetCustomerFromInitiateSubscriptionNotification(service, notification, customerGuid.Value, db);
+      CLog.UserSession = customer.OriginalUserSession;
+
+      // Create dummy user session
+      CLog = this.PrepareUserSession(CLog, notification);
+
+      PaymentRequest paymentRequest = PaymentRequest.CreateManager().Load(subscriptionPurchaseGuid.Value, GuidType.External);
+      ServiceOffer serviceOffer = (from s in ServiceOffer.CreateManager().Load(service) where s.IsDefault && s.IsActive select s).FirstOrDefault();
+
+      if (serviceOffer == null)
+      {
+        CLog.Fatal(TAG + "There is no ServiceOffer for service " + service.Name);
+        return;
+      }
+
+      LookupSession lookupSession = LookupSession.CreateManager().Load(CLog.UserSession);
+      if (lookupSession == null)
+      {
+        UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), CLog.UserSession, null, "-nil-", DateTime.Now, DateTime.Now); uhr.Insert();
+        lookupSession = new LookupSession(-1, Guid.NewGuid(), LookupSessionStatus.Complete, CLog.UserSession, uhr, null, "-nil-", DateTime.Now, DateTime.Now);
+        lookupSession.Insert();
+      }
+
+      LookupSessionResult lsr = LookupSessionResult.CreateManager().Load(CLog.UserSession, SelectionMode.MostRecentOrderedByIsFinalResult);
+      if (lsr == null)
+      {
+        lsr = new LookupSessionResult(-1, lookupSession, true, true, null, customer.MobileOperator, customer.Msisdn, string.Empty, DateTime.Now, DateTime.Now);
+        lsr.Insert();
+      }
+
+      if (paymentRequest == null)
+      {
+        PaymentCredentials defaultCredentils = null;
+        int? _paymentCredentialsID = MobilePaywallDirect.Instance.LoadInt(string.Format(@"
+          SELECT TOP 1 pc.PaymentCredentialsID FROM MobilePaywall.core.ServiceOffer AS so
+          LEFT OUTER JOIN MobilePaywall.core.PaymentConfiguration AS pc ON so.PaymentConfigurationID=pc.PaymentConfigurationID
+          WHERE so.IsDefault=1 AND so.IsActive=1 AND so.ServiceID={0}", service.ID));
+        if (_paymentCredentialsID.HasValue)
+          defaultCredentils = PaymentCredentials.CreateManager().Load(_paymentCredentialsID.Value);
+
+        #region # getSubscriptionRequestDataRequest #
+
+        if(isSubscriptionNotification)
+        {
+          GetSubscriptionRequestDataRequest getSubscriptionRequestDataRequest = new GetSubscriptionRequestDataRequest(
+               RequestMode.Default, Guid.NewGuid().ToString(), defaultCredentils.Username, defaultCredentils.Password, subscriptionPurchaseGuid.Value, null);
+          getSubscriptionRequestDataRequest.ReferenceIntID = CLog.UserSessionID;
+          SubscriptionClient subscriptionClinet = CashflowClientPaywallManager.GetSubscriptionClient(service);
+          GetSubscriptionRequestDataResponse getSubscriptionRequestResponse = subscriptionClinet.GetSubscriptionRequestData(getSubscriptionRequestDataRequest);
+          
+          if (getSubscriptionRequestResponse.MobileOperator.HasValue)
+          {
+            MobileOperator mno = MobileOperator.CreateManager().Load(getSubscriptionRequestResponse.MobileOperator.Value, IDType.External);
+            if (mno != null)
+            {
+              CLog.UserSession.MobileOperator = mno;
+              CLog.UserSession.Update();
+              customer.MobileOperator = mno;
+              customer.Update();
+            }
+          }
+
+          if(!string.IsNullOrEmpty(getSubscriptionRequestResponse.Msisdn))
+          {
+            customer.Msisdn = getSubscriptionRequestResponse.Msisdn;
+            customer.Update();
+          }
+
+          if (getSubscriptionRequestResponse == null)
+          {
+            CLog.Fatal(TAG + "GetSubscriptionRequestDataResponse is null");
+            return;
+          }
+
+          if (getSubscriptionRequestResponse.IdentificationSessionID.HasValue)
+          {
+            lookupSession.IdentificationSessionGuid = getSubscriptionRequestResponse.IdentificationSessionID.Value;
+            lookupSession.Update();
+          }
+
+          if (getSubscriptionRequestResponse.IdentificationResultID.HasValue)
+          {
+            lsr.IdentificationResultGuid = getSubscriptionRequestResponse.IdentificationResultID.Value;
+            lsr.Update();
+          }
+
+          if (getSubscriptionRequestResponse.CustomerID.HasValue)
+          {
+            customer.ExternalCustomerGuid = getSubscriptionRequestResponse.CustomerID.Value;
+            customer.Update();
+          }
+
+        }
+
+        #endregion
+
+        #region # getPurchaseRequestDataRequest #
+
+        if(!isSubscriptionNotification)
+        {
+          GetPurchaseRequestDataRequest getPurchaseRequestDataRequest = new GetPurchaseRequestDataRequest(
+               RequestMode.Default, Guid.NewGuid().ToString(), defaultCredentils.Username, defaultCredentils.Password, subscriptionPurchaseGuid.Value, null);
+          getPurchaseRequestDataRequest.ReferenceIntID = CLog.UserSessionID;
+          PurchaseClient purchaseClinet = CashflowClientPaywallManager.GetPurchaseClient(service);
+          GetPurchaseRequestDataResponse getPurchaseRequestResponse = purchaseClinet.GetPurchaseRequestData(getPurchaseRequestDataRequest);
+          
+          if (getPurchaseRequestResponse == null)
+          {
+            CLog.Fatal(TAG + "GetSubscriptionRequestDataResponse is null");
+            return;
+          }
+
+          if(getPurchaseRequestResponse.MobileOperator.HasValue)
+          {
+            MobileOperator mno = MobileOperator.CreateManager().Load(getPurchaseRequestResponse.MobileOperator.Value, IDType.External);
+            if(mno != null)
+            {
+              CLog.UserSession.MobileOperator = mno;
+              CLog.UserSession.Update();
+              customer.MobileOperator = mno;
+              customer.Update();
+            }
+          }
+
+          if (!string.IsNullOrEmpty(getPurchaseRequestResponse.Msisdn))
+          {
+            customer.Msisdn = getPurchaseRequestResponse.Msisdn;
+            customer.Update();
+          }
+
+          if (getPurchaseRequestResponse.IdentificationSessionID.HasValue)
+          {
+            lookupSession.IdentificationSessionGuid = getPurchaseRequestResponse.IdentificationSessionID.Value;
+            lookupSession.Update();
+          }
+
+          if (getPurchaseRequestResponse.IdentificationResultID.HasValue)
+          {
+            lsr.IdentificationResultGuid = getPurchaseRequestResponse.IdentificationResultID.Value;
+            lsr.Update();
+          }
+
+          if (getPurchaseRequestResponse.CustomerID.HasValue)
+          {
+            customer.ExternalCustomerGuid = getPurchaseRequestResponse.CustomerID.Value;
+            customer.Update();
+          }
+        }
+
+        #endregion
+        
+        UserHttpRequest httpRequest = new UserHttpRequest(-1, Guid.NewGuid(), lookupSession.UserSession, null, "", DateTime.Now, DateTime.Now); httpRequest.Insert();
+        paymentRequest = new PaymentRequest(-1,
+          Guid.NewGuid(),
+          isSubscriptionNotification ? PaymentType.Subscription : PaymentType.Purchase,
+          PaymentRequestStatus.Initialized,
+          lookupSession,
+          customer,
+          lookupSession.UserSession,
+          serviceOffer,
+          serviceOffer.BusinessModelEntry,
+          subscriptionPurchaseGuid,
+          httpRequest,
+          redirectUrl,
+          DateTime.Now, DateTime.Now);
+        paymentRequest.Insert();
+      }
+
+      IInitiateCallbackManager icpManager = InitiateCallback.CreateManager();
+      InitiateCallback initiateCallback = icpManager.Load(paymentRequest);
+      if (initiateCallback == null)
+      {
+        initiateCallback = new InitiateCallback(-1, Guid.NewGuid(), paymentRequest, false, DateTime.Now.AddMinutes(10), DateTime.Now, DateTime.Now);
+        initiateCallback.Insert();
+      }
+      
+      this.UpdatePxidParam(CLog, notification);
+      this.UpdateAndroidPremiumData(CLog, notification, paymentRequest);
+      this.UpdateFingerprint(CLog.UserSession);
+
+      switch (notification.Status.Code)
+      {
+        case MessageStatusCode.Redirect:
+        case MessageStatusCode.Success:
+          paymentRequest.PaymentRedirectUrl = redirectUrl;
+          paymentRequest.ExternalPaymentRequestGuid = subscriptionPurchaseGuid;
+          paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Complete;
+
+          paymentRequest.Customer.ExternalCustomerGuid = customerGuid;
+          paymentRequest.Update();
+          paymentRequest.Customer.Update();
+
+          CLog.Debug(new LogMessageBuilder(
+            new LogErrorCode("ppishandler", "initiate", "notification"), "Initiate Subscription success for paymentRequest:" + paymentRequest.ID,
+              notification.ReferenceID));
+          return;
+        case MessageStatusCode.Failure:
+          paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Failure;
+          paymentRequest.Update();
+          break;
+        case MessageStatusCode.Pending:
+
+          CLog.Debug(new LogMessageBuilder(
+            new LogErrorCode("ppishandler", "initiate", "notification"), "Initiate Subscription pending.",
+              notification.ReferenceID));
+
+          return;
+        default:
+          break;
+      }
+    }
+
+
+
+    protected override void ProcessReceiveShortMessageNotification(Cashflow.Message.Mobile.ReceiveShortMessageNotification notification)
+    {
+      CallbackLog CLog = new CallbackLog(notification, Log);
+      try
+      {
+        MessageArgument countryArgument = (from a in notification.Arguments where a.Key.Equals("Country") select a).FirstOrDefault();
+        if (countryArgument == null)
+          return;
+
+        MobilePaywallDirect db = MobilePaywallDirect.Instance;
+
+        Data.Service service = this.GetService(CLog, notification, db);
+        if (service == null)
+        {
+          Log.Error("PSMS_Handler:: Could not load service");
+          return;
+        }
+
+        Customer customer = this.GetCustomerFromReceiveShortMessageNotification(service, notification, db);
+        if (customer == null)
+        {
+          Log.Error("PSMS_Handler:: Could not get customer");
+          return;
+        }
+
+        int? userSessionID = db.LoadInt(string.Format(@"SELECT TOP 1 UserSessionID FROM MobilePaywall.core.UserSession WHERE CustomerID={0} ORDER BY UserSessionID ASC;", customer.ID));
+        if (!userSessionID.HasValue)
+        {
+          Log.Error("PSMS_Handler:: Could not load UserSessionID for customer with id " + customer.ID);
+          return;
+        }
+        
+        CLog.UserSession = UserSession.CreateManager().Load(userSessionID.Value);
+        if (CLog.UserSession == null)
+        {
+          Log.Error("PSMS_Handler:: There is no UserSessionID for Customer with ID " + customer.ID);
+          return;
+        }
+        
+        //CLog.Debug("PSMS_Handler:: us:" + CLog.UserSession.ID + ", t: " + notification.ShortMessage.Text);
+
+        this.UpdatePxidParam(CLog, notification);
+
+        ServiceOffer so = (from s in ServiceOffer.CreateManager().Load(service) where s.IsActive && s.IsDefault select s).FirstOrDefault();
+        if (so == null)
+        {
+          Log.Error("PSMS_Handler:: ServiceOffer is null for serice " + service.Name);
+          return;
+        }
+
+        Random rnd = new Random();
+        int usernameNumber = rnd.Next(1000, 9999), passwordNumber = rnd.Next(1000, 9999);
+        customer.Username = service.FallbackCountry.TwoLetterIsoCode.ToLower() + usernameNumber.ToString();
+        customer.EncryptedPassword = Senti.Security.PasswordEncryption.Create(passwordNumber.ToString()).EncryptedPasswordAndSalt;
+        customer.Update();
+        customer.Storage.PutString("password", passwordNumber.ToString());
+        customer.Storage.PutGuid("ShorMessageGuid", notification.ShortMessage.ShortMessageID.Value);
+
+        UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), customer.OriginalUserSession, null, "-nil-", DateTime.Now, DateTime.Now); uhr.Insert();
+        LookupSession ls = new LookupSession(-1, Guid.NewGuid(), LookupSessionStatus.Complete, customer.OriginalUserSession, uhr, null, "-nil-", DateTime.Now, DateTime.Now); ls.Insert();
+        LookupSessionResult lsr = new LookupSessionResult(-1, ls, true, true, null, customer.MobileOperator, notification.ShortMessage.Msisdn, string.Empty, DateTime.Now, DateTime.Now); lsr.Insert();
+
+        if (service.ID == 370)
+          this.SendHungaryWelcomeMessage(CLog, notification, customer, so, passwordNumber);
+
+      }
+      catch (Exception e)
+      {
+        Log.Fatal("PSMS_Handler.ProcessReceiveShortMessageNotification FATAL", e);
+      }
+    }
+
+
+
+    protected override void ProcessChargeSubscription(ChargeSubscriptionNotification notification)
+    {
+      this.ProcessChargeNotification(notification, notification.Transaction.TransactionID, true);
+    }
+    
+    protected override void ProcessChargePurchase(ChargePurchaseNotification notification)
+    {
+      this.ProcessChargeNotification(notification, notification.Transaction.TransactionID, false);
+    }
+
+    // SUMMARY: Shared method for Subscription and Purchase notification
+    private void ProcessChargeNotification(Notification notification, Guid? transactionGuid, bool isSubscriptionTransaction)
+    {
+      try
+      {
+        if (!transactionGuid.HasValue)
+          return;
+
+        DirectContainer container = MobilePaywallDirect.Instance.LoadContainer(string.Format(@"
+          SELECT us.UserSessionID, us.UserSessionGuid, t.ExternalTransactionGuid, t.TransactionID, us.ServiceID 
+          FROM MobilePaywall.core.[Transaction] AS t 
+          LEFT OUTER JOIN MobilePaywall.core.Payment AS p ON t.PaymentID=p.PaymentID
+          LEFT OUTER JOIN MobilePaywall.core.PaymentRequest AS pr ON pr.PaymentRequestID=p.PaymentRequestID
+          LEFT OUTER JOIN MobilePaywall.core.UserSession AS us ON pr.UserSessionID=us.UserSessionID
+          WHERE t.ExternalTransactionGuid='{0}' AND us.ServiceID IS NOT NULL", transactionGuid.Value));
+
+        if (!container.HasValue)
+          return;
+
+        UserSession us = UserSession.CreateManager().Load(container.GetInt("UserSessionID").Value);
+        if (us == null)
+          return;
+
+        CallbackLog CLog = new CallbackLog(notification, Log);
+        CLog.UserSession = us;
+
+        Data.Service service = Data.Service.CreateManager().Load(container.GetInt("ServiceID").Value);
+        if (service == null)
+          return;
+
+        Data.Transaction transaction = Data.Transaction.CreateManager().Load(container.GetInt("TransactionID").Value);
+        if (transaction == null)
+          return;
+
+        Data.ServiceOffer serviceOffer = (from so in Data.ServiceOffer.CreateManager().Load(service) where so.IsActive && so.IsDefault select so).FirstOrDefault();
+        if (serviceOffer == null)
+          return;
+
+        TransactionClient client = MobilePaywall.CashflowClientPaywallManager.GetTransactionClient(service);
+        GetOriginalSmsRequest request = new GetOriginalSmsRequest(RequestMode.Synchronous,
+          container.GetString("UserSessionGuid"),
+          serviceOffer.PaymentConfiguration.PaymentCredentials.Username,
+          serviceOffer.PaymentConfiguration.PaymentCredentials.Password,
+          transactionGuid.Value,
+          null);
+
+        GetOriginalSmsResponse response = client.GetOriginalSms(request);
+        if (response.Status.Code != MessageStatusCode.Success || response.ShortMessage == null)
+          return;
+
+        // for application use
+        try
+        {
+          string androidPremiumSmsRequest = new Regex("(s=([0-9]+))").Match(response.ShortMessage.Text.Replace(" ", "")).Groups[2].Value;
+          int _acsid = -1;
+          if (Int32.TryParse(androidPremiumSmsRequest, out _acsid))
+          {
+            AndroidPremiumSmsRequest androidPremiumSmsRequestObject = AndroidPremiumSmsRequest.CreateManager().Load(_acsid);
+            if (request != null)
+            {
+              androidPremiumSmsRequestObject.IsSuccess = true;
+              androidPremiumSmsRequestObject.Update();
+              androidPremiumSmsRequestObject.AndroidClientSession.CreateDummyOLCacheTransactionEntry(us, transaction);
+            }
+          }
+        }
+        catch (Exception e)
+        {
+          Log.Fatal("Psms.ProcessChargeSubscription:: FATAL on psmsReq", e);
+          return;
+        }
+
+        // try get PXID
+        try
+        {
+          string pxid = new Regex(@"(\/([0-9]+))").Match(response.ShortMessage.Text.Replace(" ", "")).Groups[2].Value;
+          if (!string.IsNullOrEmpty(pxid))
+          {
+            if (!us.EntranceUrl.Contains("?"))
+              us.EntranceUrl += "?pxid=" + pxid;
+            else
+              us.EntranceUrl += "&pxid=" + pxid;
+
+            us.Update();
+          }
+        }
+        catch (Exception e)
+        {
+          Log.Fatal("Psms.ProcessChargeSubscription:: FATAL on pxid", e);
+          return;
+        }
+      }
+      catch (Exception e)
+      {
+        Log.Fatal("Psms.ProcessChargeSubscription:: FATAL global", e);
+      }
+    }
+
+
+
+
+    /*
+      FUNCTIONS
+    */
+
+    // SUMMARY: Load argument from notification
+    private string GetNotificationArgumentValue(Cashflow.Message.Notification notification, string name)
+    {
+      if (notification.Arguments == null || notification.Arguments.Length == 0)
+        return string.Empty;
+
+      MessageArgument argument = (from a in notification.Arguments where a.Key.Equals(name) select a).FirstOrDefault();
+      if (argument != null)
+        return argument.Value;
+      return string.Empty;
+    }
+
+    // SUMMARY: Load service by BM from notification
+    private Data.Service GetService(CallbackLog CLog, Cashflow.Message.Notification notification, MobilePaywallDirect db)
+    {
+      MessageArgument behaviorModel = (from a in notification.Arguments where a.Key.Equals("BehaviorModelGuid") select a).FirstOrDefault();
+      if (behaviorModel == null)
+      { CLog.Error("PSMS_InitiateSubsctiption(getService):: There is not behavior model argument"); return null; }
+
+      int? _serviceID = db.LoadInt(string.Format(@"SELECT TOP 1 so.ServiceID FROM MobilePaywall.core.BehaviorModel AS bm
+          LEFT OUTER JOIN MobilePaywall.core.PaymentConfiguration AS pc ON pc.BehaviorModelID=bm.BehaviorModelID
+          LEFT OUTER JOIN MobilePaywall.core.ServiceOffer AS so ON so.PaymentConfigurationID=pc.PaymentConfigurationID
+          WHERE bm.ExternalBehaviorModelGuid='{0}'", behaviorModel.Value));
+
+      if (!_serviceID.HasValue)
+      { CLog.Error("PSMS_InitiateSubsctiption(getService):: Could not load ServiceID by BM: " + behaviorModel.Value); return null; }
+
+      Data.Service service = Data.Service.CreateManager().Load(_serviceID.Value);
+      if (service == null)
+      { CLog.Error("PSMS_InitiateSubsctiption(getService):: Service could not be loaded by ID: " + _serviceID.Value); return null; }
+
+      return service;
+    }
+
+    private Data.Customer GetCustomerFromReceiveShortMessageNotification(Data.Service service, Cashflow.Message.Mobile.ReceiveShortMessageNotification notification, MobilePaywallDirect db)
+    {
+      MobileOperator mobileOperator = null;
+      if (notification.ShortMessage.Operator.HasValue)
+        mobileOperator = MobileOperator.CreateManager().Load(notification.ShortMessage.Operator.Value, IDType.External);
+
+      Customer customer = null;
+      int? _customerID = db.LoadInt(string.Format(@"SELECT TOP 1 CustomerID FROM MobilePaywall.core.Customer WHERE ServiceID={0} AND Msisdn='{1}' ORDER BY CustomerID DESC", service.ID, notification.ShortMessage.Msisdn));
+      if (_customerID.HasValue)
+        customer = Customer.CreateManager().Load(_customerID.Value);
+
+      if (customer != null)
+        return customer;
+
+      Random rnd = new Random();
+      string username = service.FallbackCountry.TwoLetterIsoCode.ToLower() + rnd.Next(1000, 9999).ToString();
+      string password = rnd.Next(1000, 9999).ToString();
+      customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Active, service, service.FallbackCountry, mobileOperator, null, notification.ShortMessage.Msisdn, string.Empty, username,
+        PasswordEncryption.Create(password).EncryptedPasswordAndSalt, DateTime.Now, DateTime.Now);
+      customer.Insert();
+      customer.SetUsernameAndPassword();
+
+      string pxid = "";
+      //string[] pxidSplit = notification.ShortMessage.Text.Split('/');
+      //if (pxidSplit.Length > 0) pxid = "?pxid=" + pxid;
+
+      Data.Domain domain = Data.Domain.CreateManager().Load(service).FirstOrDefault();
+      UserSession us = new UserSession(-1, Guid.NewGuid(), UserSessionType.CreateManager().Load(1), service, domain, customer, service.FallbackCountry, service.FallbackLanguage, mobileOperator, null, null, false, false,
+        "0.0.0.0", IPAddressType.IPv4, "", string.Format("http://{0}{1}", service.Name, pxid), "", DateTime.Now.AddMinutes(20), DateTime.Now, DateTime.Now);
+      us.Insert();
+
+      this.UpdateFingerprint(us);
+
+      return customer;
+    }
+
+    private void UpdateFingerprint(UserSession us)
+    {
+      try
+      {
+        using (Trckd.Service.Soap12.Track.TrackClient client = new Trckd.Service.Soap12.Track.TrackClient(new BasicHttpBinding(), new EndpointAddress("http://api1.trckd.me/track.svc/soap11")))
+        {
+          Trckd.Message.TakeFingerprintRequest request =
+            new Trckd.Message.TakeFingerprintRequest(Trckd.Message.RequestMode.Synchronous, "psms", "user", "pass", Guid.Parse("A7A5FE95-2877-425D-BDD4-AEFA57984179"), null, "127.0.0.1", "test", 
+            us.EntranceUrl, us.Referrer, null, null);
+          Trckd.Message.TakeFingerprintResponse response = client.TakeFingerprint(request);
+          Log.Debug("--------------------------------------> TRCKD_CODE: " + response.Status.Code);
+          Log.Debug("--------------------------------------> TRCKD_DETAIL: " + response.Status.DetailCode);
+          Log.Debug("--------------------------------------> TRCKD_MESSAGE: " + response.Status.Message);
+          Log.Debug("--------------------------------------> TRCKD_ID: " + response.FingerprintID.ToString());
+          us.FingerprintID = response.FingerprintID;
+          us.Update();
+        }
+      }
+      catch(Exception e)
+      {
+        Log.Fatal("--------------------------------------> TRCKD: ", e);
+      }
+    }
+
+    // SUMMARY: Try to get pxid param from notifcication (Text argument)
+    private string GetPxidParam(Notification notification)
+    {
+      string textMessage = this.GetNotificationArgumentValue(notification, "Text");
+      if (string.IsNullOrEmpty(textMessage))
+        return string.Empty;
+
+      string pxid = "";
+      string[] pxidSplit = textMessage.Split('/');
+      if (pxidSplit.Length > 0)
+        pxid = pxidSplit[pxidSplit.Length - 1].Trim().Replace(" ", "");
+
+      return pxid;
+    }
+
+    // SUMMARY: Ofuscated, insted we are using PrepareUserSession
+    private void UpdatePxidParam(CallbackLog CLog, Notification notification)
+    {
+      if (CLog == null || CLog.UserSession == null || notification == null)
+        return;
+
+      string keyword = this.GetNotificationArgumentValue(notification, "Keyword");
+      string shortcode = this.GetNotificationArgumentValue(notification, "Shortcode");
+      
+      if (!string.IsNullOrEmpty(keyword))
+        CLog.UserSession.Customer.Storage.PutString("keyword", keyword);
+      if (!string.IsNullOrEmpty(shortcode))
+        CLog.UserSession.Customer.Storage.PutString("shortcode", shortcode);
+
+      string textMessage = this.GetNotificationArgumentValue(notification, "Text");
+      CLog.UserSession.Customer.Storage.PutString("sms", textMessage);
+
+      if (string.IsNullOrEmpty(CLog.UserSession.EntranceUrl))
+        CLog.UserSession.EntranceUrl = "./";
+
+      string idParamName = "pxid";
+      string pxid = this.GetPxidParam(notification);
+      if (CLog.UserSession.Service.Product.ID == 12) // mindscrapermobile param name
+        idParamName = "trckdid";
+
+      if (CLog.UserSession.EntranceUrl.Contains(idParamName + "="))
+        return;
+      
+      if (string.IsNullOrEmpty(pxid))
+        return;
+
+      CLog.UserSession.EntranceUrl += (CLog.UserSession.EntranceUrl.Contains("?") ? "&" : "?") +  idParamName + "=" + pxid;
+      
+      CLog.UserSession.Update();
+      new OLCacher().Synchronize(CLog.UserSession);
+    }
+
+    // SUMMARY: Prepare user session with all parameters and fingerprint for trckd
+    private CallbackLog PrepareUserSession(CallbackLog CLog, Notification notification)
+    {
+      if (CLog.UserSession == null)
+      {
+        Data.Service service = this.GetService(CLog, notification, MobilePaywallDirect.Instance);
+        string idParamName = "pxid";
+        string pxid = this.GetPxidParam(notification);
+        if (service.Product.ID == 12) // mindscrapermobile param name
+          idParamName = "trckdid";
+
+        string pxidQueryParam = (!string.IsNullOrEmpty(pxid) ? "?" + idParamName + "=" + pxid : string.Empty);
+        Log.Debug("----------------- Pxid: " + pxidQueryParam);
+
+        CLog.UserSession = new UserSession(-1, Guid.NewGuid(), service.UserSessionType, service, service.DefaultDomain, null, service.FallbackCountry, service.FallbackLanguage, null, null, null, false, false, "0.0.0.0", IPAddressType.IPv4, "-nil-",
+          "http://" + service.Name + "/" + pxidQueryParam, "./",
+          DateTime.Now.AddMinutes(20), DateTime.Now, DateTime.Now);
+        CLog.UserSession.Insert();
+      }
+      
+      return CLog;
+    }
+
+    private void UpdateAndroidPremiumData(CallbackLog CLog, Notification notification, PaymentRequest payment)
+    {
+      if (CLog == null || CLog.UserSession == null || notification == null)
+        return;
+
+      string textMessage = this.GetNotificationArgumentValue(notification, "Text");
+      if (string.IsNullOrEmpty(textMessage))
+        return;
+
+      string androidPremiumID = string.Empty;
+      if (textMessage.Contains("/ac="))
+        androidPremiumID = textMessage.Split('/')[1].Replace("/ac=", "");
+
+      if (string.IsNullOrEmpty(androidPremiumID))
+        return;
+
+      int acID;
+      if (!Int32.TryParse(androidPremiumID, out acID))
+        return;
+
+      AndroidPremiumCustomer apc = AndroidPremiumCustomer.CreateManager().Load(acID);
+      if (apc == null)
+        return;
+
+      AndroidPremiumCustomerServiceMap map = AndroidPremiumCustomerServiceMap.CreateManager().Load(apc, CLog.UserSession.Service);
+      if(map != null)
+      {
+        map.PaymentRequestID = payment.ID;
+        map.Update();
+      }
+      else
+      {
+        map = new AndroidPremiumCustomerServiceMap(-1, apc, null, payment.ServiceOffer.Service.ID, "", textMessage, payment.ID, DateTime.Now, DateTime.Now);
+        map.Insert();
+      }
+
+    }
+
+    private Data.Customer GetCustomerFromInitiateSubscriptionNotification(Data.Service service, Notification notification, Guid customerGuid, MobilePaywallDirect db)
+    {
+      Customer customer = null;
+
+      // First we try to load customer by Msisdn
+      
+      string msisdn = this.GetNotificationArgumentValue(notification, "Msisdn");
+      int _mno = -1;
+      MobileOperator mobileOperator = null;
+      string mobileOperatorArgumentValue = this.GetNotificationArgumentValue(notification, "Operator");
+      if (Int32.TryParse(mobileOperatorArgumentValue, out _mno))
+        mobileOperator = MobileOperator.CreateManager().Load(_mno, IDType.External);
+
+      int? _customerID = db.LoadInt(string.Format(@"SELECT TOP 1 CustomerID FROM MobilePaywall.core.Customer WHERE ServiceID={0} AND Msisdn='{1}' ORDER BY CustomerID DESC", service.ID, msisdn));
+      if (_customerID.HasValue)
+        customer = Customer.CreateManager().Load(_customerID.Value);
+
+      if (customer != null)
+      {
+        if (customer.MobileOperator == null)
+        {
+          customer.MobileOperator = mobileOperator;
+          customer.Update();
+        }
+        return customer;
+      }
+
+      // Then we try to load customer by 'mobileoriginatedargs_shortMessageID' from notification argument
+      
+      string shorMessageArgument = this.GetNotificationArgumentValue(notification, "mobileoriginatedargs_shortMessageID");
+      if(customer != null && !string.IsNullOrEmpty(shorMessageArgument))
+        customer = Customer.LoadCustomerByShortMessageID(shorMessageArgument);
+
+      if (customer != null)
+        return customer;
+
+      // At last we create new Customer with his own dummy UserSession
+
+      string _argumentUsername = this.GetNotificationArgumentValue(notification, "Username");
+      string _argumentPassword = this.GetNotificationArgumentValue(notification, "Password");
+
+      string username = string.IsNullOrEmpty(_argumentUsername) ?  Guid.NewGuid().ToString() : _argumentUsername;
+      string password = string.IsNullOrEmpty(_argumentPassword) ? Guid.NewGuid().ToString() : _argumentPassword;
+      customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Active, service, service.FallbackCountry, mobileOperator, customerGuid, msisdn, string.Empty, username,
+        PasswordEncryption.Create(password).EncryptedPasswordAndSalt, DateTime.Now, DateTime.Now);
+      customer.Insert();
+      customer.Storage.PutString("password", password);
+
+      Data.Domain domain = Data.Domain.CreateManager().Load(service).FirstOrDefault();
+      UserSession us = new UserSession(-1, Guid.NewGuid(), UserSessionType.CreateManager().Load(1), service, domain, customer, service.FallbackCountry, service.FallbackLanguage, mobileOperator, null, null, false, false,
+        "", IPAddressType.IPv4, "", string.Format("http://{0}", service.Name), "", DateTime.Now.AddMinutes(20), DateTime.Now, DateTime.Now);
+
+      #region # glm tracking id trckd_glm ':' #
+
+      string textMessage = this.GetNotificationArgumentValue(notification, "Text");
+      if (us.Service.Product.ID == 9)
+      {
+        string[] pxidSplitGlm = textMessage.Split(':');
+        if (pxidSplitGlm.Length > 0)
+          us.EntranceUrl += (us.EntranceUrl.Contains("?") ? "&" : "?") + "trckd_glm=" + (pxidSplitGlm[pxidSplitGlm.Length - 1].Trim().Replace(" ", ""));
+      }
+
+      #endregion
+
+      us.Insert();
+      
+      return customer;
+    }
+
+
+    /*
+      SPECIFIC
+    */
+
+    private void SendHungaryWelcomeMessage(CallbackLog CLog, ReceiveShortMessageNotification notification, Customer customer, ServiceOffer so, int passwordNumber)
+    {
+      SmsArguments arguments = new SmsArguments();
+      arguments.PreviousSmsId = notification.ShortMessage.ShortMessageID.ToString();
+      arguments.Username = customer.Username;
+      arguments.Password = passwordNumber.ToString();
+
+      SendSmsRequest sendSmsRequest = new SendSmsRequest(RequestMode.Synchronous,
+       CLog.UserSession.Guid.ToString(),
+       so.PaymentConfiguration.PaymentCredentials.Username,
+       so.PaymentConfiguration.PaymentCredentials.Password,
+       so.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+       so.Service.Product.ExternalProductGuid,
+       so.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+       so.Service.FallbackCountry.TwoLetterIsoCode,
+       so.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid.Value,
+       notification.ShortMessage.Operator.Value.ToString(),
+       notification.ShortMessage.Msisdn,
+       string.Format("GRATULALUNK! Regisztralt a {0} szolgaltatasra. Dija: 3 sms/het/960ft/sms. Minden heten uj tartalom! Lemondas a stop valasszal", so.Service.Name),
+       CLog.UserSession.Guid.ToString(), // sendSmsRequestReference
+       "", // notificationUrl
+       arguments.ToMessageArguments());
+      sendSmsRequest.ReferenceIntID = CLog.UserSession.ID;
+
+      MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(CLog.UserSession.Service);
+      mobileClient.AttachLogWriter(new CashflowLog(so.Service));
+
+      SendSmsResponse sendSmsResponse = mobileClient.SendSms(sendSmsRequest);
+      if (sendSmsResponse.Status.Code != MessageStatusCode.Success)
+        CLog.Error("PSMS_Handler:: SendSmsResponse is not successful..");
+      else
+        CLog.Error("PSMS_Handler:: SendSmsResponse DONE");
+    }
+  }
+}

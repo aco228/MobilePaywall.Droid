@@ -1,0 +1,187 @@
+﻿using System;
+using System.Web.Mvc;
+
+using MobilePaywall.Data;
+using MobilePaywall.Web.Models;
+
+using Senti.Diagnostics.Log;
+
+using log4net;
+using MobilePaywall.Web.Log;
+using MobilePaywall.Web.Controllers;
+using Cashflow.Message;
+
+namespace MobilePaywall.Web.Filters
+{
+  [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, Inherited = true, AllowMultiple = false)]
+  public class AgeVerificationAttribute : PaywallActionFilterAttributeBase
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (AgeVerificationAttribute._log == null)
+          AgeVerificationAttribute._log = LogManager.GetLogger(typeof(AgeVerificationAttribute));
+        return AgeVerificationAttribute._log;
+      }
+    }
+
+    #endregion #logging#
+
+    public override void OnActionExecuting(ActionExecutingContext filterContext)
+    {
+      base.OnActionExecuting(filterContext);
+
+      if (!this.Required)
+        return;
+
+      #region # Custom page Override #
+
+      if (FilterBypass.CheckIfFitlerIsDisabled(PaywallHttpContext.Current.Service, FilterBypassType.AgeVerificationAttribute))
+        return;      
+
+      if ((filterContext.Controller as CustomPageController) != null)
+      {
+        int _customPageID = -1;
+        string cpdID = filterContext.ActionParameters["id"] != null ? filterContext.ActionParameters["id"].ToString() : "";
+        if (Int32.TryParse(cpdID, out _customPageID))
+          return;
+
+        Data.CustomPage customPage = Data.CustomPage.CreateManager().Load(_customPageID);
+        if (customPage == null)
+          return;
+
+        if (!customPage.AgeVerificationFilter.HasValue || !customPage.AgeVerificationFilter.Value)
+          return;
+
+      }
+      
+      #endregion
+      
+      string sessionID = this.PaywallContext.Session.SessionData.Guid.ToString();
+
+      if(this.PaywallContext.Session.SessionData.EntranceUrl.Contains("skip="))
+      {
+        this.PaywallContext.Session.SessionData.HasVerifiedAge = true;
+        this.PaywallContext.Session.SessionData.Update();
+        Log.Debug(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "ageverificationattribute", "onactionexecuting"), "AVS skipped."));
+        return;
+      }
+
+      if (this.PaywallContext.HttpContext.Request.QueryString["skip"] != null)
+      {
+        this.PaywallContext.Session.SessionData.HasVerifiedAge = true;
+        this.PaywallContext.Session.SessionData.Update();
+        Log.Debug(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "ageverificationattribute", "onactionexecuting"), "AVS skipped."));
+        return;
+      }
+
+      // QUICKFIX: remove after finding real cause of this bug
+      if (this.PaywallContext.HttpContext.Request.RawUrl.ToLower().Contains("unsubscribe"))
+      {
+        Log.Debug(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "ageverificationattribute", "onactionexecuting"), "AVS skipped because of UNSUBSCIBE bug"));
+        return;
+      }
+
+      if (this.PaywallContext.Service.ServiceData.ServiceStatus == ServiceStatus.Free)
+        return;
+
+      if (this.PaywallContext.Session.SessionData.HasVerifiedAge)
+      {
+        Log.Debug(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "ageverificationattribute", "onactionexecuting"), "Customer already confirmed AVS."));
+        return;
+      }
+
+      ServiceConfigurationEntry config = this.Configuration;
+      if (!config.IsAgeVerificationRequired)
+      {
+        Log.Debug(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "ageverificationattribute", "onactionexecuting"), "AVS is not required."));
+        return;
+      }
+
+      if (MobilePaywall.Constants.Confirmed.Equals(filterContext.HttpContext.Request.QueryString[MobilePaywall.Constants.AgeVerification]))
+      {
+        this.PaywallContext.Session.SessionData.HasVerifiedAge = true;
+        this.PaywallContext.Session.SessionData.Update();
+        Log.Debug(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "ageverificationattribute", "onactionexecuting"), "AVS confimed."));
+        return;
+      }
+
+      switch (config.AgeVerificationMode)
+      {
+        case AgeVerificationMode.Disabled:
+          Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "ageverificationattribute", "onactionexecuting"), "AVS disabled."));
+          ShowAgeVerificationView(filterContext);
+          break;
+
+        case AgeVerificationMode.Intercept:
+          ShowAgeVerificationView(filterContext);
+          break;
+
+        case AgeVerificationMode.Inject:
+          this.PaywallContext.MustVerifyUserAge = true;
+          break;
+      }
+
+      return;
+    }
+
+    // TODO: Maybe hook up to OnActionExecuted and check if age verification has been presented to user.
+    private void ShowAgeVerificationView(ActionExecutingContext filterContext)
+    {
+      string sessionID = this.PaywallContext.Session.SessionData.Guid.ToString();
+      string originalUrl = filterContext.HttpContext.Request.RawUrl;
+      originalUrl = MobilePaywall.Web.Helpers.UrlHelper.AppendSessionID(filterContext.RequestContext, originalUrl) + (originalUrl.Contains("?") ? "&" : "?");
+      originalUrl += MobilePaywall.Constants.AgeVerification + "=" + MobilePaywall.Constants.Confirmed;
+
+      #region # ES go4mob case (check if customer already has subscription) #
+
+      string _storageAvsRedirectionName = "_avs_redirection";
+      if (PaywallHttpContext.Current.Service.PaymentProvider.ID == 17  && 
+        PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("ES") && 
+        !PaywallHttpContext.Current.Session.Storage.GetBoolean(_storageAvsRedirectionName))
+      {
+        ServiceOffer so = PaywallHttpContext.Current.Service.DefaultServiceOffer;
+        VerifyAgeRequest request = new VerifyAgeRequest(RequestMode.Synchronous,
+          PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+          so.PaymentConfiguration.PaymentCredentials.Username,
+          so.PaymentConfiguration.PaymentCredentials.Password,
+          so.Service.Product.ExternalProductGuid,
+          so.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+          so.Service.FallbackCountry.TwoLetterIsoCode,
+          so.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+          so.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+          PaywallHttpContext.Current.Session.SessionData.IPAddress,
+          "http://" + PaywallHttpContext.Current.Service.ServiceData.Name + filterContext.HttpContext.Request.RawUrl, // avs url
+          "http://" + PaywallHttpContext.Current.Service.ServiceData.Name + originalUrl, // no avs url
+          null);
+        request.ReferenceIntID = PaywallHttpContext.Current.Session.SessionData.ID;
+        
+        VerifyAgeResponse response = CashflowClientPaywallManager.GetVerificationClient(PaywallHttpContext.Current.Service).VerifyAge(request);
+        if((response.Status.Code == MessageStatusCode.Success || response.Status.Code == MessageStatusCode.Redirect) && !string.IsNullOrEmpty(response.RedirectUrl))
+        {
+          PaywallHttpContext.Current.Session.Storage.PutBool(_storageAvsRedirectionName, true);
+          RedirectResult redirectResult = new RedirectResult(response.RedirectUrl);
+          filterContext.Result = redirectResult;
+          return;
+        }
+      }
+      
+      #endregion
+      
+      Log.Debug(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "ageverificationattribute", "showageverificationview"),
+            string.Format("Confirm URL: ({0})", originalUrl)));
+
+      PaywallViewModelBase model = new PaywallViewModelBase(this.PaywallContext);
+      ViewResult viewResult = new ViewResult();
+      viewResult.ViewName = "AgeVerification";
+      viewResult.ViewData.Model = model;
+      viewResult.ViewBag.OriginalUrl = originalUrl;
+      filterContext.Result = viewResult;
+      return;
+    }
+  }
+}

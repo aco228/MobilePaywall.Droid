@@ -1,0 +1,67 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+
+using Cashflow.Client;
+
+using MobilePaywall.Data;
+using log4net;
+using Senti.Diagnostics.Log;
+using MobilePaywall.Service.Callback.Log;
+
+namespace MobilePaywall.Service.Handlers
+{
+  public class TransactionNotificationHandler : NotificationHandlerBase
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (TransactionNotificationHandler._log == null)
+          TransactionNotificationHandler._log = log4net.LogManager.GetLogger(typeof(TransactionNotificationHandler));
+        return TransactionNotificationHandler._log;
+      }
+    }
+    #endregion
+
+    protected override void ProcessRefundTransaction(Cashflow.Message.RefundTransactionNotification notification)
+    {
+      base.ProcessRefundTransaction(notification);
+      CallbackLog CLog = new CallbackLog(notification, Log);
+
+      if (notification.Status.Code != Cashflow.Message.MessageStatusCode.Success)
+        return;
+
+      //INFO: ReferredTransaction is transaction which is refunded!
+      //			RefundTransaction is new transaction for ReferredTransaction!
+      ITransactionManager tManager = Transaction.CreateManager();
+      Transaction transaction = tManager.Load(notification.ReferredTransaction.TransactionID, GuidType.External);
+
+      if (transaction == null)
+      {
+        CLog.Error(new LogMessageBuilder(
+          new LogErrorCode("paywall.service.callback", "transactionnotificationhandler", "processrefundtransaction"),
+          "transaction is null", notification));
+        HttpContext.Current.Response.StatusCode = 200;
+        return;
+      }
+
+      transaction.TransactionType = TransactionType.Refund;
+      transaction.Update();
+    }
+
+    protected override void ProcessQueryTransaction(Cashflow.Message.QueryTransactionNotification notification)
+    {
+      base.ProcessQueryTransaction(notification);
+    }
+
+    protected override void ProcessCancelTransaction(Cashflow.Message.CancelTransactionNotification notification)
+    {
+      base.ProcessCancelTransaction(notification);
+    }
+  }
+}

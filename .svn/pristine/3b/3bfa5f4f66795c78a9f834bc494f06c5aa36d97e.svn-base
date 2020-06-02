@@ -1,0 +1,371 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(CustomerStorage))] 
+  public partial class CustomerStorageManager : MobilePaywall.Data.Sql.SqlManagerBase<CustomerStorage>, ICustomerStorageManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override CustomerStorage LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							CustomerStorageTable.GetColumnNames("[cs]") + 
+							(this.Depth > 0 ? "," + CustomerTable.GetColumnNames("[cs_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[cs_c_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[cs_c_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[cs_c_mo]") : string.Empty) + 
+					" FROM [core].[CustomerStorage] AS [cs] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [cs_c] ON [cs].[CustomerID] = [cs_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [cs_c_s] ON [cs_c].[ServiceID] = [cs_c_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [cs_c_c] ON [cs_c].[CountryID] = [cs_c_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [cs_c_mo] ON [cs_c].[MobileOperatorID] = [cs_c_mo].[MobileOperatorID] ";
+				sqlCmdText += "WHERE [cs].[CustomerStorageID] = @CustomerStorageID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@CustomerStorageID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "loadinternal", "notfound"), "CustomerStorage could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				CustomerStorageTable csTable = new CustomerStorageTable(query);
+				CustomerTable cs_cTable = (this.Depth > 0) ? new CustomerTable(query) : null;
+				ServiceTable cs_c_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				CountryTable cs_c_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable cs_c_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+
+        
+				Service cs_c_sObject = (this.Depth > 1) ? cs_c_sTable.CreateInstance() : null;
+				Country cs_c_cObject = (this.Depth > 1) ? cs_c_cTable.CreateInstance() : null;
+				MobileOperator cs_c_moObject = (this.Depth > 1) ? cs_c_moTable.CreateInstance() : null;
+				Customer cs_cObject = (this.Depth > 0) ? cs_cTable.CreateInstance(cs_c_sObject, cs_c_cObject, cs_c_moObject) : null;
+				CustomerStorage csObject = csTable.CreateInstance(cs_cObject);
+				sqlReader.Close();
+
+				return csObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "loadinternal", "exception"), "CustomerStorage could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "CustomerStorage", "Exception while loading CustomerStorage object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public CustomerStorage Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							CustomerStorageTable.GetColumnNames("[cs]") + 
+							(this.Depth > 0 ? "," + CustomerTable.GetColumnNames("[cs_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[cs_c_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[cs_c_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[cs_c_mo]") : string.Empty) +  
+					" FROM [core].[CustomerStorage] AS [cs] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [cs_c] ON [cs].[CustomerID] = [cs_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [cs_c_s] ON [cs_c].[ServiceID] = [cs_c_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [cs_c_c] ON [cs_c].[CountryID] = [cs_c_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [cs_c_mo] ON [cs_c].[MobileOperatorID] = [cs_c_mo].[MobileOperatorID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "customload", "notfound"), "CustomerStorage could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				CustomerStorageTable csTable = new CustomerStorageTable(query);
+				CustomerTable cs_cTable = (this.Depth > 0) ? new CustomerTable(query) : null;
+				ServiceTable cs_c_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				CountryTable cs_c_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable cs_c_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+
+        
+				Service cs_c_sObject = (this.Depth > 1) ? cs_c_sTable.CreateInstance() : null;
+				Country cs_c_cObject = (this.Depth > 1) ? cs_c_cTable.CreateInstance() : null;
+				MobileOperator cs_c_moObject = (this.Depth > 1) ? cs_c_moTable.CreateInstance() : null;
+				Customer cs_cObject = (this.Depth > 0) ? cs_cTable.CreateInstance(cs_c_sObject, cs_c_cObject, cs_c_moObject) : null;
+				CustomerStorage csObject = csTable.CreateInstance(cs_cObject);
+				sqlReader.Close();
+
+				return csObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "customload", "exception"), "CustomerStorage could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "CustomerStorage", "Exception while loading (custom/single) CustomerStorage object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<CustomerStorage> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							CustomerStorageTable.GetColumnNames("[cs]") + 
+							(this.Depth > 0 ? "," + CustomerTable.GetColumnNames("[cs_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[cs_c_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[cs_c_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[cs_c_mo]") : string.Empty) +  
+					" FROM [core].[CustomerStorage] AS [cs] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [cs_c] ON [cs].[CustomerID] = [cs_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [cs_c_s] ON [cs_c].[ServiceID] = [cs_c_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [cs_c_c] ON [cs_c].[CountryID] = [cs_c_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [cs_c_mo] ON [cs_c].[MobileOperatorID] = [cs_c_mo].[MobileOperatorID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "customloadmany", "notfound"), "CustomerStorage list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<CustomerStorage>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				CustomerStorageTable csTable = new CustomerStorageTable(query);
+				CustomerTable cs_cTable = (this.Depth > 0) ? new CustomerTable(query) : null;
+				ServiceTable cs_c_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				CountryTable cs_c_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable cs_c_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+
+        List<CustomerStorage> result = new List<CustomerStorage>();
+        do
+        {
+          
+					Service cs_c_sObject = (this.Depth > 1) ? cs_c_sTable.CreateInstance() : null;
+					Country cs_c_cObject = (this.Depth > 1) ? cs_c_cTable.CreateInstance() : null;
+					MobileOperator cs_c_moObject = (this.Depth > 1) ? cs_c_moTable.CreateInstance() : null;
+					Customer cs_cObject = (this.Depth > 0) ? cs_cTable.CreateInstance(cs_c_sObject, cs_c_cObject, cs_c_moObject) : null;
+					CustomerStorage csObject = (this.Depth > -1) ? csTable.CreateInstance(cs_cObject) : null;
+					result.Add(csObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "customloadmany", "exception"), "CustomerStorage list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "CustomerStorage", "Exception while loading (custom/many) CustomerStorage object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, CustomerStorage data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[CustomerStorage] ([CustomerID],[Key],[Value]) VALUES(@CustomerID,@Key,@Value); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@CustomerID", data.Customer.ID);
+				sqlCmd.Parameters.AddWithValue("@Key", data.Key).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Value", data.Value).SqlDbType = SqlDbType.NText;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "insert", "noprimarykey"), "CustomerStorage could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "CustomerStorage", "Exception while inserting CustomerStorage object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "insert", "exception"), "CustomerStorage could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "CustomerStorage", "Exception while inserting CustomerStorage object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, CustomerStorage data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[CustomerStorage] SET " +
+												"[CustomerID] = @CustomerID, " + 
+												"[Key] = @Key, " + 
+												"[Value] = @Value, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [CustomerStorageID] = @CustomerStorageID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@CustomerID", data.Customer.ID);
+				sqlCmd.Parameters.AddWithValue("@Key", data.Key).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Value", data.Value).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@CustomerStorageID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "update", "norecord"), "CustomerStorage could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "CustomerStorage", "Exception while updating CustomerStorage object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "update", "morerecords"), "CustomerStorage was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "CustomerStorage", "Exception while updating CustomerStorage object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "update", "exception"), "CustomerStorage could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "CustomerStorage", "Exception while updating CustomerStorage object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, CustomerStorage data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[CustomerStorage] WHERE CustomerStorageID = @CustomerStorageID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@CustomerStorageID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "delete", "norecord"), "CustomerStorage could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "CustomerStorage", "Exception while deleting CustomerStorage object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "delete", "exception"), "CustomerStorage could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "CustomerStorage", "Exception while deleting CustomerStorage object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

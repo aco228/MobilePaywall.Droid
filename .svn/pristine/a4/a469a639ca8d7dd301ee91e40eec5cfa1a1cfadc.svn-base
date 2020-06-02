@@ -1,0 +1,94 @@
+using log4net;
+using MobilePaywall.MobilePaywallDirect;
+using MobilePaywall.Implementation.Service;
+using Senti.Data;
+using Senti.Data.Sql;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+namespace MobilePaywall.Data
+{
+  public partial interface IFilterBypassManager
+  {
+    List<FilterBypass> Load();
+    List<FilterBypass> Load(IConnectionInfo connection);
+
+    List<FilterBypass> Load(Country country);
+    List<FilterBypass> Load(IConnectionInfo connection, Country country);
+
+    FilterBypass Load(FilterBypassType filterBypassType, Country country, PaymentProvider paymentProvider, Service service);
+    FilterBypass Load(IConnectionInfo connection, FilterBypassType filterBypassType, Country country, PaymentProvider paymentProvider, Service service);
+
+  }
+
+  public partial class FilterBypass
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (FilterBypass._log == null)
+          FilterBypass._log = LogManager.GetLogger(typeof(FilterBypass));
+        return FilterBypass._log;
+      }
+    }
+    #endregion
+
+    private FilterStorageManager _filterBypassStorage = null;
+    public override bool IsDeletable { get { return true; } }
+    
+    public FilterStorageManager Storage
+    {
+      get
+      {
+        if (this._filterBypassStorage != null)
+          return this._filterBypassStorage;
+        this._filterBypassStorage = new FilterStorageManager(this);
+        return this._filterBypassStorage;
+      }
+    }
+
+    // SUMMARY: Check if there is 'DisplayLoginPage' key in Storage
+    public bool DisplayLoginPage
+    {
+      get
+      {
+        bool? displayLoginPage = this.Storage.GetBool(FilterStorageManager.Keys.DisplayLoginPage.ToString());
+        return displayLoginPage.HasValue && displayLoginPage.Value;
+      }
+    }
+
+    public static bool CheckIfFitlerIsDisabled(IService service, FilterBypassType type)
+    {
+			PaywallDirect db = PaywallDirect.Instance;
+
+      bool? isEnabled = db.LoadBool(string.Format(@"SELECT TOP 1 Enabled FROM MobilePaywall.core.FilterBypass 
+        WHERE FilterBypassTypeID={0} AND 
+        ((ServiceID={1}) OR (ServiceID IS NULL AND PaymentProviderID={2} AND CountryID={3}) OR (ServiceID IS NULL AND CountryID IS NULL AND PaymentProviderID={2}) 
+        OR (ServiceID IS NULL AND PaymentProviderID IS NULL AND CountryID={3}))
+        ORDER BY ServiceID DESC, PaymentProviderID DESC, CountryID DESC", (int)type, service.ServiceData.ID, service.PaymentProvider.ID, service.ServiceData.FallbackCountry.ID));
+
+      return isEnabled.HasValue && isEnabled.Value;
+    }
+
+    public static FilterBypass GetFilterBypass(IService service, FilterBypassType type)
+    {
+      int? bypassID = PaywallDirect.Instance.LoadInt(string.Format(@"SELECT TOP 1 FilterBypassID FROM MobilePaywall.core.FilterBypass 
+          WHERE FilterBypassTypeID={0} AND 
+          ((ServiceID={1}) OR (ServiceID IS NULL AND PaymentProviderID={2} AND CountryID={3}) OR (ServiceID IS NULL AND CountryID IS NULL AND PaymentProviderID={2}) 
+          OR (ServiceID IS NULL AND PaymentProviderID IS NULL AND CountryID={3}))
+          ORDER BY ServiceID DESC, PaymentProviderID DESC, CountryID DESC", (int)type, service.ServiceData.ID, service.PaymentProvider.ID, service.ServiceData.FallbackCountry.ID));
+
+      if (!bypassID.HasValue)
+        return null;
+      
+      return FilterBypass.CreateManager().Load(bypassID.Value);
+    }
+
+  }
+}

@@ -1,0 +1,257 @@
+﻿using Cashflow.Client;
+using Cashflow.Message;
+using Cashflow.Message.Mobile;
+using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Web.Direct;
+using MobilePaywall.Web.Localization;
+using MobilePaywall.Web.Models;
+using Senti.Diagnostics.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers
+{
+  public class SendNumberController : Controller
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (SendNumberController._log == null)
+          SendNumberController._log = LogManager.GetLogger(typeof(SendNumberController));
+        return SendNumberController._log;
+      }
+    }
+    #endregion
+
+    public ActionResult Index()
+    {
+      int contentID = -1;
+      if (!string.IsNullOrEmpty(Request["contentID"]))
+        if (!Int32.TryParse(Request["contentID"], out contentID))
+          return this.Content("Error parsing Content");
+
+      Data.Content content = null;
+      if (contentID == -1)
+      {
+        ServiceContentGroupMap scgm = ServiceContentGroupMap.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData).FirstOrDefault();
+        content = Data.Content.CreateManager().Load(scgm.ContentGroup).FirstOrDefault();
+      }
+      else
+        content = Data.Content.CreateManager().Load(contentID);
+
+      if (content == null)
+        return this.Content("Content could not be loaded");
+
+      SendNumberModel model = new SendNumberModel(PaywallHttpContext.Current, content);
+      return View("SendNumber", model);
+    }
+
+    // SUMMARY: Send number to cashflow and configure
+    public ActionResult Send(string number)
+    {
+      // TODO: move this to translations
+      if (string.IsNullOrEmpty(number))
+        return this.Json(new { status = false, message = "You did not entered msisnd" }, JsonRequestBehavior.AllowGet);
+      
+      string numberResult = Regex.Replace(number, @"[^\d]", "");
+      
+      numberResult = this.FixNumber(PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode, number);
+
+      try
+      {
+        Guid referenceID = Guid.NewGuid();
+        List<ServiceOffer> sos = ServiceOffer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData);
+        ServiceOffer serviceOffer = (from s in sos where s.IsActive && s.IsDefault select s).FirstOrDefault();
+
+        Log.Info(string.Format("SEND_NUMBER_ERROR:: SendNumber request for '{0}'", numberResult));
+
+        if (serviceOffer == null)
+        {
+          Log.Error(string.Format("SEND_NUMBER_ERROR:: There is no active ServiceOffer for service '{0}'", PaywallHttpContext.Current.Service.ServiceData.Name));
+          return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal }, JsonRequestBehavior.AllowGet);
+        }
+
+        Cashflow.Message.MobileSubscriberArguments arguments = new Cashflow.Message.MobileSubscriberArguments() { Msisdn = numberResult };
+        LookupOperatorRequest lookupOperator = new LookupOperatorRequest(RequestMode.Default,
+          PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+          serviceOffer.PaymentConfiguration.PaymentCredentials.Username,
+          serviceOffer.PaymentConfiguration.PaymentCredentials.Password,
+          serviceOffer.Service.Product.ExternalProductGuid,
+          serviceOffer.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+          serviceOffer.Service.FallbackCountry.TwoLetterIsoCode,
+          serviceOffer.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+          serviceOffer.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+          this.Request.UserHostAddress, // ipAddress
+          string.Empty, // notificationUrl
+          arguments.ToMessageArguments());
+        lookupOperator.ReferenceIntID = PaywallHttpContext.Current.Session.SessionData.ID;
+
+        MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(PaywallHttpContext.Current.Service.ServiceData);
+        mobileClient.AttachLogWriter(new CashflowLog(serviceOffer.Service));
+
+        LookupOperatorResponse response = mobileClient.LookupOperator(lookupOperator);
+        if (response.Status.Code == MessageStatusCode.Success)
+        {
+          Log.Info(string.Format("SEND_NUMBER_SUCCESS:: Number successfully passed to cashflow (number={0})", numberResult));
+          return this.Json(new { status = true, message = "ok" }, JsonRequestBehavior.AllowGet);
+        }
+        else
+        {
+          Log.Error(string.Format("SEND_NUMBER_ERROR:: Error while sending number ({0}) to cashflow (SubCode='{0}', Message='{1}'",
+                response.Status.SubCode.ToString(),
+                response.Status.Message));
+          return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal }, JsonRequestBehavior.AllowGet);
+        }
+      }
+      catch(Exception e)
+      {
+        Log.Error("SEND_NUMBER_EXCEPTION:: Fatal", e);
+        return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal }, JsonRequestBehavior.AllowGet);
+      }
+    }
+
+    // SUMMARY: Configure number on our side
+    public ActionResult Configure()
+    {
+      string msisnd = Request["number"] != null ? Request["number"].ToString() : string.Empty;
+      if (string.IsNullOrEmpty(msisnd))
+        return this.Json(new { status = false, message = "Number is not sent" });
+      if (msisnd.Length < 6)
+        return this.Json(new { status = false, message = "Number length is not OK" });
+
+      msisnd = this.FixNumber(msisnd, PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode);
+      if (string.IsNullOrEmpty(msisnd))
+        return this.Json(new { status=false, message = "Please check your Msisnd input" });
+
+      MobileOperator mo = null;
+      if(Request["mobileOperatorID"] != null)
+      {
+        int _moid = -1;
+        if (!Int32.TryParse(Request["mobileOperatorID"].ToString(), out _moid))
+          return this.Json(new { status = false, message = "Could not parse MobileOperatorID" });
+
+        mo = MobileOperator.CreateManager().Load(_moid);
+        if (mo == null)
+          return this.Json(new { status = false, message = "Could not load MobileOperator" });
+      }
+
+      Customer customer = Customer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData, msisnd, CustomerIdentifier.Msisdn).FirstOrDefault();
+      PaywallHttpContext.Current.Session.SessionData.MobileOperator = mo;
+      if (customer == null)
+      {
+        customer = new Customer(-1,
+          Guid.NewGuid(),
+          CustomerStatus.Active,
+          PaywallHttpContext.Current.Service.ServiceData,
+          PaywallHttpContext.Current.Service.ServiceData.FallbackCountry,
+          mo,
+          null,
+          msisnd,
+          string.Empty,
+          msisnd,
+          null,
+          DateTime.Now, DateTime.Now);
+        customer.Insert();
+        customer.SetUsernameAndPassword();
+      }
+
+      customer.MobileOperator = mo;
+      customer.Update();
+
+      PaywallHttpContext.Current.Session.SessionData.Customer = customer;
+      PaywallHttpContext.Current.Session.SessionData.Update();
+
+      return this.Json(new { status = true, message = "Success" });
+    }
+
+
+    // TODO: Check if we need this function at all?
+    public ActionResult CheckNumber(string number)
+    {
+      int count = DirectSendNumber.CheckSendNumber(number);
+      if (count == 0)
+        return this.Json(new { status = false });
+
+      //#region # Cookie Bypass #
+      //if (this.Request.Cookies[Constants.SendNumberBypass] == null)
+      //{
+      //  Log.Debug("SEND_NUMBER_BYPASS - Bypass created for userSession: " + PaywallHttpContext.Current.Session.SessionData.ID);
+      //  HttpCookie cookie = new HttpCookie(Constants.SendNumberBypass, PaywallHttpContext.Current.Session.SessionData.ID.ToString());
+      //  cookie.Expires = DateTime.Now.AddDays(7);
+      //  cookie.Path = "/";
+      //  this.Response.Cookies.Add(cookie);
+      //}
+      //#endregion
+
+      return this.Json(new { status = true });
+    }
+
+
+    #region # fix number by Country #
+
+    private string FixNumber(string number, string twoLetterIsoCode)
+    {
+      number = Regex.Replace(number, "[^0-9]", "");
+      if (string.IsNullOrEmpty(number))
+        return number;
+
+      #region "AT"
+      if (twoLetterIsoCode.Equals("AT"))
+      {
+        if (number[0] == '0')
+          number = number.Substring(1);
+        if (!number.StartsWith("43"))
+          number = "43" + number;
+        return number;
+      }
+      #endregion
+      #region "CZ"
+      if (twoLetterIsoCode.Equals("CZ"))
+      {
+        if (number[0] == '0')
+          number = number.Substring(1);
+        if (!number.StartsWith("420"))
+          number = "420" + number;
+        return number;
+      }
+      #endregion
+      #region "UK"
+      if(twoLetterIsoCode.Equals("UK"))
+      {
+        if (number.StartsWith("00"))
+          number = number.Substring(2);
+        if (number[0] == '0')
+          number = number.Substring(1);
+        if (!number.StartsWith("44"))
+          number = "44" + number;
+        return number;
+      }
+      #endregion
+
+      return number;
+    }
+
+    private string FixAustria(string number)
+    {
+      if (number[0] == '0')
+        number = number.Substring(1);
+      if (!number.StartsWith("43"))
+        number = "43" + number;
+      return number;
+    }
+
+    #endregion
+
+  }
+
+}

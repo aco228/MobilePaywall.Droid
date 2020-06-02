@@ -1,0 +1,385 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Web;
+using System.Web.Mvc;
+
+using MobilePaywall.Data;
+
+using Cashflow.Client;
+using Cashflow.Message;
+using Cashflow.Message.Data;
+
+using Senti.Diagnostics.Log;
+
+using log4net;
+using MobilePaywall.Web.Models;
+using System.IO;
+using MobilePaywall.Web.Filters;
+using Lib.Web.Mvc;
+using MobilePaywall.Web.Log;
+
+namespace MobilePaywall.Web.Controllers
+{
+  [ContextValidation(Order = 100, Required = false)]
+  [Authentication(Order = 200, Required = false)]
+  [AgeVerification(Order = 300, Required = false)]
+  [RestrictedAccess(Order = 400, Required = false)]
+  public class WorkoutController : PaywallRestrictedAccessController /* Controller */
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (WorkoutController._log == null)
+          WorkoutController._log = LogManager.GetLogger(typeof(WorkoutController));
+        return WorkoutController._log;
+      }
+    }
+    #endregion
+
+    public ActionResult Clear(Guid externalCustomerGuid)
+    {
+      ICustomerManager cManager = Data.Customer.CreateManager();
+      Data.Customer customer = cManager.Load(externalCustomerGuid, GuidType.External);
+      if (customer == null)
+        return Content(string.Format("Customer {0} not found!", externalCustomerGuid));
+
+      IServiceLookupMethodMapManager slmmManager = ServiceLookupMethodMap.CreateManager();
+      ServiceLookupMethodMap serviceLookupMethodMap = slmmManager.Load(customer.Service, customer.Country, LookupMethod.Wap);
+
+      CustomerClient customerClient = CashflowClientPaywallManager.GetCustomerClient(PaywallHttpContext.Current.Service.ServiceData);
+      customerClient.AttachLogWriter(new CashflowLog(PaywallHttpContext.Current.Service.ServiceData));
+      GetSubscriptionsRequest getSubscriptionsRequest =
+        new GetSubscriptionsRequest(RequestMode.Synchronous,
+                                    externalCustomerGuid.ToString(),
+                                    serviceLookupMethodMap.PaymentConfiguration.PaymentCredentials.Username,
+                                    serviceLookupMethodMap.PaymentConfiguration.PaymentCredentials.Password,
+                                    null, externalCustomerGuid);
+      getSubscriptionsRequest.ReferenceIntID = this.PaywallContext.Session.SessionData.ID;
+
+      GetSubscriptionsResponse getSubscriptionsResponse = customerClient.GetSubscriptions(getSubscriptionsRequest, null);
+
+      if (getSubscriptionsResponse.Status.Code != MessageStatusCode.Success)
+        return Content(string.Format("We was not able to get subscriptions for specified customer! ({0})", externalCustomerGuid));
+
+      if (getSubscriptionsResponse.Subscriptions == null)
+        return Content(string.Format("Specified customer does not have subscriptions! ({0})", externalCustomerGuid));
+
+      List<Subscription> activeSubscriptions = (from s in getSubscriptionsResponse.Subscriptions where s.Status == SubscriptionStatus.Active select s).ToList();
+      if (activeSubscriptions == null)
+        return Content(string.Format("Specified customer does not have active subscriptions! ({0})", externalCustomerGuid));
+
+      StringBuilder stringBuilder = new StringBuilder();
+      stringBuilder.AppendLine(string.Concat(from s in activeSubscriptions select string.Format("{1} {0}", s.SubscriptionID, s.Model.Name) + "\r\n"));
+
+      //TransactionClient transactionClient = new TransactionClient();
+      //transactionClient.AttachLogWriter(new CashflowLog(PaywallHttpContext.Current.Service.ServiceData));
+
+
+      //Dictionary<Subscription, Cashflow.Message.Data.Transaction> dict = new Dictionary<Subscription, Cashflow.Message.Data.Transaction>();
+      //foreach (Subscription s in activeSubscriptions)
+      //{
+      //  GetTransactionsRequest getTransactionsRequest =
+      //    new GetTransactionsRequest(RequestMode.Default,
+      //                               s.SubscriptionID.ToString(),
+      //                               serviceLookupMethodMap.PaymentConfiguration.PaymentCredentials.Username,
+      //                               serviceLookupMethodMap.PaymentConfiguration.PaymentCredentials.Password,
+      //                               s.TransactionGroupID, null);
+
+      //  GetTransactionsResponse getTransactionsResponse = transactionClient.GetTransactions(getTransactionsRequest, null);
+      //  if (getTransactionsResponse.Status.Code != MessageStatusCode.Success)
+      //    continue;
+
+      //  List<Cashflow.Message.Data.Transaction> activeTransactions = (from t in getTransactionsResponse.Transactions select t).ToList();
+      //  foreach (Cashflow.Message.Data.Transaction t in activeTransactions)
+      //    dict.Add(s, t);
+      //}
+
+      //foreach (KeyValuePair<Subscription, Cashflow.Message.Data.Transaction> kv in dict)
+      //{
+      //  RefundTransactionRequest refundTransactionRequest =
+      //    new RefundTransactionRequest(RequestMode.Synchronous,
+      //                                 kv.Value.TransactionID.ToString(),
+      //                                  serviceLookupMethodMap.PaymentConfiguration.PaymentCredentials.Username,
+      //                                  serviceLookupMethodMap.PaymentConfiguration.PaymentCredentials.Password,
+      //                                  kv.Value.TransactionID,
+      //                                  RefundReason.Custom,
+      //                                  "MP: Redunding our payments!",
+      //                                  null);
+
+      //  RefundTransactionResponse refundTransactionResponse = transactionClient.RefundTransaction(refundTransactionRequest, null);
+      //  stringBuilder.AppendLine(string.Format("Transaction: {0} // Subscription: {1} // {2}", kv.Key.SubscriptionID, kv.Value.TransactionID, getSubscriptionsResponse.Status.Code == MessageStatusCode.Success ? "Refunded" : "Not refunded"));
+      //}
+
+      SubscriptionClient subscriptionClient = CashflowClientPaywallManager.GetSubscriptionClient(PaywallHttpContext.Current.Service.ServiceData);
+      subscriptionClient.AttachLogWriter(new CashflowLog(PaywallHttpContext.Current.Service.ServiceData));
+      foreach (Subscription s in activeSubscriptions)
+      {
+        CancelSubscriptionRequest cancelRequest =
+          new CancelSubscriptionRequest(RequestMode.Default,
+                                        s.SubscriptionID.ToString(),
+                                        serviceLookupMethodMap.PaymentConfiguration.PaymentCredentials.Username,
+                                        serviceLookupMethodMap.PaymentConfiguration.PaymentCredentials.Password,
+                                        s.SubscriptionID, SubscriptionCancellationMode.Immediate, null);
+        cancelRequest.ReferenceIntID = this.PaywallContext.Session.SessionData.ID;
+
+        CancelSubscriptionResponse cancelResponse = subscriptionClient.CancelSubscription(cancelRequest, null);
+        stringBuilder.AppendLine(string.Format("{0} / {1}", s.SubscriptionID, cancelResponse.Status));
+      }
+      return Content(stringBuilder.ToString());
+    }
+
+    public ActionResult Access(int id)
+    {
+      LogMessageBuilder builder = null;
+      IContent content = this.Cache.GetContent(id);
+      IContentAccessViewManager cavManager = ContentAccessView.CreateManager();
+      ContentAccessView contentView = cavManager.Load(this.PaywallContext.Runtime.ApplicationData.Instance,
+                                                      content.ContentData.ContentType,
+                                                      this.PaywallContext.Runtime.ApplicationData,
+                                                      this.PaywallContext.Service.ServiceData,
+                                                      this.PaywallContext.GetConfiguration());
+
+
+      if (contentView == null)
+      {
+        builder = new LogMessageBuilder(new LogErrorCode("paywall.web.core", "contentcontroller", "access"),
+                                                          "ContentAccessView not found in database with specified parameters",
+                                                          this.PaywallContext.Runtime.ApplicationData.Instance,
+                                                          content.ContentData.ContentType,
+                                                          this.PaywallContext.Runtime.ApplicationData,
+                                                          this.PaywallContext.Service.ServiceData,
+                                                          this.PaywallContext.GetConfiguration());
+        if (Log.IsErrorEnabled)
+          Log.Error( builder);
+
+        // DONE: Return error view because there is no reason to proceed!
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Content);
+        return View("Error", errorModel);
+      }
+
+      List<ContentDownloadOption> downloadOptions = content.GetDownloadOptions(this.Request.UserAgent);
+      List<ContentStreamingOption> streamingOptions = content.GetStreamingOptions(this.Request.UserAgent);
+
+      builder = new LogMessageBuilder(new LogErrorCode("paywall.web.core", "contentcontroller", "access"),
+                                            "test test", this.PaywallContext, downloadOptions, streamingOptions, content, contentView);
+      Log.Debug( builder);
+
+      ContentModel model = new ContentModel(this.PaywallContext, downloadOptions, streamingOptions, content, contentView);
+
+
+      return View(contentView.ViewName, model);
+    }
+
+    public ActionResult Download(int id)
+    {
+      LogMessageBuilder builder = null;
+
+
+      //IContent content = this.ContentCache.GetContent(id);
+      //if (!content.IsDownloadable)
+      //{
+      //  //- ContentError: Requested content is not available for downloading!
+      //  //ErrorViewModel model = new ErrorViewModel(this.PaywallContext, 0, "Error downloading", "This content is not allowed for download");
+      //  //return View("Error", model);
+      //  return null;
+      //}
+
+      int dataID = -1;
+      if (this.Request.QueryString["did"] != null &&
+        !string.IsNullOrEmpty(this.Request.QueryString["did"]) &&
+        !Int32.TryParse(this.Request.QueryString["did"], out dataID))
+      {
+        return null;
+      }
+
+      IContentManager cManager = Data.Content.CreateManager();
+      Data.Content contentData = cManager.Load(11);
+
+      IContent content = contentData.Instantiate();
+      ContentData data = dataID == -1 ? content.GetContentData(this.Request.UserAgent) : content.GetContentData(dataID);
+      if (data == null)
+      {
+        // DONE: Return error view because there is no reason to proceed!
+        //ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Content);
+        //return View("Error", errorModel);
+        return null;
+      }
+
+      HttpContext.Response.ContentType = data.MimeType;
+      return File(data.Data, data.MimeType, data.FileName);
+    }
+
+    public FileResult Stream(int id)
+    {
+      //LogMessageBuilder builder = null;
+      //IContent content = this.ContentCache.GetContent(id);
+      //if (!content.IsStreamable)
+      //{
+      //  //ErrorViewModel model = new ErrorViewModel(this.PaywallContext, 0, "Error streaming", "This content is not allowed for streaming");
+      //  //return View("Error", model);
+      //  return null;
+      //}
+
+      int dataID = id;
+      //IContentManager cManager = Data.Content.CreateManager();
+      //Data.Content contentData = cManager.Load(11);
+
+      //IContent content = contentData.Instantiate();
+
+      //ContentData data = dataID == -1 ? content.GetContentData(this.Request.UserAgent) : content.GetContentData(dataID);
+      //if (data == null)
+      //{
+      //  // DONE: Return error view because there is no reason to proceed!
+      //  //ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Content);
+      //  //return View("Error", errorModel);
+      //  return null;
+      //}
+
+      VideoContentData data = VideoContentData.LoadByID(dataID);
+
+      //ContentDisposition contentDisposition = new ContentDisposition { FileName = data.FileName, Inline = false };
+      //Stream stream = new MemoryStream(data.Data);
+      //HttpContext.Response.AppendHeader("Content-Disposition", contentDisposition.ToString());
+      //header('Cache-Control: no-cache, no-store, must-revalidate'); header('Pragma: no-cache');
+      
+      //HttpContext.Response.AppendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      //HttpContext.Response.AppendHeader("Pragma", "no-cache");
+
+      //return File(data.Data, data.MimeType, data.FileName);
+      //return new FileStreamResult(stream, data.MimeType);
+
+      //HttpContext.Response.Headers.Add("Accept-Ranges", "0-" + data.Data.Length);
+      //HttpContext.Response.Headers.Add("Content-Type", data.MimeType);
+      //HttpContext.Response.Headers.Add("Content-Length", "150");
+      //HttpContext.Response.Headers.Add("Content-Range", "bytes 0-150");
+      //return new RangeFileStreamResult(stream, data.MimeType, data.FileName, content.ContentData.Created);
+      //HttpContext.Response.ContentType = data.MimeType;
+      HttpContext.Response.Headers.Add("Accept-Ranges", "bytes");
+      //stream.Position = 0;
+      return new FileContentResult(data.Data, "video/mp4");
+
+      //HttpContext.Response.Headers.Add("Accept-Ranges", "0-" + data.Data.Length);
+      //Stream stream = new MemoryStream(data.Data);
+      //return new FileStreamResult(stream, data.MimeType);
+    }
+
+    public FileResult StreamVideo(int id)
+    {
+      //LogMessageBuilder builder = null;
+      //VideoContentData data = VideoContentData.LoadByID(id);
+      //IContent content = this.ContentCache.GetContent(data.VideoContent.Content.ID);
+      //Video video = content as Video;
+
+      //if (video == null)
+      //{
+
+      //  // Return error page!
+      //  //- ContentError: Requested content is not provided or not valid!
+      //  ErrorViewModel model = new ErrorViewModel(this.PaywallContext, 0, "Content error", "Content not found");
+      //  return View("Error", model);
+      //}
+
+      //if (!video.IsStreamable)
+      //{
+      //  // Return error page!
+      //  //- ContentError: Requested contetn is not available for streaming!
+      //  ErrorViewModel model = new ErrorViewModel(this.PaywallContext, 0, "Content error", "Content is not streamable");
+      //  return View("Error", model);
+      //}
+
+      //HttpContext.Response.Headers.Add("Accept-Ranges", "bytes");
+      //Stream stream = new MemoryStream(data.Data);
+      ////return new FileStreamResult(stream, data.VideoConversionProfileEntry.VideoCodec.MimeType);
+      //return new RangeFileStreamResult(stream, data.VideoConversionProfileEntry.VideoCodec.MimeType, data.VideoContent.Title + data.VideoConversionProfileEntry.VideoCodec.Extension, data.Created);
+
+
+      byte[] data = System.IO.File.ReadAllBytes(Server.MapPath(string.Format("~/Content/{0}.mp4", id)));
+
+      Stream stream = new MemoryStream(data);
+
+      //Stream stream = new FileStream(Server.MapPath("~/Content/test.mp4"), FileMode.Open);
+      
+      //return new FileStreamResult(stream, data.VideoConversionProfileEntry.VideoCodec.MimeType);
+      HttpContext.Response.Headers.Add("Accept-Ranges", "bytes");
+      return new FileContentResult(data, "video/mp4");
+    }
+
+
+
+    public FileResult StreamWebm(int id)
+    {
+
+      byte[] data = System.IO.File.ReadAllBytes(Server.MapPath(string.Format("~/Content/{0}.webm", id)));
+
+      Stream stream = new MemoryStream(data);
+
+      //Stream stream = new FileStream(Server.MapPath("~/Content/test.mp4"), FileMode.Open);
+      
+      //return new FileStreamResult(stream, data.VideoConversionProfileEntry.VideoCodec.MimeType);
+      HttpContext.Response.Headers.Add("Accept-Ranges", "bytes");
+      return new FileContentResult(data, "video/webm");
+    }
+
+    
+    public FileResult StreamWebmm(int id)
+    {
+      VideoContentData data = VideoContentData.LoadByID(id);
+      HttpContext.Response.Headers.Add("Accept-Ranges", "bytes");
+      //stream.Position = 0;
+      return new FileContentResult(data.Data, "video/webm");
+    }
+
+    public byte[] Chunk(byte[] data, long offset, long size)
+    {
+      byte[] back = new byte[size];
+      long index = 0;
+      for (long i = offset; i < size; i++)
+      {
+        back[index] = data[i];
+        index++;
+      }
+      return back;
+    }
+
+    public override IContent GetRequestedContent()
+    {
+      object contentID = null;
+      if (!this.RouteData.Values.TryGetValue("id", out contentID) ||
+          contentID == null)
+      {
+        // problem here...
+        throw new ArgumentException("Invalid argument supplied for contentID parameter.", "contentID");
+      }
+      int contentIDValue = Int32.Parse(contentID.ToString());
+      IContent content = this.Cache.GetContent(contentIDValue);
+      return content;
+    }
+
+    public ActionResult Test()
+    {
+      PLog.Debug("test", "aco aco");
+      return this.Content("ok");
+    }
+
+    public ActionResult Outgoing()
+    {
+      return Content("successfull");      
+    }
+
+    public ActionResult Incoming()
+    {
+      return Content("successfull");      
+    }
+
+    public ActionResult Between()
+    {
+      return Content("successfull");      
+    }
+  }
+}

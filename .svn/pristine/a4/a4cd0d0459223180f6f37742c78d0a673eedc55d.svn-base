@@ -1,0 +1,78 @@
+﻿using log4net.Appender;
+using log4net.Core;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web.Log
+{
+  public class PaywallAdoNetAppender : AdoNetAppender
+  {
+    // SUMMARY: Block some of the loggers for sending their own logs
+    private string[] _blockedLoggers = new string[]
+    {
+      "MobilePaywall.Data.Sql.FooterLinkManager",
+      "MobilePaywall.Data.Sql.ContentCategoryMapManager",
+      "MobilePaywall.Data.Sql.ContentThumbnailManager",
+      "MobilePaywall.Data.Sql.TemplateServiceContentSortManager",
+      "MobilePaywall.Data.Sql.ServiceLogoManager",
+      "MobilePaywall.Data.Sql.CustomPageManager",
+      "MobilePaywall.Data.Sql.VideoContentDetailManager",
+      "MobilePaywall.Data.Sql.ClientSession",
+      "MobilePaywall.Data.Sql.Html5ContentDetailManager",
+      "MobilePaywall.Data.Sql.UserSessionManager"
+    };
+
+    // SUMMARY: Logic for checking access based on paywall informations
+    private void CheckAccess(log4net.Core.LoggingEvent[] events, System.Data.IDbTransaction dbTran = null)
+    {
+      List<log4net.Core.LoggingEvent> filteredEvents = new List<LoggingEvent>();
+      bool _contextExists = (PaywallHttpContext.GetExisting() != null && PaywallHttpContext.GetExisting().Session != null);
+      bool _traficClick =  (_contextExists && !string.IsNullOrEmpty(PaywallHttpContext.GetExisting().Session.SessionData.Pxid));
+
+      foreach(log4net.Core.LoggingEvent logEvent in events)
+      {
+        if (this._blockedLoggers.Contains(logEvent.LoggerName))
+          continue;
+
+        if (logEvent.Level.Name.ToLower().Equals("fatal"))
+        {
+          filteredEvents.Add(logEvent);
+          continue;
+        }
+
+        if (_traficClick && !PaywallHttpApplication.LogEverything)
+          continue;
+        
+        filteredEvents.Add(logEvent);
+      }
+
+      this.SendBufferCall(filteredEvents.ToArray(), dbTran);
+    }
+
+    // SUMMARY: Proxy method
+    protected override void SendBuffer(LoggingEvent[] events)
+    {
+      this.CheckAccess(events, null);
+    }
+
+    // SUMMARY: Proxy method
+    protected override void SendBuffer(System.Data.IDbTransaction dbTran, log4net.Core.LoggingEvent[] events)
+    {
+      this.CheckAccess(events, dbTran);
+    }
+    
+    // SUMMARY: If log have access, then log it
+    private void SendBufferCall(log4net.Core.LoggingEvent[] events, System.Data.IDbTransaction dbTran = null)
+    {
+      if (dbTran != null)
+        base.SendBuffer(events);
+      else
+        base.SendBuffer(dbTran, events);
+    }
+
+
+  }
+}

@@ -1,0 +1,45 @@
+﻿$(document).ready(function () {
+  var count = 0;
+  var waiting = false;
+  //console.log("Guid to send: " + _calllbackGuid);
+
+  var interval = setInterval(function ()
+  {
+    if (_type == "test")
+      return;
+
+    if (waiting)
+      return;
+
+    count++;
+    if (count > 40)
+    {
+      var append = '?type=' + _type + '&callback=' + _calllbackGuid;
+      window.location = '/PendingRedirect' + append;
+      clearInterval(interval);
+      return;
+    }
+
+    waiting = true;
+    $.ajax(
+    {
+      method: 'POST',
+      url: '/api/callback/' + _type + '/' + _calllbackGuid,
+      //data: "'" + _calllbackGuid + "'",
+      //contentType: "x-www-form-urlencoded",
+      success: function (response)
+      {
+        waiting = false;
+        console.log("We got request url: " + response.RequestUrl);
+        if (response.IsCompleted)
+        {
+          window.location = response.RequestUrl;
+          clearInterval(interval);
+        } 
+        else if (typeof response.Fatal !== 'undefined')
+          console.error('e: ' + respose.Fatal);
+      }
+    });
+  }, 1000);
+
+});

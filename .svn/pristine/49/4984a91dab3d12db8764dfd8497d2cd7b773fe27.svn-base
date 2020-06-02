@@ -1,0 +1,61 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class TaskManager : ITaskManager
+  {
+    public List<Task> Load()
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection);
+    }
+
+    public List<Task> Load(IConnectionInfo connection)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection);
+    }
+
+    public List<Task> Load(ISqlConnectionInfo connection)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      return this.LoadMany(connection, parameters);
+    }
+    
+    public List<Task> Load(Client client)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, client);
+    }
+
+    public List<Task> Load(IConnectionInfo connection, Client client)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, client);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, client);
+    }
+
+    public List<Task> Load(ISqlConnectionInfo connection, Client client)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[t].ResolverID = @ClientID";
+      parameters.Arguments.Add("ClientID", client.ID);
+      return this.LoadMany(connection, parameters);
+    }
+    
+  }
+}
+

@@ -1,0 +1,776 @@
+﻿using Cashflow.Client;
+using Cashflow.Message;
+using Cashflow.Message.Mobile;
+using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Direct;
+using MobilePaywall.Web.Localization;
+using MobilePaywall.Web.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers._Specific.CY.Amaze
+{
+  public class CYAmazeController : Controller
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (CYAmazeController._log == null)
+          CYAmazeController._log = LogManager.GetLogger(typeof(CYAmazeController));
+        return CYAmazeController._log;
+      }
+    }
+    #endregion
+
+    private static string PIN_ENTRANCE_URL_IDENTIFY = "spp";
+    private static string SERVICE_STORAGE_PIN_FLOW = "PinFlow";
+
+    // GET: CYAmaze
+    public ActionResult Index()
+    {
+      return this.Content("");
+    }
+    
+    // SUMMARY: Identification section. We receive input (msisdn) and try to identify customer
+    // returns status = true || false
+    public ActionResult Identify()
+    {
+      Country country = PaywallHttpContext.Current.Service.ServiceData.FallbackCountry;
+      string msisdn = Request["input"] != null ? country.FixNumber(Request["input"].ToString()) : "";
+      string customerUsername = Request["input"] != null ? Request["input"].ToString() : ""; // customer's number without Fix()..
+      string userSessionID = Request["userSessionID"] != null ? Request["userSessionID"].ToString() : "";// treba d a uzima Ip.. iz send.php da ga saljem, na osnovu toga odredjujes zemlju i dodjeljujes user sesion
+      this.TryOverrideUserSession(userSessionID);
+
+      if (string.IsNullOrEmpty(msisdn))
+      {
+        Log.Error("CYAmaze:: Input is empty");
+        return this.Json(new { status = false, message = "δεν υπάρχει είσοδος" }, JsonRequestBehavior.AllowGet);
+      }
+
+      if (msisdn.Equals("35733228") || msisdn.Equals("30633228"))
+        return this.Json(new { status = true, message = "" }, JsonRequestBehavior.AllowGet);
+      
+      //checking if customerExists and Payment status = 3(Success)
+      MobilePaywallDirect db = MobilePaywallDirect.Instance;
+      int? customerExists = db.LoadInt(string.Format(@"SELECT TOP 1 c.CustomerID FROM MobilePaywall.core.Customer AS c
+        LEFT OUTER JOIN MobilePaywall.core.Service AS s ON c.ServiceID=s.ServiceID
+        LEFT OUTER JOIN MobilePaywall.core.Payment AS p ON p.CustomerID=c.CustomerID
+        WHERE s.ServiceID={0} AND p.PaymentID IS NOT NULL AND p.PaymentStatusID=3 AND c.Msisdn='{1}'
+        ORDER BY c.CustomerID DESC;", PaywallHttpContext.Current.Service.ServiceData.ID, msisdn));
+
+      if (customerExists.HasValue && customerExists.Value > 0)
+      {
+        Customer customerData = Customer.CreateManager().Load(customerExists.Value);
+        PaywallHttpContext.Current.Session.SessionData.Customer = customerData;
+        PaywallHttpContext.Current.Session.SessionData.Update();
+
+        Log.Error("CYAmaze:: Customer with msisdn allready exists; Msisdn: " + msisdn);
+        return this.Json(new { status = false, message = "Ο πελάτης υπάρχει ήδη", login= true }, JsonRequestBehavior.AllowGet);
+      }
+
+      ServiceOffer so = (from s in ServiceOffer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData) where s.IsDefault && s.IsActive select s).FirstOrDefault();
+      if(so == null)
+      {
+        Log.Error("CYAmaze:: There is not Active||Default ServiceOffer for service with ID " + PaywallHttpContext.Current.Service.ServiceData.ID);
+        return this.Json(new { status = false, message = "Εσωτερικό πρόβλημα. Παρακαλώ δοκιμάστε ξανά αργότερα." }, JsonRequestBehavior.AllowGet);
+      }
+
+      //here we changed customer user name to be  his "msisd", pay attention how user will log into service..
+      Random rnd = new Random();
+      string password = rnd.Next(1000, 9999).ToString();
+      Customer customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Active, so.Service, PaywallHttpContext.Current.Session.SessionData.Country, null, null, msisdn, string.Empty,
+      customerUsername, Senti.Security.PasswordEncryption.Create(password).EncryptedPasswordAndSalt, DateTime.Now, DateTime.Now);
+      customer.Insert();
+      customer.Storage.PutString("password", password);
+
+      if(PaywallHttpContext.Current.Service.Storage.GetBoolean(SERVICE_STORAGE_PIN_FLOW))
+      {
+        customer.Storage.PutString(GreeceUserSession.CustomerStorageKeys.Pin.ToString(), rnd.Next(1000, 9999).ToString());
+        customer.Storage.PutBool(GreeceUserSession.CustomerStorageKeys.PinConfirmed.ToString(), false);
+      }
+
+      PaywallHttpContext.Current.Session.SessionData.Customer = customer;
+      PaywallHttpContext.Current.Session.SessionData.Update();
+
+      Log.Debug("CYAmaze:: Customer created with ID " + customer.ID);
+
+      SmsArguments argument = new SmsArguments();
+      argument.Msisdn = msisdn;
+
+      // request for Lookup (we should get by this request MNO by msisdn)
+      LookupOperatorRequest lookupOperatorRequest = new LookupOperatorRequest(RequestMode.Synchronous, 
+        PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+        so.PaymentConfiguration.PaymentCredentials.Username,
+        so.PaymentConfiguration.PaymentCredentials.Password,
+        so.Service.Product.ExternalProductGuid,
+        so.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+        so.Service.FallbackCountry.TwoLetterIsoCode,
+        so.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+        so.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+        PaywallHttpContext.Current.Session.SessionData.IPAddress,
+        "", // notificationUrl
+        argument.ToMessageArguments());
+      lookupOperatorRequest.ReferenceIntID = PaywallHttpContext.Current.Session.SessionData.ID;
+
+      MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(PaywallHttpContext.Current.Service.ServiceData); // this MobileExtensionClient is client who sents data to cashflow
+      mobileClient.AttachLogWriter(new CashflowLog(so.Service)); // this line connects cashlow request/response to our log4net
+      LookupOperatorResponse lookupOperatorResponse = mobileClient.LookupOperator(lookupOperatorRequest); // 
+
+      switch(lookupOperatorResponse.Status.Code)
+      {
+        case MessageStatusCode.Success:
+        case MessageStatusCode.Redirect:
+
+          MobileOperator mobileOperator = null;
+          if (lookupOperatorResponse.OperatorID.HasValue)
+            mobileOperator = MobileOperator.CreateManager().Load(lookupOperatorResponse.OperatorID.Value, IDType.External);
+          
+          UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), PaywallHttpContext.Current.Session.SessionData, null, "-nil-", DateTime.Now, DateTime.Now); uhr.Insert();
+          LookupSession ls = new LookupSession(-1, Guid.NewGuid(), LookupSessionStatus.Complete, PaywallHttpContext.Current.Session.SessionData, uhr, null, "-nil-", DateTime.Now, DateTime.Now); ls.Insert();
+          LookupSessionResult lsr = new LookupSessionResult(-1, ls, true, true, null, null, msisdn, string.Empty, DateTime.Now, DateTime.Now); lsr.Insert();
+
+          if (mobileOperator != null)
+          {
+            customer.MobileOperator = mobileOperator;
+            customer.Update();
+            PaywallHttpContext.Current.Session.SessionData.MobileOperator = mobileOperator;
+            PaywallHttpContext.Current.Session.SessionData.Update();
+            lsr.MobileOperator = mobileOperator;
+            lsr.Update();
+          }
+          else
+          {
+            Log.Error("CYAmaze:: MobileOpeartor is null");
+            return this.Json(new { status = false, message = "Ο πάροχος κινητής τηλεφωνίας δε μπορεί να προσδιοριστεί. Παρακαλώ δοκιμάστε αργότερα." }, JsonRequestBehavior.AllowGet);
+          }
+
+          Log.Debug("CYAmaze:: Successfull LookupOperator");
+
+          //instead of this wi wil send SMS Arguments with Operator,Msisd,  username i password
+          //MobileSubscriberArguments msargument = new MobileSubscriberArguments();
+          //msargument.OperatorCode = lookupOperatorResponse.OperatorID.ToString();
+          //msargument.Msisdn = msisdn;
+
+          SmsArguments smsArguments = new SmsArguments();
+          smsArguments.Operator = PaywallHttpContext.Current.Session.SessionData.MobileOperator.ExternalMobileOperatorID.ToString();
+          smsArguments.Msisdn = msisdn;
+          smsArguments.Username = customerUsername;
+          smsArguments.Password = password;
+          smsArguments.IsTanFlow = PaywallHttpContext.Current.Service.Storage.GetBoolean(SERVICE_STORAGE_PIN_FLOW) ? "false" : "true";
+
+          InitiateSubscriptionResponse initiateResponse = CashflowClientPaywallManager.GetInitiateSubscriptionResponse(PaywallHttpContext.Current.Session, string.Empty, smsArguments);
+
+          switch (initiateResponse.Status.Code)
+          {
+            case MessageStatusCode.Success:
+            case MessageStatusCode.Redirect:
+
+              customer.ExternalCustomerGuid = initiateResponse.CustomerID.Value;
+              PaymentRequest pr = new PaymentRequest(-1, Guid.NewGuid(), PaymentType.Subscription, PaymentRequestStatus.Complete, ls, customer, PaywallHttpContext.Current.Session.SessionData,
+                so, so.BusinessModelEntry, initiateResponse.SubscriptionRequestID, uhr, "-nil-", DateTime.Now, DateTime.Now);
+              pr.Insert();
+              
+              if (PaywallHttpContext.Current.Service.Storage.GetBoolean(SERVICE_STORAGE_PIN_FLOW))
+                return this.PinOnOurSideHandler(initiateResponse);
+
+              Log.Debug("CYAmaze:: InitiateSubscription is successfull");
+
+              if (this.Request[CYAmazeController.PIN_ENTRANCE_URL_IDENTIFY] != null)
+                return this.SetupPossiblePin(initiateResponse, so, pr);
+
+              return this.Json(new { status = true, message = "" }, JsonRequestBehavior.AllowGet);
+            default:
+              Log.Error("CYAmaze:: Error with InitiateSubscription");
+              return this.Json(new { status = false, message = "Εσωτερικό πρόβλημα. Παρακαλώ δοκιμάστε ξανά αργότερα." }, JsonRequestBehavior.AllowGet);
+          }
+        default:
+          Log.Error("CYAmaze:: Error with LookupOprator");
+          return this.Json(new { status = false, message = "Εσωτερικό πρόβλημα. Παρακαλώ δοκιμάστε ξανά αργότερα." }, JsonRequestBehavior.AllowGet);
+      }
+    }
+
+
+    // SUMMARY: Configure PIN to handle on our side. This method will be called if there is Service.Storage.OurSidePin = 1
+    private ActionResult PinOnOurSideHandler(InitiateSubscriptionResponse initiateResponse)
+    { 
+      string pin = PaywallHttpContext.Current.Session.SessionData.Customer.Storage.GetString(GreeceUserSession.CustomerStorageKeys.Pin.ToString());
+      SmsArguments arguments = new SmsArguments();
+      arguments.Msisdn = PaywallHttpContext.Current.Session.SessionData.Customer.Msisdn;
+      arguments.SubscriptionRequestID = initiateResponse.SubscriptionRequestID.ToString();
+      arguments.Tan = pin;
+
+      string smsMessage = PaywallHttpContext.Current.Service.Storage.GetString("PinSms")
+        .Replace("[Service.Name]", PaywallHttpContext.Current.Service.ServiceData.Name)
+        .Replace("[Pin]", pin);
+
+      ServiceOffer so = PaywallHttpContext.Current.Service.DefaultServiceOffer;
+      SendSmsRequest sendSmsRequest = new SendSmsRequest(RequestMode.Synchronous,
+        PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+        so.PaymentConfiguration.PaymentCredentials.Username,
+        so.PaymentConfiguration.PaymentCredentials.Password,
+        so.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+        so.Service.Product.ExternalProductGuid,
+        so.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+        so.Service.FallbackCountry.TwoLetterIsoCode,
+        so.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid.Value,
+        PaywallHttpContext.Current.Session.SessionData.MobileOperator.ExternalMobileOperatorID.ToString(),
+        PaywallHttpContext.Current.Session.SessionData.Customer.Msisdn,
+        smsMessage, // messagetext
+        PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+        "", // notificationUrl,
+        arguments.ToMessageArguments());
+
+      SendSmsResponse sendSmsResponse = CashflowClientPaywallManager.GetMobileExtensionClient(PaywallHttpContext.Current.Service).SendSms(sendSmsRequest);
+      if(sendSmsResponse.Status.Code == MessageStatusCode.Success || sendSmsResponse.Status.Code == MessageStatusCode.Redirect)
+      {
+        Log.Debug("CYAmaze.SendSmsResponse:: Success");
+        return this.Json(new { status = true, message = "" }, JsonRequestBehavior.AllowGet);
+      }
+      else
+      {
+        Log.Error("CYAmaze.SendSmsResponse:: ERROR. SendSmsRequest is not Success");
+        return this.Json(new { status = true, message = Translations.Web.Error.ErrInternal }, JsonRequestBehavior.AllowGet);
+      }
+    }
+
+    // SUMMARY: Initiate method for wind 
+    public ActionResult InitiateWind()
+    {
+      if (PaywallHttpContext.Current.Session.SessionData.MobileOperator == null)
+      {
+        Log.Error("GR.InitiateWind:: There is no MobileOperator in session with id:");
+
+        #region # auto click #
+
+        if (Request["ap"] != null && Request["ap"].ToString().ToLower().Equals("true"))
+        {
+          bool isAdult = (Request["tp"] != null && Request["tp"].ToString() == "a") ? true : false;
+          string redirectUrl = isAdult ?
+            "http://mt.kiwiclicks.com/click.php?c=1402&key=k8r5g06l6pql9tvty4bq8tlh" :
+            "http://mt.kiwiclicks.com/click.php?c=1401&key=e9006v1wnvnzzd1d08g1vcg2";
+          return this.Redirect(redirectUrl);
+        }
+
+        #endregion
+
+        return View("Error", new ErrorViewModel(PaywallHttpContext.Current, ErrorCode.Internal));
+      }
+
+      if (PaywallHttpContext.Current.Session.SessionData.Customer == null)
+      {
+        Log.Error("GR.InitiateWind:: There is no Customer in session with id:");
+
+        #region # auto click #
+
+        if (Request["ap"] != null && Request["ap"].ToString().ToLower().Equals("true"))
+        {
+          bool isAdult = (Request["tp"] != null && Request["tp"].ToString() == "a") ? true : false;
+          string redirectUrl = isAdult ?
+            "http://mt.kiwiclicks.com/click.php?c=1402&key=k8r5g06l6pql9tvty4bq8tlh" :
+            "http://mt.kiwiclicks.com/click.php?c=1401&key=e9006v1wnvnzzd1d08g1vcg2";
+          return this.Redirect(redirectUrl);
+        }
+
+        #endregion
+
+        return View("Error", new ErrorViewModel(PaywallHttpContext.Current, ErrorCode.Internal));
+      }
+
+      if (string.IsNullOrEmpty(PaywallHttpContext.Current.Session.SessionData.Customer.Msisdn))
+      {
+        Log.Error("GR.InitiateWind:: There is no Customer.Msisdn in session with id:");
+
+        #region # auto click #
+
+        if (Request["ap"] != null && Request["ap"].ToString().ToLower().Equals("true"))
+        {
+          bool isAdult = (Request["tp"] != null && Request["tp"].ToString() == "a") ? true : false;
+          string redirectUrl = isAdult ?
+            "http://mt.kiwiclicks.com/click.php?c=1402&key=k8r5g06l6pql9tvty4bq8tlh" :
+            "http://mt.kiwiclicks.com/click.php?c=1401&key=e9006v1wnvnzzd1d08g1vcg2";
+          return this.Redirect(redirectUrl);
+        }
+
+        #endregion
+
+        return View("Error", new ErrorViewModel(PaywallHttpContext.Current, ErrorCode.Internal));
+      }
+
+      SmsArguments smsArguments = new SmsArguments();
+      smsArguments.Msisdn = PaywallHttpContext.Current.Session.SessionData.Customer.Msisdn;
+      smsArguments.Operator = PaywallHttpContext.Current.Session.SessionData.MobileOperator.ExternalMobileOperatorID.ToString();
+      smsArguments.Username = PaywallHttpContext.Current.Session.SessionData.Customer.Username;
+      smsArguments.Password = PaywallHttpContext.Current.Session.SessionData.Customer.Storage.GetString("password");
+      smsArguments.IsTanFlow = "false";
+
+      Guid? identificationResultID = null;
+      LookupSession ls = PaywallHttpContext.Current.Session.SessionData.LastLookupSession;
+      if(ls != null)
+        identificationResultID = MobilePaywallDirect.Instance.LoadGuid(string.Format(@"
+          SELECT IdentificationResultGuid FROM MobilePaywall.core.LookupSessionResult WHERE LookupSessionID={0}", ls.ID));
+      
+      IdentificationResultArguments identificationResultArguments = new IdentificationResultArguments();
+      identificationResultArguments.IdentificationResultID = identificationResultID.HasValue ? identificationResultID.Value : Guid.Empty;
+
+      ServiceOffer so = PaywallHttpContext.Current.Service.DefaultServiceOffer;
+
+      UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), PaywallHttpContext.Current.Session.SessionData, null, this.Request.RawUrl, DateTime.Now, DateTime.Now);
+      uhr.Insert();
+
+      PaymentRequest paymentRequest = new PaymentRequest(-1, Guid.NewGuid(), PaymentType.Subscription, PaymentRequestStatus.Initialized,
+        PaywallHttpContext.Current.Session.SessionData.LastLookupSession, PaywallHttpContext.Current.Session.SessionData.Customer, PaywallHttpContext.Current.Session.SessionData,
+        so, so.BusinessModelEntry, null, uhr, "-nil-", DateTime.Now, DateTime.Now);
+      paymentRequest.Insert();
+      
+      InitiateSubscriptionResponse initiateResponse = CashflowClientPaywallManager.GetInitiateSubscriptionResponse(PaywallHttpContext.Current.Session, string.Empty, smsArguments, identificationResultArguments);
+
+      if (initiateResponse.Status.Code != MessageStatusCode.Success && initiateResponse.Status.Code != MessageStatusCode.Redirect)
+      {
+        paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Failure;
+        paymentRequest.Update();
+
+        Log.Error("GR.InitiateWind:: Initiate is not success:");
+
+        #region # auto click #
+
+        if (Request["ap"] != null && Request["ap"].ToString().ToLower().Equals("true"))
+        {
+          bool isAdult = (Request["tp"] != null && Request["tp"].ToString() == "a") ? true : false;
+          string redirectUrl = isAdult ?
+            "http://mt.kiwiclicks.com/click.php?c=1402&key=k8r5g06l6pql9tvty4bq8tlh" :
+            "http://mt.kiwiclicks.com/click.php?c=1401&key=e9006v1wnvnzzd1d08g1vcg2";
+          return this.Redirect(redirectUrl);
+        }
+
+        #endregion
+
+        return View("Error", new ErrorViewModel(PaywallHttpContext.Current, ErrorCode.Internal));
+      }
+
+      paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Complete;
+      paymentRequest.ExternalPaymentRequestGuid = initiateResponse.SubscriptionRequestID;
+      paymentRequest.Update();
+
+      MobileTanArguments tanArguments = new MobileTanArguments();
+      tanArguments.Msisdn = PaywallHttpContext.Current.Session.SessionData.Customer.Msisdn;
+      tanArguments.IsTanFlow = "false";
+      
+      SetupSubscriptionRequest setupRequest = new SetupSubscriptionRequest(RequestMode.Synchronous,
+        PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+        so.PaymentConfiguration.PaymentCredentials.Username,
+        so.PaymentConfiguration.PaymentCredentials.Password,
+        paymentRequest.ExternalPaymentRequestGuid.Value,
+        paymentRequest.ExternalPaymentRequestGuid.ToString(),
+        tanArguments.ToMessageArguments());
+
+      Payment payment = new Payment(-1, Guid.NewGuid(), PaymentType.Subscription, null, PaymentStatus.Initialized, paymentRequest, PaywallHttpContext.Current.Session.SessionData.Customer,
+        so, so.BusinessModelEntry, DateTime.Now, DateTime.Now);
+      payment.Insert();
+      
+      SetupSubscriptionResponse setupResponse = CashflowClientPaywallManager.GetSubscriptionClient(PaywallHttpContext.Current.Service).SetupSubscription(setupRequest);
+
+      if(setupResponse.Status.Code != MessageStatusCode.Success && setupResponse.Status.Code != MessageStatusCode.Redirect)
+      {
+        payment.PaymentStatus = PaymentStatus.Failed;
+        payment.Update();
+
+        Log.Error("GR.InitiateWind:: Setup is not success:");
+
+        #region # auto click #
+
+        if (Request["ap"] != null && Request["ap"].ToString().ToLower().Equals("true"))
+        {
+          bool isAdult = (Request["tp"] != null && Request["tp"].ToString() == "a") ? true : false;
+          string redirectUrl = isAdult ?
+            "http://mt.kiwiclicks.com/click.php?c=1402&key=k8r5g06l6pql9tvty4bq8tlh" :
+            "http://mt.kiwiclicks.com/click.php?c=1401&key=e9006v1wnvnzzd1d08g1vcg2";
+          return this.Redirect(redirectUrl);
+        }
+
+        #endregion
+
+        return View("Error", new ErrorViewModel(PaywallHttpContext.Current, ErrorCode.Internal));
+      }
+
+      payment.PaymentStatus = PaymentStatus.Successful;
+      payment.ExternalPaymentGuid = setupResponse.SubscriptionID;
+      payment.Update();
+
+      #region # auto click #
+
+      if(Request["ap"] != null && Request["ap"].ToString().ToLower().Equals("true"))
+      {
+        bool isAdult = (Request["tp"] != null && Request["tp"].ToString() == "a") ? true : false;
+        string redirectUrl = isAdult ?
+          "http://mt.kiwiclicks.com/click.php?c=1402&key=k8r5g06l6pql9tvty4bq8tlh" :
+          "http://mt.kiwiclicks.com/click.php?c=1401&key=e9006v1wnvnzzd1d08g1vcg2";
+        return this.Redirect(redirectUrl);
+      }
+
+      #endregion
+
+      return this.Redirect("/");
+    }
+
+    // SUMMARY: Customer sends PIN, we send SetupSubsctipion and make Payment
+    public ActionResult Setup()
+    {
+      string pin = Request["input"] != null ? Request["input"].ToString() : "";
+      string userSessionID = Request["userSessionID"] != null ? Request["userSessionID"].ToString() : "";
+      this.TryOverrideUserSession(userSessionID);
+
+      if (string.IsNullOrEmpty(pin))
+      {
+        Log.Error("CYAmaze:: Setup there is no PIN input");
+        return this.Json(new { status = false, message = "Εισόδου είναι άδειο.", redirect = "" }, JsonRequestBehavior.AllowGet);
+      }
+
+      if (PaywallHttpContext.Current.Session.SessionData.Customer == null)
+      {
+        Log.Error("CYAmaze:: Session.Customer is null");
+        return this.Json(new { status = false, message = "Εισόδου είναι άδειο.", redirect = "" }, JsonRequestBehavior.AllowGet);
+      }
+
+      ServiceOffer so = (from s in ServiceOffer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData) where s.IsDefault && s.IsActive select s).FirstOrDefault();
+      if (so == null)
+      {
+        Log.Error("CYAmaze:: There is not Active||Default ServiceOffer for service with ID " + PaywallHttpContext.Current.Service.ServiceData.ID);
+        return this.Json(new { status = false, message = "Εσωτερικό πρόβλημα. Παρακαλώ δοκιμάστε ξανά αργότερα.", redirect = "" }, JsonRequestBehavior.AllowGet);
+      }
+
+      PaymentRequest paymentRequest = PaymentRequest.CreateManager().Load(PaywallHttpContext.Current.Session.SessionData);
+      if (paymentRequest == null)
+      {
+        Log.Fatal("AMAZE:: " + PaywallHttpContext.Current.Session.SessionData.ID + " p" + pin);
+        return this.Json(new { status = false, message = "Εσωτερικό πρόβλημα. Παρακαλώ δοκιμάστε ξανά αργότερα.", redirect = "" }, JsonRequestBehavior.AllowGet);
+      }
+      
+      // SUMMARY: Check if pin is located on our side
+      if(PaywallHttpContext.Current.Service.Storage.GetBoolean(SERVICE_STORAGE_PIN_FLOW))
+        if(!PaywallHttpContext.Current.Session.SessionData.Customer.Storage.GetString(GreeceUserSession.CustomerStorageKeys.Pin.ToString()).Equals(pin))
+          return this.Json(new { status = false, message = "Εισήγατε λάθος ακίδα. Παρακαλώ δοκιμάστε ξανά αργότερα", redirect = "" }, JsonRequestBehavior.AllowGet);
+
+      MobileTanArguments arguments = new MobileTanArguments();
+      arguments.Msisdn = PaywallHttpContext.Current.Session.SessionData.Customer.Msisdn;
+      arguments.Tan = pin;
+      arguments.IsTanFlow = PaywallHttpContext.Current.Service.Storage.GetBoolean(SERVICE_STORAGE_PIN_FLOW) ? "false" : "true";
+
+      PaywallHttpContext.Current.Session.SessionData.Customer.Storage.PutString(GreeceUserSession.CustomerStorageKeys.Pin.ToString(), pin);
+
+      SetupSubscriptionRequest setupRequest = new SetupSubscriptionRequest(RequestMode.Synchronous,
+        PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+        so.PaymentConfiguration.PaymentCredentials.Username,
+        so.PaymentConfiguration.PaymentCredentials.Password,
+        paymentRequest.ExternalPaymentRequestGuid.Value,
+        paymentRequest.ExternalPaymentRequestGuid.ToString(),
+        arguments.ToMessageArguments());
+
+      SubscriptionClient subscriptionClient = CashflowClientPaywallManager.GetSubscriptionClient(so.Service);
+      subscriptionClient.AttachLogWriter(new CashflowLog(so.Service)); // this line connects cashlow request/response to our log4net
+      SetupSubscriptionResponse setupResponse = subscriptionClient.SetupSubscription(setupRequest);
+
+      switch (setupResponse.Status.Code)
+      {
+        case MessageStatusCode.Redirect:
+        case MessageStatusCode.Success:
+
+          Payment payment = new Payment(-1, Guid.NewGuid(), PaymentType.Subscription, setupResponse.SubscriptionID, PaymentStatus.Successful, paymentRequest, PaywallHttpContext.Current.Session.SessionData.Customer,
+            so, so.BusinessModelEntry, DateTime.Now, DateTime.Now);
+          payment.Insert();
+
+          ContentAccessPolicy policy = ContentAccessPolicy.CreateManager().Load(so.Service);
+          PaymentContentAccessPolicyMap map = new PaymentContentAccessPolicyMap(-1, payment, null, policy, null, true, true, DateTime.Now, DateTime.Now.AddMinutes(10), DateTime.Now, DateTime.Now);
+          map.Insert();
+
+          PaywallHttpContext.Current.Session.SessionData.Customer.Storage.PutBool(GreeceUserSession.CustomerStorageKeys.PinConfirmed.ToString(), true);
+
+          string redirectUrl = string.Format("/sid/{0}/lid/{1}",
+            PaywallHttpContext.Current.Session.SessionData.Guid.ToString().Replace("-", ""),
+            paymentRequest.LookupSession.Guid.ToString().Replace("-", ""));
+
+          Log.Debug("CYAmaze:: SetupSubscriptionResponse is successfull");
+          return this.Json(new { status = true, message = "", redirect = redirectUrl }, JsonRequestBehavior.AllowGet);
+        default:
+          Log.Error("CYAmaze:: SetupSubscription is not success ");
+          return this.Json(new { status = false, message = "Εσωτερικό πρόβλημα. Παρακαλώ δοκιμάστε ξανά αργότερα.", redirect = "" }, JsonRequestBehavior.AllowGet);
+      }
+    }
+    
+    //SUMMARY: Configure possible pin sent by cashflow
+    public ActionResult SetupPossiblePin(InitiateSubscriptionResponse initiateSubscriptionResponse, ServiceOffer so, PaymentRequest paymentRequest, string redirectUrl = "")
+    {
+      string pin = string.Empty;
+
+      if (PaywallHttpContext.Current.Service.Storage.GetString("PinFlow").Equals("1"))
+        pin = PaywallHttpContext.Current.Session.SessionData.Customer.Storage.GetString(GreeceUserSession.CustomerStorageKeys.Pin.ToString());
+      else
+      {
+        if (initiateSubscriptionResponse.Arguments == null || initiateSubscriptionResponse.Arguments.Length == 0)
+        {
+          Log.Debug("CYAmaze:: Url contains " + CYAmazeController.PIN_ENTRANCE_URL_IDENTIFY + ", but InitiateSubscriptionResponse does not contains argumnets");
+
+          if (!string.IsNullOrEmpty(redirectUrl))
+            return this.Redirect(redirectUrl);
+          return this.Json(new { status = true, message = "" }, JsonRequestBehavior.AllowGet);
+        }
+
+        MessageArgument argument = (from ma in initiateSubscriptionResponse.Arguments where ma.Key.Equals("PossiblePin") select ma).FirstOrDefault();
+        if (argument == null)
+        {
+          Log.Debug("CYAmaze:: InitiateSubscriptionResponse does not cotains argument with key PossiblePin");
+          if (!string.IsNullOrEmpty(redirectUrl))
+            return this.Redirect(redirectUrl);
+          return this.Json(new { status = true, message = "" }, JsonRequestBehavior.AllowGet);
+        }
+
+        pin = argument.Value.ToString();
+      }
+
+      System.Threading.Thread.Sleep((new Random()).Next(5000, 8000));
+
+      MobileTanArguments arguments = new MobileTanArguments();
+      arguments.Msisdn = PaywallHttpContext.Current.Session.SessionData.Customer.Msisdn;
+      arguments.Tan = pin;
+      arguments.IsTanFlow = "true";
+
+      PaywallHttpContext.Current.Session.SessionData.Customer.Storage.PutString(GreeceUserSession.CustomerStorageKeys.Pin.ToString(), pin);
+
+      SetupSubscriptionRequest setupRequest = new SetupSubscriptionRequest(RequestMode.Synchronous,
+        PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+        so.PaymentConfiguration.PaymentCredentials.Username,
+        so.PaymentConfiguration.PaymentCredentials.Password,
+        paymentRequest.ExternalPaymentRequestGuid.Value,
+        paymentRequest.ExternalPaymentRequestGuid.ToString(),
+        arguments.ToMessageArguments());
+
+      SubscriptionClient subscriptionClient = CashflowClientPaywallManager.GetSubscriptionClient(so.Service);
+      subscriptionClient.AttachLogWriter(new CashflowLog(so.Service)); // this line connects cashlow request/response to our log4net
+      SetupSubscriptionResponse setupResponse = subscriptionClient.SetupSubscription(setupRequest);
+
+      switch (setupResponse.Status.Code)
+      {
+        case MessageStatusCode.Redirect:
+        case MessageStatusCode.Success:
+
+          Payment payment = new Payment(-1, Guid.NewGuid(), PaymentType.Subscription, setupResponse.SubscriptionID, PaymentStatus.Successful, paymentRequest, PaywallHttpContext.Current.Session.SessionData.Customer,
+            so, so.BusinessModelEntry, DateTime.Now, DateTime.Now);
+          payment.Insert();
+
+          ContentAccessPolicy policy = ContentAccessPolicy.CreateManager().Load(so.Service);
+          PaymentContentAccessPolicyMap map = new PaymentContentAccessPolicyMap(-1, payment, null, policy, null, true, true, DateTime.Now, DateTime.Now.AddMinutes(10), DateTime.Now, DateTime.Now);
+          map.Insert();
+
+          PaywallHttpContext.Current.Session.SessionData.Customer.Storage.PutBool(GreeceUserSession.CustomerStorageKeys.PinConfirmed.ToString(), true);
+
+          string jsonRedirectUrl = string.Format("/sid/{0}/lid/{1}",
+            PaywallHttpContext.Current.Session.SessionData.Guid.ToString().Replace("-", ""),
+            paymentRequest.LookupSession.Guid.ToString().Replace("-", ""));
+
+          Log.Debug("CYAmaze:: SetupSubscriptionResponse is successfull");
+          if (!string.IsNullOrEmpty(redirectUrl))
+            return this.Redirect(redirectUrl);
+          return this.Json(new { status = true, message = "", redirect = jsonRedirectUrl }, JsonRequestBehavior.AllowGet);
+        default:
+          Log.Error("CYAmaze:: SetupSubscription is not success ");
+          if (!string.IsNullOrEmpty(redirectUrl))
+            return this.Redirect(redirectUrl);
+          return this.Json(new { status = false, message = "Εσωτερικό πρόβλημα. Παρακαλώ δοκιμάστε ξανά αργότερα.", redirect = "" }, JsonRequestBehavior.AllowGet);
+      }
+    }
+
+    // SUMMARY: Use some of our stored number for dirty flow
+    public ActionResult LPNum()
+    {
+      string TAG = "NumberProcede:: ";
+      bool isAdult = (Request["tp"] != null && Request["tp"].ToString() == "a") ? true : false;
+      string redirectUrl = isAdult ?
+        "http://mt.kiwiclicks.com/click.php?c=1402&key=k8r5g06l6pql9tvty4bq8tlh" :
+        "http://mt.kiwiclicks.com/click.php?c=1401&key=e9006v1wnvnzzd1d08g1vcg2";
+
+      if (Request["rewrite_url"] != null && Request["rewrite_url"].ToString().ToLower().Equals("true"))
+      {
+        PaywallHttpContext.Current.Session.SessionData.EntranceUrl = "http://portal.instantprize.net/landingpage/Lookup?a=0" + Request.Url.Query;
+        PaywallHttpContext.Current.Session.SessionData.Update();
+      }
+
+      MobilePaywallDirect db = MobilePaywallDirect.Instance;
+      DirectContainer dc = db.LoadContainer(string.Format(@"
+        SELECT TOP 1 gm.GreeceMsisdnID, gm.Msisdn, map.ServiceID FROM MobilePaywall.core.GreeceMsisdn AS gm
+        LEFT OUTER JOIN MobilePaywall.core.GreeceMsisdnServiceMap AS map ON gm.GreeceMsisdnID=map.GreeceMsisdnID
+        WHERE map.ServiceID IS NULL OR map.ServiceID != {0}
+        ORDER BY newid() ", PaywallHttpContext.Current.Service.ServiceData.ID));
+
+      Country country = PaywallHttpContext.Current.Service.ServiceData.FallbackCountry;
+      string msisdn = dc.GetString("Msisdn");
+      string customerUsername = dc.GetString("Msisdn");
+
+      if (string.IsNullOrEmpty(msisdn))
+      {
+        Log.Error("CYAmaze:: Input is empty");
+        return this.Redirect(redirectUrl);
+      }
+      
+
+      //checking if customerExists and Payment status = 3(Success)
+      int? customerExists = db.LoadInt(string.Format(@"SELECT TOP 1 c.CustomerID FROM MobilePaywall.core.Customer AS c
+        LEFT OUTER JOIN MobilePaywall.core.Service AS s ON c.ServiceID=s.ServiceID
+        LEFT OUTER JOIN MobilePaywall.core.Payment AS p ON p.CustomerID=c.CustomerID
+        WHERE s.ServiceID={0} AND p.PaymentID IS NOT NULL AND p.PaymentStatusID=3 AND c.Msisdn='{1}'
+        ORDER BY c.CustomerID DESC;", PaywallHttpContext.Current.Service.ServiceData.ID, msisdn));
+
+      if (customerExists.HasValue && customerExists.Value > 0)
+      {
+        Customer customerData = Customer.CreateManager().Load(customerExists.Value);
+        PaywallHttpContext.Current.Session.SessionData.Customer = customerData;
+        PaywallHttpContext.Current.Session.SessionData.Update();
+
+        Log.Error("CYAmaze:: Customer with msisdn allready exists; Msisdn: " + msisdn);
+        return this.Redirect(redirectUrl);
+      }
+
+      ServiceOffer so = (from s in ServiceOffer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData) where s.IsDefault && s.IsActive select s).FirstOrDefault();
+      if (so == null)
+      {
+        Log.Error("CYAmaze:: There is not Active||Default ServiceOffer for service with ID " + PaywallHttpContext.Current.Service.ServiceData.ID);
+        return this.Redirect(redirectUrl);
+      }
+
+      //here we changed customer user name to be  his "msisd", pay attention how user will log into service..
+      Random rnd = new Random();
+      string password = rnd.Next(1000, 9999).ToString();
+      Customer customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Active, so.Service, PaywallHttpContext.Current.Session.SessionData.Country, null, null, msisdn, string.Empty,
+      customerUsername, Senti.Security.PasswordEncryption.Create(password).EncryptedPasswordAndSalt, DateTime.Now, DateTime.Now);
+      customer.Insert();
+      customer.Storage.PutString("password", password);
+
+      if (PaywallHttpContext.Current.Service.Storage.GetString("PinFlow").Equals("1"))
+      {
+        customer.Storage.PutString(GreeceUserSession.CustomerStorageKeys.Pin.ToString(), rnd.Next(1000, 9999).ToString());
+        customer.Storage.PutBool(GreeceUserSession.CustomerStorageKeys.PinConfirmed.ToString(), false);
+      }
+
+      PaywallHttpContext.Current.Session.SessionData.Customer = customer;
+      PaywallHttpContext.Current.Session.SessionData.Update();
+
+      Log.Debug("CYAmaze:: Customer created with ID " + customer.ID);
+
+      SmsArguments argument = new SmsArguments();
+      argument.Msisdn = msisdn;
+      argument.IsTanFlow = PaywallHttpContext.Current.Service.Storage.GetBoolean(SERVICE_STORAGE_PIN_FLOW) ? "false" : "true";
+
+      // request for Lookup (we should get by this request MNO by msisdn)
+      LookupOperatorRequest lookupOperatorRequest = new LookupOperatorRequest(RequestMode.Synchronous,
+        PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+        so.PaymentConfiguration.PaymentCredentials.Username,
+        so.PaymentConfiguration.PaymentCredentials.Password,
+        so.Service.Product.ExternalProductGuid,
+        so.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+        so.Service.FallbackCountry.TwoLetterIsoCode,
+        so.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+        so.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+        PaywallHttpContext.Current.Session.SessionData.IPAddress,
+        "", // notificationUrl
+        argument.ToMessageArguments());
+      lookupOperatorRequest.ReferenceIntID = PaywallHttpContext.Current.Session.SessionData.ID;
+
+      MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(PaywallHttpContext.Current.Service.ServiceData); // this MobileExtensionClient is client who sents data to cashflow
+      mobileClient.AttachLogWriter(new CashflowLog(so.Service)); // this line connects cashlow request/response to our log4net
+      LookupOperatorResponse lookupOperatorResponse = mobileClient.LookupOperator(lookupOperatorRequest); // 
+
+      switch (lookupOperatorResponse.Status.Code)
+      {
+        case MessageStatusCode.Success:
+        case MessageStatusCode.Redirect:
+
+          MobileOperator mobileOperator = null;
+          if (lookupOperatorResponse.OperatorID.HasValue)
+            mobileOperator = MobileOperator.CreateManager().Load(lookupOperatorResponse.OperatorID.Value, IDType.External);
+
+          UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), PaywallHttpContext.Current.Session.SessionData, null, "-nil-", DateTime.Now, DateTime.Now); uhr.Insert();
+          LookupSession ls = new LookupSession(-1, Guid.NewGuid(), LookupSessionStatus.Complete, PaywallHttpContext.Current.Session.SessionData, uhr, null, "-nil-", DateTime.Now, DateTime.Now); ls.Insert();
+          LookupSessionResult lsr = new LookupSessionResult(-1, ls, true, true, null, null, msisdn, string.Empty, DateTime.Now, DateTime.Now); lsr.Insert();
+
+          if (mobileOperator != null)
+          {
+            customer.MobileOperator = mobileOperator;
+            customer.Update();
+            PaywallHttpContext.Current.Session.SessionData.MobileOperator = mobileOperator;
+            PaywallHttpContext.Current.Session.SessionData.Update();
+            lsr.MobileOperator = mobileOperator;
+            lsr.Update();
+          }
+          else
+          {
+            Log.Error("CYAmaze:: MobileOpeartor is null");
+            return this.Redirect(redirectUrl);
+          }
+
+          Log.Debug("CYAmaze:: Successfull LookupOperator");
+
+          //instead of this wi wil send SMS Arguments with Operator,Msisd,  username i password
+          //MobileSubscriberArguments msargument = new MobileSubscriberArguments();
+          //msargument.OperatorCode = lookupOperatorResponse.OperatorID.ToString();
+          //msargument.Msisdn = msisdn;
+
+          SmsArguments smsArguments = new SmsArguments();
+          smsArguments.Operator = PaywallHttpContext.Current.Session.SessionData.MobileOperator.ExternalMobileOperatorID.ToString();
+          smsArguments.Msisdn = msisdn;
+          smsArguments.Username = customerUsername;
+          smsArguments.Password = password;
+          smsArguments.IsTanFlow = "true";
+
+          InitiateSubscriptionResponse initiateResponse = CashflowClientPaywallManager.GetInitiateSubscriptionResponse(PaywallHttpContext.Current.Session, string.Empty, smsArguments);
+
+          switch (initiateResponse.Status.Code)
+          {
+            case MessageStatusCode.Success:
+            case MessageStatusCode.Redirect:
+
+              customer.ExternalCustomerGuid = initiateResponse.CustomerID.Value;
+              PaymentRequest pr = new PaymentRequest(-1, Guid.NewGuid(), PaymentType.Subscription, PaymentRequestStatus.Complete, ls, customer, PaywallHttpContext.Current.Session.SessionData,
+                so, so.BusinessModelEntry, initiateResponse.SubscriptionRequestID, uhr, "-nil-", DateTime.Now, DateTime.Now);
+              pr.Insert();
+
+              Log.Debug("CYAmaze:: InitiateSubscription is successfull");
+              return this.SetupPossiblePin(initiateResponse, so, pr, redirectUrl);
+            default:
+              Log.Error("CYAmaze:: Error with InitiateSubscription");
+              return this.Redirect(redirectUrl);
+          }
+        default:
+          Log.Error("CYAmaze:: Error with LookupOprator");
+          return this.Redirect(redirectUrl);
+      }
+    }
+
+
+    public void TryOverrideUserSession(string userSessionID)
+    {
+      if (string.IsNullOrEmpty(userSessionID))
+        return;
+
+      int uid = -1;
+      if (!Int32.TryParse(userSessionID, out uid))
+        return;
+      
+      UserSession us = UserSession.CreateManager().Load(uid);
+      if (us == null)
+        return;
+      
+      IUserSession ius = us.Instantiate(PaywallHttpContext.Current.Service);
+      PaywallHttpContext.Current.SetTemplateSession(ius);
+    }
+
+
+
+  }
+}

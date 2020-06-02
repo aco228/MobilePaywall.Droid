@@ -1,0 +1,431 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ApplicationContentData))] 
+  public partial class ApplicationContentDataManager : MobilePaywall.Data.Sql.SqlManagerBase<ApplicationContentData>, IApplicationContentDataManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ApplicationContentData LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ApplicationContentDataTable.GetColumnNames("[acd]") + 
+							(this.Depth > 0 ? "," + ApplicationContentTable.GetColumnNames("[acd_ac]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[acd_ac_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + VendorTable.GetColumnNames("[acd_ac_v]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MimeTypeTable.GetColumnNames("[acd_mt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + VersionTable.GetColumnNames("[acd_v]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PlatformTable.GetColumnNames("[acd_v_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ArchitectureTypeTable.GetColumnNames("[acd_v_at]") : string.Empty) + 
+					" FROM [core].[ApplicationContentData] AS [acd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ApplicationContent] AS [acd_ac] ON [acd].[ApplicationContentID] = [acd_ac].[ApplicationContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [acd_ac_c] ON [acd_ac].[ContentID] = [acd_ac_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Vendor] AS [acd_ac_v] ON [acd_ac].[VendorID] = [acd_ac_v].[VendorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[MimeType] AS [acd_mt] ON [acd].[MimeTypeID] = [acd_mt].[MimeTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Version] AS [acd_v] ON [acd].[VersionID] = [acd_v].[VersionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Platform] AS [acd_v_p] ON [acd_v].[PlatformID] = [acd_v_p].[PlatformID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ArchitectureType] AS [acd_v_at] ON [acd_v].[ArchitectureTypeID] = [acd_v_at].[ArchitectureTypeID] ";
+				sqlCmdText += "WHERE [acd].[ApplicationContentDataID] = @ApplicationContentDataID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ApplicationContentDataID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "loadinternal", "notfound"), "ApplicationContentData could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ApplicationContentDataTable acdTable = new ApplicationContentDataTable(query);
+				ApplicationContentTable acd_acTable = (this.Depth > 0) ? new ApplicationContentTable(query) : null;
+				ContentTable acd_ac_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				VendorTable acd_ac_vTable = (this.Depth > 1) ? new VendorTable(query) : null;
+				MimeTypeTable acd_mtTable = (this.Depth > 0) ? new MimeTypeTable(query) : null;
+				VersionTable acd_vTable = (this.Depth > 0) ? new VersionTable(query) : null;
+				PlatformTable acd_v_pTable = (this.Depth > 1) ? new PlatformTable(query) : null;
+				ArchitectureTypeTable acd_v_atTable = (this.Depth > 1) ? new ArchitectureTypeTable(query) : null;
+
+        
+				Content acd_ac_cObject = (this.Depth > 1) ? acd_ac_cTable.CreateInstance() : null;
+				Vendor acd_ac_vObject = (this.Depth > 1) ? acd_ac_vTable.CreateInstance() : null;
+				ApplicationContent acd_acObject = (this.Depth > 0) ? acd_acTable.CreateInstance(acd_ac_cObject, acd_ac_vObject) : null;
+				MimeType acd_mtObject = (this.Depth > 0) ? acd_mtTable.CreateInstance() : null;
+				Platform acd_v_pObject = (this.Depth > 1) ? acd_v_pTable.CreateInstance() : null;
+				ArchitectureType acd_v_atObject = (this.Depth > 1) ? acd_v_atTable.CreateInstance() : null;
+				Version acd_vObject = (this.Depth > 0) ? acd_vTable.CreateInstance(acd_v_pObject, acd_v_atObject) : null;
+				ApplicationContentData acdObject = acdTable.CreateInstance(acd_acObject, acd_mtObject, acd_vObject);
+				sqlReader.Close();
+
+				return acdObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "loadinternal", "exception"), "ApplicationContentData could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ApplicationContentData", "Exception while loading ApplicationContentData object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ApplicationContentData Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ApplicationContentDataTable.GetColumnNames("[acd]") + 
+							(this.Depth > 0 ? "," + ApplicationContentTable.GetColumnNames("[acd_ac]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[acd_ac_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + VendorTable.GetColumnNames("[acd_ac_v]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MimeTypeTable.GetColumnNames("[acd_mt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + VersionTable.GetColumnNames("[acd_v]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PlatformTable.GetColumnNames("[acd_v_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ArchitectureTypeTable.GetColumnNames("[acd_v_at]") : string.Empty) +  
+					" FROM [core].[ApplicationContentData] AS [acd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ApplicationContent] AS [acd_ac] ON [acd].[ApplicationContentID] = [acd_ac].[ApplicationContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [acd_ac_c] ON [acd_ac].[ContentID] = [acd_ac_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Vendor] AS [acd_ac_v] ON [acd_ac].[VendorID] = [acd_ac_v].[VendorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[MimeType] AS [acd_mt] ON [acd].[MimeTypeID] = [acd_mt].[MimeTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Version] AS [acd_v] ON [acd].[VersionID] = [acd_v].[VersionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Platform] AS [acd_v_p] ON [acd_v].[PlatformID] = [acd_v_p].[PlatformID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ArchitectureType] AS [acd_v_at] ON [acd_v].[ArchitectureTypeID] = [acd_v_at].[ArchitectureTypeID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "customload", "notfound"), "ApplicationContentData could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ApplicationContentDataTable acdTable = new ApplicationContentDataTable(query);
+				ApplicationContentTable acd_acTable = (this.Depth > 0) ? new ApplicationContentTable(query) : null;
+				ContentTable acd_ac_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				VendorTable acd_ac_vTable = (this.Depth > 1) ? new VendorTable(query) : null;
+				MimeTypeTable acd_mtTable = (this.Depth > 0) ? new MimeTypeTable(query) : null;
+				VersionTable acd_vTable = (this.Depth > 0) ? new VersionTable(query) : null;
+				PlatformTable acd_v_pTable = (this.Depth > 1) ? new PlatformTable(query) : null;
+				ArchitectureTypeTable acd_v_atTable = (this.Depth > 1) ? new ArchitectureTypeTable(query) : null;
+
+        
+				Content acd_ac_cObject = (this.Depth > 1) ? acd_ac_cTable.CreateInstance() : null;
+				Vendor acd_ac_vObject = (this.Depth > 1) ? acd_ac_vTable.CreateInstance() : null;
+				ApplicationContent acd_acObject = (this.Depth > 0) ? acd_acTable.CreateInstance(acd_ac_cObject, acd_ac_vObject) : null;
+				MimeType acd_mtObject = (this.Depth > 0) ? acd_mtTable.CreateInstance() : null;
+				Platform acd_v_pObject = (this.Depth > 1) ? acd_v_pTable.CreateInstance() : null;
+				ArchitectureType acd_v_atObject = (this.Depth > 1) ? acd_v_atTable.CreateInstance() : null;
+				Version acd_vObject = (this.Depth > 0) ? acd_vTable.CreateInstance(acd_v_pObject, acd_v_atObject) : null;
+				ApplicationContentData acdObject = acdTable.CreateInstance(acd_acObject, acd_mtObject, acd_vObject);
+				sqlReader.Close();
+
+				return acdObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "customload", "exception"), "ApplicationContentData could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ApplicationContentData", "Exception while loading (custom/single) ApplicationContentData object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ApplicationContentData> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ApplicationContentDataTable.GetColumnNames("[acd]") + 
+							(this.Depth > 0 ? "," + ApplicationContentTable.GetColumnNames("[acd_ac]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[acd_ac_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + VendorTable.GetColumnNames("[acd_ac_v]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MimeTypeTable.GetColumnNames("[acd_mt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + VersionTable.GetColumnNames("[acd_v]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PlatformTable.GetColumnNames("[acd_v_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ArchitectureTypeTable.GetColumnNames("[acd_v_at]") : string.Empty) +  
+					" FROM [core].[ApplicationContentData] AS [acd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ApplicationContent] AS [acd_ac] ON [acd].[ApplicationContentID] = [acd_ac].[ApplicationContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [acd_ac_c] ON [acd_ac].[ContentID] = [acd_ac_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Vendor] AS [acd_ac_v] ON [acd_ac].[VendorID] = [acd_ac_v].[VendorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[MimeType] AS [acd_mt] ON [acd].[MimeTypeID] = [acd_mt].[MimeTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Version] AS [acd_v] ON [acd].[VersionID] = [acd_v].[VersionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Platform] AS [acd_v_p] ON [acd_v].[PlatformID] = [acd_v_p].[PlatformID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ArchitectureType] AS [acd_v_at] ON [acd_v].[ArchitectureTypeID] = [acd_v_at].[ArchitectureTypeID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "customloadmany", "notfound"), "ApplicationContentData list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ApplicationContentData>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ApplicationContentDataTable acdTable = new ApplicationContentDataTable(query);
+				ApplicationContentTable acd_acTable = (this.Depth > 0) ? new ApplicationContentTable(query) : null;
+				ContentTable acd_ac_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				VendorTable acd_ac_vTable = (this.Depth > 1) ? new VendorTable(query) : null;
+				MimeTypeTable acd_mtTable = (this.Depth > 0) ? new MimeTypeTable(query) : null;
+				VersionTable acd_vTable = (this.Depth > 0) ? new VersionTable(query) : null;
+				PlatformTable acd_v_pTable = (this.Depth > 1) ? new PlatformTable(query) : null;
+				ArchitectureTypeTable acd_v_atTable = (this.Depth > 1) ? new ArchitectureTypeTable(query) : null;
+
+        List<ApplicationContentData> result = new List<ApplicationContentData>();
+        do
+        {
+          
+					Content acd_ac_cObject = (this.Depth > 1) ? acd_ac_cTable.CreateInstance() : null;
+					Vendor acd_ac_vObject = (this.Depth > 1) ? acd_ac_vTable.CreateInstance() : null;
+					ApplicationContent acd_acObject = (this.Depth > 0) ? acd_acTable.CreateInstance(acd_ac_cObject, acd_ac_vObject) : null;
+					MimeType acd_mtObject = (this.Depth > 0) ? acd_mtTable.CreateInstance() : null;
+					Platform acd_v_pObject = (this.Depth > 1) ? acd_v_pTable.CreateInstance() : null;
+					ArchitectureType acd_v_atObject = (this.Depth > 1) ? acd_v_atTable.CreateInstance() : null;
+					Version acd_vObject = (this.Depth > 0) ? acd_vTable.CreateInstance(acd_v_pObject, acd_v_atObject) : null;
+					ApplicationContentData acdObject = (this.Depth > -1) ? acdTable.CreateInstance(acd_acObject, acd_mtObject, acd_vObject) : null;
+					result.Add(acdObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "customloadmany", "exception"), "ApplicationContentData list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ApplicationContentData", "Exception while loading (custom/many) ApplicationContentData object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ApplicationContentData data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ApplicationContentData] ([ApplicationContentID],[ApplicationContentDataStatusID],[MimeTypeID],[VersionID],[Build],[Size],[Data],[IsDemo]) VALUES(@ApplicationContentID,@ApplicationContentDataStatusID,@MimeTypeID,@VersionID,@Build,@Size,@Data,@IsDemo); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ApplicationContentID", data.ApplicationContent.ID);
+				sqlCmd.Parameters.AddWithValue("@ApplicationContentDataStatusID", (int)data.ApplicationContentDataStatus);
+				sqlCmd.Parameters.AddWithValue("@MimeTypeID", data.MimeType.ID);
+				sqlCmd.Parameters.AddWithValue("@VersionID", data.Version.ID);
+				sqlCmd.Parameters.AddWithValue("@Build", !string.IsNullOrEmpty(data.Build) ? (object)data.Build : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Size", data.Size).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Data", data.Data).SqlDbType = SqlDbType.VarBinary;
+				sqlCmd.Parameters.AddWithValue("@IsDemo", data.IsDemo).SqlDbType = SqlDbType.Bit;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "insert", "noprimarykey"), "ApplicationContentData could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ApplicationContentData", "Exception while inserting ApplicationContentData object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "insert", "exception"), "ApplicationContentData could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ApplicationContentData", "Exception while inserting ApplicationContentData object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ApplicationContentData data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ApplicationContentData] SET " +
+												"[ApplicationContentID] = @ApplicationContentID, " + 
+												"[ApplicationContentDataStatusID] = @ApplicationContentDataStatusID, " + 
+												"[MimeTypeID] = @MimeTypeID, " + 
+												"[VersionID] = @VersionID, " + 
+												"[Build] = @Build, " + 
+												"[Size] = @Size, " + 
+												"[Data] = @Data, " + 
+												"[IsDemo] = @IsDemo, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ApplicationContentDataID] = @ApplicationContentDataID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ApplicationContentID", data.ApplicationContent.ID);
+				sqlCmd.Parameters.AddWithValue("@ApplicationContentDataStatusID", (int)data.ApplicationContentDataStatus);
+				sqlCmd.Parameters.AddWithValue("@MimeTypeID", data.MimeType.ID);
+				sqlCmd.Parameters.AddWithValue("@VersionID", data.Version.ID);
+				sqlCmd.Parameters.AddWithValue("@Build", !string.IsNullOrEmpty(data.Build) ? (object)data.Build : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Size", data.Size).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Data", data.Data).SqlDbType = SqlDbType.VarBinary;
+				sqlCmd.Parameters.AddWithValue("@IsDemo", data.IsDemo).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ApplicationContentDataID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "update", "norecord"), "ApplicationContentData could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ApplicationContentData", "Exception while updating ApplicationContentData object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "update", "morerecords"), "ApplicationContentData was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ApplicationContentData", "Exception while updating ApplicationContentData object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "update", "exception"), "ApplicationContentData could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ApplicationContentData", "Exception while updating ApplicationContentData object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ApplicationContentData data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ApplicationContentData] WHERE ApplicationContentDataID = @ApplicationContentDataID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ApplicationContentDataID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "delete", "norecord"), "ApplicationContentData could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ApplicationContentData", "Exception while deleting ApplicationContentData object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("acd", "delete", "exception"), "ApplicationContentData could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ApplicationContentData", "Exception while deleting ApplicationContentData object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

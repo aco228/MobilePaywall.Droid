@@ -1,0 +1,545 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ConversionReport))] 
+  public partial class ConversionReportManager : MobilePaywall.Data.Sql.SqlManagerBase<ConversionReport>, IConversionReportManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ConversionReport LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ConversionReportTable.GetColumnNames("[cr]") + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[cr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[cr_us_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[cr_us_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + DomainTable.GetColumnNames("[cr_us_d]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[cr_us_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[cr_us_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[cr_us_mo]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentTable.GetColumnNames("[cr_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentRequestTable.GetColumnNames("[cr_p_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[cr_p_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[cr_p_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[cr_p_bme]") : string.Empty) + 
+							(this.Depth > 0 ? "," + TransactionTable.GetColumnNames("[cr_t]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentTable.GetColumnNames("[cr_t_p]") : string.Empty) + 
+					" FROM [trck].[ConversionReport] AS [cr] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [cr_us] ON [cr].[UserSessionID] = [cr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [cr_us_ust] ON [cr_us].[UserSessionTypeID] = [cr_us_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [cr_us_s] ON [cr_us].[ServiceID] = [cr_us_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Domain] AS [cr_us_d] ON [cr_us].[DomainID] = [cr_us_d].[DomainID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [cr_us_c] ON [cr_us].[CustomerID] = [cr_us_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c1] ON [cr_us].[CountryID] = [c1].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [cr_us_l] ON [cr_us].[LanguageID] = [cr_us_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [cr_us_mo] ON [cr_us].[MobileOperatorID] = [cr_us_mo].[MobileOperatorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Payment] AS [cr_p] ON [cr].[PaymentID] = [cr_p].[PaymentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [cr_p_pr] ON [cr_p].[PaymentRequestID] = [cr_p_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [cr_p_c] ON [cr_p].[CustomerID] = [cr_p_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [cr_p_so] ON [cr_p].[ServiceOfferID] = [cr_p_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [cr_p_bme] ON [cr_p].[BusinessModelEntryID] = [cr_p_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Transaction] AS [cr_t] ON [cr].[TransactionID] = [cr_t].[TransactionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Payment] AS [cr_t_p] ON [cr_t].[PaymentID] = [cr_t_p].[PaymentID] ";
+				sqlCmdText += "WHERE [cr].[ConversionReportID] = @ConversionReportID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ConversionReportID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cr", "loadinternal", "notfound"), "ConversionReport could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ConversionReportTable crTable = new ConversionReportTable(query);
+				UserSessionTable cr_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+				UserSessionTypeTable cr_us_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				ServiceTable cr_us_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				DomainTable cr_us_dTable = (this.Depth > 1) ? new DomainTable(query) : null;
+				CustomerTable cr_us_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				CountryTable c1Table = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable cr_us_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				MobileOperatorTable cr_us_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				PaymentTable cr_pTable = (this.Depth > 0) ? new PaymentTable(query) : null;
+				PaymentRequestTable cr_p_prTable = (this.Depth > 1) ? new PaymentRequestTable(query) : null;
+				CustomerTable cr_p_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				ServiceOfferTable cr_p_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable cr_p_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				TransactionTable cr_tTable = (this.Depth > 0) ? new TransactionTable(query) : null;
+				PaymentTable cr_t_pTable = (this.Depth > 1) ? new PaymentTable(query) : null;
+
+        
+				UserSessionType cr_us_ustObject = (this.Depth > 1) ? cr_us_ustTable.CreateInstance() : null;
+				Service cr_us_sObject = (this.Depth > 1) ? cr_us_sTable.CreateInstance() : null;
+				Domain cr_us_dObject = (this.Depth > 1) ? cr_us_dTable.CreateInstance() : null;
+				Customer cr_us_cObject = (this.Depth > 1) ? cr_us_cTable.CreateInstance() : null;
+				Country c1Object = (this.Depth > 1) ? c1Table.CreateInstance() : null;
+				Language cr_us_lObject = (this.Depth > 1) ? cr_us_lTable.CreateInstance() : null;
+				MobileOperator cr_us_moObject = (this.Depth > 1) ? cr_us_moTable.CreateInstance() : null;
+				UserSession cr_usObject = (this.Depth > 0) ? cr_usTable.CreateInstance(cr_us_ustObject, cr_us_sObject, cr_us_dObject, cr_us_cObject, c1Object, cr_us_lObject, cr_us_moObject) : null;
+				PaymentRequest cr_p_prObject = (this.Depth > 1) ? cr_p_prTable.CreateInstance() : null;
+				Customer cr_p_cObject = (this.Depth > 1) ? cr_p_cTable.CreateInstance() : null;
+				ServiceOffer cr_p_soObject = (this.Depth > 1) ? cr_p_soTable.CreateInstance() : null;
+				BusinessModelEntry cr_p_bmeObject = (this.Depth > 1) ? cr_p_bmeTable.CreateInstance() : null;
+				Payment cr_pObject = (this.Depth > 0) ? cr_pTable.CreateInstance(cr_p_prObject, cr_p_cObject, cr_p_soObject, cr_p_bmeObject) : null;
+				Payment cr_t_pObject = (this.Depth > 1) ? cr_t_pTable.CreateInstance() : null;
+				Transaction cr_tObject = (this.Depth > 0) ? cr_tTable.CreateInstance(cr_t_pObject) : null;
+				ConversionReport crObject = crTable.CreateInstance(cr_usObject, cr_pObject, cr_tObject);
+				sqlReader.Close();
+
+				return crObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cr", "loadinternal", "exception"), "ConversionReport could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ConversionReport", "Exception while loading ConversionReport object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ConversionReport Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ConversionReportTable.GetColumnNames("[cr]") + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[cr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[cr_us_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[cr_us_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + DomainTable.GetColumnNames("[cr_us_d]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[cr_us_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[cr_us_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[cr_us_mo]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentTable.GetColumnNames("[cr_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentRequestTable.GetColumnNames("[cr_p_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[cr_p_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[cr_p_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[cr_p_bme]") : string.Empty) + 
+							(this.Depth > 0 ? "," + TransactionTable.GetColumnNames("[cr_t]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentTable.GetColumnNames("[cr_t_p]") : string.Empty) +  
+					" FROM [trck].[ConversionReport] AS [cr] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [cr_us] ON [cr].[UserSessionID] = [cr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [cr_us_ust] ON [cr_us].[UserSessionTypeID] = [cr_us_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [cr_us_s] ON [cr_us].[ServiceID] = [cr_us_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Domain] AS [cr_us_d] ON [cr_us].[DomainID] = [cr_us_d].[DomainID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [cr_us_c] ON [cr_us].[CustomerID] = [cr_us_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c1] ON [cr_us].[CountryID] = [c1].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [cr_us_l] ON [cr_us].[LanguageID] = [cr_us_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [cr_us_mo] ON [cr_us].[MobileOperatorID] = [cr_us_mo].[MobileOperatorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Payment] AS [cr_p] ON [cr].[PaymentID] = [cr_p].[PaymentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [cr_p_pr] ON [cr_p].[PaymentRequestID] = [cr_p_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [cr_p_c] ON [cr_p].[CustomerID] = [cr_p_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [cr_p_so] ON [cr_p].[ServiceOfferID] = [cr_p_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [cr_p_bme] ON [cr_p].[BusinessModelEntryID] = [cr_p_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Transaction] AS [cr_t] ON [cr].[TransactionID] = [cr_t].[TransactionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Payment] AS [cr_t_p] ON [cr_t].[PaymentID] = [cr_t_p].[PaymentID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cr", "customload", "notfound"), "ConversionReport could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ConversionReportTable crTable = new ConversionReportTable(query);
+				UserSessionTable cr_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+				UserSessionTypeTable cr_us_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				ServiceTable cr_us_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				DomainTable cr_us_dTable = (this.Depth > 1) ? new DomainTable(query) : null;
+				CustomerTable cr_us_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				CountryTable c1Table = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable cr_us_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				MobileOperatorTable cr_us_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				PaymentTable cr_pTable = (this.Depth > 0) ? new PaymentTable(query) : null;
+				PaymentRequestTable cr_p_prTable = (this.Depth > 1) ? new PaymentRequestTable(query) : null;
+				CustomerTable cr_p_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				ServiceOfferTable cr_p_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable cr_p_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				TransactionTable cr_tTable = (this.Depth > 0) ? new TransactionTable(query) : null;
+				PaymentTable cr_t_pTable = (this.Depth > 1) ? new PaymentTable(query) : null;
+
+        
+				UserSessionType cr_us_ustObject = (this.Depth > 1) ? cr_us_ustTable.CreateInstance() : null;
+				Service cr_us_sObject = (this.Depth > 1) ? cr_us_sTable.CreateInstance() : null;
+				Domain cr_us_dObject = (this.Depth > 1) ? cr_us_dTable.CreateInstance() : null;
+				Customer cr_us_cObject = (this.Depth > 1) ? cr_us_cTable.CreateInstance() : null;
+				Country c1Object = (this.Depth > 1) ? c1Table.CreateInstance() : null;
+				Language cr_us_lObject = (this.Depth > 1) ? cr_us_lTable.CreateInstance() : null;
+				MobileOperator cr_us_moObject = (this.Depth > 1) ? cr_us_moTable.CreateInstance() : null;
+				UserSession cr_usObject = (this.Depth > 0) ? cr_usTable.CreateInstance(cr_us_ustObject, cr_us_sObject, cr_us_dObject, cr_us_cObject, c1Object, cr_us_lObject, cr_us_moObject) : null;
+				PaymentRequest cr_p_prObject = (this.Depth > 1) ? cr_p_prTable.CreateInstance() : null;
+				Customer cr_p_cObject = (this.Depth > 1) ? cr_p_cTable.CreateInstance() : null;
+				ServiceOffer cr_p_soObject = (this.Depth > 1) ? cr_p_soTable.CreateInstance() : null;
+				BusinessModelEntry cr_p_bmeObject = (this.Depth > 1) ? cr_p_bmeTable.CreateInstance() : null;
+				Payment cr_pObject = (this.Depth > 0) ? cr_pTable.CreateInstance(cr_p_prObject, cr_p_cObject, cr_p_soObject, cr_p_bmeObject) : null;
+				Payment cr_t_pObject = (this.Depth > 1) ? cr_t_pTable.CreateInstance() : null;
+				Transaction cr_tObject = (this.Depth > 0) ? cr_tTable.CreateInstance(cr_t_pObject) : null;
+				ConversionReport crObject = crTable.CreateInstance(cr_usObject, cr_pObject, cr_tObject);
+				sqlReader.Close();
+
+				return crObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cr", "customload", "exception"), "ConversionReport could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ConversionReport", "Exception while loading (custom/single) ConversionReport object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ConversionReport> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ConversionReportTable.GetColumnNames("[cr]") + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[cr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[cr_us_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[cr_us_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + DomainTable.GetColumnNames("[cr_us_d]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[cr_us_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[cr_us_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[cr_us_mo]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentTable.GetColumnNames("[cr_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentRequestTable.GetColumnNames("[cr_p_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[cr_p_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[cr_p_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[cr_p_bme]") : string.Empty) + 
+							(this.Depth > 0 ? "," + TransactionTable.GetColumnNames("[cr_t]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentTable.GetColumnNames("[cr_t_p]") : string.Empty) +  
+					" FROM [trck].[ConversionReport] AS [cr] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [cr_us] ON [cr].[UserSessionID] = [cr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [cr_us_ust] ON [cr_us].[UserSessionTypeID] = [cr_us_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [cr_us_s] ON [cr_us].[ServiceID] = [cr_us_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Domain] AS [cr_us_d] ON [cr_us].[DomainID] = [cr_us_d].[DomainID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [cr_us_c] ON [cr_us].[CustomerID] = [cr_us_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c1] ON [cr_us].[CountryID] = [c1].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [cr_us_l] ON [cr_us].[LanguageID] = [cr_us_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [cr_us_mo] ON [cr_us].[MobileOperatorID] = [cr_us_mo].[MobileOperatorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Payment] AS [cr_p] ON [cr].[PaymentID] = [cr_p].[PaymentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [cr_p_pr] ON [cr_p].[PaymentRequestID] = [cr_p_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [cr_p_c] ON [cr_p].[CustomerID] = [cr_p_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [cr_p_so] ON [cr_p].[ServiceOfferID] = [cr_p_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [cr_p_bme] ON [cr_p].[BusinessModelEntryID] = [cr_p_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Transaction] AS [cr_t] ON [cr].[TransactionID] = [cr_t].[TransactionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Payment] AS [cr_t_p] ON [cr_t].[PaymentID] = [cr_t_p].[PaymentID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cr", "customloadmany", "notfound"), "ConversionReport list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ConversionReport>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ConversionReportTable crTable = new ConversionReportTable(query);
+				UserSessionTable cr_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+				UserSessionTypeTable cr_us_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				ServiceTable cr_us_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				DomainTable cr_us_dTable = (this.Depth > 1) ? new DomainTable(query) : null;
+				CustomerTable cr_us_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				CountryTable c1Table = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable cr_us_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				MobileOperatorTable cr_us_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				PaymentTable cr_pTable = (this.Depth > 0) ? new PaymentTable(query) : null;
+				PaymentRequestTable cr_p_prTable = (this.Depth > 1) ? new PaymentRequestTable(query) : null;
+				CustomerTable cr_p_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				ServiceOfferTable cr_p_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable cr_p_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				TransactionTable cr_tTable = (this.Depth > 0) ? new TransactionTable(query) : null;
+				PaymentTable cr_t_pTable = (this.Depth > 1) ? new PaymentTable(query) : null;
+
+        List<ConversionReport> result = new List<ConversionReport>();
+        do
+        {
+          
+					UserSessionType cr_us_ustObject = (this.Depth > 1) ? cr_us_ustTable.CreateInstance() : null;
+					Service cr_us_sObject = (this.Depth > 1) ? cr_us_sTable.CreateInstance() : null;
+					Domain cr_us_dObject = (this.Depth > 1) ? cr_us_dTable.CreateInstance() : null;
+					Customer cr_us_cObject = (this.Depth > 1) ? cr_us_cTable.CreateInstance() : null;
+					Country c1Object = (this.Depth > 1) ? c1Table.CreateInstance() : null;
+					Language cr_us_lObject = (this.Depth > 1) ? cr_us_lTable.CreateInstance() : null;
+					MobileOperator cr_us_moObject = (this.Depth > 1) ? cr_us_moTable.CreateInstance() : null;
+					UserSession cr_usObject = (this.Depth > 0) ? cr_usTable.CreateInstance(cr_us_ustObject, cr_us_sObject, cr_us_dObject, cr_us_cObject, c1Object, cr_us_lObject, cr_us_moObject) : null;
+					PaymentRequest cr_p_prObject = (this.Depth > 1) ? cr_p_prTable.CreateInstance() : null;
+					Customer cr_p_cObject = (this.Depth > 1) ? cr_p_cTable.CreateInstance() : null;
+					ServiceOffer cr_p_soObject = (this.Depth > 1) ? cr_p_soTable.CreateInstance() : null;
+					BusinessModelEntry cr_p_bmeObject = (this.Depth > 1) ? cr_p_bmeTable.CreateInstance() : null;
+					Payment cr_pObject = (this.Depth > 0) ? cr_pTable.CreateInstance(cr_p_prObject, cr_p_cObject, cr_p_soObject, cr_p_bmeObject) : null;
+					Payment cr_t_pObject = (this.Depth > 1) ? cr_t_pTable.CreateInstance() : null;
+					Transaction cr_tObject = (this.Depth > 0) ? cr_tTable.CreateInstance(cr_t_pObject) : null;
+					ConversionReport crObject = (this.Depth > -1) ? crTable.CreateInstance(cr_usObject, cr_pObject, cr_tObject) : null;
+					result.Add(crObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cr", "customloadmany", "exception"), "ConversionReport list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ConversionReport", "Exception while loading (custom/many) ConversionReport object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ConversionReport data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [trck].[ConversionReport] ([UserSessionID],[PaymentID],[TransactionID],[ConversionProviderID],[ConversionActionID],[ConversionReportStatusID]) VALUES(@UserSessionID,@PaymentID,@TransactionID,@ConversionProviderID,@ConversionActionID,@ConversionReportStatusID); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@UserSessionID", data.UserSession.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentID", data.Payment.ID);
+				sqlCmd.Parameters.AddWithValue("@TransactionID", data.Transaction.ID);
+				sqlCmd.Parameters.AddWithValue("@ConversionProviderID", (int)data.ConversionProvider);
+				sqlCmd.Parameters.AddWithValue("@ConversionActionID", (int)data.ConversionAction);
+				sqlCmd.Parameters.AddWithValue("@ConversionReportStatusID", (int)data.ConversionReportStatus);
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cr", "insert", "noprimarykey"), "ConversionReport could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ConversionReport", "Exception while inserting ConversionReport object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cr", "insert", "exception"), "ConversionReport could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ConversionReport", "Exception while inserting ConversionReport object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ConversionReport data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [trck].[ConversionReport] SET " +
+												"[UserSessionID] = @UserSessionID, " + 
+												"[PaymentID] = @PaymentID, " + 
+												"[TransactionID] = @TransactionID, " + 
+												"[ConversionProviderID] = @ConversionProviderID, " + 
+												"[ConversionActionID] = @ConversionActionID, " + 
+												"[ConversionReportStatusID] = @ConversionReportStatusID, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ConversionReportID] = @ConversionReportID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@UserSessionID", data.UserSession.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentID", data.Payment.ID);
+				sqlCmd.Parameters.AddWithValue("@TransactionID", data.Transaction.ID);
+				sqlCmd.Parameters.AddWithValue("@ConversionProviderID", (int)data.ConversionProvider);
+				sqlCmd.Parameters.AddWithValue("@ConversionActionID", (int)data.ConversionAction);
+				sqlCmd.Parameters.AddWithValue("@ConversionReportStatusID", (int)data.ConversionReportStatus);
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ConversionReportID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cr", "update", "norecord"), "ConversionReport could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ConversionReport", "Exception while updating ConversionReport object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cr", "update", "morerecords"), "ConversionReport was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ConversionReport", "Exception while updating ConversionReport object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cr", "update", "exception"), "ConversionReport could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ConversionReport", "Exception while updating ConversionReport object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ConversionReport data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [trck].[ConversionReport] WHERE ConversionReportID = @ConversionReportID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ConversionReportID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cr", "delete", "norecord"), "ConversionReport could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ConversionReport", "Exception while deleting ConversionReport object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cr", "delete", "exception"), "ConversionReport could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ConversionReport", "Exception while deleting ConversionReport object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

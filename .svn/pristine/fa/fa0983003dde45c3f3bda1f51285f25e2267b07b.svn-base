@@ -1,0 +1,142 @@
+﻿jQuery(document).ready(function () {
+  ComponentsDropdowns.init();
+  loadReports();
+
+  $('#select_service').on('select2-close select2-removed', function () {
+    updateFilters();
+  });
+
+  $('#select_country').on('select2-close select2-removed', function () {
+    updateFilters();
+  });
+
+  $('#refresh').click(function () {
+    loadReports();
+  });
+
+  $('#reset').click(function () {
+    $('#select_service').select2('val', '');
+    $('#select_provider').select2('val', '');
+    $('#select_country').select2('val', '');
+    $('#select_operator').select2('val', '');
+    loadReports();
+  });
+});
+
+function loadReports() {
+  Metronic.blockUI({
+    animate: true
+  });
+
+  $.ajax({
+    url: '/qa/table',
+    cache: false,
+    method: 'POST',
+    data: {
+      services: getValues('#select_service'),
+      providers: getValues('#select_provider'),
+      countries: getValues('#select_country'),
+      operators: getValues('#select_operator')
+    },
+    success: function (response) {
+      $('#qa_table_container').html(response);
+      TableAdvanced.init();
+      Metronic.unblockUI();
+    },
+    error: function () {
+      Metronic.unblockUI();
+      errorNotification('error msg here');
+    }
+  });
+}
+
+function updateFilters() {
+  $.ajax({
+    url: '/qa/update-filters',
+    cache: false,
+    method: 'POST',
+    data: {
+      serviceIds: getValues('#select_service'),
+      providerIds: getValues('#select_provider'),
+      countryIds: getValues('#select_country'),
+      operatorIds: getValues('#select_operator')
+    },
+    success: function (response, msg) {
+      updateSelect(response[0], '#select_service');
+      updateSelect(response[1], '#select_provider');
+      updateSelect(response[2], '#select_country');
+      updateSelect(response[3], '#select_operator');
+    },
+    error: function (ex) {
+      alert('Failed to update filters.');
+    }
+  });
+}
+
+function updateSelect(response, select) {
+  var $prevGroup, prevGroupName, appendOption;
+
+  $(select).find('optgroup').remove();
+  $(select).find('option').remove();
+  $.each(response, function (i, data) {
+    if (data.Group != null && prevGroupName != data.Group.Name) {
+      $prevGroup = $('<optgroup />').prop('label', data.Group.Name).appendTo(select);
+      appendOption = $prevGroup;
+    }
+
+    if (data.Group == null)
+      appendOption = $(select);
+    else
+      prevGroupName = data.Group.Name;
+
+    $('<option />').val(data.Value).text(data.Text).attr('selected', data.Selected).appendTo(appendOption);
+  });
+  $(select).trigger("change");
+}
+
+function getValues(select) {
+  var data = '';
+
+  if ($(select).val() == null)
+    return data;
+  $.each($(select).val(), function (i, v) {
+    if (data != '')
+      data += ',' + v;
+    else
+      data += v;
+  });
+  return data;
+}
+
+var TableAdvanced = function () {
+  var initTable = function () {
+    var table = $('#qa_table');
+    
+    var oTable = table.dataTable({
+      "order": [
+          [4, 'desc']
+      ],
+
+      "lengthMenu": [
+          [5, 10, 15, 20, -1],
+          [5, 10, 15, 20, "All"] // change per page values here
+      ],
+      // set the initial value
+      "pageLength": 15,
+
+      "dom": "<'row' <'col-md-12'T>><'row'<'col-md-6 col-sm-12'l><'col-md-6 col-sm-12'f>r><'table-scrollable't><'row'<'col-md-5 col-sm-12'i><'col-md-7 col-sm-12'p>>", // horizobtal scrollable datatable
+    });
+
+    var tableWrapper = $('#qa_table_wrapper'); // datatable creates the table wrapper by adding with id {your_table_jd}_wrapper
+
+    tableWrapper.find('.dataTables_length select').select2(); // initialize select2 dropdown
+  }
+
+  return {
+    //main function to initiate the module
+    init: function () {
+      initTable();
+    }
+  };
+
+}();

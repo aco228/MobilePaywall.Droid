@@ -1,0 +1,100 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Web.Filters;
+using MobilePaywall.Web.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers
+{
+
+  [ContextValidation(Required = true)]
+  [AgeVerification(Required = true)]
+  [Authentication(Required = true)]
+  public class CustomPageController : PaywallController
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (CustomPageController._log == null)
+          CustomPageController._log = LogManager.GetLogger(typeof(CustomPageController));
+        return CustomPageController._log;
+      }
+    }
+    #endregion
+
+    public ActionResult Page(string id)
+    {
+      int customPageID = -1;
+      if (!Int32.TryParse(id, out customPageID))
+      {
+        Log.Error(string.Format("ErrorView!!! CustomPage:: id could not be parsed. ID: " + id));
+        return View("Error", new ErrorViewModel(this.PaywallContext, Data.ErrorCode.Internal));
+      }
+
+      Data.CustomPage customPage = Data.CustomPage.CreateManager().Load(customPageID);
+      if(customPage == null)
+      {
+        Log.Error(string.Format("ErrorView!!! Custom page could not be loaded. ID: " + id));
+        return View("Error", new ErrorViewModel(this.PaywallContext, Data.ErrorCode.Internal));
+      }
+
+      Service service = this.PaywallContext.Service.ServiceData;
+      MobileOperator mobileOperator = this.PaywallContext.Session.SessionData.MobileOperator != null ? this.PaywallContext.Session.SessionData.MobileOperator : null;
+      int mMobileOperatorID = mobileOperator != null ? mobileOperator.ID : -1;
+      PaymentProvider paymentProvider = this.PaywallContext.Service.PaymentProvider;
+      int mPaymentProviderID = paymentProvider != null ? paymentProvider.ID : -1;
+      int mServiceID = service.ID;
+
+      if((customPage.Country.ID != service.FallbackCountry.ID) && (customPage.Country.ID != PaywallContext.Session.SessionData.Country.ID))
+      {
+        Log.Error(string.Format("ErrorView!!! CustomPage with ID:{0} is set for the country:{1}", customPage.ID, customPage.Country.TwoLetterIsoCode));
+        return View("Error", new ErrorViewModel(this.PaywallContext, Data.ErrorCode.Internal));
+      }
+
+      List<CustomPageData> data = CustomPageData.CreateManager().Load(customPage);
+      if(data == null || data.Count == 0)
+      {
+        Log.Error(string.Format("ErrorView!!! CustomPage with ID:{0} has no CustomPageData", customPage.ID));
+        return View("Error", new ErrorViewModel(this.PaywallContext, Data.ErrorCode.Internal));
+      }
+
+      CustomPageData cpd = null;
+
+      #region # figure which combination #
+
+      cpd = (from c in data where (c.Service != null && c.Service.ID == mServiceID) && (c.MobileOperator != null && c.MobileOperator.ID == mMobileOperatorID) && (c.PaymentProvider != null && c.PaymentProvider.ID == mPaymentProviderID) select c).FirstOrDefault();
+
+      // one missing
+      if (cpd == null) cpd = (from c in data where (c.Service != null && c.Service.ID == mServiceID) && (c.MobileOperator != null && mobileOperator != null && c.MobileOperator.ID == mMobileOperatorID) && c.PaymentProvider == null select c).FirstOrDefault();
+      if (cpd == null) cpd = (from c in data where (c.Service != null && c.Service.ID == mServiceID) && c.MobileOperator == null && (c.PaymentProvider != null && c.PaymentProvider.ID == mPaymentProviderID) select c).FirstOrDefault();
+      if (cpd == null) cpd = (from c in data where c.Service == null && (c.MobileOperator != null && mobileOperator != null && c.MobileOperator.ID == mMobileOperatorID) && (c.PaymentProvider != null && c.PaymentProvider.ID == mPaymentProviderID) select c).FirstOrDefault();
+      if (cpd == null) cpd = (from c in data where (c.Service != null && c.Service.ID == mServiceID) && (c.MobileOperator != null && mobileOperator != null && c.MobileOperator.ID == mMobileOperatorID) && (c.PaymentProvider != null && c.PaymentProvider.ID == mPaymentProviderID) select c).FirstOrDefault();
+
+      // two missing
+      if (cpd == null) cpd = (from c in data where (c.Service != null && c.Service.ID == mServiceID) && c.MobileOperator == null && c.PaymentProvider == null select c).FirstOrDefault();
+      if (cpd == null) cpd = (from c in data where c.Service == null && c.MobileOperator == null && (c.PaymentProvider != null && c.PaymentProvider.ID == mPaymentProviderID) select c).FirstOrDefault();
+      if (cpd == null) cpd = (from c in data where c.Service == null && (c.MobileOperator != null && mobileOperator != null && c.MobileOperator.ID == mMobileOperatorID) && c.PaymentProvider == null select c).FirstOrDefault();
+
+      if (cpd == null) cpd = (from c in data where c.Service == null && c.MobileOperator == null && c.PaymentProvider == null select c).FirstOrDefault();
+
+      #endregion
+
+      if (cpd == null)
+      {
+        Log.Error(string.Format("ErrorView!!! CustomPage with ID:{0} could not match CustomPageData", customPage.ID));
+        return View("Error", new ErrorViewModel(this.PaywallContext, Data.ErrorCode.Internal));
+      }
+
+      return View("CustomPage", new CustomPageModel(this.PaywallContext, cpd));
+    }
+
+  }
+}

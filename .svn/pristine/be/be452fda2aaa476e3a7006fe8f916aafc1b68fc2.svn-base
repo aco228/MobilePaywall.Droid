@@ -1,0 +1,335 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(DeamonTaskResult))] 
+  public partial class DeamonTaskResultManager : MobilePaywall.Data.Sql.SqlManagerBase<DeamonTaskResult>, IDeamonTaskResultManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override DeamonTaskResult LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							DeamonTaskResultTable.GetColumnNames("[dtr]") + 
+							(this.Depth > 0 ? "," + DeamonTaskTable.GetColumnNames("[dtr_dt]") : string.Empty) + 
+					" FROM [core].[DeamonTaskResult] AS [dtr] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[DeamonTask] AS [dtr_dt] ON [dtr].[DeamonTaskID] = [dtr_dt].[DeamonTaskID] ";
+				sqlCmdText += "WHERE [dtr].[DeamonTaskResultID] = @DeamonTaskResultID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@DeamonTaskResultID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("dtr", "loadinternal", "notfound"), "DeamonTaskResult could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				DeamonTaskResultTable dtrTable = new DeamonTaskResultTable(query);
+				DeamonTaskTable dtr_dtTable = (this.Depth > 0) ? new DeamonTaskTable(query) : null;
+
+        
+				DeamonTask dtr_dtObject = (this.Depth > 0) ? dtr_dtTable.CreateInstance() : null;
+				DeamonTaskResult dtrObject = dtrTable.CreateInstance(dtr_dtObject);
+				sqlReader.Close();
+
+				return dtrObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("dtr", "loadinternal", "exception"), "DeamonTaskResult could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "DeamonTaskResult", "Exception while loading DeamonTaskResult object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public DeamonTaskResult Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							DeamonTaskResultTable.GetColumnNames("[dtr]") + 
+							(this.Depth > 0 ? "," + DeamonTaskTable.GetColumnNames("[dtr_dt]") : string.Empty) +  
+					" FROM [core].[DeamonTaskResult] AS [dtr] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[DeamonTask] AS [dtr_dt] ON [dtr].[DeamonTaskID] = [dtr_dt].[DeamonTaskID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("dtr", "customload", "notfound"), "DeamonTaskResult could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				DeamonTaskResultTable dtrTable = new DeamonTaskResultTable(query);
+				DeamonTaskTable dtr_dtTable = (this.Depth > 0) ? new DeamonTaskTable(query) : null;
+
+        
+				DeamonTask dtr_dtObject = (this.Depth > 0) ? dtr_dtTable.CreateInstance() : null;
+				DeamonTaskResult dtrObject = dtrTable.CreateInstance(dtr_dtObject);
+				sqlReader.Close();
+
+				return dtrObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("dtr", "customload", "exception"), "DeamonTaskResult could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "DeamonTaskResult", "Exception while loading (custom/single) DeamonTaskResult object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<DeamonTaskResult> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							DeamonTaskResultTable.GetColumnNames("[dtr]") + 
+							(this.Depth > 0 ? "," + DeamonTaskTable.GetColumnNames("[dtr_dt]") : string.Empty) +  
+					" FROM [core].[DeamonTaskResult] AS [dtr] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[DeamonTask] AS [dtr_dt] ON [dtr].[DeamonTaskID] = [dtr_dt].[DeamonTaskID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("dtr", "customloadmany", "notfound"), "DeamonTaskResult list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<DeamonTaskResult>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				DeamonTaskResultTable dtrTable = new DeamonTaskResultTable(query);
+				DeamonTaskTable dtr_dtTable = (this.Depth > 0) ? new DeamonTaskTable(query) : null;
+
+        List<DeamonTaskResult> result = new List<DeamonTaskResult>();
+        do
+        {
+          
+					DeamonTask dtr_dtObject = (this.Depth > 0) ? dtr_dtTable.CreateInstance() : null;
+					DeamonTaskResult dtrObject = (this.Depth > -1) ? dtrTable.CreateInstance(dtr_dtObject) : null;
+					result.Add(dtrObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("dtr", "customloadmany", "exception"), "DeamonTaskResult list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "DeamonTaskResult", "Exception while loading (custom/many) DeamonTaskResult object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, DeamonTaskResult data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[DeamonTaskResult] ([DeamonTaskID],[Data],[Started],[Ended],[HasFatal],[IsSuccessful]) VALUES(@DeamonTaskID,@Data,@Started,@Ended,@HasFatal,@IsSuccessful); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@DeamonTaskID", data.DeamonTask.ID);
+				sqlCmd.Parameters.AddWithValue("@Data", data.Data).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Started", data.Started).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@Ended", data.Ended.HasValue ? (object)data.Ended.Value : DBNull.Value).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@HasFatal", data.HasFatal).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsSuccessful", data.IsSuccessful).SqlDbType = SqlDbType.Bit;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("dtr", "insert", "noprimarykey"), "DeamonTaskResult could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "DeamonTaskResult", "Exception while inserting DeamonTaskResult object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("dtr", "insert", "exception"), "DeamonTaskResult could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "DeamonTaskResult", "Exception while inserting DeamonTaskResult object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, DeamonTaskResult data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[DeamonTaskResult] SET " +
+												"[DeamonTaskID] = @DeamonTaskID, " + 
+												"[Data] = @Data, " + 
+												"[Started] = @Started, " + 
+												"[Ended] = @Ended, " + 
+												"[HasFatal] = @HasFatal, " + 
+												"[IsSuccessful] = @IsSuccessful, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [DeamonTaskResultID] = @DeamonTaskResultID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@DeamonTaskID", data.DeamonTask.ID);
+				sqlCmd.Parameters.AddWithValue("@Data", data.Data).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Started", data.Started).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@Ended", data.Ended.HasValue ? (object)data.Ended.Value : DBNull.Value).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@HasFatal", data.HasFatal).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsSuccessful", data.IsSuccessful).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@DeamonTaskResultID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("dtr", "update", "norecord"), "DeamonTaskResult could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "DeamonTaskResult", "Exception while updating DeamonTaskResult object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("dtr", "update", "morerecords"), "DeamonTaskResult was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "DeamonTaskResult", "Exception while updating DeamonTaskResult object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("dtr", "update", "exception"), "DeamonTaskResult could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "DeamonTaskResult", "Exception while updating DeamonTaskResult object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, DeamonTaskResult data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[DeamonTaskResult] WHERE DeamonTaskResultID = @DeamonTaskResultID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@DeamonTaskResultID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("dtr", "delete", "norecord"), "DeamonTaskResult could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "DeamonTaskResult", "Exception while deleting DeamonTaskResult object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("dtr", "delete", "exception"), "DeamonTaskResult could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "DeamonTaskResult", "Exception while deleting DeamonTaskResult object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

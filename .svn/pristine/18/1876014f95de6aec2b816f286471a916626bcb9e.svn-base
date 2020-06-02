@@ -1,0 +1,365 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(AndroidPremiumCustomerServiceMap))] 
+  public partial class AndroidPremiumCustomerServiceMapManager : MobilePaywall.Data.Sql.SqlManagerBase<AndroidPremiumCustomerServiceMap>, IAndroidPremiumCustomerServiceMapManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override AndroidPremiumCustomerServiceMap LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							AndroidPremiumCustomerServiceMapTable.GetColumnNames("[apcsm]") + 
+							(this.Depth > 0 ? "," + AndroidPremiumCustomerTable.GetColumnNames("[apcsm_apc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AndroidPremiumAplicationTable.GetColumnNames("[apcsm_apc_apa]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[apcsm_apc_c]") : string.Empty) + 
+					" FROM [core].[AndroidPremiumCustomerServiceMap] AS [apcsm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidPremiumCustomer] AS [apcsm_apc] ON [apcsm].[AndroidPremiumCustomerID] = [apcsm_apc].[AndroidPremiumCustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidPremiumAplication] AS [apcsm_apc_apa] ON [apcsm_apc].[AndroidPremiumAplicationID] = [apcsm_apc_apa].[AndroidPremiumAplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [apcsm_apc_c] ON [apcsm_apc].[CountryID] = [apcsm_apc_c].[CountryID] ";
+				sqlCmdText += "WHERE [apcsm].[AndroidPremiumCustomerServiceMapID] = @AndroidPremiumCustomerServiceMapID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AndroidPremiumCustomerServiceMapID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apcsm", "loadinternal", "notfound"), "AndroidPremiumCustomerServiceMap could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AndroidPremiumCustomerServiceMapTable apcsmTable = new AndroidPremiumCustomerServiceMapTable(query);
+				AndroidPremiumCustomerTable apcsm_apcTable = (this.Depth > 0) ? new AndroidPremiumCustomerTable(query) : null;
+				AndroidPremiumAplicationTable apcsm_apc_apaTable = (this.Depth > 1) ? new AndroidPremiumAplicationTable(query) : null;
+				CountryTable apcsm_apc_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+
+        
+				AndroidPremiumAplication apcsm_apc_apaObject = (this.Depth > 1) ? apcsm_apc_apaTable.CreateInstance() : null;
+				Country apcsm_apc_cObject = (this.Depth > 1) ? apcsm_apc_cTable.CreateInstance() : null;
+				AndroidPremiumCustomer apcsm_apcObject = (this.Depth > 0) ? apcsm_apcTable.CreateInstance(apcsm_apc_apaObject, apcsm_apc_cObject) : null;
+				AndroidPremiumCustomerServiceMap apcsmObject = apcsmTable.CreateInstance(apcsm_apcObject);
+				sqlReader.Close();
+
+				return apcsmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apcsm", "loadinternal", "exception"), "AndroidPremiumCustomerServiceMap could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AndroidPremiumCustomerServiceMap", "Exception while loading AndroidPremiumCustomerServiceMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public AndroidPremiumCustomerServiceMap Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AndroidPremiumCustomerServiceMapTable.GetColumnNames("[apcsm]") + 
+							(this.Depth > 0 ? "," + AndroidPremiumCustomerTable.GetColumnNames("[apcsm_apc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AndroidPremiumAplicationTable.GetColumnNames("[apcsm_apc_apa]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[apcsm_apc_c]") : string.Empty) +  
+					" FROM [core].[AndroidPremiumCustomerServiceMap] AS [apcsm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidPremiumCustomer] AS [apcsm_apc] ON [apcsm].[AndroidPremiumCustomerID] = [apcsm_apc].[AndroidPremiumCustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidPremiumAplication] AS [apcsm_apc_apa] ON [apcsm_apc].[AndroidPremiumAplicationID] = [apcsm_apc_apa].[AndroidPremiumAplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [apcsm_apc_c] ON [apcsm_apc].[CountryID] = [apcsm_apc_c].[CountryID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apcsm", "customload", "notfound"), "AndroidPremiumCustomerServiceMap could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AndroidPremiumCustomerServiceMapTable apcsmTable = new AndroidPremiumCustomerServiceMapTable(query);
+				AndroidPremiumCustomerTable apcsm_apcTable = (this.Depth > 0) ? new AndroidPremiumCustomerTable(query) : null;
+				AndroidPremiumAplicationTable apcsm_apc_apaTable = (this.Depth > 1) ? new AndroidPremiumAplicationTable(query) : null;
+				CountryTable apcsm_apc_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+
+        
+				AndroidPremiumAplication apcsm_apc_apaObject = (this.Depth > 1) ? apcsm_apc_apaTable.CreateInstance() : null;
+				Country apcsm_apc_cObject = (this.Depth > 1) ? apcsm_apc_cTable.CreateInstance() : null;
+				AndroidPremiumCustomer apcsm_apcObject = (this.Depth > 0) ? apcsm_apcTable.CreateInstance(apcsm_apc_apaObject, apcsm_apc_cObject) : null;
+				AndroidPremiumCustomerServiceMap apcsmObject = apcsmTable.CreateInstance(apcsm_apcObject);
+				sqlReader.Close();
+
+				return apcsmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apcsm", "customload", "exception"), "AndroidPremiumCustomerServiceMap could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AndroidPremiumCustomerServiceMap", "Exception while loading (custom/single) AndroidPremiumCustomerServiceMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<AndroidPremiumCustomerServiceMap> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AndroidPremiumCustomerServiceMapTable.GetColumnNames("[apcsm]") + 
+							(this.Depth > 0 ? "," + AndroidPremiumCustomerTable.GetColumnNames("[apcsm_apc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AndroidPremiumAplicationTable.GetColumnNames("[apcsm_apc_apa]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[apcsm_apc_c]") : string.Empty) +  
+					" FROM [core].[AndroidPremiumCustomerServiceMap] AS [apcsm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidPremiumCustomer] AS [apcsm_apc] ON [apcsm].[AndroidPremiumCustomerID] = [apcsm_apc].[AndroidPremiumCustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidPremiumAplication] AS [apcsm_apc_apa] ON [apcsm_apc].[AndroidPremiumAplicationID] = [apcsm_apc_apa].[AndroidPremiumAplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [apcsm_apc_c] ON [apcsm_apc].[CountryID] = [apcsm_apc_c].[CountryID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apcsm", "customloadmany", "notfound"), "AndroidPremiumCustomerServiceMap list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<AndroidPremiumCustomerServiceMap>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AndroidPremiumCustomerServiceMapTable apcsmTable = new AndroidPremiumCustomerServiceMapTable(query);
+				AndroidPremiumCustomerTable apcsm_apcTable = (this.Depth > 0) ? new AndroidPremiumCustomerTable(query) : null;
+				AndroidPremiumAplicationTable apcsm_apc_apaTable = (this.Depth > 1) ? new AndroidPremiumAplicationTable(query) : null;
+				CountryTable apcsm_apc_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+
+        List<AndroidPremiumCustomerServiceMap> result = new List<AndroidPremiumCustomerServiceMap>();
+        do
+        {
+          
+					AndroidPremiumAplication apcsm_apc_apaObject = (this.Depth > 1) ? apcsm_apc_apaTable.CreateInstance() : null;
+					Country apcsm_apc_cObject = (this.Depth > 1) ? apcsm_apc_cTable.CreateInstance() : null;
+					AndroidPremiumCustomer apcsm_apcObject = (this.Depth > 0) ? apcsm_apcTable.CreateInstance(apcsm_apc_apaObject, apcsm_apc_cObject) : null;
+					AndroidPremiumCustomerServiceMap apcsmObject = (this.Depth > -1) ? apcsmTable.CreateInstance(apcsm_apcObject) : null;
+					result.Add(apcsmObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apcsm", "customloadmany", "exception"), "AndroidPremiumCustomerServiceMap list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AndroidPremiumCustomerServiceMap", "Exception while loading (custom/many) AndroidPremiumCustomerServiceMap object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, AndroidPremiumCustomerServiceMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[AndroidPremiumCustomerServiceMap] ([AndroidPremiumCustomerID],[OLCacheID],[ServiceID],[Shortcode],[TextMessage],[PaymentRequestID]) VALUES(@AndroidPremiumCustomerID,@OLCacheID,@ServiceID,@Shortcode,@TextMessage,@PaymentRequestID); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@AndroidPremiumCustomerID", data.AndroidPremiumCustomer.ID);
+				sqlCmd.Parameters.AddWithValue("@OLCacheID", data.OLCacheID.HasValue ? (object)data.OLCacheID.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.ServiceID).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Shortcode", data.Shortcode).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@TextMessage", data.TextMessage).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@PaymentRequestID", data.PaymentRequestID.HasValue ? (object)data.PaymentRequestID.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apcsm", "insert", "noprimarykey"), "AndroidPremiumCustomerServiceMap could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "AndroidPremiumCustomerServiceMap", "Exception while inserting AndroidPremiumCustomerServiceMap object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apcsm", "insert", "exception"), "AndroidPremiumCustomerServiceMap could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "AndroidPremiumCustomerServiceMap", "Exception while inserting AndroidPremiumCustomerServiceMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, AndroidPremiumCustomerServiceMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[AndroidPremiumCustomerServiceMap] SET " +
+												"[AndroidPremiumCustomerID] = @AndroidPremiumCustomerID, " + 
+												"[OLCacheID] = @OLCacheID, " + 
+												"[ServiceID] = @ServiceID, " + 
+												"[Shortcode] = @Shortcode, " + 
+												"[TextMessage] = @TextMessage, " + 
+												"[PaymentRequestID] = @PaymentRequestID, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [AndroidPremiumCustomerServiceMapID] = @AndroidPremiumCustomerServiceMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@AndroidPremiumCustomerID", data.AndroidPremiumCustomer.ID);
+				sqlCmd.Parameters.AddWithValue("@OLCacheID", data.OLCacheID.HasValue ? (object)data.OLCacheID.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.ServiceID).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Shortcode", data.Shortcode).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@TextMessage", data.TextMessage).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@PaymentRequestID", data.PaymentRequestID.HasValue ? (object)data.PaymentRequestID.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@AndroidPremiumCustomerServiceMapID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apcsm", "update", "norecord"), "AndroidPremiumCustomerServiceMap could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "AndroidPremiumCustomerServiceMap", "Exception while updating AndroidPremiumCustomerServiceMap object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apcsm", "update", "morerecords"), "AndroidPremiumCustomerServiceMap was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "AndroidPremiumCustomerServiceMap", "Exception while updating AndroidPremiumCustomerServiceMap object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apcsm", "update", "exception"), "AndroidPremiumCustomerServiceMap could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "AndroidPremiumCustomerServiceMap", "Exception while updating AndroidPremiumCustomerServiceMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, AndroidPremiumCustomerServiceMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[AndroidPremiumCustomerServiceMap] WHERE AndroidPremiumCustomerServiceMapID = @AndroidPremiumCustomerServiceMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AndroidPremiumCustomerServiceMapID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apcsm", "delete", "norecord"), "AndroidPremiumCustomerServiceMap could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "AndroidPremiumCustomerServiceMap", "Exception while deleting AndroidPremiumCustomerServiceMap object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apcsm", "delete", "exception"), "AndroidPremiumCustomerServiceMap could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "AndroidPremiumCustomerServiceMap", "Exception while deleting AndroidPremiumCustomerServiceMap object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

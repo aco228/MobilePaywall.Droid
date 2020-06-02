@@ -1,0 +1,73 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using MobilePaywall.Data;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface ICustomerStorageManager : IDataManager<CustomerStorage> 
+  {
+	
+
+  }
+
+  public partial class CustomerStorage : MobilePaywallObject<ICustomerStorageManager> 
+  {
+		private Customer _customer;
+		private string _key = String.Empty;
+		private string _value = String.Empty;
+		
+
+		public Customer Customer 
+		{
+			get
+			{
+				if (this._customer != null &&
+						this._customer.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._customer = Customer.CreateManager().LazyLoad(this.ConnectionContext, this._customer.ID) as Customer;
+					else
+						this._customer = Customer.CreateManager().LazyLoad(this._customer.ID) as Customer;
+				return this._customer;
+			}
+			set { _customer = value; }
+		}
+
+		public string Key{ get {return this._key; } set { this._key = value;} }
+		public string Value{ get {return this._value; } set { this._value = value;} }
+		
+
+    public override bool IsInsertable { get { return true;} }
+
+    public override bool IsDeletable { get { return false;} }
+
+    public override bool IsUpdatable { get { return true;} }
+
+    public CustomerStorage()
+    { 
+    }
+
+    public CustomerStorage(int id): base(id, DateTime.Now, DateTime.Now, true)
+    {
+    }
+
+    public CustomerStorage(int id,  Customer customer, string key, string value, DateTime updated, DateTime created): base(id, updated, created, false)
+    {
+			this._customer = customer;
+			this._key = key;
+			this._value = value;
+			
+    }
+
+    public override object Clone(bool deepClone)
+    {
+      return new CustomerStorage(-1,  this.Customer,this.Key,this.Value, DateTime.Now, DateTime.Now);
+    }
+  }
+}
+

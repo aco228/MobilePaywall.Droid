@@ -1,0 +1,242 @@
+﻿jQuery(document).ready(function () {
+  $.uniform.restore('.error-check');
+
+  //FormFileUpload.init();
+  if ($('#select_operator').val() == null || $('#select_operator').val() == "") {
+    GetOperators();
+  }
+
+  $('#select_service').select2({
+    placeholder: 'Service',
+    allowClear: true,
+    escapeMarkup: function (m) {
+      return m;
+    }
+  });
+
+  $('#select_operator').select2({
+    placeholder: 'Mobile Operator',
+    allowClear: true,
+    escapeMarkup: function (m) {
+      return m;
+    }
+  });
+
+  $('#select_service').change(function () {
+    $('#select_operator').select2('val', '');
+    GetOperators();
+  });
+
+  $('.date-picker').datetimepicker({
+    rtl: Metronic.isRTL(),
+    orientation: 'left',
+    autoclose: true,
+    todayBtn: 'linked',
+    format: 'MM dd, yyyy hh:ii',
+    pickerPosition: (Metronic.isRTL() ? 'bottom-right' : 'bottom-left'),
+    minuteStep: 5
+  });
+  
+  var form = $('#fileupload');
+  var error = $('.alert-danger', form);
+  var success = $('.alert-success', form);
+  
+  form.validate({
+    doNotHideMessage: true,
+    errorElement: 'span',
+    errorClass: 'help-block help-block-error',
+    focusInvalid: false,
+    ignore: [],
+    rules: {
+      'QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.ServiceModel.ServiceID': {
+        required: true
+      },
+      'QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.MobileOperatorModel.MobileOperatorID': {
+        required: true
+      },
+      'QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.Tested': {
+        required: true
+      }
+    },
+
+    highlight: function (element) { // hightlight error inputs
+      if ($(element).hasClass('content')) {
+        $(element)
+          .prev('.image-wrapper').removeClass('has-success').addClass('has-error');
+      }
+      else {
+        $(element)
+          .closest('.form-control').removeClass('has-success').addClass('has-error');
+      }
+    },
+
+    unhighlight: function (element) { // revert the change done by hightlight
+      if ($(element).hasClass('content')) {
+        $(element)
+          .prev('.image-wrapper').removeClass('has-error');
+      }
+      else {
+        $(element)
+            .closest('.form-control').removeClass('has-error');
+      }
+    },
+
+    submitHandler: function (form) {
+      success.show();
+      error.hide();
+      //add here some ajax code to submit your form or just call form.submit() if you want to submit the form without ajax
+      form.submit();
+    }
+  });
+
+  //if #reportId is not defined this is a form for adding new report. If we are editing report there is no need to check whether image exists
+  if ($('#reportId').val() == undefined) {
+    $('#content0').rules('add', { required: true });
+  }
+
+  $('.scr-title').each(function () { $(this).rules('add', { required: true }); });
+  $('.scr-url').each(function () { $(this).rules('add', { required: true }) });
+
+  //cloning screenshot
+  var idIndex = $('.screenshot').length;
+  var fileIndex = idIndex;
+  $('#add_screenshot').on('click', function (event) {
+    event.preventDefault();
+    //$.uniform.restore('.error-check');
+    var original = $('.report-editor-wrapper').find('input:checked');
+
+    $('#screenshot0').clone()
+    .prepend('<a href="" class="remove-screenshot tooltips" data-container="body" data-placement="top" data-original-title="Remove"><i class="fa fa-times fa-2x"></i></a>')
+    .insertBefore('.report-actions')
+    .find('input:text').val('').end()
+    .find('.has-error, .has-success').removeClass('has-error has-success').end()
+    .find('span.help-block-error').remove().end()
+    .find('#scr_id0').remove().end()
+    .find('input:checkbox').prop('checked', false).end()
+    .find('img').attr('src', '/Images/metronic/pages/transparent.png').end()
+    .find('*[for]').each(function () {
+      $(this).attr('for', $(this).attr('for').slice(0, -1) + idIndex);
+    }).end()
+    .find('label.content-upload-label').html('<i class="fa fa-upload"></i> Choose file').removeClass('purple-wisteria').addClass('red-sunglo').end()
+    .find('.image-wrapper').removeClass('file-selected').end()
+    .find('*[id]').andSelf().each(function () {
+      $(this).attr('id', $(this).attr('id').slice(0, -1) + idIndex);
+      if ($(this).attr('name') && $(this).attr('name').search('QualityAssuranceReportScreenshotModels') != -1)
+        $(this).attr('name', $(this).attr('name').replace('QualityAssuranceReportScreenshotModels[0]', 'QualityAssuranceReportScreenshotModels[' + fileIndex + ']'));
+      $(this).removeAttr('aria-describedby aria-required aria-invalid');
+    }).end();
+
+    //add validation rules
+    $('#content' + idIndex).rules('add', { required: true });
+    $('#title' + idIndex).rules('add', { required: true });
+    $('#url' + idIndex).rules('add', { required: true });
+
+    if (original.length > 0) {
+      $.each(original, function (key, value) {
+        $(value).prop('checked', true);
+      });
+    }
+    //$('.error-check').uniform();
+
+    idIndex++;
+    fileIndex++;
+  });
+
+  //removing screenshot
+  $('#screenshots-container').on('click', '.remove-screenshot', function (event) {
+    event.preventDefault();
+    $(this).parent('.screenshot').remove();
+
+    //set index
+    var index = 0;
+    $('#screenshots-container .screenshot').each(function () {
+      $(this).find('*[name]').each(function () {
+        $(this).attr('name', replaceIndex($(this).attr('name'), 'QualityAssuranceReportScreenshotModels', index));
+      });
+      index++;
+    });
+
+    fileIndex = index;
+  });
+
+  //setting file name as title
+  $('#screenshots-container').on('change', '.content', function (event) {
+    returnUrlAndName(this, $(this).attr('id').substring(7), event);
+  });
+
+  $('#screenshots-container')
+  .on('focus', '.content', function (event) { $(this).parent('.screenshot').find('.content-upload-label').addClass('hovered'); })
+  .on('blur', '.content', function (event) { $(this).parent('.screenshot').find('.content-upload-label').removeClass('hovered'); });
+
+});
+
+function GetOperators() {
+  $.ajax({
+    url: '/getOperators',
+    cache: false,
+    method: 'POST',
+    data: { id: $('#select_service').val() },
+    success: function (response, msg) {
+      $('#select_operator').find('optgroup').remove();
+      var $prevGroup, prevGroupName;
+
+      $.each(response, function (i, operator) {
+        if (prevGroupName != operator.Group.Name) {
+          $prevGroup = $('<optgroup />').prop('label', operator.Group.Name).appendTo('#select_operator');
+        }
+        $("<option />").val(operator.Value).text(operator.Text).appendTo($prevGroup);
+        prevGroupName = operator.Group.Name;
+      });
+
+      if ($('#select_service').val() == "")
+        $('#select_operator').select2('val', '');
+    },
+    error: function (ex) {
+      alert('Failed to retrieve mobile operators.');
+    }
+  });
+}
+
+function returnUrlAndName(input, index, e) {
+  var $label = $(input).parent('.screenshot').find('.content-upload-label'),
+      labelVal = $label.html(),
+      title = $(input).parent('.screenshot').find('.scr-title'),
+      fileName = '';
+
+  if (input.files && input.files[0]) {
+    var reader = new FileReader();
+
+    reader.onload = function (e) {
+      $('#image_upload_preview' + index).attr('src', e.target.result);
+    }
+    reader.readAsDataURL(input.files[0]);
+  }
+
+  if (e.target.value)
+    fileName = e.target.value.split('\\').pop();
+
+  $label.removeClass('red-sunglo').addClass('purple-wisteria');
+  $label.parent('.image-wrapper').addClass('file-selected');
+
+  if (fileName) {
+    $label.html(fileName);
+    title.val(fileName.substring(0, fileName.lastIndexOf('.')));
+  }
+  else
+    $label.html(labelVal);
+}
+
+function replaceIndex(name, klass, index) {
+  var split = name.split('.');
+  var data = '';
+  for (var i = 0; i < split.length; i++) {
+    if (data != '') data += '.';
+
+    if (split[i].indexOf(klass + '[') > -1) {
+      data += klass + '[' + index + ']';
+      continue;
+    }
+    data += split[i];
+  }
+  return data;
+}

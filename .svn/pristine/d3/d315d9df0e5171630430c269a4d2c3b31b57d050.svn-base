@@ -1,0 +1,60 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Web.Mvc;
+
+using MobilePaywall.Data;
+using MobilePaywall.Merchant.Models;
+using MobilePaywall.Merchant.Filters;
+
+using MoreLinq;
+
+using Senti.Diagnostics.Log;
+
+using log4net;
+
+namespace MobilePaywall.Merchant
+{
+  [Authentication(Required = true)]
+  public class PaywallController : Controller, IPaywallController
+  {
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (PaywallController._log == null)
+          PaywallController._log = LogManager.GetLogger(typeof(PaywallController));
+        return PaywallController._log;
+      }
+    }
+
+    private PaywallHttpApplication _paywallApplication = null;
+    private PaywallHttpContext _paywallContext = null;
+
+    private MerchantPaywallRuntime _runtime = null;
+
+    public PaywallHttpApplication PaywallApplication
+    {
+      get
+      {
+        if (this._paywallApplication == null)
+          this._paywallApplication = this.HttpContext.ApplicationInstance as PaywallHttpApplication;
+        return this._paywallApplication;
+      }
+    }
+
+    public PaywallHttpContext PaywallContext { get { return PaywallHttpContext.Current; } }
+
+    public MerchantPaywallRuntime Runtime { get { return PaywallContext.Runtime as MerchantPaywallRuntime; } }
+
+    public Statistics Statistics(Split split, List<Group> group, QueryBuilder queryBuilder, string component)
+    {
+     return new Statistics(split, group, queryBuilder, component);
+    } 
+
+  }
+}

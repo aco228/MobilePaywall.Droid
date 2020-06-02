@@ -1,0 +1,212 @@
+﻿using Cashflow.Client;
+using Cashflow.Message;
+using Cashflow.Message.Mobile;
+using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.MobilePaywallDirect;
+using MobilePaywall.Web.Localization;
+using Senti.Security;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers._Specific.IR
+{
+  public class IranPaymentController : Controller
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (IranPaymentController._log == null)
+          IranPaymentController._log = LogManager.GetLogger(typeof(IranPaymentController));
+        return IranPaymentController._log;
+      }
+    }
+    #endregion
+
+    public ActionResult Index()
+    {
+      string input = Request["input"] != null ? Request["input"].ToString() : string.Empty;
+      input = this.FixNumber(input);
+      if (string.IsNullOrEmpty(input))
+      {
+        Log.Error("IRPaymentController:: Nothing is sent as input");
+        return this.Json(new { status = false, message = IranPaymentTranslations.InputIsNotSet }, JsonRequestBehavior.AllowGet);
+      }
+
+      Log.Debug("IRPaymentController:: Proccess for input " + input);
+      //Customer customer = Customer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData, input, CustomerIdentifier.Msisdn).FirstOrDefault();
+      Customer customer = Customer.LoadCustomerByServiceMsisdn(PaywallHttpContext.Current.Service.ServiceData, input);
+      if (customer != null && customer.CustomerStatus == CustomerStatus.Active)
+      {
+        Log.Error("IRPaymentController:: Account allready exists with number " + input);
+        return this.Json(new { status = false, message = IranPaymentTranslations.AccountyAllreadyExists }, JsonRequestBehavior.AllowGet);
+      }
+
+      string password = Guid.NewGuid().ToString().Substring(0, 4);
+
+      customer = new Customer(-1,
+        Guid.NewGuid(),
+        CustomerStatus.Pending,
+        PaywallHttpContext.Current.Service.ServiceData,
+        PaywallHttpContext.Current.Service.ServiceData.FallbackCountry,
+        MobileOperator.CreateManager().Load(423),
+        null, // externalCustomerGuid
+        input, null,
+        input,
+        PasswordEncryption.Create(password).EncryptedPasswordAndSalt,
+        DateTime.Now, DateTime.Now);
+      customer.Insert();
+      customer.SetUsernameAndPassword();
+
+      UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), PaywallHttpContext.Current.Session.SessionData, null, "", DateTime.Now, DateTime.Now); uhr.Insert();
+      new LookupSession(-1, Guid.NewGuid(), LookupSessionStatus.Complete,  PaywallHttpContext.Current.Session.SessionData,  uhr, null, string.Empty, DateTime.Now, DateTime.Now).Insert();
+
+      customer.Storage.PutString("password", password);
+      customer.Storage.MapCustomerUserSession(PaywallHttpContext.Current.Session.SessionData);
+      ServiceOffer serviceOffer = (from s in ServiceOffer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData) where s.IsActive && s.IsDefault select s).FirstOrDefault();
+
+      SmsArguments smsArguments = new SmsArguments();
+      smsArguments.Password = password;
+      smsArguments.Username = customer.Msisdn;
+      
+      SendSmsRequest request = new SendSmsRequest(RequestMode.Synchronous,
+         PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+         serviceOffer.PaymentConfiguration.PaymentCredentials.Username,
+         serviceOffer.PaymentConfiguration.PaymentCredentials.Password,
+         serviceOffer.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+         PaywallHttpContext.Current.Service.ServiceData.Product.ExternalProductGuid,
+         serviceOffer.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+         PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode,
+         serviceOffer.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid.Value,
+         customer.MobileOperator.ExternalMobileOperatorID.ToString(), // operatorCode
+         customer.Msisdn,
+         string.Empty, // messageTest
+         PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+         "", // notificationUrl
+         smsArguments.ToMessageArguments());
+      request.ReferenceIntID = PaywallHttpContext.Current.Session.SessionData.ID;
+
+      MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(PaywallHttpContext.Current.Service.ServiceData);
+      mobileClient.AttachLogWriter(new CashflowLog(PaywallHttpContext.Current.Service.ServiceData));
+
+      try
+      {
+        SendSmsResponse smsResponse = mobileClient.SendSms(request);
+        switch (smsResponse.Status.Code)
+        {
+          case MessageStatusCode.Success:
+            Guid externalCustomerGuid = Guid.Empty;
+            MessageArgument customerMessageArgument = (from ms in smsResponse.Arguments where ms.Key.ToLower().Equals("CustomerID") select ms).FirstOrDefault();
+            if (customerMessageArgument != null)
+              Guid.TryParse(customerMessageArgument.Value, out externalCustomerGuid);
+
+            customer.CustomerStatus = CustomerStatus.Active;
+            if (externalCustomerGuid != Guid.Empty)
+              customer.ExternalCustomerGuid = externalCustomerGuid;
+
+            customer.Update();
+            Log.Debug("IRPaymentController:: Message is sent");
+            return this.Json(new { status = true, message = IranPaymentTranslations.SuccessPleaseLogin }, JsonRequestBehavior.AllowGet);
+          default:
+            Log.Error("IRPaymentController:: Message is not sent successfuly");
+            return this.Json(new { status = false, message = IranPaymentTranslations.ErrorSendingMessage }, JsonRequestBehavior.AllowGet);
+        }
+      }
+      catch(Exception e)
+      {
+        Log.Error("FATAL ERROR IRAN: " + e.Message, e);
+        return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal }, JsonRequestBehavior.AllowGet);
+      }
+    }
+
+    public ActionResult Login()
+    {
+      string username = Request["username"] != null ? Request["username"].ToString() : string.Empty;
+      string password = Request["password"] != null ? Request["password"].ToString() : string.Empty;
+
+      if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+      {
+        Log.Error("IRPaymentController:: There is no input");
+        return this.Json(new { status = false, message = IranPaymentTranslations.InputIsNotSet }, JsonRequestBehavior.AllowGet);
+      }
+
+      Customer customer = Customer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData, username, CustomerIdentifier.Username).FirstOrDefault();
+      if (customer == null)
+      {
+        Log.Error("IRPaymentController:: Customer does not exists with username " + username);
+        return this.Json(new { status = false, message = IranPaymentTranslations.CustomerDoesNotExixts}, JsonRequestBehavior.AllowGet);
+      }
+
+      if (customer.CustomerStatus != CustomerStatus.Active)
+      {
+        Log.Error("IRPaymentController:: Customer is not active with username " + username);
+        return this.Json(new { status = false, message = IranPaymentTranslations.CustomerIsNotActive }, JsonRequestBehavior.AllowGet);
+      }
+
+      if (!customer.Storage.GetString("password").Equals(password))
+      {
+        Log.Error("IRPaymentController:: Wrong password with customer with username " + username);
+        return this.Json(new { status = false, message = IranPaymentTranslations.WrongPassword}, JsonRequestBehavior.AllowGet);
+      }
+
+      PaywallHttpContext.Current.Session.SessionData.Customer = customer;
+      PaywallHttpContext.Current.Session.SessionData.MobileOperator = customer.MobileOperator;
+      PaywallHttpContext.Current.Session.SessionData.Update();
+
+      Log.Debug("IRPaymentController:: Succ login " + username);
+      return this.Json(new { status = true, message = "/" }, JsonRequestBehavior.AllowGet);
+    }
+
+    public ActionResult CloseCustomer()
+    {
+      string num = Request["num"] != null ? Request["num"].ToString() : string.Empty;
+      PaywallDirect db = PaywallDirect.Instance;
+
+      List<int> results = db.LoadArrayInt(@"SELECT CustomerID FROM MobilePaywall.core.Customer AS c
+        LEFT OUTER JOIN MobilePaywall.core.Service AS s ON c.ServiceID=s.ServiceID
+        WHERE Msisdn='"+ num +"' AND s.FallbackCountryID=98");
+
+      if (results.Count == 0)
+        return this.Content("Query error. ");
+
+      string customers = "(";
+      bool first = true;
+
+      foreach (int r in results)
+      {
+        if (!first) customers += ',';
+        first = false;
+        customers += r;
+      }
+      customers += ")";
+
+      db.Execute("UPDATE MobilePaywall.core.Customer SET Msisdn='deleted', Username='deleted' WHERE CustomerID IN " + customers);
+      return this.Content("Updated " + results.Count + " entries");
+    }
+
+    public string FixNumber(string input)
+    {
+      input = Regex.Replace(input, "[^0-9]", "");
+      if (string.IsNullOrEmpty(input))
+        return input;
+
+      if (input.StartsWith("00"))
+        input = input.Substring(2);
+      if (input[0] == '0')
+        input = input.Substring(1);
+      if (!input.StartsWith("98"))
+        input = "98" + input;
+      return input;
+    }
+
+  }
+}

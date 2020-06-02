@@ -1,0 +1,659 @@
+﻿@model TemplateRouteManagementModel
+
+@{
+  Layout = "~/Views/Template/_Layout/_Layout.cshtml";
+}
+
+<style>
+  .routes_route_detail {
+    border: 1px solid rgba(25, 118, 210, 0.13);
+    border-collapse: inherit;
+    padding-top: 0px;
+    padding-left: 5px;
+    padding-bottom: 0px;
+    padding-right: 5px;
+    background-color: #f7f7f7;
+    border-radius: 15px;
+  }
+
+  tr:last-child td {
+    border-bottom: none;
+  }
+
+  .route_set h4 {
+    border: 1px solid rgba(25, 118, 210, 0.13);
+    background-color: #f7f7f7;
+    border-top: 0;
+    padding: 12px;
+    margin-bottom: 0px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+
+  .route_set:first-of-type h4 {
+    border-top: 1px solid rgba(25, 118, 210, 0.13);
+  }
+
+  .routes_route {
+    position: relative;
+    margin-bottom: 0;
+    padding-bottom: 1px;
+  }
+
+    .routes_route:after {
+      /* bullets */
+      content: "____";
+      font-weight: bold;
+      position: absolute;
+      left: -25px;
+      top: 109px;
+    }
+
+    .routes_route:before {
+      /* lines */
+      content: "";
+      position: absolute;
+      left: -25px;
+      border-left: 2px solid black;
+      height: 100%;
+      width: 1px;
+    }
+
+    .routes_route:first-child:before {
+      /* first li's line */
+      top: 0px;
+    }
+
+    .routes_route:last-child:before {
+      /* last li's line */
+      height: 124px;
+    }
+
+  .route_set_routes {
+    margin-left: 49px;
+  }
+
+
+  .routes_route:first-of-type {
+    padding-top: 5px;
+  }
+
+  .route_set{
+    position:relative;
+  }
+
+  .btnAddNewRoute {
+  z-index: 100;
+  position: absolute;
+  top: 0px;
+  right: 4%;
+}
+
+.routes_route_detail label {
+  font-size: 10px;
+}
+
+.routes_route_detail td {
+    padding-bottom: 5px;
+}
+
+.routes_route_detail input {
+    height: 25px;
+}
+</style>
+
+<div class="md-card" id="RouteConfiguration">
+  <div class="md-card-content">
+    <h3>Add New Route Set:</h3>
+
+    <div class="form-group">
+      <label for="routeSetName">Name</label>
+      <input value="" type="text" class="form-control" id="routeSetName">
+    </div>
+
+    <div class="form-group">
+      <input type="checkbox" id="checkboxIsServiceSpecific" name="IsRouteServiceSpecific" value="1">Use this RouteSet only for this Service
+    </div>
+
+
+    <div class="uk-grid">
+      <div class="uk-width-medium-1-6">
+        <a class="md-btn md-btn-flat md-btn-flat-primary" href="#" id="btnInsertNewRouteSet" inuse="false">Insert</a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<div class="md-card" id="categoryConfiguration">
+  <div class="md-card-content">
+    <h3>All Routes</h3>
+
+    <div class="form-group">
+      <div class="allroutesets">
+        @foreach (RouteSet routeSet in Model.RouteSets)
+        {
+          if (routeSet.ID <= 2)
+          {
+            continue;
+          }
+          var isCustom = false;
+
+          if (routeSet.Name.EndsWith("CustomRouteSet"))
+          {
+            isCustom = true;
+          }
+          <div class="route_set" id="@routeSet.ID">
+            <h4>@routeSet.Name</h4>            
+            <div class="route_set_routes" hidden>
+              <a class="md-btn md-btn-flat md-btn-flat-primary btnAddNewRoute" href="#" inuse="false">Add New Route</a>
+              @foreach (MobilePaywall.Data.Route route in Model.Routes)
+              {
+                if (route.RouteSet.ID != routeSet.ID)
+                {
+                  continue;
+                }
+                var haveParams = Model.HaveParams(route.ID);
+
+                <div class="routes_route" value="@route.ID">
+                  <table class="uk-table  routes_route_detail">
+                    <tr>
+                      <td colspan="3">
+                        <label for="serviceBehaviorModel">Name</label>
+                        <input value="@route.Name" type="text" class="form-control route_name" @Html.Raw(isCustom ? "disabled" : "")>
+                      </td>
+                      <td colspan="3">
+                        <label for="serviceBehaviorModel">Action</label>
+                        <input value="@route.Action" type="text" class="form-control route_action" @Html.Raw(isCustom ? "disabled" : "")>
+                      </td>
+                      <td colspan="3">
+                        <label for="serviceBehaviorModel">Controller</label>
+                        <input value="@route.Controller" type="text" class="form-control route_controller" @Html.Raw(isCustom ? "disabled" : "")>
+                      </td>
+                    </tr>
+                    <tr class="form-group">
+                      <td colspan="3">
+                        <label for="serviceBehaviorModel">Pattern</label>
+                        <input value="@route.Pattern" type="text" class="form-control route_pattern" @Html.Raw(isCustom ? "disabled" : "")>
+                      </td>
+                      <td colspan="3">
+                        <label for="serviceBehaviorModel">Index</label>
+                        <input value="@route.Index" type="text" class="form-control route_index" @Html.Raw(isCustom ? "disabled" : "")>
+                      </td>
+                      <td style="vertical-align: inherit; width: 11%;">
+                        @{var isChecked = "";
+                        if (route.IsIgnore == true)
+                        {
+                          isChecked = "checked";
+                        }
+                        }
+                        <input type="checkbox" class="checkboxisignore" @isChecked @Html.Raw(isCustom ? "disabled" : "") name="routeIsIgnore" value="1">IsIgnore
+                      </td>
+                      <td style="vertical-align: inherit; width: 11%;">
+                        @{isChecked = "";
+                        if (route.IsEnabled == true)
+                        {
+                          isChecked = "checked";
+                        }
+                        }
+                        <input type="checkbox" class="checkboxisenabled" @isChecked @Html.Raw(isCustom ? "disabled" : "") name="routeIsEnabled" value="1">IsEnabled
+                      </td>
+                      <td style="vertical-align: inherit; width: 11.5%;">
+                        @{isChecked = "";
+                        if (route.IsSessionRoute == true)
+                        {
+                          isChecked = "checked";
+                        }
+                        }
+                        <input type="checkbox" class="checkboxissessionroute" @isChecked @Html.Raw(isCustom ? "disabled" : "") name="routeIsSessionRoute" value="1">IsSessionRoute
+                      </td>
+                    </tr>
+                    <tr class="form-group">
+                      <td colspan="6">
+                        <div class="routes_parameter" hidden>
+                          <table>
+                            @if (haveParams)
+                            {
+                              <tbody class="param_header">
+                                <tr>
+                                  <td><label for="serviceBehaviorModel">Key</label></td>
+                                  <td ><label for="serviceBehaviorModel">Default Value</label></td>
+                                  <td><label for="serviceBehaviorModel">Constraint</label></td>
+                                  <td></td>
+                                </tr>
+                              </tbody>
+                              foreach (RouteParameter routeParameter in Model.RouteParameters)
+                              {
+                                <tbody class="param_values" routeparamid="@routeParameter.ID">
+                                  <tr>
+                                    @if (routeParameter.Route.ID == route.ID)
+                                    {
+                                      <td>
+                                        <input value="@routeParameter.Key" type="text" class="form-control parameter_key" @Html.Raw(isCustom ? "disabled" : "")>
+                                      </td>
+                                      <td>
+                                        <input value="@routeParameter.Value" type="text" class="form-control parameter_value" @Html.Raw(isCustom ? "disabled" : "")>
+                                      </td>
+                                      <td>
+                                        <input value="@routeParameter.Constraint" type="text" class="form-control parameter_constraint" @Html.Raw(isCustom ? "disabled" : "")>
+                                      </td>
+                                      <td>
+                                        <input type="checkbox" class="checkboxIsParamOptional" name="IsParamOptional" @Html.Raw(routeParameter.IsOptional? "checked" : "") value="1">IsOptional
+                                        <a class="md-btn md-btn-flat md-btn-flat-primary btnSavaRouteParams" inuse="false">Save</a>                                        
+                                      </td>
+                                    }
+                                  </tr>
+                                </tbody>
+                              }
+                            }
+                            else
+                            {
+                              if (!isCustom)
+                              {
+                                <tbody class="param_header">
+                                  <tr>
+                                    <td><label for="serviceBehaviorModel">Key</label></td>
+                                    <td><label for="serviceBehaviorModel">Default Value</label></td>
+                                    <td><label for="serviceBehaviorModel">Constraint</label></td>
+                                    <td></td>
+                                  </tr>
+                                </tbody>
+                                <tbody class="param_values">
+                                  <tr>
+                                    <td>
+                                      <input value="" type="text" class="form-control parameter_key">
+                                    </td>
+                                    <td>
+                                      <input value="" type="text" class="form-control parameter_value">
+                                    </td>
+                                    <td>
+                                      <input value="" type="text" class="form-control parameter_constraint">
+                                    </td>
+                                    <td>
+                                      <input type="checkbox" class="checkboxIsParamOptional" name="IsParamOptional" value="1">IsOptional
+                                      <a class="md-btn md-btn-flat md-btn-flat-primary btnInsertRouteParams" inuse="false">Insert</a>
+                                    </td>
+                                  </tr>
+                                </tbody>
+                              }
+                            }
+                          </table>
+                          <a class="md-btn md-btn-flat md-btn-flat-primary btnNewRouteParams" inuse="false">New Parameters</a>
+                        </div>
+                      </td>
+                      <td colspan="3" align="right">
+                          <a class="md-btn md-btn-flat md-btn-flat-primary btnAddRouteParameters">@Html.Raw(haveParams ? "Edit Parameter" : "Add Parameter")</a>
+                          <a class="md-btn md-btn-flat md-btn-flat-primary btnUpdateRouteDetails" href="#" inuse="false">Update</a>
+                          <a class="md-btn md-btn-flat md-btn-flat-primary btnDeleteRouteDetails" href="#" inuse="false">Delete</a>
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="templates" hidden>
+  <table class="newparamtemplate">
+    <tbody class="param_values">
+      <tr>
+        <td>
+          <input value="" type="text" class="form-control parameter_key">
+        </td>
+        <td>
+          <input value="" type="text" class="form-control parameter_value">
+        </td>
+        <td>
+          <input value="" type="text" class="form-control parameter_constraint">
+        </td>
+        <td>
+          <input type="checkbox" class="checkboxIsParamOptional" name="IsParamOptional" value="1">IsOptional
+          <a class="md-btn md-btn-flat md-btn-flat-primary btnInsertRouteParams" inuse="false">Insert</a>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="newroutetemplate">
+
+    <div class="routes_route" value="-1">
+      <table class="uk-table  routes_route_detail">
+        <tr>
+          <td colspan="3">
+            <label for="serviceBehaviorModel">Name</label>
+            <input value="" type="text" class="form-control route_name" >
+          </td>
+          <td colspan="3">
+            <label for="serviceBehaviorModel">Action</label>
+            <input value="" type="text" class="form-control route_action")>
+          </td>
+          <td colspan="3">
+            <label for="serviceBehaviorModel">Controller</label>
+            <input value="" type="text" class="form-control route_controller" >
+          </td>
+        </tr>
+        <tr class="form-group">
+          <td colspan="3">
+            <label for="serviceBehaviorModel">Pattern</label>
+            <input value="" type="text" class="form-control route_pattern" >
+          </td>
+          <td colspan="3">
+            <label for="serviceBehaviorModel">Index</label>
+            <input value="" type="text" class="form-control route_index">
+          </td>
+          <td style="vertical-align: inherit; width: 11%;">
+            <input type="checkbox" class="checkboxisignore" name="routeIsIgnore" value="1">IsIgnore
+          </td>
+          <td style="vertical-align: inherit; width: 11%;">
+            <input type="checkbox" class="checkboxisenabled" name="routeIsEnabled" value="1">IsEnabled
+          </td>
+          <td style="vertical-align: inherit; width: 11.5%;">
+            <input type="checkbox" class="checkboxissessionroute" name="routeIsSessionRoute" value="1">IsSessionRoute
+          </td>
+        </tr>
+        <tr class="form-group">
+          <td colspan="6">
+            <div class="routes_parameter" hidden>
+              <table>
+                <tbody class="param_header">
+                  <tr>
+                    <td><label for="serviceBehaviorModel">Key</label></td>
+                    <td><label for="serviceBehaviorModel">Default Value</label></td>
+                    <td><label for="serviceBehaviorModel">Constraint</label></td>
+                    <td></td>
+                  </tr>
+                </tbody>
+                <tbody class="param_values">
+                  <tr>
+                    <td>
+                      <input value="" type="text" class="form-control parameter_key">
+                    </td>
+                    <td>
+                      <input value="" type="text" class="form-control parameter_value">
+                    </td>
+                    <td>
+                      <input value="" type="text" class="form-control parameter_constraint">
+                    </td>
+                    <td>
+                      <input type="checkbox" class="checkboxIsParamOptional" name="IsParamOptional" value="1">IsOptional
+                      <a class="md-btn md-btn-flat md-btn-flat-primary btnInsertRouteParams" inuse="false">Insert</a>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <a class="md-btn md-btn-flat md-btn-flat-primary btnNewRouteParams" inuse="false">New Parameters</a>
+            </div>
+          </td>
+          <td colspan="3" align="right">
+              <a class="md-btn md-btn-flat md-btn-flat-primary btnAddRouteParameters">Add Parameter</a>
+              <a class="md-btn md-btn-flat md-btn-flat-primary btnUpdateRouteDetails" href="#" inuse="false">Insert</a>
+              <a class="md-btn md-btn-flat md-btn-flat-primary btnDeleteRouteDetails" href="#" inuse="false">Delete</a>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+  </div>
+</div>
+
+
+
+
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    onInsertRouteSet();
+    onClickRouteSet();
+    onClickOnTable();
+    onEditParams();
+    onClickNewRouteParams();
+    onInsertNewRouteParams();
+    onSaveRouteParams();
+    onUpdateRouteDetail();
+    onDeleteRoute();
+    onAddNewRoute();
+  });
+
+  function onInsertRouteSet() {
+    $('#btnInsertNewRouteSet').click(function () {
+
+      if ($("#btnInsertNewRouteSet").attr('inuse') == 'true')
+        return;
+
+      var btn = $(this);
+      var _name = $('#routeSetName').val();
+      if (_name == '')
+      { visual.Alert('Please enter name'); return; }
+
+      var _useService = "0";
+      if ($('#checkboxIsServiceSpecific').is(':checked')) {
+        _useService = "1";
+      }
+
+      visual.Confirm('Are you sure you want to make this change?', 'Yes', 'No', function () {
+
+        var tmplText = btn.text();
+        btn.attr('inuse', 'true');
+        btn.text('...');
+
+        template.call('ApiTemplateRouteManagementNewRouteSet', { name: _name, useService: _useService }, function (response) {
+          btn.attr('inuse', 'false');
+          btn.text(tmplText);
+          visual.Alert(response.message + " Please refresh page.");
+        });
+
+      });
+    });
+  }
+
+  function onClickRouteSet() {
+    $(".route_set").click(function () {
+
+      if ($(".route_set_routes").not(":hidden").is($(this).find(".route_set_routes"))) {
+        $(".route_set_routes").not(":hidden").attr("hidden", "");
+      }
+      else {
+        $(".route_set_routes").not(":hidden").attr("hidden", "");
+        $(this).find(".route_set_routes").removeAttr("hidden");
+      }
+    });
+  }
+  
+  function onClickOnTable() {
+    $(".route_set_routes").on('click', '.routes_route', function (e) {
+      e.stopPropagation();
+    });
+  }
+
+  function onClickNewRouteParams() {
+    $(".btnNewRouteParams").click(function () {
+      var btn = $(this);
+      if (btn.closest(".routes_parameter").find(".btnInsertRouteParams")[0])
+        return
+      btn.closest(".routes_parameter").find(".param_values").last().after($(".newparamtemplate").html());
+    });
+  }
+  
+  function onEditParams() {
+    $('.route_set_routes').on('click', '.btnAddRouteParameters', function () {
+
+      if ($(this).closest(".routes_route").attr("value") == "-1")
+      {
+        visual.Alert("You need to insert route first!");
+        return;
+      }
+
+      if ($(".routes_parameter").not(":hidden").is($(this).closest(".routes_route").find(".routes_parameter"))) {
+        $(".routes_parameter").not(":hidden").attr("hidden", "");
+      }
+      else {
+        $(".routes_parameter").not(":hidden").attr("hidden", "");
+        $(this).closest(".routes_route").find(".routes_parameter").removeAttr("hidden");
+      }
+    });
+  }
+
+  function onInsertNewRouteParams() {
+    $('.route_set_routes').on('click', '.btnInsertRouteParams', function (e) {
+      e.stopPropagation();
+      var btn = $(this);
+      if (btn.attr("inuse") == "true")
+        return;
+
+      visual.Confirm('Are you sure you want to make this change?', 'Yes', 'No', function () {
+        var tmplText = btn.text();
+        btn.attr('inuse', 'true');
+        btn.text('...');
+        var _key = btn.parent().parent().find(".parameter_key").val();
+        var _value = btn.parent().parent().find(".parameter_value").val();
+        var _constraint = btn.parent().parent().find(".parameter_constraint").val();
+        var _routeID = btn.closest(".routes_route").attr("value");
+        var _paramID = "-1";
+        var _isOptional = "0";
+        if (btn.parent().find(".checkboxIsParamOptional").is(':checked'))
+          _isOptional = "1";
+        template.call('ApiTemplateRouteManagementNewRouteParameter', { routeID: _routeID, paramID: _paramID, key: _key, value: _value, constraint: _constraint, isOptional: _isOptional }, function (response) {
+          btn.attr('inuse', 'false');
+          btn.text(tmplText);
+          if (response.status)
+          {
+            btn.text("Save");
+            btn.addClass("btnSaveRouteParams");
+            btn.removeClass("btnInsertRouteParams");
+            btn.closest(".param_values").attr("routeparamid", response.id);
+          }
+          visual.Alert(response.message);
+        });
+      });
+    });
+  }
+
+  function onSaveRouteParams() {
+    $('.route_set_routes').on('click', '.btnSaveRouteParams', function (e) {
+      e.stopPropagation();
+      var btn = $(this);
+      if (btn.attr("inuse") == "true")
+        return;
+
+      visual.Confirm('Are you sure you want to make this change?', 'Yes', 'No', function () {
+        var tmplText = btn.text();
+        btn.attr('inuse', 'true');
+        btn.text('...');
+        var _key = btn.parent().parent().find(".parameter_key").val();
+        var _value = btn.parent().parent().find(".parameter_value").val();
+        var _constraint = btn.parent().parent().find(".parameter_constraint").val();
+        var _routeID = btn.closest(".routes_route").attr("value");
+        var _paramID = btn.closest(".param_values").attr("routeparamid");
+        var _isOptional = "0";
+        if (btn.parent().find(".checkboxIsParamOptional").is(':checked'))
+          _isOptional = "1";
+        template.call('ApiTemplateRouteManagementNewRouteParameter', { routeID: _routeID, paramID: _paramID, key: _key, value: _value, constraint: _constraint, isOptional: _isOptional }, function (response) {
+          btn.attr('inuse', 'false');
+          btn.text(tmplText);
+          if (response.status) {
+            btn.text("Save");
+            btn.addClass("btnSaveRouteParams");
+            btn.removeClass("btnInsertRouteParams");
+          }
+          visual.Alert(response.message);
+        });
+      });
+    });
+  }
+
+  function onUpdateRouteDetail() {
+    $('.route_set_routes').on('click', '.btnUpdateRouteDetails', function (e) {
+      e.stopPropagation();
+      var btn = $(this);
+      if (btn.attr("inuse") == "true")
+        return;
+
+      visual.Confirm('Are you sure you want to make this change?', 'Yes', 'No', function () {
+        var tmplText = btn.text();
+        btn.attr('inuse', 'true');
+        btn.text('...');
+        var _name = btn.closest(".routes_route").find(".route_name").val();
+        var _action = btn.closest(".routes_route").find(".route_action").val();
+        var _controller = btn.closest(".routes_route").find(".route_controller").val();
+        var _pattern = btn.closest(".routes_route").find(".route_pattern").val();
+        var _index = btn.closest(".routes_route").find(".route_index").val();
+        var _isIgnore = "0";
+        var _isEnabled = "0";
+        var _isSessionRoute = "0";
+        var _routeID = btn.closest(".routes_route").attr("value");
+        var _routeSetID = btn.closest(".route_set").attr("id");
+
+        if (btn.closest(".routes_route").find(".checkboxisignore").is(':checked'))
+          _isIgnore = "1";
+        if (btn.closest(".routes_route").find(".checkboxisenabled").is(':checked'))
+          _isEnabled = "1";
+        if (btn.closest(".routes_route").find(".checkboxissessionroute").is(':checked'))
+          _isSessionRoute = "1";
+
+        template.call('ApiTemplateRouteManagementUpdateRouteDetails', { routeID: _routeID, routeSetID: _routeSetID, name: _name, action: _action, controller: _controller, pattern: _pattern, index: _index, isignore: _isIgnore, isenabled: _isEnabled, issessionroute: _isSessionRoute }, function (response) {
+          btn.attr('inuse', 'false');          
+          if (response.status)
+          {
+            if (tmplText == "Insert")
+            {
+              tmplText = "Update";
+              btn.closest(".routes_route").attr("value", response.id);
+            }
+          }
+          btn.text(tmplText);
+          visual.Alert(response.message);
+        });
+      });
+    });
+  }
+
+  function onDeleteRoute() {
+    $('.route_set_routes').on('click', '.btnDeleteRouteDetails', function (e) {
+      e.stopPropagation();
+      var btn = $(this);
+      if (btn.closest(".routes_route").attr("value") == "-1")
+      {
+        btn.closest(".routes_route").remove();
+        return;
+      }
+
+      if (btn.attr("inuse") == "true")
+        return;
+
+      visual.Confirm('Are you sure you want to make this change?', 'Yes', 'No', function () {
+        var tmplText = btn.text();
+        btn.attr('inuse', 'true');
+        btn.text('...');
+        var _routeID = btn.closest(".routes_route").attr("value");
+
+        template.call('ApiTemplateRouteManagementDeleteRoute', { routeID: _routeID}, function (response) {
+          btn.attr('inuse', 'false');
+          btn.text(tmplText);
+          if (response.status)
+          {
+            btn.closest(".routes_route").remove();
+          }
+          visual.Alert(response.message);
+        });
+      });
+    });
+  }
+
+  function onAddNewRoute() {
+    $(".btnAddNewRoute").click(function (e) {
+      e.stopPropagation();
+      if ($(".routes_route").first().attr("value") == "-1")
+        return;
+
+      var btn = $(this);
+      btn.parent().prepend($(".newroutetemplate").html());
+    });
+  }
+</script>

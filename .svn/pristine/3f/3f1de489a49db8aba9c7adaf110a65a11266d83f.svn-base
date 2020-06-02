@@ -1,0 +1,90 @@
+﻿using System;
+using System.Configuration;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Web;
+using System.Web.Mvc;
+using System.Web.Routing;
+
+using MobilePaywall.Web.Filters;
+
+namespace MobilePaywall.Web
+{
+  [ContextValidation(Order = 100, Required = true)]
+  [Authentication(Order = 200, Required = true)]
+  [AgeVerification(Order = 300, Required = true)]
+	public class PaywallController : Controller, IPaywallController
+	{
+		private PaywallHttpApplication _paywallApplication = null;
+		private PaywallHttpContext _paywallContext = null;
+
+		public PaywallHttpApplication PaywallApplication
+		{
+			get
+			{
+				if (this._paywallApplication == null)
+					this._paywallApplication = this.HttpContext.ApplicationInstance as PaywallHttpApplication;
+				return this._paywallApplication;
+			}
+		}
+
+    public ICache Cache
+    {
+      get
+      {
+        if (this.PaywallContext == null || this.PaywallContext.Runtime == null)
+          return null;
+        return this.PaywallContext.Runtime.Cache;
+      }
+    }
+
+    //public IContentCacheManager ContentCache
+    //{
+    //  get
+    //  {
+    //    if (this.PaywallContext == null || this.PaywallContext.Runtime == null)
+    //      return null;
+    //    return this.PaywallContext.Runtime.ContentCache;
+    //  }
+    //}
+
+		public PaywallHttpContext PaywallContext { get { return PaywallHttpContext.Current; } }
+				
+
+    //protected override ViewResult View(string view, object model)
+    //{
+    //  // Check for country/provider specific views
+    //  view = string.Format("~/Views/Templates/{0}/{1}.cshtml", this.PaywallContext.Service.ServiceData.Template.Name, view);
+    //  return base.View(view, model);
+    //}
+
+  }
+}
+
+
+
+/*
+flow generic request:
+1. request incoming to application (determine service)
+2. module inspecting request, generic request detected
+3. try to load session (determine session using cookies / query string)
+4. if session does not exist, create session
+
+5. check if lookup mode of service is "immediate", if it is NOT, proceed with 9.
+6. check if a lookup result exists for session, if it is, proceed with 9.
+7. save relevant request data along with user session
+8. get lookup url from cashflow, redirect customer, exit and wait for callback
+
+9. check user session whether customer confirmed age, if confirmed, proceed with 16.
+10. check if avs is enabled for service / operator, if it is NOT, proceed with 16.
+11. get avs config for service from database
+12. check if avs mode is intercept. if it is not, proceed with 15
+13. save relevant request data along with user session
+14. redirect customer to avs url, exit
+15. set flag in user session that customer needs to confirm age (will be checked by filters later)
+
+16. forward request to mvc application
+
+*/

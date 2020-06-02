@@ -1,0 +1,218 @@
+﻿using MobilePaywall.Web.Filters;
+using MobilePaywall.Web.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+using MobilePaywall.Data;
+using MobilePaywall.Web.Localization;
+using log4net;
+using Senti.Diagnostics.Log;
+using MobilePaywall.Web.Log;
+
+namespace MobilePaywall.Web.Controllers
+{
+  [ContextValidation(Required = false)]
+  [AgeVerification(Required = false)]
+  [Authentication(Required = false)]
+  public class OtherController : PaywallController
+  {
+
+    #region #logging#
+
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (OtherController._log == null)
+          OtherController._log = LogManager.GetLogger(typeof(OtherController));
+        return OtherController._log;
+      }
+    }
+
+    #endregion #logging#
+
+    // SUMMARY: Get logo of the service from database, if there is logo in databse, rederict to hardcoded logo in project
+    public ActionResult Logo()
+    {
+      if (this.PaywallContext.Service.ServiceLogo == null)
+      {
+        string logoUrl = string.Format("~/Images/_Logo/{0}.png", this.PaywallContext.Service.ServiceData.ID);
+        return (System.IO.File.Exists(Server.MapPath(logoUrl))) ? Redirect(logoUrl) : null;
+      }
+
+      return File(this.PaywallContext.Service.ServiceLogo.Data, "image/png", string.Format("logo.{0}.png",  this.PaywallContext.Service.ServiceData.ID));
+    }
+
+    public ActionResult FilterRedirect(string url)
+    {
+      return Redirect(url);
+    }
+
+    // SUMMARY: Test for Boris
+    public ActionResult Ping()
+    {
+      string html = string.Format("<div>Service: <strong>{0}</strong></div><br/>", this.PaywallContext.Service.ServiceData.Name) +
+        string.Format("<div>Application: <strong>{0}</strong></div><br/>", this.PaywallContext.Service.ServiceData.Application.ApplicationName) +
+        string.Format("<div>IP: <strong>{0}</strong></div><br/>", Request.UserHostAddress);
+
+      if (this.PaywallContext.Session.SessionData.ID > -1)
+        this.PaywallContext.Session.SessionData.Delete();
+
+      return Content(html);
+    }
+        
+    // SUMMARY: Proxy method to display page before payment page ( This is mandatory in case of Spain )
+    public ActionResult ContentProxy(int id)
+    {
+      IContent content = this.PaywallContext.Runtime.Cache.GetContent(id);
+      if(content == null)
+      {
+        Log.Error(new LogMessageBuilder( new PaywallLogErrorCode("paywall", "web", "othercontroller"),
+            "ERROR VIEW!!! Content could not be loaded on proxy "));
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal);
+        return View("Error", errorModel);
+      }
+
+      // Check if customer has allready access
+      if (this.PaywallContext.Session.SessionData.Customer != null && this.PaywallContext.Session.SessionData.Customer.HasAccess(this.PaywallContext.Service.ServiceData))
+        return this.Redirect(PaywallHttpContext.AppendSessionID(content.GetAccessUrl(this.Request.UserAgent)));
+
+      ContentProxyModel model = new ContentProxyModel(this.PaywallContext, content);
+      return View("ContentProxy", model);
+    }
+
+    // SUMMARY: Supported device page ( Required for Spain and France services )
+    public ActionResult SupportedDevices()
+    {
+      PaywallViewModelBase model = new PaywallViewModelBase(this.PaywallContext);
+      return View("SupportedDevices", model);
+    }
+
+    // SUMMARY: This action is called after pending page when we dont get response in time (FIX for portugal where simtest doesnt allow ajax calls)
+    public ActionResult PendingRedirect(string type, string callback)
+    {
+      Guid callbackGuid = Guid.Empty;
+      if (!Guid.TryParse(callback, out callbackGuid) || 
+        string.IsNullOrEmpty(type))
+        return Redirect("/");
+     
+      switch(type)
+      {
+        case "lookup":
+          LookupMsisdnCallback lookupCallback = LookupMsisdnCallback.CreateManager(2).Load(callbackGuid);
+          return Redirect(lookupCallback != null ? lookupCallback.LookupSession.LookupUrl : "/");
+        case "query":
+          QueryIdentificationCallback queryCallback = QueryIdentificationCallback.CreateManager(2).Load(callbackGuid);
+          return Redirect(queryCallback != null ? queryCallback.LookupSession.UserHttpRequest.RequestedUrl : "/");
+        case "initiate":
+          InitiateCallback initiateCallback = InitiateCallback.CreateManager(2).Load(callbackGuid);
+          return Redirect(initiateCallback != null && initiateCallback.PaymentRequest != null && !string.IsNullOrEmpty(initiateCallback.PaymentRequest.PaymentRedirectUrl) ? 
+            initiateCallback.PaymentRequest.PaymentRedirectUrl : "/");
+        case "payment":
+          PaymentCallback paymentCallback = PaymentCallback.CreateManager().Load(callbackGuid, PaymentCallbackGuidColumnIdentifier.Internal);
+          if (paymentCallback == null) return Redirect("/");
+          UserHttpRequest userHttpRequest = (from uhr in UserHttpRequest.CreateManager().Load(paymentCallback.PaymentRequest.Customer) where uhr.Content != null select uhr).LastOrDefault();
+
+          string requestUrl = "/";
+          if (userHttpRequest != null && paymentCallback.IsCompleted)
+            requestUrl = userHttpRequest.RequestedUrl;
+
+          if (paymentCallback.IsCompleted && paymentCallback.Payment != null && paymentCallback.Payment.Customer.Country.ID == 170 && DateTime.Now.Subtract(paymentCallback.Payment.Created).TotalMinutes > 10)
+            requestUrl = string.Format("/welcome/{0}", paymentCallback.Payment.Guid);
+
+          return Redirect(requestUrl);
+        default: return Redirect("/");
+      }
+    }
+
+    #region # Russia Specific #
+
+    public ActionResult RU_CostOfService()
+    {
+      if(!this.PaywallContext.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("RU"))
+        return View("Notification", new NotificationViewModel(this.PaywallContext, "Country", Translations.Web.Error.ErrInternal));
+      return View("RU_CostOfService", new PaywallViewModelBase(this.PaywallContext));
+    }
+
+    public ActionResult RU_SubscriptionManagment()
+    {
+      if (!this.PaywallContext.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("RU"))
+        return View("Notification", new NotificationViewModel(this.PaywallContext, "Country", Translations.Web.Error.ErrInternal));
+      return View("RU_SubscriptionManagment", new PaywallViewModelBase(this.PaywallContext));
+    }
+
+    #endregion
+
+    #region # Thailand Specific #
+
+    public ActionResult SetNumber(string number, string mobileOperatorID)
+    {
+      //this.PaywallContext.Service.
+
+      int mnoID = -1;
+      if (!Int32.TryParse(mobileOperatorID, out mnoID))
+        return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal });
+
+      number = number.Replace("+", string.Empty).Replace(" ", string.Empty);
+      if(number.Length < 8)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall", "web", "othercontroller"),
+            "TH_PROXY:: Number sent is shorter that 8 characters " + string.Format(" (number:{0}, mno:{1})", number, mobileOperatorID)));
+        return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal });
+      }
+
+      long dummyNum = 0;
+      if (!long.TryParse(number, out dummyNum))
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall", "web", "othercontroller"),
+            "TH_PROXY:: Number is not valid " + string.Format(" (number:{0}, mno:{1})", number, mobileOperatorID)));
+        return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal });
+      }
+
+      MobileOperator mobileOperator = MobileOperator.CreateManager().Load(mnoID);
+      if (mobileOperator == null)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall", "web", "othercontroller"),
+            "TH_PROXY:: Could not load mobileOperator " + string.Format(" (number:{0}, mno:{1})", number, mobileOperatorID)));
+        return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal });
+      }
+
+      if(this.PaywallContext.Session.SessionData.Customer == null)
+      {
+        this.PaywallContext.Session.SessionData.Customer = new Customer(-1,
+          Guid.NewGuid(),
+          CustomerStatus.Active,
+          this.PaywallContext.Service.ServiceData,
+          this.PaywallContext.Service.ServiceData.FallbackCountry,
+          mobileOperator,
+          null,
+          number,
+          string.Empty,
+          number,
+          new byte[] { 0 },
+          DateTime.Now, DateTime.Now);
+        this.PaywallContext.Session.SessionData.Customer.Insert();
+        this.PaywallContext.Session.SessionData.Customer.SetUsernameAndPassword();
+        this.PaywallContext.Session.SessionData.Update();
+      }
+      else
+      {
+        this.PaywallContext.Session.SessionData.Customer.Msisdn = number;
+        this.PaywallContext.Session.SessionData.Customer.Update();
+      }
+
+
+      Log.Info(new LogMessageBuilder(new PaywallLogErrorCode("paywall", "web", "othercontroller"),
+          "TH_PROXY:: Number and mobile operator are set for clientID:" + this.PaywallContext.Session.SessionData.Customer.ID + string.Format(" (number:{0}, mno:{1})", number, mobileOperatorID)));
+
+      return this.Json(new { status = true, message = "" });
+    }
+
+    #endregion
+    
+  }
+}

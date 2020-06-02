@@ -1,0 +1,66 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class ImageContentDataManager : IImageContentDataManager
+  {
+    public List<ImageContentData> Load(ImageContent imageContent)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, imageContent);
+    }
+
+    public List<ImageContentData> Load(IConnectionInfo connection, ImageContent imageContent)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, imageContent);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, imageContent);
+    }
+
+    public List<ImageContentData> Load(ISqlConnectionInfo connection, ImageContent imageContent)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[icd].ImageContentID=@ImageContentID";
+      parameters.Arguments.Add("ImageContentID", imageContent.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+
+    public List<ImageContentData> LoadWithoutData(ImageContent imageContent)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.LoadWithoutData(connection, imageContent);
+    }
+
+    public List<ImageContentData> LoadWithoutData(IConnectionInfo connection, ImageContent imageContent)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.LoadWithoutData(sqlConnection, imageContent);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.LoadWithoutData(sqlConnection, imageContent);
+    }
+
+    public List<ImageContentData> LoadWithoutData(ISqlConnectionInfo connection, ImageContent imageContent)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[icd].ImageContentID=@ImageContentID";
+      parameters.SetExcludedColumns(new List<ColumnDescription>(new ColumnDescription[] { ImageContentDataTable.Columns.Data }));
+      parameters.Arguments.Add("ImageContentID", imageContent.ID);
+      return this.LoadMany(connection, parameters);
+    }
+  }
+}
+

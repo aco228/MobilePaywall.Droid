@@ -1,0 +1,48 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Service.Callback.Controllers
+{
+	public class CCSubmitController : Controller
+	{
+		[Route("callback")]
+		public ActionResult Index()
+		{
+			string txid = Request["txid"] != null ? Request["txid"].ToString().ToLower() : "";
+			if (string.IsNullOrEmpty(txid))
+				return new HttpStatusCodeResult(500);
+
+			string iEvent = Request["event"] != null ? Request["event"].ToString().ToLower() : "subscribed";
+			if (string.IsNullOrEmpty(iEvent))
+				return new HttpStatusCodeResult(500);
+
+			if (iEvent.ToLower().Equals("initial") || iEvent.ToLower().Equals("rebill"))
+				this.SendPostbackToBananaclicks(txid);
+
+			return new HttpStatusCodeResult(200);
+		}
+
+		private void SendPostbackToBananaclicks(string transaction_id)
+		{
+			string postbackLink = "http://conversions.bananaclicks.com/?transaction_id=" + transaction_id;
+			HttpWebRequest webRequest = (HttpWebRequest)WebRequest.Create(postbackLink);
+			webRequest.AllowAutoRedirect = false;
+			HttpWebResponse response;
+			HttpStatusCode statusCode;
+
+			try
+			{
+				response = (HttpWebResponse)webRequest.GetResponse();
+			}
+			catch (WebException we)
+			{
+				return;
+			}
+		}
+
+	}
+}

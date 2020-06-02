@@ -1,0 +1,200 @@
+﻿@model GreecePaymentPageViewModel 
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+}
+
+@Styles.Render("~/Style/Darkley/Login")
+@Scripts.Render("~/Script/Login")
+
+<style>
+  body{ background: #000!important; }
+  .contactFormWrapper { margin-top: 25px!important; }
+  .checkboxError{ color:red; display:none;  }
+</style>
+
+<div class="contactFormWrapper step1">
+  <h4 class="contactTitle">Please insert your mobile number</h4>
+  <form class="contactForm _login_form" id="contactForm">
+    <fieldset>
+      <div class="formFieldWrapper">
+        <label for="contactNameField">Phone number:</label>
+        <input type="text" name="contactNameField" value="" class="contactField requiredField" id="input_number" data-placeholder="69xxxxxxxx">
+      </div>
+      <div class="formSubmitButtonErrorsWrapper" id="loginForm">
+        <input type="button" class="buttonWrapper contactSubmitButton submitBtn" id="loginSubmit" value="Next" data-form-id="contactForm">
+      </div>
+      <div class="ajax_response"></div>
+    </fieldset>
+  </form>
+</div>
+
+<div class="contactFormWrapper step2" style="display:none">
+  <h4 class="contactTitle">Please insert your PIN number</h4>
+  <form class="contactForm _login_form" id="contactForm">
+    <fieldset>
+      <div class="formFieldWrapper">
+        <label for="contactNameField">PIN:</label>
+        <input type="text" name="contactNameField" value="" class="contactField requiredField" id="input_pin" data-placeholder="xxxx">
+      </div>
+      <div class="formFieldWrapper">
+        <table>
+          <tr>
+            <td style="width:5%;"><input id="checker" type="checkbox" /></td>
+            <td style="width:95%;color:white">Έχω λάβει γνώση των <a href="/terms">όρων χρήσης</a> και αποδέχομαι να ενεργοποιήσω την συνδρομητική υπηρεσία @PaywallHttpContext.Current.Service.ServiceData.Name με χρέωση δύο ευρώ και οκτώ λεπτά ανά sms, τρία sms ανά εβδομάδα.</td>
+          </tr>
+        </table>
+      </div>
+      <div class="checkboxError">Παρακαλούμε αποδεχτείτε τους όρους χρήσης για να προχωρήσετε</div>
+      <div class="formSubmitButtonErrorsWrapper">
+        <input type="button" class="buttonWrapper contactSubmitButton submitBtn" id="resetPasswordSubmit" value="Confirmation" data-form-id="contactForm">
+      </div>
+      <div class="ajax_response"></div>
+    </fieldset>
+  </form>
+</div>
+
+<div style="clear:both;"></div>
+
+
+<script>
+  $(document).ready(function () {
+    var step = 1;
+    var customerLoginID = ''; // in case of login
+
+    @if(Model.HasPinCode)
+    {
+      Html.Raw("displayPin();");
+    }
+
+    $('.submitBtn').click(function () {
+      if (step == 1)
+        processInsertPhoneNumber();
+      else if (step == 2)
+        processInsertPinNumber();
+      else if (step == 3)
+        processLogin();
+    });
+
+    // SUMMARY: Function for insert number
+    function processInsertPhoneNumber() {
+      var btn = $('.step1').find('.submitBtn');
+      if (btn.attr('inuse') == 'true')
+        return;
+
+      var number = $('.step1').find('#input_number').val();
+      if (number == '') {
+        _visual.Alert("You must enter number first.");
+        return;
+      }
+
+      var btnOriginalText = btn.text();
+      btn.text('Wait..');
+      btn.attr('inuse', 'true');
+
+      $.ajax({
+        url: '/GreecePayment/SendNumber',
+        type: 'POST',
+        data: { input: number },
+        success: function (response) {
+          console.log(response);
+          if (typeof response.login !== 'undefined' && response.login) {
+            customerLoginID = response.message;
+            openStep(3);
+          }
+          else if (response.status)
+            openStep(2);
+          else
+            _visual.Alert(response.message);
+
+          btn.attr('inuse', 'false');
+          btn.text(btnOriginalText);
+        }
+      });
+
+    }
+
+    // SUMMARY: Function for insert PIN number
+    function processInsertPinNumber() {
+      var btn = $('.step2').find('.submitBtn');
+      if (btn.attr('inuse') == 'true')
+        return;
+
+      var checked = $('#checker').is(':checked');
+      $('.checkboxError').css('display', 'none');
+      if (!checked) {
+        $('.checkboxError').css('display', 'block');
+        return;
+      }
+
+      var number = $('.step2').find('#input_pin').val();
+      if (number == '') {
+        _visual.Alert("You must enter number first.");
+        return;
+      }
+
+      var btnOriginalText = btn.text();
+      btn.text('Wait..');
+      btn.attr('inuse', 'true');
+
+      $.ajax({
+        url: '/GreecePayment/ConfirmPin',
+        type: 'POST',
+        data: { input: number, cid: customerLoginID },
+        success: function (response) {
+          console.log(response);
+          if (response.status)
+            window.location = '/GreeceWelcome';
+          else
+            _visual.Alert(response.message);
+
+          btn.attr('inuse', 'false');
+          btn.text(btnOriginalText);
+        }
+      });
+    }
+
+    function processLogin() {
+      var btn = $('.step3').find('.submitBtn');
+      if (btn.attr('inuse') == 'true')
+        return;
+
+      var password = $('.step3').find('#input_pin').val();
+      if (password == '') {
+        _visual.Alert("You must enter password first.");
+        return;
+      }
+
+      var btnOriginalText = btn.text();
+      btn.text('Wait..');
+      btn.attr('inuse', 'true');
+
+      $.ajax({
+        url: '/GreecePayment/ConfirmPassword',
+        type: 'POST',
+        data: { input: password },
+        success: function (response) {
+          console.log(response);
+          if (response.status)
+            window.location = '/';
+          else
+            _visual.Alert(response.message);
+
+          btn.attr('inuse', 'false');
+          btn.text(btnOriginalText);
+        }
+      });
+    }
+
+    function openStep(openStep) {
+      $('.step1').css('display', 'none');
+      $('.step' + openStep).css('display', 'block');
+      step = openStep;
+    }
+
+  });
+</script>
+
+<div> @{ Html.RenderPartial("_Dislaimer"); } </div>
+
+
+@section footer{}

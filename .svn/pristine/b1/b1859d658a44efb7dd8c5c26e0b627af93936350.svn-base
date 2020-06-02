@@ -1,0 +1,485 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(LookupSession))] 
+  public partial class LookupSessionManager : MobilePaywall.Data.Sql.SqlManagerBase<LookupSession>, ILookupSessionManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override LookupSession LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							LookupSessionTable.GetColumnNames("[ls]") + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[ls_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[ls_us_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[ls_us_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + DomainTable.GetColumnNames("[ls_us_d]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[ls_us_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[ls_us_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[ls_us_mo]") : string.Empty) + 
+							(this.Depth > 0 ? "," + UserHttpRequestTable.GetColumnNames("[ls_uhr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTable.GetColumnNames("[ls_uhr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[ls_uhr_c]") : string.Empty) + 
+					" FROM [core].[LookupSession] AS [ls] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [ls_us] ON [ls].[UserSessionID] = [ls_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [ls_us_ust] ON [ls_us].[UserSessionTypeID] = [ls_us_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [ls_us_s] ON [ls_us].[ServiceID] = [ls_us_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Domain] AS [ls_us_d] ON [ls_us].[DomainID] = [ls_us_d].[DomainID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [ls_us_c] ON [ls_us].[CustomerID] = [ls_us_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c1] ON [ls_us].[CountryID] = [c1].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [ls_us_l] ON [ls_us].[LanguageID] = [ls_us_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [ls_us_mo] ON [ls_us].[MobileOperatorID] = [ls_us_mo].[MobileOperatorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [ls_uhr] ON [ls].[UserHttpRequestID] = [ls_uhr].[UserHttpRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [ls_uhr_us] ON [ls_uhr].[UserSessionID] = [ls_uhr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [ls_uhr_c] ON [ls_uhr].[ContentID] = [ls_uhr_c].[ContentID] ";
+				sqlCmdText += "WHERE [ls].[LookupSessionID] = @LookupSessionID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@LookupSessionID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ls", "loadinternal", "notfound"), "LookupSession could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				LookupSessionTable lsTable = new LookupSessionTable(query);
+				UserSessionTable ls_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+				UserSessionTypeTable ls_us_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				ServiceTable ls_us_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				DomainTable ls_us_dTable = (this.Depth > 1) ? new DomainTable(query) : null;
+				CustomerTable ls_us_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				CountryTable c1Table = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable ls_us_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				MobileOperatorTable ls_us_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				UserHttpRequestTable ls_uhrTable = (this.Depth > 0) ? new UserHttpRequestTable(query) : null;
+				UserSessionTable ls_uhr_usTable = (this.Depth > 1) ? new UserSessionTable(query) : null;
+				ContentTable ls_uhr_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+
+        
+				UserSessionType ls_us_ustObject = (this.Depth > 1) ? ls_us_ustTable.CreateInstance() : null;
+				Service ls_us_sObject = (this.Depth > 1) ? ls_us_sTable.CreateInstance() : null;
+				Domain ls_us_dObject = (this.Depth > 1) ? ls_us_dTable.CreateInstance() : null;
+				Customer ls_us_cObject = (this.Depth > 1) ? ls_us_cTable.CreateInstance() : null;
+				Country c1Object = (this.Depth > 1) ? c1Table.CreateInstance() : null;
+				Language ls_us_lObject = (this.Depth > 1) ? ls_us_lTable.CreateInstance() : null;
+				MobileOperator ls_us_moObject = (this.Depth > 1) ? ls_us_moTable.CreateInstance() : null;
+				UserSession ls_usObject = (this.Depth > 0) ? ls_usTable.CreateInstance(ls_us_ustObject, ls_us_sObject, ls_us_dObject, ls_us_cObject, c1Object, ls_us_lObject, ls_us_moObject) : null;
+				UserSession ls_uhr_usObject = (this.Depth > 1) ? ls_uhr_usTable.CreateInstance() : null;
+				Content ls_uhr_cObject = (this.Depth > 1) ? ls_uhr_cTable.CreateInstance() : null;
+				UserHttpRequest ls_uhrObject = (this.Depth > 0) ? ls_uhrTable.CreateInstance(ls_uhr_usObject, ls_uhr_cObject) : null;
+				LookupSession lsObject = lsTable.CreateInstance(ls_usObject, ls_uhrObject);
+				sqlReader.Close();
+
+				return lsObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ls", "loadinternal", "exception"), "LookupSession could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "LookupSession", "Exception while loading LookupSession object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public LookupSession Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							LookupSessionTable.GetColumnNames("[ls]") + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[ls_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[ls_us_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[ls_us_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + DomainTable.GetColumnNames("[ls_us_d]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[ls_us_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[ls_us_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[ls_us_mo]") : string.Empty) + 
+							(this.Depth > 0 ? "," + UserHttpRequestTable.GetColumnNames("[ls_uhr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTable.GetColumnNames("[ls_uhr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[ls_uhr_c]") : string.Empty) +  
+					" FROM [core].[LookupSession] AS [ls] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [ls_us] ON [ls].[UserSessionID] = [ls_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [ls_us_ust] ON [ls_us].[UserSessionTypeID] = [ls_us_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [ls_us_s] ON [ls_us].[ServiceID] = [ls_us_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Domain] AS [ls_us_d] ON [ls_us].[DomainID] = [ls_us_d].[DomainID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [ls_us_c] ON [ls_us].[CustomerID] = [ls_us_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c1] ON [ls_us].[CountryID] = [c1].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [ls_us_l] ON [ls_us].[LanguageID] = [ls_us_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [ls_us_mo] ON [ls_us].[MobileOperatorID] = [ls_us_mo].[MobileOperatorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [ls_uhr] ON [ls].[UserHttpRequestID] = [ls_uhr].[UserHttpRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [ls_uhr_us] ON [ls_uhr].[UserSessionID] = [ls_uhr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [ls_uhr_c] ON [ls_uhr].[ContentID] = [ls_uhr_c].[ContentID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ls", "customload", "notfound"), "LookupSession could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				LookupSessionTable lsTable = new LookupSessionTable(query);
+				UserSessionTable ls_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+				UserSessionTypeTable ls_us_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				ServiceTable ls_us_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				DomainTable ls_us_dTable = (this.Depth > 1) ? new DomainTable(query) : null;
+				CustomerTable ls_us_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				CountryTable c1Table = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable ls_us_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				MobileOperatorTable ls_us_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				UserHttpRequestTable ls_uhrTable = (this.Depth > 0) ? new UserHttpRequestTable(query) : null;
+				UserSessionTable ls_uhr_usTable = (this.Depth > 1) ? new UserSessionTable(query) : null;
+				ContentTable ls_uhr_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+
+        
+				UserSessionType ls_us_ustObject = (this.Depth > 1) ? ls_us_ustTable.CreateInstance() : null;
+				Service ls_us_sObject = (this.Depth > 1) ? ls_us_sTable.CreateInstance() : null;
+				Domain ls_us_dObject = (this.Depth > 1) ? ls_us_dTable.CreateInstance() : null;
+				Customer ls_us_cObject = (this.Depth > 1) ? ls_us_cTable.CreateInstance() : null;
+				Country c1Object = (this.Depth > 1) ? c1Table.CreateInstance() : null;
+				Language ls_us_lObject = (this.Depth > 1) ? ls_us_lTable.CreateInstance() : null;
+				MobileOperator ls_us_moObject = (this.Depth > 1) ? ls_us_moTable.CreateInstance() : null;
+				UserSession ls_usObject = (this.Depth > 0) ? ls_usTable.CreateInstance(ls_us_ustObject, ls_us_sObject, ls_us_dObject, ls_us_cObject, c1Object, ls_us_lObject, ls_us_moObject) : null;
+				UserSession ls_uhr_usObject = (this.Depth > 1) ? ls_uhr_usTable.CreateInstance() : null;
+				Content ls_uhr_cObject = (this.Depth > 1) ? ls_uhr_cTable.CreateInstance() : null;
+				UserHttpRequest ls_uhrObject = (this.Depth > 0) ? ls_uhrTable.CreateInstance(ls_uhr_usObject, ls_uhr_cObject) : null;
+				LookupSession lsObject = lsTable.CreateInstance(ls_usObject, ls_uhrObject);
+				sqlReader.Close();
+
+				return lsObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ls", "customload", "exception"), "LookupSession could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "LookupSession", "Exception while loading (custom/single) LookupSession object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<LookupSession> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							LookupSessionTable.GetColumnNames("[ls]") + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[ls_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[ls_us_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[ls_us_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + DomainTable.GetColumnNames("[ls_us_d]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[ls_us_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[ls_us_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[ls_us_mo]") : string.Empty) + 
+							(this.Depth > 0 ? "," + UserHttpRequestTable.GetColumnNames("[ls_uhr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTable.GetColumnNames("[ls_uhr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[ls_uhr_c]") : string.Empty) +  
+					" FROM [core].[LookupSession] AS [ls] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [ls_us] ON [ls].[UserSessionID] = [ls_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [ls_us_ust] ON [ls_us].[UserSessionTypeID] = [ls_us_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [ls_us_s] ON [ls_us].[ServiceID] = [ls_us_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Domain] AS [ls_us_d] ON [ls_us].[DomainID] = [ls_us_d].[DomainID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [ls_us_c] ON [ls_us].[CustomerID] = [ls_us_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c1] ON [ls_us].[CountryID] = [c1].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [ls_us_l] ON [ls_us].[LanguageID] = [ls_us_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [ls_us_mo] ON [ls_us].[MobileOperatorID] = [ls_us_mo].[MobileOperatorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [ls_uhr] ON [ls].[UserHttpRequestID] = [ls_uhr].[UserHttpRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [ls_uhr_us] ON [ls_uhr].[UserSessionID] = [ls_uhr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [ls_uhr_c] ON [ls_uhr].[ContentID] = [ls_uhr_c].[ContentID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ls", "customloadmany", "notfound"), "LookupSession list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<LookupSession>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				LookupSessionTable lsTable = new LookupSessionTable(query);
+				UserSessionTable ls_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+				UserSessionTypeTable ls_us_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				ServiceTable ls_us_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				DomainTable ls_us_dTable = (this.Depth > 1) ? new DomainTable(query) : null;
+				CustomerTable ls_us_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				CountryTable c1Table = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable ls_us_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				MobileOperatorTable ls_us_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				UserHttpRequestTable ls_uhrTable = (this.Depth > 0) ? new UserHttpRequestTable(query) : null;
+				UserSessionTable ls_uhr_usTable = (this.Depth > 1) ? new UserSessionTable(query) : null;
+				ContentTable ls_uhr_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+
+        List<LookupSession> result = new List<LookupSession>();
+        do
+        {
+          
+					UserSessionType ls_us_ustObject = (this.Depth > 1) ? ls_us_ustTable.CreateInstance() : null;
+					Service ls_us_sObject = (this.Depth > 1) ? ls_us_sTable.CreateInstance() : null;
+					Domain ls_us_dObject = (this.Depth > 1) ? ls_us_dTable.CreateInstance() : null;
+					Customer ls_us_cObject = (this.Depth > 1) ? ls_us_cTable.CreateInstance() : null;
+					Country c1Object = (this.Depth > 1) ? c1Table.CreateInstance() : null;
+					Language ls_us_lObject = (this.Depth > 1) ? ls_us_lTable.CreateInstance() : null;
+					MobileOperator ls_us_moObject = (this.Depth > 1) ? ls_us_moTable.CreateInstance() : null;
+					UserSession ls_usObject = (this.Depth > 0) ? ls_usTable.CreateInstance(ls_us_ustObject, ls_us_sObject, ls_us_dObject, ls_us_cObject, c1Object, ls_us_lObject, ls_us_moObject) : null;
+					UserSession ls_uhr_usObject = (this.Depth > 1) ? ls_uhr_usTable.CreateInstance() : null;
+					Content ls_uhr_cObject = (this.Depth > 1) ? ls_uhr_cTable.CreateInstance() : null;
+					UserHttpRequest ls_uhrObject = (this.Depth > 0) ? ls_uhrTable.CreateInstance(ls_uhr_usObject, ls_uhr_cObject) : null;
+					LookupSession lsObject = (this.Depth > -1) ? lsTable.CreateInstance(ls_usObject, ls_uhrObject) : null;
+					result.Add(lsObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ls", "customloadmany", "exception"), "LookupSession list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "LookupSession", "Exception while loading (custom/many) LookupSession object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, LookupSession data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[LookupSession] ([LookupSessionGuid],[LookupSessionStatusID],[UserSessionID],[UserHttpRequestID],[IdentificationSessionGuid],[LookupUrl]) VALUES(@LookupSessionGuid,@LookupSessionStatusID,@UserSessionID,@UserHttpRequestID,@IdentificationSessionGuid,@LookupUrl); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@LookupSessionGuid", data.Guid);
+				sqlCmd.Parameters.AddWithValue("@LookupSessionStatusID", (int)data.LookupSessionStatus);
+				sqlCmd.Parameters.AddWithValue("@UserSessionID", data.UserSession.ID);
+				sqlCmd.Parameters.AddWithValue("@UserHttpRequestID", data.UserHttpRequest.ID);
+				sqlCmd.Parameters.AddWithValue("@IdentificationSessionGuid", data.IdentificationSessionGuid.HasValue ? (object)data.IdentificationSessionGuid : DBNull.Value);
+				sqlCmd.Parameters.AddWithValue("@LookupUrl", !string.IsNullOrEmpty(data.LookupUrl) ? (object)data.LookupUrl : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ls", "insert", "noprimarykey"), "LookupSession could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "LookupSession", "Exception while inserting LookupSession object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ls", "insert", "exception"), "LookupSession could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "LookupSession", "Exception while inserting LookupSession object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, LookupSession data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[LookupSession] SET " +
+												"[LookupSessionGuid] = @LookupSessionGuid, " + 
+												"[LookupSessionStatusID] = @LookupSessionStatusID, " + 
+												"[UserSessionID] = @UserSessionID, " + 
+												"[UserHttpRequestID] = @UserHttpRequestID, " + 
+												"[IdentificationSessionGuid] = @IdentificationSessionGuid, " + 
+												"[LookupUrl] = @LookupUrl, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [LookupSessionID] = @LookupSessionID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@LookupSessionGuid", data.Guid);
+				sqlCmd.Parameters.AddWithValue("@LookupSessionStatusID", (int)data.LookupSessionStatus);
+				sqlCmd.Parameters.AddWithValue("@UserSessionID", data.UserSession.ID);
+				sqlCmd.Parameters.AddWithValue("@UserHttpRequestID", data.UserHttpRequest.ID);
+				sqlCmd.Parameters.AddWithValue("@IdentificationSessionGuid", data.IdentificationSessionGuid.HasValue ? (object)data.IdentificationSessionGuid : DBNull.Value);
+				sqlCmd.Parameters.AddWithValue("@LookupUrl", !string.IsNullOrEmpty(data.LookupUrl) ? (object)data.LookupUrl : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@LookupSessionID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ls", "update", "norecord"), "LookupSession could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "LookupSession", "Exception while updating LookupSession object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ls", "update", "morerecords"), "LookupSession was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "LookupSession", "Exception while updating LookupSession object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ls", "update", "exception"), "LookupSession could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "LookupSession", "Exception while updating LookupSession object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, LookupSession data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[LookupSession] WHERE LookupSessionID = @LookupSessionID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@LookupSessionID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ls", "delete", "norecord"), "LookupSession could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "LookupSession", "Exception while deleting LookupSession object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ls", "delete", "exception"), "LookupSession could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "LookupSession", "Exception while deleting LookupSession object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

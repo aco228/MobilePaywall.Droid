@@ -1,0 +1,43 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class AuctionCreditPolicyManager : IAuctionCreditPolicyManager
+  {
+    public AuctionCreditPolicy Load(ServiceOffer serviceOffer)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, serviceOffer);
+    }
+
+    public AuctionCreditPolicy Load(IConnectionInfo connection, ServiceOffer serviceOffer)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, serviceOffer);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, serviceOffer);
+    }
+
+    public AuctionCreditPolicy Load(ISqlConnectionInfo connection, ServiceOffer serviceOffer)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[acp].ServiceOfferID=@ServiceOfferID";
+      parameters.Arguments.Add("ServiceOfferID", serviceOffer.ID);
+      return this.Load(connection, parameters);
+    }
+
+
+  }
+}
+

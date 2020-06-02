@@ -1,0 +1,126 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading.Tasks;
+
+namespace MobileMafia.Management.Helpers
+{
+  public class VideoHelper
+  {
+    protected static string _ffMpeg = AppDomain.CurrentDomain.BaseDirectory + "\\External\\ffmpeg.exe";
+
+    public static List<string> Extension = new List<string> { ".webm", ".mov", ".3gp", ".3gpp", ".3gp2", ".3gpp2", ".mp4", ".mpg", ".mts", ".avi", ".flv", ".m2v", ".mkv", ".mpeg", ".mpeg4", ".mpg2", ".ogv", ".ogm", ".rm", ".wmv", ".xvid" };
+    
+    public static string RunFfMpeg(string parameters) 
+    {
+      if (!File.Exists(_ffMpeg))
+        throw new Exception(string.Format("Cannot find {0}.", _ffMpeg));
+
+      ProcessStartInfo oInfo = new ProcessStartInfo(_ffMpeg, parameters);
+      oInfo.UseShellExecute = false;
+      oInfo.CreateNoWindow = true;
+      oInfo.RedirectStandardOutput = true;
+      oInfo.RedirectStandardError = true;
+
+      //Create the output and streamreader to get the output
+      string output = null; StreamReader srOutput = null;
+
+      //try the process
+      try
+      {
+        //run the process
+        System.Diagnostics.Process proc = System.Diagnostics.Process.Start(oInfo);
+
+        //get the output
+        srOutput = proc.StandardError;
+
+        //now put it in a string
+        output = srOutput.ReadToEnd();
+
+        Console.WriteLine(output);
+
+        proc.WaitForExit();
+        proc.Close();
+        proc.Dispose();
+      }
+      catch (Exception)
+      {
+        output = string.Empty;
+      }
+      finally
+      {
+        //now, if we succeded, close out the streamreader
+        if (srOutput != null)
+        {
+          srOutput.Close();
+          srOutput.Dispose();
+        }
+      }
+      return output;
+    }
+
+    public static VideoFile GetVideoInformation(string path)
+    {
+      string parameters = string.Format("-i {0}", string.Format("\"{0}\"", path));
+      string output = RunFfMpeg(parameters);
+
+      VideoFile videoFile = new VideoFile();
+      videoFile.RawInfo = output;
+      videoFile.Height = GetVideoHeight(output);
+      videoFile.Width = GetVideoWidth(output);
+      videoFile.Duration = GetVideoDuration(output);
+
+      if (videoFile != null)
+        return videoFile;
+
+      return null;
+    }
+
+    private static int GetVideoWidth(string rawInfo)
+    {
+      int width = 0;
+      Regex re = new Regex("(\\d{2,4})x(\\d{2,4})", RegexOptions.Compiled);
+      Match m = re.Match(rawInfo);
+      if (m.Success)
+      {
+        int.TryParse(m.Groups[1].Value, out width);
+      }
+      return width;
+    }
+
+    private static int GetVideoHeight(string rawInfo)
+    {
+      int height = 0;
+      Regex re = new Regex("(\\d{2,4})x(\\d{2,4})", RegexOptions.Compiled);
+      Match m = re.Match(rawInfo);
+      if (m.Success)
+      {
+        int.TryParse(m.Groups[2].Value, out height);
+      }
+      return height;
+    }
+
+    public static int GetVideoDuration(string rawInfo)
+    {
+      TimeSpan t = new TimeSpan(0);
+      Regex re = new Regex("[D|d]uration:.((\\d|:|\\.)*)", RegexOptions.Compiled);
+      Match m = re.Match(rawInfo);
+
+      if (m.Success)
+      {
+        string duration = m.Groups[1].Value;
+        string[] timepieces = duration.Split(new char[] { ':', '.' });
+        if (timepieces.Length == 4)
+        {
+          t = new TimeSpan(0, Convert.ToInt16(timepieces[0]), Convert.ToInt16(timepieces[1]), Convert.ToInt16(timepieces[2]), Convert.ToInt16(timepieces[3]));
+        }
+      }
+
+      return (int)t.TotalSeconds;
+    }
+  }
+}

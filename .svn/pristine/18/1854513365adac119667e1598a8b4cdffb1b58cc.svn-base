@@ -1,0 +1,45 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class MobileOperatorCodeManager : IMobileOperatorCodeManager
+  {
+
+    public MobileOperatorCode Load(string mcc, string mnc)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, mcc, mnc);
+    }
+
+    public MobileOperatorCode Load(IConnectionInfo connection, string mcc, string mnc)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, mcc, mnc);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, mcc, mnc);
+    }
+
+    public MobileOperatorCode Load(ISqlConnectionInfo connection, string mcc, string mnc)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[moc].Mcc=@mcc AND [moc].Mnc=@mnc";
+      parameters.Arguments.Add("mcc", mcc);
+      parameters.Arguments.Add("mnc", mnc);
+      return this.Load(connection, parameters);
+    }
+
+
+  }
+}
+

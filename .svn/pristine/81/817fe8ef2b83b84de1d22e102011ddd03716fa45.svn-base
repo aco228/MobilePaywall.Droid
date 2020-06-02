@@ -1,0 +1,76 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using MobilePaywall.Data;
+using MobilePaywall.MobilePaywallDirect;
+using MobilePaywall.MobilePaywallDirect.Databases;
+
+namespace MobilePaywall.Service.Callback.Code.Undercover.Specific
+{
+	public class UndercoverCCOffer : UndercoverOffer
+	{
+		public UndercoverCCOffer(string link) : base(link, null)
+    {
+      this._offerTypeKey = "CCOffer";
+    }
+
+    public override int ID => (this._directContainer == null || !this._directContainer.HasValue ? -1 : this._directContainer.GetInt("id").Value);
+    public override bool IsActive => true;
+    public override int Value => (this._directContainer == null || !this._directContainer.HasValue ? -1 : this._directContainer.GetInt("value").Value);
+    public override DateTime CurrentDay => (this._directContainer == null || !this._directContainer.HasValue ? DateTime.Today : this._directContainer.GetDate("currentDay").Value);
+
+    public string AffID { get; protected set; } = "";
+    public string PubID { get; protected set; } = "";
+
+
+    public override void Configure()
+		{
+			this.AffID = this.GetParamByName(this._link, "affiliate_id");
+			this.PubID = this.GetParamByName(this._link, "utm_campaign");
+      
+			if(string.IsNullOrEmpty(this.AffID))
+			{
+				this._offerDoesNotExists = true;
+				this._hasError = true;
+				return;
+			}
+			
+			CCSubmitDirect db = CCSubmitDirect.Instance;
+      
+      if (!string.IsNullOrEmpty(PubID))
+        _directContainer = db.LoadContainer("SELECT * FROM [].cc_undercover WHERE (aff_id={0} AND pub_id={1}) OR (aff_id={0} AND pub_id IS NULL) ORDER BY pub_id DESC LIMIT 1;", int.Parse(AffID), PubID);
+      else
+        _directContainer = db.LoadContainer("SELECT * FROM [].cc_undercover WHERE (aff_id={0} AND pub_id IS NULL) ORDER BY pub_id DESC LIMIT 1;", int.Parse(AffID));
+
+      if (this._directContainer == null || !this._directContainer.HasValue)
+			{
+				this._offerDoesNotExists = true;
+				this._hasError = false;
+				return;
+			}
+
+			this._transactions = this._directContainer.GetInt("transactions").Value;
+			this._undercoverTransactions = this._directContainer.GetInt("undercoverTransactions").Value;
+
+			if ((DateTime.Now - this.CurrentDay).TotalDays >= 1)
+			{
+				this._undercoverTransactions = 0;
+				this._transactions = 0;
+			}
+
+			this._transactions++;
+		}
+
+		public override void AddNewConversion()
+    {
+      CCSubmitDirect.Instance.Execute("INSERT INTO [].cc_undercover_transaction (offerID, aff_id, pub_id, url)", this.ID, int.Parse(this.AffID), this.PubID, this._link);
+    }
+    public override void UpdateValues()
+    {
+      CCSubmitDirect.Instance.Execute("UPDATE [].cc_undercover SET transactions={0}, undercoverTransactions={1}, currentDay={2} WHERE id={3}",
+        this._transactions, this._undercoverTransactions, DateTime.Today, this.ID);
+    }
+    
+  }
+}

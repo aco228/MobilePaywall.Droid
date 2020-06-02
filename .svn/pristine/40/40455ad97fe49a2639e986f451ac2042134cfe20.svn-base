@@ -1,0 +1,96 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using MobilePaywall.Data;
+
+using Senti.Diagnostics.Log;
+
+using log4net;
+using Senti.Localization;
+using MobilePaywall.Direct;
+
+namespace MobilePaywall.Web
+{
+  public class DefaultPaywallRuntime : PaywallRuntimeBase
+  {
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (DefaultPaywallRuntime._log == null)
+          DefaultPaywallRuntime._log = LogManager.GetLogger(typeof(DefaultPaywallRuntime));
+        return DefaultPaywallRuntime._log;
+      }
+    }
+
+    private static readonly object PaywallRuntimeInitializationLockObject = new object();
+    private bool _isInitialized = false;
+
+    public DefaultPaywallRuntime(Data.Application application)
+      : base(application)
+    {
+    }
+
+    public override bool Initialize(string siteName)
+    {
+      if (this._isInitialized)
+        return true;
+
+      lock (DefaultPaywallRuntime.PaywallRuntimeInitializationLockObject)
+      {
+        if (this._isInitialized)
+          return true;
+
+        IServiceManager serviceManager = Service.CreateManager();
+        List<Service> applicationServices = serviceManager.Load(this.ApplicationData);
+
+        if (applicationServices == null || applicationServices.Count == 0)
+        {
+          if (Log.IsWarnEnabled)
+          {
+            LogMessageBuilder builder = new LogMessageBuilder(new LogErrorCode("paywall.core", "paywallruntimebase", "initialize"),
+              "Services do not exists for application", this.ApplicationData);
+            Log.Warn(builder);
+          }
+
+          return false;
+        }
+
+        foreach (Service s in applicationServices)
+        {
+          IService serviceInstance = s.Instantiate(this);
+          this._serviceMap.Add(s.ID, serviceInstance);
+          this._services.Add(serviceInstance);
+        }
+
+        IDomainManager domainManager = Domain.CreateManager();
+        
+        List<Domain> serviceDomains = domainManager.Load(this.ApplicationData);
+        foreach (Domain d in serviceDomains)
+          this._domainNameMap.Add(d.DomainName, d);
+
+        //this._contentCache = new ContentCacheManager(this.ApplicationData);
+
+        if (this.ApplicationData.ApplicationName.Equals("pt.app.mobilepaywall.com"))
+          this._cache = new MobilePaywall.Implementation.Cache._Specific.PT.PTWebCacheNonEndlessScroller(this.ApplicationData);
+        else
+          this._cache = new WebCache(this.ApplicationData);
+
+        Data.ILocalizationManager lManager = Data.Localization.CreateManager();
+        List<Data.Localization> localizations = lManager.Load(this.ApplicationData);
+        foreach (Data.Localization localization in localizations)
+          this._localizationProviders.Add(localization, localization.InstantiateProvider());
+
+        this._isInitialized = true;
+        return true;
+      }
+    }
+    
+
+  }
+}

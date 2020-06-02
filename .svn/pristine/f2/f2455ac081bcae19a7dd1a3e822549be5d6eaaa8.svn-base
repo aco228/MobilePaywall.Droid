@@ -1,0 +1,216 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using MobilePaywall.Data;
+using Cashflow.Message;
+using Senti.Diagnostics.Log;
+using System.Text.RegularExpressions;
+
+namespace MobilePaywall.Implementation.Payment.Specific.GR
+{
+  public class GreekPaychimpPaymentManager : PaymentManagerBase
+  {
+    public GreekPaychimpPaymentManager(IUserSession session) : base(session)
+    {
+    }
+
+
+    public override PaymentRequest InitiatePayment(LookupSession lookupSession, ServiceOffer serviceOffer, IContent content, string requestRawUrl)
+    {
+      Customer customer = null;
+      if (this.Session.SessionData.Customer != null)
+        customer = this.Session.SessionData.Customer;
+      else
+      {
+        customer = new Customer(-1,
+                                Guid.NewGuid(),
+                                CustomerStatus.Pending,
+                                this.Session.Service.ServiceData,
+                                this.Session.Country,
+                                null, // mobileOperator
+                                null,
+                                string.Empty,
+                                string.Empty,
+                                string.Empty,
+                                null,
+                                DateTime.Now,
+                                DateTime.Now);
+        customer.Insert();
+        customer.SetUsernameAndPassword();
+        this.Session.SessionData.Customer = customer;
+        this.Session.SessionData.Update();
+      }
+      
+      UserHttpRequest userHttpRequest = new UserHttpRequest(-1, Guid.NewGuid(), this.Session.SessionData, content.ContentData, requestRawUrl, DateTime.Now, DateTime.Now);
+      userHttpRequest.Insert();
+
+      if(lookupSession == null)
+      {
+        lookupSession = new LookupSession(-1, Guid.NewGuid(), LookupSessionStatus.Complete, this.Session.SessionData, userHttpRequest, null, "-nil-", DateTime.Now, DateTime.Now);
+        lookupSession.Insert();
+
+        LookupSessionResult lsr = new LookupSessionResult(-1, lookupSession, true, true, null, null, string.Empty, string.Empty, DateTime.Now, DateTime.Now);
+        lsr.Insert();
+      }
+      
+      PaymentRequest paymentRequest = new PaymentRequest(-1,
+                                                        Guid.NewGuid(),
+                                                        serviceOffer.PaymentConfiguration.PaymentType,
+                                                        PaymentRequestStatus.Initialized,
+                                                        lookupSession,
+                                                        customer,
+                                                        this.Session.SessionData,
+                                                        serviceOffer,
+                                                        serviceOffer.BusinessModelEntry,
+                                                        null,
+                                                        userHttpRequest,
+                                                        null,
+                                                        DateTime.Now,
+                                                        DateTime.Now);
+      paymentRequest.Insert();
+
+      PaymentResult paymentResult = new PaymentResult(-1,
+                                                      paymentRequest,
+                                                      null,
+                                                      null,
+                                                      DateTime.Now.AddMinutes(2),
+                                                      DateTime.Now,
+                                                      DateTime.Now);
+      paymentResult.Insert();
+      
+      string paymentRequestPath = MobilePaywall.Constants.PaymentID + "/" + paymentRequest.Guid.ToString().Replace("-", "");
+      requestRawUrl = UrlManager.PrepareRedirectUrl(requestRawUrl, paymentRequestPath, true);
+
+      InitiateCallback initiateCallback = new InitiateCallback(-1, Guid.NewGuid(), paymentRequest, false, DateTime.Now.AddMinutes(5), DateTime.Now, DateTime.Now);
+      initiateCallback.Insert();
+      paymentRequest.Callback = initiateCallback;
+
+      SmsArguments smsArguments = new SmsArguments();
+      smsArguments.Username = customer.Username;
+      smsArguments.Password = customer.Storage.GetString("password");
+      smsArguments.IsTanFlow = "false";
+      
+
+      InitiateSubscriptionResponse initiateSubscriptionResponse = CashflowClientPaywallManager.GetInitiateSubscriptionResponse(this.Session, requestRawUrl, smsArguments);
+      switch (initiateSubscriptionResponse.Status.Code)
+      {
+        case MessageStatusCode.Success:
+        case MessageStatusCode.Redirect:
+          paymentRequest.PaymentRedirectUrl = initiateSubscriptionResponse.RedirectUrl;
+          paymentRequest.ExternalPaymentRequestGuid = initiateSubscriptionResponse.SubscriptionRequestID;
+          paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Complete;
+          paymentRequest.Update();
+          break;
+        default:
+          paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Failure;
+          break;
+      }
+
+      return paymentRequest;
+    }
+
+    public override InitiatePaymentResult ProcessInitiateCallbackResult(string url)
+    {
+      LogMessageBuilder builder = null;
+      Regex paymentRegex = new Regex(string.Format("{0}/{1}", MobilePaywall.Constants.PaymentID, MobilePaywall.Constants.RegexGuid), RegexOptions.None);
+      Match paymentMatch = paymentRegex.Match(url);
+      if (!paymentMatch.Success)
+        return null;
+      string paymentRequestID = paymentMatch.Groups[1].Value;
+      Guid paymentRequestGuid = Guid.Empty;
+
+      if (string.IsNullOrEmpty(paymentRequestID) ||
+              !Guid.TryParseExact(paymentRequestID, "N", out paymentRequestGuid))
+      {
+        // We can't do anything here because there is no way to get PaymentRequest for that session/customer.
+        builder = new LogMessageBuilder(new LogErrorCode("paywall.core", "paymentmanagerbase", "processinitiatecallbackresult"),
+                "Unable to parse payment request GUID", paymentRequestID, url);
+        if (Log.IsErrorEnabled)
+          Log.Error(builder);
+
+        //return new InitiatePaymentResult(null, null);
+        return null;
+      }
+
+      IPaymentRequestManager prManager = PaymentRequest.CreateManager(2);
+      PaymentRequest paymentRequest = prManager.Load(paymentRequestGuid, GuidType.Internal);
+      if (paymentRequest == null)
+      {
+        // We can't do anything here because there is no way to get PaymentRequest for that session/customer.
+        builder = new LogMessageBuilder(new LogErrorCode("paywall.core", "paymentmanagerbase", "processinitiatecallbackresult"),
+            "PaymentRequest can't be loaded from database.", paymentRequestGuid);
+        if (Log.IsErrorEnabled)
+          Log.Error(builder);
+
+        //return new InitiatePaymentResult(null, null);
+        return null;
+      }
+
+      IPaymentResultManager pResultManager = PaymentResult.CreateManager();
+      PaymentResult paymentResult = pResultManager.Load(paymentRequest);
+
+      Customer customer = paymentRequest.Customer;
+      customer.CustomerStatus = CustomerStatus.Active;
+      customer.Update();
+
+      IPaymentConfigurationManager pcManager = PaymentConfiguration.CreateManager();
+      PaymentConfiguration paymentConfiguration = pcManager.Load(paymentRequest.ServiceOffer.PaymentConfiguration.ID);
+
+      //if(paymentConfiguration.PaymentProvider.ID == 7)
+      //{
+      //  Uri uri = new Uri(url);
+      //  string pin = HttpUtility.ParseQueryString(uri.Query).Get("pin");
+      //  if (string.IsNullOrEmpty(pin))
+      //    return new InitiatePaymentResult(paymentRequest, null, null, false);
+      //}
+
+      IPaymentCallbackManager pcaManager = PaymentCallback.CreateManager();
+      PaymentCallback paymentCallback = pcaManager.Load(paymentRequest);
+      if (paymentCallback == null)
+      {
+        paymentCallback = new PaymentCallback(-1, Guid.NewGuid(), paymentRequest, null, false, DateTime.Now.AddMinutes(5), DateTime.Now, DateTime.Now);
+        paymentCallback.Insert();
+      }
+
+      if (paymentResult.Payment != null)
+        return new InitiatePaymentResult(paymentResult.PaymentRequest, paymentResult.Payment, paymentCallback);
+
+      MobileTanArguments mobileTanArguments = new MobileTanArguments();
+      mobileTanArguments.IsTanFlow = "false";
+
+      ServiceOffer so = this.Session.Service.DefaultServiceOffer;
+      SetupSubscriptionRequest setupSubscriptionRequest = new SetupSubscriptionRequest(RequestMode.Synchronous,
+        this.Session.SessionData.Guid.ToString(),
+        so.PaymentConfiguration.PaymentCredentials.Username,
+        so.PaymentConfiguration.PaymentCredentials.Password,
+        paymentRequest.ExternalPaymentRequestGuid.Value,
+        paymentRequest.ExternalPaymentRequestGuid.ToString(),
+        null);
+
+      MobilePaywall.Data.Payment payment = new MobilePaywall.Data.Payment(-1, Guid.NewGuid(), PaymentType.Subscription, null, PaymentStatus.Initialized, paymentRequest, this.Session.SessionData.Customer,
+        so, so.BusinessModelEntry, DateTime.Now, DateTime.Now);
+      payment.Insert();
+
+      SetupSubscriptionResponse setupSubscriptionResponse = CashflowClientPaywallManager.GetSubscriptionClient(this.Session.Service).SetupSubscription(setupSubscriptionRequest, mobileTanArguments);
+      if (setupSubscriptionResponse.Status.Code != MessageStatusCode.Success && setupSubscriptionResponse.Status.Code != MessageStatusCode.Redirect)
+      {
+        // TODO: logs
+        payment.PaymentStatus = PaymentStatus.Failed;
+        payment.Update();
+        return new InitiatePaymentResult(paymentRequest, payment, paymentCallback);
+      }
+
+      payment.PaymentStatus = PaymentStatus.Successful;
+      payment.ExternalPaymentGuid = setupSubscriptionResponse.SubscriptionID;
+      payment.Update();
+
+      PaymentContentAccessPolicyMap pcapm = new PaymentContentAccessPolicyMap(-1, payment, null, so.ContentAccessPolicy, null, true, true, DateTime.Now, DateTime.Now.AddMinutes(15), DateTime.Now, DateTime.Now);
+      pcapm.Insert();
+
+      return new InitiatePaymentResult(paymentRequest, payment, paymentCallback);
+    }
+
+  }
+}

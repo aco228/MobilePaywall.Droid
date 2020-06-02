@@ -1,0 +1,117 @@
+﻿function AuctionBiding()
+{
+  this.base = null;
+  this.defaultText = '';
+  this.messageWait = "Wait..";
+
+  this.init = function()
+  {
+    this.base = new AuctionBase();
+    this.submitListener();
+  }
+
+  this.submitListener = function ()
+  {
+    var self = this;
+    $(".bidSubmit").attr('inuse', 'false');
+    this.defaultText = $(".bidSubmit").text();
+
+    $(".bidSubmit").click(function () {
+      var btn = $(this);
+      if (btn.attr('inuse') == 'true')
+        return;
+
+      var value = $('.bidValue').find('option:selected').val();
+      btn.text(self.messageWait);
+      btn.attr('inuse', 'true');
+
+
+      self.base.call('/SubmitBid', { bidInputValue: value }, function (response) {
+        btn.text(self.defaultText);
+        btn.attr('inuse', 'false');
+        
+        if(response.status && $('#__auctionCustomerCredit') != null)
+        {
+          var credits = parseInt($('#__auctionCustomerCredit').text()) - 1;
+          $('#__auctionCustomerCredit').text(credits);
+        }
+
+        _visual.Alert(response.message);
+      });
+    });
+  }
+
+  this.init();
+}
+
+function AdditionalCredits()
+{
+  this.base = null;
+  this._amount = -1;
+  this._serviceOfferID = -1;
+  this.messageCreditNotChosen = 'First pick amount you wan to buy';
+
+  this.init = function()
+  {
+    this.base = new AuctionBase();
+    this.creditOnClick();
+    this.submit();
+  }
+
+  this.creditOnClick = function()
+  {
+    var self = this;
+    $('._auction_credit').click(function () {
+      if (typeof $(this).attr('amount') === 'undefined' || !$.isNumeric($(this).attr('amount')))
+        return;
+
+      $('._auction_credit_clicked').each(function () {
+        $(this).removeClass('_auction_credit_clicked');
+      });
+
+      $(this).addClass('_auction_credit_clicked');
+      self._amount = parseInt($(this).attr('amount'));
+      self._serviceOfferID = parseInt($(this).attr('serviceOfferID'));
+    });
+  }
+
+  this.submit = function()
+  {
+    var self = this;
+    $('.controlCreditBuy').click(function () {
+      if(self._amount == -1)
+      {
+        _visual.Alert(self.messageCreditNotChosen);
+        return;
+      }
+
+      window.location = '/buycredits/payment/' + self._serviceOfferID;
+    });
+  }
+
+  this.init();
+}
+
+function AuctionBase()
+{
+  this.init = function()
+  {
+
+  }
+
+  this.call = function(url, data, succ_func)
+  {
+    $.ajax({
+      url: '/auction' + url,
+      method: 'POST',
+      data: data,
+      success:function(response)
+      {
+        if (typeof succ_func === 'function')
+          succ_func(response);
+      }
+    });
+  }
+
+  this.init();
+}

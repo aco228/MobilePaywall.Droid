@@ -1,0 +1,44 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class AndroidClientSessionManager : IAndroidClientSessionManager
+  {
+
+    public AndroidClientSession Load(AndroidDistribution distribution, string androidUniqueID)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, distribution, androidUniqueID);
+    }
+
+    public AndroidClientSession Load(IConnectionInfo connection, AndroidDistribution distribution, string androidUniqueID)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, distribution, androidUniqueID);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, distribution, androidUniqueID);
+    }
+
+    public AndroidClientSession Load(ISqlConnectionInfo connection, AndroidDistribution distribution, string androidUniqueID)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[acs].AndroidUniqueID='@AndroidUniqueID' AND [acs].AndroidDistributionID=@AndroidDistributionID";
+      parameters.Arguments.Add("AndroidUniqueID", androidUniqueID);
+      parameters.Arguments.Add("AndroidDistributionID", distribution.ID);
+      return this.Load(connection, parameters);
+    }
+
+  }
+}
+

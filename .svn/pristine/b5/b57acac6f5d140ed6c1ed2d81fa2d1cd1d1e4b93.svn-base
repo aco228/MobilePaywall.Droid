@@ -1,0 +1,91 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class FooterLinkManager : IFooterLinkManager
+  {
+
+    public FooterLink Load(Country country)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, country);
+    }
+
+    public FooterLink Load(IConnectionInfo connection, Country country)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, country);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, country);
+    }
+
+    public FooterLink Load(ISqlConnectionInfo connection, Country country)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[fl].CountryID=@CountryID AND [fl].ServiceID IS NULL AND [fl].PaymentProviderID IS NULL";
+      parameters.Arguments.Add("CountryID", country.ID);
+      return this.Load(connection, parameters);
+    }
+    public FooterLink Load(Service service)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, service);
+    }
+
+    public FooterLink Load(IConnectionInfo connection, Service service)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, service);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, service);
+    }
+
+    public FooterLink Load(ISqlConnectionInfo connection, Service service)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "(( [fl].ServiceID IS NOT NULL AND [fl].ServiceID = @ServiceID ) OR ( [fl].ServiceID IS NULL AND [fl].CountryID = @CountryID )) AND [fl].PaymentProviderID IS NULL ";
+      parameters.Arguments.Add("ServiceID", service.ID);
+      parameters.Arguments.Add("CountryID", service.FallbackCountry != null ? service.FallbackCountry.ID : 0);
+      parameters.OrderBy = "[fl].ServiceID DESC";
+      return this.Load(connection, parameters);
+    }
+
+    public FooterLink Load(Country country, PaymentProvider paymentProvider)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, country, paymentProvider);
+    }
+
+    public FooterLink Load(IConnectionInfo connection, Country country, PaymentProvider paymentProvider)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, country, paymentProvider);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, country, paymentProvider);
+    }
+
+    public FooterLink Load(ISqlConnectionInfo connection, Country country, PaymentProvider paymentProvider)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[fl].CountryID=@CountryID AND [fl].PaymentProviderID=@PaymentProviderID";
+      parameters.Arguments.Add("CountryID", country.ID);
+      parameters.Arguments.Add("PaymentProviderID", paymentProvider.ID);
+      return this.Load(connection, parameters);
+    }
+
+  }
+}
+

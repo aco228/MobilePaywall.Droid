@@ -1,0 +1,106 @@
+﻿using Cashflow.Client;
+using Cashflow.Message;
+using Cashflow.Message.Mobile;
+using log4net;
+using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall
+{
+  public class GreekLookupManager : LookupManagerBase
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (GreekLookupManager._log == null)
+          GreekLookupManager._log = LogManager.GetLogger(typeof(GreekLookupManager));
+        return GreekLookupManager._log;
+      }
+    }
+    #endregion
+
+    public GreekLookupManager(IUserSession us)
+      :base(us)
+    {
+
+    }
+
+    // SUMMARY: Try LookupSession to see if there 
+    public override Data.LookupSession InitiateLookupSession(string requestRawUrl, Data.UserHttpRequest originalRequest)
+    {
+      ServiceOffer so = (from s in ServiceOffer.CreateManager().Load(this.Session.Service.ServiceData) where s.IsDefault && s.IsDefault select s).FirstOrDefault();
+      if(so == null)
+      {
+        Log.Error("GreekLookupSession:: Service offer could not be loaded for service:" + this.Session.Service.ServiceData.Name);
+        this.SkipLookup = true;
+        return null;
+      }
+
+      LookupSession lookupSession = new LookupSession(-1,
+        Guid.NewGuid(),
+        LookupSessionStatus.Initialized,
+        this.Session.SessionData,
+        originalRequest,
+        null, //This GUID is Cashflow!
+        null,
+        DateTime.Now,
+        DateTime.Now);
+
+      lookupSession.Insert();
+
+      Guid externalBehaviorModelGuid = this.Session.Service.ServiceData.ID == 239 ? // just in case of gr.shopvaucers, because he is on old API, rest dont need lookup
+        Session.Service.GetSpecificBehaviorModel("type=wind") : Guid.Empty;
+
+      if(Guid.Empty == externalBehaviorModelGuid)
+      {
+        Log.Error("GreekLookupSession:: Behavirom model with (type=wind) is not set for service:" + this.Session.Service.ServiceData.Name);
+        this.SkipLookup = true;
+        return null;
+      }
+      
+      MobileExtensionClient mobileClient = new MobileExtensionClient();
+      mobileClient.AttachLogWriter(new CashflowLog(this.Session.Service.ServiceData));
+      LookupMsisdnRequest lookupRequest = new LookupMsisdnRequest(RequestMode.Default,
+        this.Session.SessionData.Guid.ToString(),
+        so.PaymentConfiguration.PaymentCredentials.Username,
+        so.PaymentConfiguration.PaymentCredentials.Password,
+        this.Session.Service.ServiceData.Product.ExternalProductGuid,
+        so.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+        this.Session.GetUserSessionCountry().TwoLetterIsoCode,
+        so.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+        externalBehaviorModelGuid,
+        this.Session.SessionData.IPAddress,
+        lookupSession.Guid.ToString(),
+        requestRawUrl,
+        null,
+        null);
+      lookupRequest.ReferenceIntID = this.Session.SessionData.ID;
+      
+      LookupMsisdnResponse lookupResponse = mobileClient.LookupMsisdn(lookupRequest);
+
+      switch (lookupResponse.Status.Code)
+      {
+        case MessageStatusCode.Redirect:
+        case MessageStatusCode.Success:
+          lookupSession.LookupSessionStatus = LookupSessionStatus.Complete;
+          lookupSession.IdentificationSessionGuid = lookupResponse.IdentificationSessionID;
+          lookupSession.LookupUrl = lookupResponse.RedirectUrl;
+          lookupSession.Update();
+          return lookupSession;
+        default:
+          this.SkipLookup = true;
+          return null;
+      }
+    }
+    
+  }
+}

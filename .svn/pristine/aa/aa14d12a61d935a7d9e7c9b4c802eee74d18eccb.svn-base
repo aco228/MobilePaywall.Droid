@@ -1,0 +1,356 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ShortMessageStatusHistory))] 
+  public partial class ShortMessageStatusHistoryManager : MobilePaywall.Data.Sql.SqlManagerBase<ShortMessageStatusHistory>, IShortMessageStatusHistoryManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ShortMessageStatusHistory LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ShortMessageStatusHistoryTable.GetColumnNames("[smsh]") + 
+							(this.Depth > 0 ? "," + ShortMessageTable.GetColumnNames("[smsh_sm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ShortMessageProviderTable.GetColumnNames("[smsh_sm_smp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[smsh_sm_c]") : string.Empty) + 
+					" FROM [core].[ShortMessageStatusHistory] AS [smsh] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ShortMessage] AS [smsh_sm] ON [smsh].[ShortMessageID] = [smsh_sm].[ShortMessageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ShortMessageProvider] AS [smsh_sm_smp] ON [smsh_sm].[ShortMessageProviderID] = [smsh_sm_smp].[ShortMessageProviderID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [smsh_sm_c] ON [smsh_sm].[CustomerID] = [smsh_sm_c].[CustomerID] ";
+				sqlCmdText += "WHERE [smsh].[ShortMessageStatusHistoryID] = @ShortMessageStatusHistoryID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ShortMessageStatusHistoryID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smsh", "loadinternal", "notfound"), "ShortMessageStatusHistory could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ShortMessageStatusHistoryTable smshTable = new ShortMessageStatusHistoryTable(query);
+				ShortMessageTable smsh_smTable = (this.Depth > 0) ? new ShortMessageTable(query) : null;
+				ShortMessageProviderTable smsh_sm_smpTable = (this.Depth > 1) ? new ShortMessageProviderTable(query) : null;
+				CustomerTable smsh_sm_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+
+        
+				ShortMessageProvider smsh_sm_smpObject = (this.Depth > 1) ? smsh_sm_smpTable.CreateInstance() : null;
+				Customer smsh_sm_cObject = (this.Depth > 1) ? smsh_sm_cTable.CreateInstance() : null;
+				ShortMessage smsh_smObject = (this.Depth > 0) ? smsh_smTable.CreateInstance(smsh_sm_smpObject, smsh_sm_cObject) : null;
+				ShortMessageStatusHistory smshObject = smshTable.CreateInstance(smsh_smObject);
+				sqlReader.Close();
+
+				return smshObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smsh", "loadinternal", "exception"), "ShortMessageStatusHistory could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ShortMessageStatusHistory", "Exception while loading ShortMessageStatusHistory object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ShortMessageStatusHistory Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ShortMessageStatusHistoryTable.GetColumnNames("[smsh]") + 
+							(this.Depth > 0 ? "," + ShortMessageTable.GetColumnNames("[smsh_sm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ShortMessageProviderTable.GetColumnNames("[smsh_sm_smp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[smsh_sm_c]") : string.Empty) +  
+					" FROM [core].[ShortMessageStatusHistory] AS [smsh] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ShortMessage] AS [smsh_sm] ON [smsh].[ShortMessageID] = [smsh_sm].[ShortMessageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ShortMessageProvider] AS [smsh_sm_smp] ON [smsh_sm].[ShortMessageProviderID] = [smsh_sm_smp].[ShortMessageProviderID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [smsh_sm_c] ON [smsh_sm].[CustomerID] = [smsh_sm_c].[CustomerID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smsh", "customload", "notfound"), "ShortMessageStatusHistory could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ShortMessageStatusHistoryTable smshTable = new ShortMessageStatusHistoryTable(query);
+				ShortMessageTable smsh_smTable = (this.Depth > 0) ? new ShortMessageTable(query) : null;
+				ShortMessageProviderTable smsh_sm_smpTable = (this.Depth > 1) ? new ShortMessageProviderTable(query) : null;
+				CustomerTable smsh_sm_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+
+        
+				ShortMessageProvider smsh_sm_smpObject = (this.Depth > 1) ? smsh_sm_smpTable.CreateInstance() : null;
+				Customer smsh_sm_cObject = (this.Depth > 1) ? smsh_sm_cTable.CreateInstance() : null;
+				ShortMessage smsh_smObject = (this.Depth > 0) ? smsh_smTable.CreateInstance(smsh_sm_smpObject, smsh_sm_cObject) : null;
+				ShortMessageStatusHistory smshObject = smshTable.CreateInstance(smsh_smObject);
+				sqlReader.Close();
+
+				return smshObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smsh", "customload", "exception"), "ShortMessageStatusHistory could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ShortMessageStatusHistory", "Exception while loading (custom/single) ShortMessageStatusHistory object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ShortMessageStatusHistory> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ShortMessageStatusHistoryTable.GetColumnNames("[smsh]") + 
+							(this.Depth > 0 ? "," + ShortMessageTable.GetColumnNames("[smsh_sm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ShortMessageProviderTable.GetColumnNames("[smsh_sm_smp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[smsh_sm_c]") : string.Empty) +  
+					" FROM [core].[ShortMessageStatusHistory] AS [smsh] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ShortMessage] AS [smsh_sm] ON [smsh].[ShortMessageID] = [smsh_sm].[ShortMessageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ShortMessageProvider] AS [smsh_sm_smp] ON [smsh_sm].[ShortMessageProviderID] = [smsh_sm_smp].[ShortMessageProviderID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [smsh_sm_c] ON [smsh_sm].[CustomerID] = [smsh_sm_c].[CustomerID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smsh", "customloadmany", "notfound"), "ShortMessageStatusHistory list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ShortMessageStatusHistory>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ShortMessageStatusHistoryTable smshTable = new ShortMessageStatusHistoryTable(query);
+				ShortMessageTable smsh_smTable = (this.Depth > 0) ? new ShortMessageTable(query) : null;
+				ShortMessageProviderTable smsh_sm_smpTable = (this.Depth > 1) ? new ShortMessageProviderTable(query) : null;
+				CustomerTable smsh_sm_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+
+        List<ShortMessageStatusHistory> result = new List<ShortMessageStatusHistory>();
+        do
+        {
+          
+					ShortMessageProvider smsh_sm_smpObject = (this.Depth > 1) ? smsh_sm_smpTable.CreateInstance() : null;
+					Customer smsh_sm_cObject = (this.Depth > 1) ? smsh_sm_cTable.CreateInstance() : null;
+					ShortMessage smsh_smObject = (this.Depth > 0) ? smsh_smTable.CreateInstance(smsh_sm_smpObject, smsh_sm_cObject) : null;
+					ShortMessageStatusHistory smshObject = (this.Depth > -1) ? smshTable.CreateInstance(smsh_smObject) : null;
+					result.Add(smshObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smsh", "customloadmany", "exception"), "ShortMessageStatusHistory list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ShortMessageStatusHistory", "Exception while loading (custom/many) ShortMessageStatusHistory object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ShortMessageStatusHistory data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ShortMessageStatusHistory] ([ShortMessageID],[OldShortMessageStatusID],[NewShortMessageStatusID]) VALUES(@ShortMessageID,@OldShortMessageStatusID,@NewShortMessageStatusID); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ShortMessageID", data.ShortMessage.ID);
+				sqlCmd.Parameters.AddWithValue("@OldShortMessageStatusID", (int)data.OldShortMessageStatus);
+				sqlCmd.Parameters.AddWithValue("@NewShortMessageStatusID", (int)data.NewShortMessageStatus);
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smsh", "insert", "noprimarykey"), "ShortMessageStatusHistory could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ShortMessageStatusHistory", "Exception while inserting ShortMessageStatusHistory object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smsh", "insert", "exception"), "ShortMessageStatusHistory could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ShortMessageStatusHistory", "Exception while inserting ShortMessageStatusHistory object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ShortMessageStatusHistory data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ShortMessageStatusHistory] SET " +
+												"[ShortMessageID] = @ShortMessageID, " + 
+												"[OldShortMessageStatusID] = @OldShortMessageStatusID, " + 
+												"[NewShortMessageStatusID] = @NewShortMessageStatusID, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ShortMessageStatusHistoryID] = @ShortMessageStatusHistoryID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ShortMessageID", data.ShortMessage.ID);
+				sqlCmd.Parameters.AddWithValue("@OldShortMessageStatusID", (int)data.OldShortMessageStatus);
+				sqlCmd.Parameters.AddWithValue("@NewShortMessageStatusID", (int)data.NewShortMessageStatus);
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ShortMessageStatusHistoryID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smsh", "update", "norecord"), "ShortMessageStatusHistory could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ShortMessageStatusHistory", "Exception while updating ShortMessageStatusHistory object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smsh", "update", "morerecords"), "ShortMessageStatusHistory was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ShortMessageStatusHistory", "Exception while updating ShortMessageStatusHistory object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smsh", "update", "exception"), "ShortMessageStatusHistory could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ShortMessageStatusHistory", "Exception while updating ShortMessageStatusHistory object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ShortMessageStatusHistory data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ShortMessageStatusHistory] WHERE ShortMessageStatusHistoryID = @ShortMessageStatusHistoryID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ShortMessageStatusHistoryID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smsh", "delete", "norecord"), "ShortMessageStatusHistory could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ShortMessageStatusHistory", "Exception while deleting ShortMessageStatusHistory object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("smsh", "delete", "exception"), "ShortMessageStatusHistory could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ShortMessageStatusHistory", "Exception while deleting ShortMessageStatusHistory object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

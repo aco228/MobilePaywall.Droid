@@ -1,0 +1,41 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class ClientSessionManager : IClientSessionManager
+  {
+    public ClientSession Load(Guid sessionGuid)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, sessionGuid);
+    }
+
+    public ClientSession Load(IConnectionInfo connection, Guid sessionGuid)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, sessionGuid);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, sessionGuid);
+    }
+
+    public ClientSession Load(ISqlConnectionInfo connection, Guid sessionGuid)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      //parameters.Where = "[cs].ClientSessionGuid = @ClientSessionGuid AND [cs].ValidUntil > GETDATE() AND [cs].IsActive = 1";
+      parameters.Where = "[cs].ClientSessionGuid = @ClientSessionGuid AND [cs].IsActive = 1";
+      parameters.Arguments.Add("ClientSessionGuid", sessionGuid);
+      parameters.OrderBy = "[cs].Created DESC";
+      return this.Load(connection, parameters);
+    }
+  }
+}
+

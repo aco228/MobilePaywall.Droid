@@ -1,0 +1,53 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IAndroidClientLogManager 
+  {
+    
+    List<AndroidClientLog> Load(AndroidClientSession cs);
+    List<AndroidClientLog> Load(IConnectionInfo connection, AndroidClientSession cs);
+
+
+
+
+  }
+
+  public partial class AndroidClientLog
+  {
+    public static void Log(string sessionID, string tag, string text, bool fromDevice = true)
+    {
+      int _sessionID = -1;
+      if (!Int32.TryParse(sessionID, out _sessionID))
+        return;
+      System.Threading.Tasks.Task.Run(() => AndroidClientLog.AsynInserrLog(_sessionID, tag, text, fromDevice));
+    }
+
+    public static void Log(int sessionID, string tag, string text, bool fromDevice = true)
+    {
+      System.Threading.Tasks.Task.Run(() => AndroidClientLog.AsynInserrLog(sessionID, tag, text, fromDevice));
+    }
+
+    public static void AsynInserrLog(int sessionID, string tag, string text, bool fromDevice)
+    {
+      AndroidClientSession session = AndroidClientSession.CreateManager().Load(sessionID);
+      if(session != null)
+        if (tag.Equals("."))
+        {
+          session.LastPing = DateTime.Now;
+          session.Update();
+        }
+
+      AndroidClientLog log = new AndroidClientLog(-1, sessionID, fromDevice, tag, text, DateTime.Now, DateTime.Now);
+      log.Insert();
+    }
+
+  }
+}
+

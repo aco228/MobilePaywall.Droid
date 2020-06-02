@@ -1,0 +1,431 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ShortcodeKeywordServiceOfferMap))] 
+  public partial class ShortcodeKeywordServiceOfferMapManager : MobilePaywall.Data.Sql.SqlManagerBase<ShortcodeKeywordServiceOfferMap>, IShortcodeKeywordServiceOfferMapManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ShortcodeKeywordServiceOfferMap LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ShortcodeKeywordServiceOfferMapTable.GetColumnNames("[sksom]") + 
+							(this.Depth > 0 ? "," + ShortcodeTable.GetColumnNames("[sksom_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + KeywordTable.GetColumnNames("[sksom_s_k]") : string.Empty) + 
+							(this.Depth > 0 ? "," + KeywordTable.GetColumnNames("[sksom_k]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceOfferTable.GetColumnNames("[sksom_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[sksom_so_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[sksom_so_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentConfigurationTable.GetColumnNames("[sksom_so_pc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentAccessPolicyTable.GetColumnNames("[sksom_so_cap]") : string.Empty) + 
+					" FROM [core].[ShortcodeKeywordServiceOfferMap] AS [sksom] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Shortcode] AS [sksom_s] ON [sksom].[ShortcodeID] = [sksom_s].[ShortcodeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Keyword] AS [sksom_s_k] ON [sksom_s].[DefaultKeywordID] = [sksom_s_k].[KeywordID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Keyword] AS [sksom_k] ON [sksom].[KeywordID] = [sksom_k].[KeywordID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [sksom_so] ON [sksom].[ServiceOfferID] = [sksom_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [sksom_so_s] ON [sksom_so].[ServiceID] = [sksom_so_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [sksom_so_bme] ON [sksom_so].[BusinessModelEntryID] = [sksom_so_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentConfiguration] AS [sksom_so_pc] ON [sksom_so].[PaymentConfigurationID] = [sksom_so_pc].[PaymentConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentAccessPolicy] AS [sksom_so_cap] ON [sksom_so].[ContentAccessPolicyID] = [sksom_so_cap].[ContentAccessPolicyID] ";
+				sqlCmdText += "WHERE [sksom].[ShortcodeKeywordServiceOfferMapID] = @ShortcodeKeywordServiceOfferMapID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ShortcodeKeywordServiceOfferMapID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sksom", "loadinternal", "notfound"), "ShortcodeKeywordServiceOfferMap could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ShortcodeKeywordServiceOfferMapTable sksomTable = new ShortcodeKeywordServiceOfferMapTable(query);
+				ShortcodeTable sksom_sTable = (this.Depth > 0) ? new ShortcodeTable(query) : null;
+				KeywordTable sksom_s_kTable = (this.Depth > 1) ? new KeywordTable(query) : null;
+				KeywordTable sksom_kTable = (this.Depth > 0) ? new KeywordTable(query) : null;
+				ServiceOfferTable sksom_soTable = (this.Depth > 0) ? new ServiceOfferTable(query) : null;
+				ServiceTable sksom_so_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				BusinessModelEntryTable sksom_so_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				PaymentConfigurationTable sksom_so_pcTable = (this.Depth > 1) ? new PaymentConfigurationTable(query) : null;
+				ContentAccessPolicyTable sksom_so_capTable = (this.Depth > 1) ? new ContentAccessPolicyTable(query) : null;
+
+        
+				Keyword sksom_s_kObject = (this.Depth > 1) ? sksom_s_kTable.CreateInstance() : null;
+				Shortcode sksom_sObject = (this.Depth > 0) ? sksom_sTable.CreateInstance(sksom_s_kObject) : null;
+				Keyword sksom_kObject = (this.Depth > 0) ? sksom_kTable.CreateInstance() : null;
+				Service sksom_so_sObject = (this.Depth > 1) ? sksom_so_sTable.CreateInstance() : null;
+				BusinessModelEntry sksom_so_bmeObject = (this.Depth > 1) ? sksom_so_bmeTable.CreateInstance() : null;
+				PaymentConfiguration sksom_so_pcObject = (this.Depth > 1) ? sksom_so_pcTable.CreateInstance() : null;
+				ContentAccessPolicy sksom_so_capObject = (this.Depth > 1) ? sksom_so_capTable.CreateInstance() : null;
+				ServiceOffer sksom_soObject = (this.Depth > 0) ? sksom_soTable.CreateInstance(sksom_so_sObject, sksom_so_bmeObject, sksom_so_pcObject, sksom_so_capObject) : null;
+				ShortcodeKeywordServiceOfferMap sksomObject = sksomTable.CreateInstance(sksom_sObject, sksom_kObject, sksom_soObject);
+				sqlReader.Close();
+
+				return sksomObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sksom", "loadinternal", "exception"), "ShortcodeKeywordServiceOfferMap could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ShortcodeKeywordServiceOfferMap", "Exception while loading ShortcodeKeywordServiceOfferMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ShortcodeKeywordServiceOfferMap Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ShortcodeKeywordServiceOfferMapTable.GetColumnNames("[sksom]") + 
+							(this.Depth > 0 ? "," + ShortcodeTable.GetColumnNames("[sksom_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + KeywordTable.GetColumnNames("[sksom_s_k]") : string.Empty) + 
+							(this.Depth > 0 ? "," + KeywordTable.GetColumnNames("[sksom_k]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceOfferTable.GetColumnNames("[sksom_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[sksom_so_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[sksom_so_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentConfigurationTable.GetColumnNames("[sksom_so_pc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentAccessPolicyTable.GetColumnNames("[sksom_so_cap]") : string.Empty) +  
+					" FROM [core].[ShortcodeKeywordServiceOfferMap] AS [sksom] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Shortcode] AS [sksom_s] ON [sksom].[ShortcodeID] = [sksom_s].[ShortcodeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Keyword] AS [sksom_s_k] ON [sksom_s].[DefaultKeywordID] = [sksom_s_k].[KeywordID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Keyword] AS [sksom_k] ON [sksom].[KeywordID] = [sksom_k].[KeywordID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [sksom_so] ON [sksom].[ServiceOfferID] = [sksom_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [sksom_so_s] ON [sksom_so].[ServiceID] = [sksom_so_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [sksom_so_bme] ON [sksom_so].[BusinessModelEntryID] = [sksom_so_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentConfiguration] AS [sksom_so_pc] ON [sksom_so].[PaymentConfigurationID] = [sksom_so_pc].[PaymentConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentAccessPolicy] AS [sksom_so_cap] ON [sksom_so].[ContentAccessPolicyID] = [sksom_so_cap].[ContentAccessPolicyID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sksom", "customload", "notfound"), "ShortcodeKeywordServiceOfferMap could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ShortcodeKeywordServiceOfferMapTable sksomTable = new ShortcodeKeywordServiceOfferMapTable(query);
+				ShortcodeTable sksom_sTable = (this.Depth > 0) ? new ShortcodeTable(query) : null;
+				KeywordTable sksom_s_kTable = (this.Depth > 1) ? new KeywordTable(query) : null;
+				KeywordTable sksom_kTable = (this.Depth > 0) ? new KeywordTable(query) : null;
+				ServiceOfferTable sksom_soTable = (this.Depth > 0) ? new ServiceOfferTable(query) : null;
+				ServiceTable sksom_so_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				BusinessModelEntryTable sksom_so_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				PaymentConfigurationTable sksom_so_pcTable = (this.Depth > 1) ? new PaymentConfigurationTable(query) : null;
+				ContentAccessPolicyTable sksom_so_capTable = (this.Depth > 1) ? new ContentAccessPolicyTable(query) : null;
+
+        
+				Keyword sksom_s_kObject = (this.Depth > 1) ? sksom_s_kTable.CreateInstance() : null;
+				Shortcode sksom_sObject = (this.Depth > 0) ? sksom_sTable.CreateInstance(sksom_s_kObject) : null;
+				Keyword sksom_kObject = (this.Depth > 0) ? sksom_kTable.CreateInstance() : null;
+				Service sksom_so_sObject = (this.Depth > 1) ? sksom_so_sTable.CreateInstance() : null;
+				BusinessModelEntry sksom_so_bmeObject = (this.Depth > 1) ? sksom_so_bmeTable.CreateInstance() : null;
+				PaymentConfiguration sksom_so_pcObject = (this.Depth > 1) ? sksom_so_pcTable.CreateInstance() : null;
+				ContentAccessPolicy sksom_so_capObject = (this.Depth > 1) ? sksom_so_capTable.CreateInstance() : null;
+				ServiceOffer sksom_soObject = (this.Depth > 0) ? sksom_soTable.CreateInstance(sksom_so_sObject, sksom_so_bmeObject, sksom_so_pcObject, sksom_so_capObject) : null;
+				ShortcodeKeywordServiceOfferMap sksomObject = sksomTable.CreateInstance(sksom_sObject, sksom_kObject, sksom_soObject);
+				sqlReader.Close();
+
+				return sksomObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sksom", "customload", "exception"), "ShortcodeKeywordServiceOfferMap could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ShortcodeKeywordServiceOfferMap", "Exception while loading (custom/single) ShortcodeKeywordServiceOfferMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ShortcodeKeywordServiceOfferMap> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ShortcodeKeywordServiceOfferMapTable.GetColumnNames("[sksom]") + 
+							(this.Depth > 0 ? "," + ShortcodeTable.GetColumnNames("[sksom_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + KeywordTable.GetColumnNames("[sksom_s_k]") : string.Empty) + 
+							(this.Depth > 0 ? "," + KeywordTable.GetColumnNames("[sksom_k]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceOfferTable.GetColumnNames("[sksom_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[sksom_so_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[sksom_so_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentConfigurationTable.GetColumnNames("[sksom_so_pc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentAccessPolicyTable.GetColumnNames("[sksom_so_cap]") : string.Empty) +  
+					" FROM [core].[ShortcodeKeywordServiceOfferMap] AS [sksom] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Shortcode] AS [sksom_s] ON [sksom].[ShortcodeID] = [sksom_s].[ShortcodeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Keyword] AS [sksom_s_k] ON [sksom_s].[DefaultKeywordID] = [sksom_s_k].[KeywordID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Keyword] AS [sksom_k] ON [sksom].[KeywordID] = [sksom_k].[KeywordID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [sksom_so] ON [sksom].[ServiceOfferID] = [sksom_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [sksom_so_s] ON [sksom_so].[ServiceID] = [sksom_so_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [sksom_so_bme] ON [sksom_so].[BusinessModelEntryID] = [sksom_so_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentConfiguration] AS [sksom_so_pc] ON [sksom_so].[PaymentConfigurationID] = [sksom_so_pc].[PaymentConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentAccessPolicy] AS [sksom_so_cap] ON [sksom_so].[ContentAccessPolicyID] = [sksom_so_cap].[ContentAccessPolicyID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sksom", "customloadmany", "notfound"), "ShortcodeKeywordServiceOfferMap list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ShortcodeKeywordServiceOfferMap>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ShortcodeKeywordServiceOfferMapTable sksomTable = new ShortcodeKeywordServiceOfferMapTable(query);
+				ShortcodeTable sksom_sTable = (this.Depth > 0) ? new ShortcodeTable(query) : null;
+				KeywordTable sksom_s_kTable = (this.Depth > 1) ? new KeywordTable(query) : null;
+				KeywordTable sksom_kTable = (this.Depth > 0) ? new KeywordTable(query) : null;
+				ServiceOfferTable sksom_soTable = (this.Depth > 0) ? new ServiceOfferTable(query) : null;
+				ServiceTable sksom_so_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				BusinessModelEntryTable sksom_so_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				PaymentConfigurationTable sksom_so_pcTable = (this.Depth > 1) ? new PaymentConfigurationTable(query) : null;
+				ContentAccessPolicyTable sksom_so_capTable = (this.Depth > 1) ? new ContentAccessPolicyTable(query) : null;
+
+        List<ShortcodeKeywordServiceOfferMap> result = new List<ShortcodeKeywordServiceOfferMap>();
+        do
+        {
+          
+					Keyword sksom_s_kObject = (this.Depth > 1) ? sksom_s_kTable.CreateInstance() : null;
+					Shortcode sksom_sObject = (this.Depth > 0) ? sksom_sTable.CreateInstance(sksom_s_kObject) : null;
+					Keyword sksom_kObject = (this.Depth > 0) ? sksom_kTable.CreateInstance() : null;
+					Service sksom_so_sObject = (this.Depth > 1) ? sksom_so_sTable.CreateInstance() : null;
+					BusinessModelEntry sksom_so_bmeObject = (this.Depth > 1) ? sksom_so_bmeTable.CreateInstance() : null;
+					PaymentConfiguration sksom_so_pcObject = (this.Depth > 1) ? sksom_so_pcTable.CreateInstance() : null;
+					ContentAccessPolicy sksom_so_capObject = (this.Depth > 1) ? sksom_so_capTable.CreateInstance() : null;
+					ServiceOffer sksom_soObject = (this.Depth > 0) ? sksom_soTable.CreateInstance(sksom_so_sObject, sksom_so_bmeObject, sksom_so_pcObject, sksom_so_capObject) : null;
+					ShortcodeKeywordServiceOfferMap sksomObject = (this.Depth > -1) ? sksomTable.CreateInstance(sksom_sObject, sksom_kObject, sksom_soObject) : null;
+					result.Add(sksomObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sksom", "customloadmany", "exception"), "ShortcodeKeywordServiceOfferMap list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ShortcodeKeywordServiceOfferMap", "Exception while loading (custom/many) ShortcodeKeywordServiceOfferMap object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ShortcodeKeywordServiceOfferMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ShortcodeKeywordServiceOfferMap] ([ShortcodeID],[KeywordID],[ServiceOfferID]) VALUES(@ShortcodeID,@KeywordID,@ServiceOfferID); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ShortcodeID", data.Shortcode.ID);
+				sqlCmd.Parameters.AddWithValue("@KeywordID", data.Keyword.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceOfferID", data.ServiceOffer.ID);
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sksom", "insert", "noprimarykey"), "ShortcodeKeywordServiceOfferMap could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ShortcodeKeywordServiceOfferMap", "Exception while inserting ShortcodeKeywordServiceOfferMap object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sksom", "insert", "exception"), "ShortcodeKeywordServiceOfferMap could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ShortcodeKeywordServiceOfferMap", "Exception while inserting ShortcodeKeywordServiceOfferMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ShortcodeKeywordServiceOfferMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ShortcodeKeywordServiceOfferMap] SET " +
+												"[ShortcodeID] = @ShortcodeID, " + 
+												"[KeywordID] = @KeywordID, " + 
+												"[ServiceOfferID] = @ServiceOfferID, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ShortcodeKeywordServiceOfferMapID] = @ShortcodeKeywordServiceOfferMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ShortcodeID", data.Shortcode.ID);
+				sqlCmd.Parameters.AddWithValue("@KeywordID", data.Keyword.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceOfferID", data.ServiceOffer.ID);
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ShortcodeKeywordServiceOfferMapID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sksom", "update", "norecord"), "ShortcodeKeywordServiceOfferMap could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ShortcodeKeywordServiceOfferMap", "Exception while updating ShortcodeKeywordServiceOfferMap object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sksom", "update", "morerecords"), "ShortcodeKeywordServiceOfferMap was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ShortcodeKeywordServiceOfferMap", "Exception while updating ShortcodeKeywordServiceOfferMap object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sksom", "update", "exception"), "ShortcodeKeywordServiceOfferMap could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ShortcodeKeywordServiceOfferMap", "Exception while updating ShortcodeKeywordServiceOfferMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ShortcodeKeywordServiceOfferMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ShortcodeKeywordServiceOfferMap] WHERE ShortcodeKeywordServiceOfferMapID = @ShortcodeKeywordServiceOfferMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ShortcodeKeywordServiceOfferMapID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sksom", "delete", "norecord"), "ShortcodeKeywordServiceOfferMap could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ShortcodeKeywordServiceOfferMap", "Exception while deleting ShortcodeKeywordServiceOfferMap object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("sksom", "delete", "exception"), "ShortcodeKeywordServiceOfferMap could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ShortcodeKeywordServiceOfferMap", "Exception while deleting ShortcodeKeywordServiceOfferMap object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

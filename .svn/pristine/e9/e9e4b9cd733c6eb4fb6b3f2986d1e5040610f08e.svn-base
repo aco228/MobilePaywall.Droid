@@ -1,0 +1,40 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class QueryIdentificationCallbackManager : IQueryIdentificationCallbackManager
+  {
+
+    public QueryIdentificationCallback Load(Guid callbackGuid)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, callbackGuid);
+    }
+
+    public QueryIdentificationCallback Load(IConnectionInfo connection, Guid callbackGuid)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, callbackGuid);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, callbackGuid);
+    }
+
+    public QueryIdentificationCallback Load(ISqlConnectionInfo connection, Guid callbackGuid)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[qic_ls].[IdentificationSessionGuid] = @IdentificationSessionGuid";
+      parameters.Arguments.Add("IdentificationSessionGuid", callbackGuid);
+      return this.Load(connection, parameters);
+    }
+  }
+}
+

@@ -1,0 +1,83 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class ClientAccessPolicyManager : IClientAccessPolicyManager
+  {
+
+    public List<ClientAccessPolicy> Load(Client client)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, client);
+    }
+
+    public List<ClientAccessPolicy> Load(IConnectionInfo connection, Client client)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, client);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, client);
+    }
+
+    public List<ClientAccessPolicy> Load(ISqlConnectionInfo connection, Client client)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[cap].ClientID = @ClientID";
+      parameters.Arguments.Add("ClientID", client.ID);
+      return this.LoadMany(connection, parameters);
+    }
+       
+
+    public List<ClientAccessPolicy> Load(Instance instance, Application application, Merchant merchant, Product product, Service service, Client client, AccessMode accessMode)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, instance, application, merchant, product, service, client, accessMode);
+    }
+
+    public List<ClientAccessPolicy> Load(IConnectionInfo connection, Instance instance, Application application, Merchant merchant, Product product, Service service, Client client, AccessMode accessMode)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, instance, application, merchant, product, service, client, accessMode);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, instance, application, merchant, product, service, client, accessMode);
+    }
+
+    public List<ClientAccessPolicy> Load(ISqlConnectionInfo connection, Instance instance, Application application, Merchant merchant, Product product, Service service, Client client, AccessMode accessMode)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Top = 1;
+      parameters.Where = "([cap].InstanceID = @InstanceID OR [cap].InstanceID IS NULL) AND " +
+                         "([cap].ApplicationID = @ApplicationID OR [cap].ApplicationID IS NULL) AND " +
+                         "([cap].MerchantID = @MerchantID OR [cap].MerchantID IS NULL) AND " +
+                         "([cap].ProductID = @ProductID OR [cap].ProductID IS NULL) AND " +
+                         "([cap].ServiceID = @ServiceID OR [cap].ServiceID IS NULL) AND " +
+                         "[cap].ClientID = @ClientID";
+      parameters.OrderBy = "[cap].ServiceID DESC, [cap].ProductID DESC, [cap].MerchantID DESC, [cap].ApplicationID DESC, [cap].InstanceID DESC";
+
+      parameters.Arguments.Add("InstanceID", instance.ID);
+      parameters.Arguments.Add("ApplicationID", application.ID);
+      parameters.Arguments.Add("MerchantID", merchant.ID);
+      parameters.Arguments.Add("ProductID", product.ID);
+      parameters.Arguments.Add("ServiceID", service.ID);
+      parameters.Arguments.Add("ClientID", client.ID);
+
+
+      return this.LoadMany(connection, parameters);
+    }
+
+
+  }
+}
+

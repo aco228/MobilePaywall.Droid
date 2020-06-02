@@ -1,0 +1,596 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(PaymentContentAccessPolicyMap))] 
+  public partial class PaymentContentAccessPolicyMapManager : MobilePaywall.Data.Sql.SqlManagerBase<PaymentContentAccessPolicyMap>, IPaymentContentAccessPolicyMapManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override PaymentContentAccessPolicyMap LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							PaymentContentAccessPolicyMapTable.GetColumnNames("[pcapm]") + 
+							(this.Depth > 0 ? "," + PaymentTable.GetColumnNames("[pcapm_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentRequestTable.GetColumnNames("[pcapm_p_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[pcapm_p_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[pcapm_p_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[pcapm_p_bme]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[pcapm_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[pcapm_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[pcapm_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[pcapm_c_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[pcapm_c_ar]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentAccessPolicyTable.GetColumnNames("[pcapm_cap]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[pcapm_cap_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[pcapm_cap_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[pcapm_cap_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[pcapm_cap_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[pcapm_cap_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + TransactionTable.GetColumnNames("[pcapm_t]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentTable.GetColumnNames("[pcapm_t_p]") : string.Empty) + 
+					" FROM [core].[PaymentContentAccessPolicyMap] AS [pcapm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Payment] AS [pcapm_p] ON [pcapm].[PaymentID] = [pcapm_p].[PaymentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [pcapm_p_pr] ON [pcapm_p].[PaymentRequestID] = [pcapm_p_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [pcapm_p_c] ON [pcapm_p].[CustomerID] = [pcapm_p_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [pcapm_p_so] ON [pcapm_p].[ServiceOfferID] = [pcapm_p_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [pcapm_p_bme] ON [pcapm_p].[BusinessModelEntryID] = [pcapm_p_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [pcapm_c] ON [pcapm].[ContentID] = [pcapm_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [pcapm_c_cg] ON [pcapm_c].[ContentGroupID] = [pcapm_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentType] AS [pcapm_c_ct] ON [pcapm_c].[ContentTypeID] = [pcapm_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentStorage] AS [pcapm_c_cs] ON [pcapm_c].[ContentStorageID] = [pcapm_c_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [pcapm_c_ar] ON [pcapm_c].[AgeRatingID] = [pcapm_c_ar].[AgeRatingID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentAccessPolicy] AS [pcapm_cap] ON [pcapm].[ContentAccessPolicyID] = [pcapm_cap].[ContentAccessPolicyID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [pcapm_cap_bm] ON [pcapm_cap].[BusinessModelID] = [pcapm_cap_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModelEntry] AS [pcapm_cap_bme] ON [pcapm_cap].[BusinessModelEntryID] = [pcapm_cap_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [pcapm_cap_s] ON [pcapm_cap].[ServiceID] = [pcapm_cap_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [pcapm_cap_cg] ON [pcapm_cap].[ContentGroupID] = [pcapm_cap_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [pcapm_cap_c] ON [pcapm_cap].[ContentID] = [pcapm_cap_c].[ContentID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Transaction] AS [pcapm_t] ON [pcapm].[TransactionID] = [pcapm_t].[TransactionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Payment] AS [pcapm_t_p] ON [pcapm_t].[PaymentID] = [pcapm_t_p].[PaymentID] ";
+				sqlCmdText += "WHERE [pcapm].[PaymentContentAccessPolicyMapID] = @PaymentContentAccessPolicyMapID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@PaymentContentAccessPolicyMapID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pcapm", "loadinternal", "notfound"), "PaymentContentAccessPolicyMap could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				PaymentContentAccessPolicyMapTable pcapmTable = new PaymentContentAccessPolicyMapTable(query);
+				PaymentTable pcapm_pTable = (this.Depth > 0) ? new PaymentTable(query) : null;
+				PaymentRequestTable pcapm_p_prTable = (this.Depth > 1) ? new PaymentRequestTable(query) : null;
+				CustomerTable pcapm_p_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				ServiceOfferTable pcapm_p_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable pcapm_p_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				ContentTable pcapm_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable pcapm_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable pcapm_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable pcapm_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+				AgeRatingTable pcapm_c_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ContentAccessPolicyTable pcapm_capTable = (this.Depth > 0) ? new ContentAccessPolicyTable(query) : null;
+				BusinessModelTable pcapm_cap_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				BusinessModelEntryTable pcapm_cap_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				ServiceTable pcapm_cap_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				ContentGroupTable pcapm_cap_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTable pcapm_cap_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				TransactionTable pcapm_tTable = (this.Depth > 0) ? new TransactionTable(query) : null;
+				PaymentTable pcapm_t_pTable = (this.Depth > 1) ? new PaymentTable(query) : null;
+
+        
+				PaymentRequest pcapm_p_prObject = (this.Depth > 1) ? pcapm_p_prTable.CreateInstance() : null;
+				Customer pcapm_p_cObject = (this.Depth > 1) ? pcapm_p_cTable.CreateInstance() : null;
+				ServiceOffer pcapm_p_soObject = (this.Depth > 1) ? pcapm_p_soTable.CreateInstance() : null;
+				BusinessModelEntry pcapm_p_bmeObject = (this.Depth > 1) ? pcapm_p_bmeTable.CreateInstance() : null;
+				Payment pcapm_pObject = (this.Depth > 0) ? pcapm_pTable.CreateInstance(pcapm_p_prObject, pcapm_p_cObject, pcapm_p_soObject, pcapm_p_bmeObject) : null;
+				ContentGroup pcapm_c_cgObject = (this.Depth > 1) ? pcapm_c_cgTable.CreateInstance() : null;
+				ContentType pcapm_c_ctObject = (this.Depth > 1) ? pcapm_c_ctTable.CreateInstance() : null;
+				ContentStorage pcapm_c_csObject = (this.Depth > 1) ? pcapm_c_csTable.CreateInstance() : null;
+				AgeRating pcapm_c_arObject = (this.Depth > 1) ? pcapm_c_arTable.CreateInstance() : null;
+				Content pcapm_cObject = (this.Depth > 0) ? pcapm_cTable.CreateInstance(pcapm_c_cgObject, pcapm_c_ctObject, pcapm_c_csObject, pcapm_c_arObject) : null;
+				BusinessModel pcapm_cap_bmObject = (this.Depth > 1) ? pcapm_cap_bmTable.CreateInstance() : null;
+				BusinessModelEntry pcapm_cap_bmeObject = (this.Depth > 1) ? pcapm_cap_bmeTable.CreateInstance() : null;
+				Service pcapm_cap_sObject = (this.Depth > 1) ? pcapm_cap_sTable.CreateInstance() : null;
+				ContentGroup pcapm_cap_cgObject = (this.Depth > 1) ? pcapm_cap_cgTable.CreateInstance() : null;
+				Content pcapm_cap_cObject = (this.Depth > 1) ? pcapm_cap_cTable.CreateInstance() : null;
+				ContentAccessPolicy pcapm_capObject = (this.Depth > 0) ? pcapm_capTable.CreateInstance(pcapm_cap_bmObject, pcapm_cap_bmeObject, pcapm_cap_sObject, pcapm_cap_cgObject, pcapm_cap_cObject) : null;
+				Payment pcapm_t_pObject = (this.Depth > 1) ? pcapm_t_pTable.CreateInstance() : null;
+				Transaction pcapm_tObject = (this.Depth > 0) ? pcapm_tTable.CreateInstance(pcapm_t_pObject) : null;
+				PaymentContentAccessPolicyMap pcapmObject = pcapmTable.CreateInstance(pcapm_pObject, pcapm_cObject, pcapm_capObject, pcapm_tObject);
+				sqlReader.Close();
+
+				return pcapmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pcapm", "loadinternal", "exception"), "PaymentContentAccessPolicyMap could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "PaymentContentAccessPolicyMap", "Exception while loading PaymentContentAccessPolicyMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public PaymentContentAccessPolicyMap Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							PaymentContentAccessPolicyMapTable.GetColumnNames("[pcapm]") + 
+							(this.Depth > 0 ? "," + PaymentTable.GetColumnNames("[pcapm_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentRequestTable.GetColumnNames("[pcapm_p_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[pcapm_p_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[pcapm_p_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[pcapm_p_bme]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[pcapm_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[pcapm_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[pcapm_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[pcapm_c_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[pcapm_c_ar]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentAccessPolicyTable.GetColumnNames("[pcapm_cap]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[pcapm_cap_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[pcapm_cap_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[pcapm_cap_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[pcapm_cap_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[pcapm_cap_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + TransactionTable.GetColumnNames("[pcapm_t]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentTable.GetColumnNames("[pcapm_t_p]") : string.Empty) +  
+					" FROM [core].[PaymentContentAccessPolicyMap] AS [pcapm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Payment] AS [pcapm_p] ON [pcapm].[PaymentID] = [pcapm_p].[PaymentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [pcapm_p_pr] ON [pcapm_p].[PaymentRequestID] = [pcapm_p_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [pcapm_p_c] ON [pcapm_p].[CustomerID] = [pcapm_p_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [pcapm_p_so] ON [pcapm_p].[ServiceOfferID] = [pcapm_p_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [pcapm_p_bme] ON [pcapm_p].[BusinessModelEntryID] = [pcapm_p_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [pcapm_c] ON [pcapm].[ContentID] = [pcapm_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [pcapm_c_cg] ON [pcapm_c].[ContentGroupID] = [pcapm_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentType] AS [pcapm_c_ct] ON [pcapm_c].[ContentTypeID] = [pcapm_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentStorage] AS [pcapm_c_cs] ON [pcapm_c].[ContentStorageID] = [pcapm_c_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [pcapm_c_ar] ON [pcapm_c].[AgeRatingID] = [pcapm_c_ar].[AgeRatingID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentAccessPolicy] AS [pcapm_cap] ON [pcapm].[ContentAccessPolicyID] = [pcapm_cap].[ContentAccessPolicyID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [pcapm_cap_bm] ON [pcapm_cap].[BusinessModelID] = [pcapm_cap_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModelEntry] AS [pcapm_cap_bme] ON [pcapm_cap].[BusinessModelEntryID] = [pcapm_cap_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [pcapm_cap_s] ON [pcapm_cap].[ServiceID] = [pcapm_cap_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [pcapm_cap_cg] ON [pcapm_cap].[ContentGroupID] = [pcapm_cap_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [pcapm_cap_c] ON [pcapm_cap].[ContentID] = [pcapm_cap_c].[ContentID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Transaction] AS [pcapm_t] ON [pcapm].[TransactionID] = [pcapm_t].[TransactionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Payment] AS [pcapm_t_p] ON [pcapm_t].[PaymentID] = [pcapm_t_p].[PaymentID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pcapm", "customload", "notfound"), "PaymentContentAccessPolicyMap could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				PaymentContentAccessPolicyMapTable pcapmTable = new PaymentContentAccessPolicyMapTable(query);
+				PaymentTable pcapm_pTable = (this.Depth > 0) ? new PaymentTable(query) : null;
+				PaymentRequestTable pcapm_p_prTable = (this.Depth > 1) ? new PaymentRequestTable(query) : null;
+				CustomerTable pcapm_p_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				ServiceOfferTable pcapm_p_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable pcapm_p_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				ContentTable pcapm_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable pcapm_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable pcapm_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable pcapm_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+				AgeRatingTable pcapm_c_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ContentAccessPolicyTable pcapm_capTable = (this.Depth > 0) ? new ContentAccessPolicyTable(query) : null;
+				BusinessModelTable pcapm_cap_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				BusinessModelEntryTable pcapm_cap_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				ServiceTable pcapm_cap_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				ContentGroupTable pcapm_cap_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTable pcapm_cap_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				TransactionTable pcapm_tTable = (this.Depth > 0) ? new TransactionTable(query) : null;
+				PaymentTable pcapm_t_pTable = (this.Depth > 1) ? new PaymentTable(query) : null;
+
+        
+				PaymentRequest pcapm_p_prObject = (this.Depth > 1) ? pcapm_p_prTable.CreateInstance() : null;
+				Customer pcapm_p_cObject = (this.Depth > 1) ? pcapm_p_cTable.CreateInstance() : null;
+				ServiceOffer pcapm_p_soObject = (this.Depth > 1) ? pcapm_p_soTable.CreateInstance() : null;
+				BusinessModelEntry pcapm_p_bmeObject = (this.Depth > 1) ? pcapm_p_bmeTable.CreateInstance() : null;
+				Payment pcapm_pObject = (this.Depth > 0) ? pcapm_pTable.CreateInstance(pcapm_p_prObject, pcapm_p_cObject, pcapm_p_soObject, pcapm_p_bmeObject) : null;
+				ContentGroup pcapm_c_cgObject = (this.Depth > 1) ? pcapm_c_cgTable.CreateInstance() : null;
+				ContentType pcapm_c_ctObject = (this.Depth > 1) ? pcapm_c_ctTable.CreateInstance() : null;
+				ContentStorage pcapm_c_csObject = (this.Depth > 1) ? pcapm_c_csTable.CreateInstance() : null;
+				AgeRating pcapm_c_arObject = (this.Depth > 1) ? pcapm_c_arTable.CreateInstance() : null;
+				Content pcapm_cObject = (this.Depth > 0) ? pcapm_cTable.CreateInstance(pcapm_c_cgObject, pcapm_c_ctObject, pcapm_c_csObject, pcapm_c_arObject) : null;
+				BusinessModel pcapm_cap_bmObject = (this.Depth > 1) ? pcapm_cap_bmTable.CreateInstance() : null;
+				BusinessModelEntry pcapm_cap_bmeObject = (this.Depth > 1) ? pcapm_cap_bmeTable.CreateInstance() : null;
+				Service pcapm_cap_sObject = (this.Depth > 1) ? pcapm_cap_sTable.CreateInstance() : null;
+				ContentGroup pcapm_cap_cgObject = (this.Depth > 1) ? pcapm_cap_cgTable.CreateInstance() : null;
+				Content pcapm_cap_cObject = (this.Depth > 1) ? pcapm_cap_cTable.CreateInstance() : null;
+				ContentAccessPolicy pcapm_capObject = (this.Depth > 0) ? pcapm_capTable.CreateInstance(pcapm_cap_bmObject, pcapm_cap_bmeObject, pcapm_cap_sObject, pcapm_cap_cgObject, pcapm_cap_cObject) : null;
+				Payment pcapm_t_pObject = (this.Depth > 1) ? pcapm_t_pTable.CreateInstance() : null;
+				Transaction pcapm_tObject = (this.Depth > 0) ? pcapm_tTable.CreateInstance(pcapm_t_pObject) : null;
+				PaymentContentAccessPolicyMap pcapmObject = pcapmTable.CreateInstance(pcapm_pObject, pcapm_cObject, pcapm_capObject, pcapm_tObject);
+				sqlReader.Close();
+
+				return pcapmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pcapm", "customload", "exception"), "PaymentContentAccessPolicyMap could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "PaymentContentAccessPolicyMap", "Exception while loading (custom/single) PaymentContentAccessPolicyMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<PaymentContentAccessPolicyMap> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							PaymentContentAccessPolicyMapTable.GetColumnNames("[pcapm]") + 
+							(this.Depth > 0 ? "," + PaymentTable.GetColumnNames("[pcapm_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentRequestTable.GetColumnNames("[pcapm_p_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[pcapm_p_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[pcapm_p_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[pcapm_p_bme]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[pcapm_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[pcapm_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[pcapm_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[pcapm_c_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[pcapm_c_ar]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentAccessPolicyTable.GetColumnNames("[pcapm_cap]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[pcapm_cap_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[pcapm_cap_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[pcapm_cap_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[pcapm_cap_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[pcapm_cap_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + TransactionTable.GetColumnNames("[pcapm_t]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentTable.GetColumnNames("[pcapm_t_p]") : string.Empty) +  
+					" FROM [core].[PaymentContentAccessPolicyMap] AS [pcapm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Payment] AS [pcapm_p] ON [pcapm].[PaymentID] = [pcapm_p].[PaymentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [pcapm_p_pr] ON [pcapm_p].[PaymentRequestID] = [pcapm_p_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [pcapm_p_c] ON [pcapm_p].[CustomerID] = [pcapm_p_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [pcapm_p_so] ON [pcapm_p].[ServiceOfferID] = [pcapm_p_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [pcapm_p_bme] ON [pcapm_p].[BusinessModelEntryID] = [pcapm_p_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [pcapm_c] ON [pcapm].[ContentID] = [pcapm_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [pcapm_c_cg] ON [pcapm_c].[ContentGroupID] = [pcapm_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentType] AS [pcapm_c_ct] ON [pcapm_c].[ContentTypeID] = [pcapm_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentStorage] AS [pcapm_c_cs] ON [pcapm_c].[ContentStorageID] = [pcapm_c_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [pcapm_c_ar] ON [pcapm_c].[AgeRatingID] = [pcapm_c_ar].[AgeRatingID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentAccessPolicy] AS [pcapm_cap] ON [pcapm].[ContentAccessPolicyID] = [pcapm_cap].[ContentAccessPolicyID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [pcapm_cap_bm] ON [pcapm_cap].[BusinessModelID] = [pcapm_cap_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModelEntry] AS [pcapm_cap_bme] ON [pcapm_cap].[BusinessModelEntryID] = [pcapm_cap_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [pcapm_cap_s] ON [pcapm_cap].[ServiceID] = [pcapm_cap_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [pcapm_cap_cg] ON [pcapm_cap].[ContentGroupID] = [pcapm_cap_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [pcapm_cap_c] ON [pcapm_cap].[ContentID] = [pcapm_cap_c].[ContentID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Transaction] AS [pcapm_t] ON [pcapm].[TransactionID] = [pcapm_t].[TransactionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Payment] AS [pcapm_t_p] ON [pcapm_t].[PaymentID] = [pcapm_t_p].[PaymentID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pcapm", "customloadmany", "notfound"), "PaymentContentAccessPolicyMap list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<PaymentContentAccessPolicyMap>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				PaymentContentAccessPolicyMapTable pcapmTable = new PaymentContentAccessPolicyMapTable(query);
+				PaymentTable pcapm_pTable = (this.Depth > 0) ? new PaymentTable(query) : null;
+				PaymentRequestTable pcapm_p_prTable = (this.Depth > 1) ? new PaymentRequestTable(query) : null;
+				CustomerTable pcapm_p_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				ServiceOfferTable pcapm_p_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable pcapm_p_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				ContentTable pcapm_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable pcapm_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable pcapm_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable pcapm_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+				AgeRatingTable pcapm_c_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ContentAccessPolicyTable pcapm_capTable = (this.Depth > 0) ? new ContentAccessPolicyTable(query) : null;
+				BusinessModelTable pcapm_cap_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				BusinessModelEntryTable pcapm_cap_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				ServiceTable pcapm_cap_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				ContentGroupTable pcapm_cap_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTable pcapm_cap_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				TransactionTable pcapm_tTable = (this.Depth > 0) ? new TransactionTable(query) : null;
+				PaymentTable pcapm_t_pTable = (this.Depth > 1) ? new PaymentTable(query) : null;
+
+        List<PaymentContentAccessPolicyMap> result = new List<PaymentContentAccessPolicyMap>();
+        do
+        {
+          
+					PaymentRequest pcapm_p_prObject = (this.Depth > 1) ? pcapm_p_prTable.CreateInstance() : null;
+					Customer pcapm_p_cObject = (this.Depth > 1) ? pcapm_p_cTable.CreateInstance() : null;
+					ServiceOffer pcapm_p_soObject = (this.Depth > 1) ? pcapm_p_soTable.CreateInstance() : null;
+					BusinessModelEntry pcapm_p_bmeObject = (this.Depth > 1) ? pcapm_p_bmeTable.CreateInstance() : null;
+					Payment pcapm_pObject = (this.Depth > 0) ? pcapm_pTable.CreateInstance(pcapm_p_prObject, pcapm_p_cObject, pcapm_p_soObject, pcapm_p_bmeObject) : null;
+					ContentGroup pcapm_c_cgObject = (this.Depth > 1) ? pcapm_c_cgTable.CreateInstance() : null;
+					ContentType pcapm_c_ctObject = (this.Depth > 1) ? pcapm_c_ctTable.CreateInstance() : null;
+					ContentStorage pcapm_c_csObject = (this.Depth > 1) ? pcapm_c_csTable.CreateInstance() : null;
+					AgeRating pcapm_c_arObject = (this.Depth > 1) ? pcapm_c_arTable.CreateInstance() : null;
+					Content pcapm_cObject = (this.Depth > 0) ? pcapm_cTable.CreateInstance(pcapm_c_cgObject, pcapm_c_ctObject, pcapm_c_csObject, pcapm_c_arObject) : null;
+					BusinessModel pcapm_cap_bmObject = (this.Depth > 1) ? pcapm_cap_bmTable.CreateInstance() : null;
+					BusinessModelEntry pcapm_cap_bmeObject = (this.Depth > 1) ? pcapm_cap_bmeTable.CreateInstance() : null;
+					Service pcapm_cap_sObject = (this.Depth > 1) ? pcapm_cap_sTable.CreateInstance() : null;
+					ContentGroup pcapm_cap_cgObject = (this.Depth > 1) ? pcapm_cap_cgTable.CreateInstance() : null;
+					Content pcapm_cap_cObject = (this.Depth > 1) ? pcapm_cap_cTable.CreateInstance() : null;
+					ContentAccessPolicy pcapm_capObject = (this.Depth > 0) ? pcapm_capTable.CreateInstance(pcapm_cap_bmObject, pcapm_cap_bmeObject, pcapm_cap_sObject, pcapm_cap_cgObject, pcapm_cap_cObject) : null;
+					Payment pcapm_t_pObject = (this.Depth > 1) ? pcapm_t_pTable.CreateInstance() : null;
+					Transaction pcapm_tObject = (this.Depth > 0) ? pcapm_tTable.CreateInstance(pcapm_t_pObject) : null;
+					PaymentContentAccessPolicyMap pcapmObject = (this.Depth > -1) ? pcapmTable.CreateInstance(pcapm_pObject, pcapm_cObject, pcapm_capObject, pcapm_tObject) : null;
+					result.Add(pcapmObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pcapm", "customloadmany", "exception"), "PaymentContentAccessPolicyMap list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "PaymentContentAccessPolicyMap", "Exception while loading (custom/many) PaymentContentAccessPolicyMap object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, PaymentContentAccessPolicyMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[PaymentContentAccessPolicyMap] ([PaymentID],[ContentID],[ContentAccessPolicyID],[TransactionID],[IsValid],[IsTemporary],[ValidFrom],[ValidTo]) VALUES(@PaymentID,@ContentID,@ContentAccessPolicyID,@TransactionID,@IsValid,@IsTemporary,@ValidFrom,@ValidTo); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@PaymentID", data.Payment.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentID", data.Content == null ? DBNull.Value : (object)data.Content.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentAccessPolicyID", data.ContentAccessPolicy.ID);
+				sqlCmd.Parameters.AddWithValue("@TransactionID", data.Transaction == null ? DBNull.Value : (object)data.Transaction.ID);
+				sqlCmd.Parameters.AddWithValue("@IsValid", data.IsValid).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsTemporary", data.IsTemporary).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@ValidFrom", data.ValidFrom.HasValue ? (object)data.ValidFrom.Value : DBNull.Value).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ValidTo", data.ValidTo.HasValue ? (object)data.ValidTo.Value : DBNull.Value).SqlDbType = SqlDbType.DateTime2;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pcapm", "insert", "noprimarykey"), "PaymentContentAccessPolicyMap could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "PaymentContentAccessPolicyMap", "Exception while inserting PaymentContentAccessPolicyMap object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pcapm", "insert", "exception"), "PaymentContentAccessPolicyMap could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "PaymentContentAccessPolicyMap", "Exception while inserting PaymentContentAccessPolicyMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, PaymentContentAccessPolicyMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[PaymentContentAccessPolicyMap] SET " +
+												"[PaymentID] = @PaymentID, " + 
+												"[ContentID] = @ContentID, " + 
+												"[ContentAccessPolicyID] = @ContentAccessPolicyID, " + 
+												"[TransactionID] = @TransactionID, " + 
+												"[IsValid] = @IsValid, " + 
+												"[IsTemporary] = @IsTemporary, " + 
+												"[ValidFrom] = @ValidFrom, " + 
+												"[ValidTo] = @ValidTo, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [PaymentContentAccessPolicyMapID] = @PaymentContentAccessPolicyMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@PaymentID", data.Payment.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentID", data.Content == null ? DBNull.Value : (object)data.Content.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentAccessPolicyID", data.ContentAccessPolicy.ID);
+				sqlCmd.Parameters.AddWithValue("@TransactionID", data.Transaction == null ? DBNull.Value : (object)data.Transaction.ID);
+				sqlCmd.Parameters.AddWithValue("@IsValid", data.IsValid).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsTemporary", data.IsTemporary).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@ValidFrom", data.ValidFrom.HasValue ? (object)data.ValidFrom.Value : DBNull.Value).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ValidTo", data.ValidTo.HasValue ? (object)data.ValidTo.Value : DBNull.Value).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@PaymentContentAccessPolicyMapID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pcapm", "update", "norecord"), "PaymentContentAccessPolicyMap could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "PaymentContentAccessPolicyMap", "Exception while updating PaymentContentAccessPolicyMap object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pcapm", "update", "morerecords"), "PaymentContentAccessPolicyMap was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "PaymentContentAccessPolicyMap", "Exception while updating PaymentContentAccessPolicyMap object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pcapm", "update", "exception"), "PaymentContentAccessPolicyMap could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "PaymentContentAccessPolicyMap", "Exception while updating PaymentContentAccessPolicyMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, PaymentContentAccessPolicyMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[PaymentContentAccessPolicyMap] WHERE PaymentContentAccessPolicyMapID = @PaymentContentAccessPolicyMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@PaymentContentAccessPolicyMapID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pcapm", "delete", "norecord"), "PaymentContentAccessPolicyMap could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "PaymentContentAccessPolicyMap", "Exception while deleting PaymentContentAccessPolicyMap object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("pcapm", "delete", "exception"), "PaymentContentAccessPolicyMap could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "PaymentContentAccessPolicyMap", "Exception while deleting PaymentContentAccessPolicyMap object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

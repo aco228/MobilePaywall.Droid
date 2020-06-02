@@ -1,0 +1,74 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Web.Filters;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers
+{
+  public partial class TemplateController : PaywallTemplateController
+  { 
+    // GET: TemplateAddFilterBypass
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateAttributeFilterBypassAddNew(string filterBypassType)
+    {
+      int _filterBypassTypeID = -1;
+      if(!Int32.TryParse(filterBypassType , out _filterBypassTypeID))
+        return this.Json(new { status = false, message = "Could not parse Filter Bypass type!"});
+
+      if (!Enum.IsDefined(typeof(FilterBypassType), _filterBypassTypeID))
+        return null;
+
+      FilterBypassType filterBypassTypeID  = (FilterBypassType)_filterBypassTypeID;
+
+      FilterBypass filterBypass = FilterBypass.CreateManager().Load(filterBypassTypeID, PaywallHttpContext.Current.Service.ServiceData.FallbackCountry, PaywallHttpContext.Current.Service.PaymentProvider, PaywallHttpContext.Current.Service.ServiceData);
+
+      if (filterBypass != null)      
+        return this.Json(new { status = false, message = "This FilterBypassType already exists!" });
+
+      filterBypass = new FilterBypass(-1, filterBypassTypeID, PaywallHttpContext.Current.Service.ServiceData.FallbackCountry, PaywallHttpContext.Current.Service.PaymentProvider, PaywallHttpContext.Current.Service.ServiceData,
+          true, string.Format("{0}, {1}, {2}, {3} Filter", PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode, PaywallHttpContext.Current.Service.PaymentProvider.Name, PaywallHttpContext.Current.Service.ServiceData.Name, filterBypassTypeID.ToString()),
+          DateTime.Now, DateTime.Now);
+      filterBypass.Insert();
+      return this.Json(new { status = true, message = "Successfully added!", id = filterBypass.ID });
+    }
+
+    // storageEnties = "DisplayLoginPage=1,NekiDrugiFlag=blabla"
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateAttributeFilterBypassUpdate(string filterBypassID, string isEnabled, string storageEntries = "")
+    {
+      int _filterBypassID = -1;
+      if (!Int32.TryParse(filterBypassID, out _filterBypassID))
+        return this.Json(new { status = false, message = "Could not parse FilterBypass ID : " + filterBypassID });
+      
+      FilterBypass filterBypass = FilterBypass.CreateManager().Load(_filterBypassID);
+      if(filterBypass == null)
+        return this.Json(new { status = false, message = "FilterBypass with ID : " + filterBypassID + " not found."});
+
+      // storageEntries sjekao po ,
+      // po =
+      filterBypass.Storage.PutString("", "");
+
+      filterBypass.Enabled = isEnabled == "1"? true : false;
+      filterBypass.Update();
+      return this.Json(new { status = true, message = "Successfully updated Enabled with value : " + isEnabled == "1" ? true : false });
+    }
+
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateAttributeFilterBypassDelete(string filterBypassID)
+    {
+      int _filterBypassID = -1;
+      if (!Int32.TryParse(filterBypassID, out _filterBypassID))
+        return this.Json(new { status = false, message = "Could not parse FilterBypass ID : " + filterBypassID });
+
+      FilterBypass filterBypass = FilterBypass.CreateManager().Load(_filterBypassID);
+      if (filterBypass == null)
+        return this.Json(new { status = false, message = "FilterBypass with ID : " + filterBypassID + " not found." });
+      
+      filterBypass.Delete();
+      return this.Json(new { status = true, message = "Successfully deleted" });
+    }
+  }
+}

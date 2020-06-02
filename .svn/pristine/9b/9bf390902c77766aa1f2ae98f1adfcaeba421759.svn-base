@@ -1,0 +1,82 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using MobilePaywall.Data;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IClientManager : IDataManager<Client> 
+  {
+	
+
+  }
+
+  public partial class Client : MobilePaywallObject<IClientManager> 
+  {
+		private Guid _guid;
+		private ClientType _clientType;
+		private ClientStatus _clientStatus;
+		private string _username = String.Empty;
+		private byte[] _password = null;
+		private string _mailAddress = String.Empty;
+		
+
+		public Guid Guid { get { return this._guid; } set { _guid = value; } }
+		public ClientType ClientType 
+		{
+			get
+			{
+				if (this._clientType != null &&
+						this._clientType.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._clientType = ClientType.CreateManager().LazyLoad(this.ConnectionContext, this._clientType.ID) as ClientType;
+					else
+						this._clientType = ClientType.CreateManager().LazyLoad(this._clientType.ID) as ClientType;
+				return this._clientType;
+			}
+			set { _clientType = value; }
+		}
+
+		public ClientStatus ClientStatus  { get { return this._clientStatus; } set { this._clientStatus = value; } }
+		public string Username{ get {return this._username; } set { this._username = value;} }
+		public byte[] Password { get { return this._password; } set { this._password = value;}  }
+		public string MailAddress{ get {return this._mailAddress; } set { this._mailAddress = value;} }
+		
+
+    public override bool IsInsertable { get { return true;} }
+
+    public override bool IsDeletable { get { return false;} }
+
+    public override bool IsUpdatable { get { return true;} }
+
+    public Client()
+    { 
+    }
+
+    public Client(int id): base(id, DateTime.Now, DateTime.Now, true)
+    {
+    }
+
+    public Client(int id,  Guid guid, ClientType clientType, ClientStatus clientStatus, string username, byte[] password, string mailAddress, DateTime updated, DateTime created): base(id, updated, created, false)
+    {
+			this._guid = guid;
+			this._clientType = clientType;
+			this._clientStatus = clientStatus;
+			this._username = username;
+			this._password = password;
+			this._mailAddress = mailAddress;
+			
+    }
+
+    public override object Clone(bool deepClone)
+    {
+      return new Client(-1, this.Guid, this.ClientType, this.ClientStatus,this.Username,this.Password,this.MailAddress, DateTime.Now, DateTime.Now);
+    }
+  }
+}
+

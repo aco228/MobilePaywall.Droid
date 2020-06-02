@@ -1,0 +1,72 @@
+﻿function Cancellation()
+{
+
+  this.QuestionText = "";
+  this.ConfirmText = "";
+  this.DenyText = "";
+
+  this.init = function()
+  {
+    this.btnClick();
+  }
+
+  this.btnClick = function()
+  {
+    var self = this;
+
+    $('.aktiveBtn').each(function () { $(this).attr("inuse", 'false'); });
+
+    var originalText = "";
+
+    $('.aktiveBtn').click(function ()
+    {
+      if ($(this).attr('inuse') == "true")
+        return;
+
+      /*
+        this feature is not in use;
+      **/
+      return;
+
+      var guid = $(this).attr('guid');
+      var btn = $(this);
+
+      _visual.Confirm(
+        self.QuestionText,
+        self.ConfirmText,
+        self.DenyText,
+        function ()
+      {
+        originalText = btn.text();
+        btn.text("...");
+        btn.attr("inuse", "true");
+
+        $.ajax(
+        {
+          url: '/action/cancel',
+          data: '&paymentGuidParam=' + guid,
+          method: 'POST',
+          success: function (response)
+          {
+            btn.text(originalText);
+            btn.attr("inuse", "false");
+
+            //console.log("Message arived: " + response.message);
+
+            _visual.Alert(response.message, "Close");
+            //alert(response.message);
+
+            if (response.result)
+              window.location = response.redirect;
+          },
+          error: function () { console.error("ajax error"); }
+
+        });
+
+        });
+
+    });
+  }
+
+  this.init();
+}

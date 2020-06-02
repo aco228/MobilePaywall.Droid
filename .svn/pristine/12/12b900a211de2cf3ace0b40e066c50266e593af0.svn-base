@@ -1,0 +1,371 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(FilterBypassStorage))] 
+  public partial class FilterBypassStorageManager : MobilePaywall.Data.Sql.SqlManagerBase<FilterBypassStorage>, IFilterBypassStorageManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override FilterBypassStorage LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							FilterBypassStorageTable.GetColumnNames("[fbs]") + 
+							(this.Depth > 0 ? "," + FilterBypassTable.GetColumnNames("[fbs_fb]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[fbs_fb_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentProviderTable.GetColumnNames("[fbs_fb_pp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[fbs_fb_s]") : string.Empty) + 
+					" FROM [core].[FilterBypassStorage] AS [fbs] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[FilterBypass] AS [fbs_fb] ON [fbs].[FilterBypassID] = [fbs_fb].[FilterBypassID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [fbs_fb_c] ON [fbs_fb].[CountryID] = [fbs_fb_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentProvider] AS [fbs_fb_pp] ON [fbs_fb].[PaymentProviderID] = [fbs_fb_pp].[PaymentProviderID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [fbs_fb_s] ON [fbs_fb].[ServiceID] = [fbs_fb_s].[ServiceID] ";
+				sqlCmdText += "WHERE [fbs].[FilterBypassStorageID] = @FilterBypassStorageID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@FilterBypassStorageID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fbs", "loadinternal", "notfound"), "FilterBypassStorage could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				FilterBypassStorageTable fbsTable = new FilterBypassStorageTable(query);
+				FilterBypassTable fbs_fbTable = (this.Depth > 0) ? new FilterBypassTable(query) : null;
+				CountryTable fbs_fb_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				PaymentProviderTable fbs_fb_ppTable = (this.Depth > 1) ? new PaymentProviderTable(query) : null;
+				ServiceTable fbs_fb_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+
+        
+				Country fbs_fb_cObject = (this.Depth > 1) ? fbs_fb_cTable.CreateInstance() : null;
+				PaymentProvider fbs_fb_ppObject = (this.Depth > 1) ? fbs_fb_ppTable.CreateInstance() : null;
+				Service fbs_fb_sObject = (this.Depth > 1) ? fbs_fb_sTable.CreateInstance() : null;
+				FilterBypass fbs_fbObject = (this.Depth > 0) ? fbs_fbTable.CreateInstance(fbs_fb_cObject, fbs_fb_ppObject, fbs_fb_sObject) : null;
+				FilterBypassStorage fbsObject = fbsTable.CreateInstance(fbs_fbObject);
+				sqlReader.Close();
+
+				return fbsObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fbs", "loadinternal", "exception"), "FilterBypassStorage could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "FilterBypassStorage", "Exception while loading FilterBypassStorage object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public FilterBypassStorage Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							FilterBypassStorageTable.GetColumnNames("[fbs]") + 
+							(this.Depth > 0 ? "," + FilterBypassTable.GetColumnNames("[fbs_fb]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[fbs_fb_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentProviderTable.GetColumnNames("[fbs_fb_pp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[fbs_fb_s]") : string.Empty) +  
+					" FROM [core].[FilterBypassStorage] AS [fbs] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[FilterBypass] AS [fbs_fb] ON [fbs].[FilterBypassID] = [fbs_fb].[FilterBypassID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [fbs_fb_c] ON [fbs_fb].[CountryID] = [fbs_fb_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentProvider] AS [fbs_fb_pp] ON [fbs_fb].[PaymentProviderID] = [fbs_fb_pp].[PaymentProviderID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [fbs_fb_s] ON [fbs_fb].[ServiceID] = [fbs_fb_s].[ServiceID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fbs", "customload", "notfound"), "FilterBypassStorage could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				FilterBypassStorageTable fbsTable = new FilterBypassStorageTable(query);
+				FilterBypassTable fbs_fbTable = (this.Depth > 0) ? new FilterBypassTable(query) : null;
+				CountryTable fbs_fb_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				PaymentProviderTable fbs_fb_ppTable = (this.Depth > 1) ? new PaymentProviderTable(query) : null;
+				ServiceTable fbs_fb_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+
+        
+				Country fbs_fb_cObject = (this.Depth > 1) ? fbs_fb_cTable.CreateInstance() : null;
+				PaymentProvider fbs_fb_ppObject = (this.Depth > 1) ? fbs_fb_ppTable.CreateInstance() : null;
+				Service fbs_fb_sObject = (this.Depth > 1) ? fbs_fb_sTable.CreateInstance() : null;
+				FilterBypass fbs_fbObject = (this.Depth > 0) ? fbs_fbTable.CreateInstance(fbs_fb_cObject, fbs_fb_ppObject, fbs_fb_sObject) : null;
+				FilterBypassStorage fbsObject = fbsTable.CreateInstance(fbs_fbObject);
+				sqlReader.Close();
+
+				return fbsObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fbs", "customload", "exception"), "FilterBypassStorage could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "FilterBypassStorage", "Exception while loading (custom/single) FilterBypassStorage object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<FilterBypassStorage> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							FilterBypassStorageTable.GetColumnNames("[fbs]") + 
+							(this.Depth > 0 ? "," + FilterBypassTable.GetColumnNames("[fbs_fb]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[fbs_fb_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentProviderTable.GetColumnNames("[fbs_fb_pp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[fbs_fb_s]") : string.Empty) +  
+					" FROM [core].[FilterBypassStorage] AS [fbs] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[FilterBypass] AS [fbs_fb] ON [fbs].[FilterBypassID] = [fbs_fb].[FilterBypassID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [fbs_fb_c] ON [fbs_fb].[CountryID] = [fbs_fb_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentProvider] AS [fbs_fb_pp] ON [fbs_fb].[PaymentProviderID] = [fbs_fb_pp].[PaymentProviderID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [fbs_fb_s] ON [fbs_fb].[ServiceID] = [fbs_fb_s].[ServiceID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fbs", "customloadmany", "notfound"), "FilterBypassStorage list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<FilterBypassStorage>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				FilterBypassStorageTable fbsTable = new FilterBypassStorageTable(query);
+				FilterBypassTable fbs_fbTable = (this.Depth > 0) ? new FilterBypassTable(query) : null;
+				CountryTable fbs_fb_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				PaymentProviderTable fbs_fb_ppTable = (this.Depth > 1) ? new PaymentProviderTable(query) : null;
+				ServiceTable fbs_fb_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+
+        List<FilterBypassStorage> result = new List<FilterBypassStorage>();
+        do
+        {
+          
+					Country fbs_fb_cObject = (this.Depth > 1) ? fbs_fb_cTable.CreateInstance() : null;
+					PaymentProvider fbs_fb_ppObject = (this.Depth > 1) ? fbs_fb_ppTable.CreateInstance() : null;
+					Service fbs_fb_sObject = (this.Depth > 1) ? fbs_fb_sTable.CreateInstance() : null;
+					FilterBypass fbs_fbObject = (this.Depth > 0) ? fbs_fbTable.CreateInstance(fbs_fb_cObject, fbs_fb_ppObject, fbs_fb_sObject) : null;
+					FilterBypassStorage fbsObject = (this.Depth > -1) ? fbsTable.CreateInstance(fbs_fbObject) : null;
+					result.Add(fbsObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fbs", "customloadmany", "exception"), "FilterBypassStorage list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "FilterBypassStorage", "Exception while loading (custom/many) FilterBypassStorage object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, FilterBypassStorage data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[FilterBypassStorage] ([FilterBypassID],[Key],[Value]) VALUES(@FilterBypassID,@Key,@Value); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@FilterBypassID", data.FilterBypass.ID);
+				sqlCmd.Parameters.AddWithValue("@Key", data.Key).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Value", data.Value).SqlDbType = SqlDbType.NVarChar;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fbs", "insert", "noprimarykey"), "FilterBypassStorage could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "FilterBypassStorage", "Exception while inserting FilterBypassStorage object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fbs", "insert", "exception"), "FilterBypassStorage could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "FilterBypassStorage", "Exception while inserting FilterBypassStorage object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, FilterBypassStorage data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[FilterBypassStorage] SET " +
+												"[FilterBypassID] = @FilterBypassID, " + 
+												"[Key] = @Key, " + 
+												"[Value] = @Value, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [FilterBypassStorageID] = @FilterBypassStorageID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@FilterBypassID", data.FilterBypass.ID);
+				sqlCmd.Parameters.AddWithValue("@Key", data.Key).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Value", data.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@FilterBypassStorageID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fbs", "update", "norecord"), "FilterBypassStorage could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "FilterBypassStorage", "Exception while updating FilterBypassStorage object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fbs", "update", "morerecords"), "FilterBypassStorage was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "FilterBypassStorage", "Exception while updating FilterBypassStorage object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fbs", "update", "exception"), "FilterBypassStorage could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "FilterBypassStorage", "Exception while updating FilterBypassStorage object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, FilterBypassStorage data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[FilterBypassStorage] WHERE FilterBypassStorageID = @FilterBypassStorageID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@FilterBypassStorageID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fbs", "delete", "norecord"), "FilterBypassStorage could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "FilterBypassStorage", "Exception while deleting FilterBypassStorage object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("fbs", "delete", "exception"), "FilterBypassStorage could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "FilterBypassStorage", "Exception while deleting FilterBypassStorage object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

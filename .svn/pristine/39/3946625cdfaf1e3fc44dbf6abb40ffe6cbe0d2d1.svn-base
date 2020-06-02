@@ -1,0 +1,308 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+using MobilePaywall.Web.Filters;
+using MobilePaywall.Web.Models;
+using Cashflow.Client;
+using Cashflow.Message;
+using MobilePaywall.Data;
+using MobilePaywall.Web.Localization;
+using System.IO;
+using System.Reflection;
+using Senti.Diagnostics.Log;
+using MobilePaywall.Web.Log;
+using log4net;
+using MobilePaywall.Web.Models.Specific._Template;
+
+namespace MobilePaywall.Web.Controllers
+{
+  public partial class TemplateController : PaywallTemplateController
+  {
+    #region #logging#
+
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (TemplateController._log == null)
+          TemplateController._log = LogManager.GetLogger(typeof(TemplateController));
+        return TemplateController._log;
+      }
+    }
+
+    #endregion #logging#
+
+    // SUMMARY: Template -> Index page
+    public ActionResult Index()
+    {
+      //bool extendedAccess = this.PaywallContext.Session.ClientSession.Client.ClientType.Name.Equals("Administrator") ||
+      //  this.PaywallContext.Session.ClientSession.Client.ClientType.Name.Equals("Marketing") ? true : false;
+         
+      TemplateIndexModel model = new TemplateIndexModel( this.PaywallContext );
+      return View("~/Views/Template/Index.cshtml", model);
+    }
+
+    // SUMMARY: Template -> Translation page
+    [TemplateAttribute(ClientType =TemplateClientType.Marketing)]
+    public ActionResult Translation(string name)
+    { 
+      TranslationTemplateModel model = new TranslationTemplateModel(this.PaywallContext, name);
+      if(model.HasTranslation)
+        return View("~/Views/Template/Translation.cshtml", model);
+      else
+      {
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, "Translation Error", "This service has no translation. Please contact administrator!");
+        return View("Error", errorModel);
+      }
+    }
+
+    // SUMMARY: Template -> Default translations for service (Terms, Imprint, Helpdesk)
+    [TemplateAttribute(AdministratorAccess=true)]
+    public ActionResult DefaultTranslations()
+    {
+      DefaultTranslationsViewModel model = new DefaultTranslationsViewModel(this.PaywallContext);
+      return View("~/Views/Template/DefaultTranslations.cshtml", model);
+    }
+
+    // SUMMARY: Template -> On logout
+    public ActionResult Logout()
+    {
+      if (this.PaywallContext.Session.ClientSession != null)
+      {
+        this.PaywallContext.Session.ClientSession.IsActive = false;
+        this.PaywallContext.Session.ClientSession.Update();
+      }
+
+      ViewBag.Username = this.PaywallContext.Session.ClientSession != null ? this.PaywallContext.Session.ClientSession.Client.Username : "";
+      ViewBag.OriginalRequest = "/template";
+      return View("~/Views/Template/Login.cshtml");
+    }
+
+    // SUMMARY: Template -> Edit service informations
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ServiceInfo()
+    {
+      PaywallViewModelBase model = new PaywallViewModelBase(this.PaywallContext);
+      return View("~/Views/Template/ServiceInfo.cshtml", model);
+    }
+
+    // SUMMARY: Template -> Edit service informations
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult Notes()
+    {
+      PaywallViewModelBase model = new PaywallViewModelBase(this.PaywallContext);
+      return View("~/Views/Template/Notes.cshtml", model);
+    }
+
+    // SUMMARY: Template -> All services informations
+    [TemplateAttribute(AdministratorAccess=true, MarketingAccess=true)]
+    public ActionResult Technicals()
+    {
+      TemplateServiceTehnicalModel model = new TemplateServiceTehnicalModel();
+      model.IsAdministrator = this.PaywallContext.Session.ClientSession.Client.ClientType.Name.Equals("Administrator");
+      return View("~/Views/Template/Technicals.cshtml", model);
+    }
+
+    // SUMMARY: Template -> Sort content
+    [TemplateAttribute(AdministratorAccess = true, MarketingAccess = true)]
+    public ActionResult SortContent()
+    {
+      TemplateSortContentModel model = new TemplateSortContentModel(this.PaywallContext, this.PaywallContext.Service.ServiceData);
+      return View("~/Views/Template/SortContent.cshtml", model);
+    }
+
+    // SUMMARY: Template -> Category Management
+    [TemplateAttribute(AdministratorAccess = true, MarketingAccess = true)]
+    public ActionResult CategoryManagement()
+    {
+      TemplateCategoryModel model = new TemplateCategoryModel(this.PaywallContext);
+      return View("~/Views/Template/CategoryManagement.cshtml", model);
+    }
+
+    // SUMMARY: Template -> Route Management
+    [TemplateAttribute(AdministratorAccess = true, MarketingAccess = true)]
+    public ActionResult RouteManagement()
+    {
+      TemplateRouteManagementModel model = new TemplateRouteManagementModel(this.PaywallContext);
+      return View("~/Views/Template/RouteManagement.cshtml", model);
+    }
+
+    // SUMMARY: Template -> Configuration
+    [TemplateAttribute(AdministratorAccess = true, MarketingAccess = true)]
+    public ActionResult Configuration()
+    {
+      TemplateConfigurationModel model = new TemplateConfigurationModel(this.PaywallContext);
+      return View("~/Views/Template/Configuration.cshtml", model);
+    }
+
+
+    // SUMMARY: Template -> ProviderNotes
+    [TemplateAttribute(AdministratorAccess=true)]
+    public ActionResult ProviderNotes()
+    {
+      TemplateProviderNotesModel model = new TemplateProviderNotesModel(this.PaywallContext);
+      return View("~/Views/Template/ProviderNotes.cshtml", model);
+    }
+
+    // SUMMARY: Template -> OperatorSimulation
+    public ActionResult OperatorSimulation()
+    {
+      PaywallViewModelBase model = new PaywallViewModelBase(this.PaywallContext);
+      return View("~/Views/Template/OperatorSimulation.cshtml", model);
+    }
+
+    // SUMMARY Template -> FooterConfiguration
+    public ActionResult FooterConfiguration()
+    {
+      if (this.PaywallContext.Service.ServiceData.FallbackCountry == null)
+        return Content("<strong>Fatal error. Service does not have Fallback country. Please contact service administrator! </strong>");
+
+      TemplateFooterConfigurationModel model = new TemplateFooterConfigurationModel(this.PaywallContext);
+      return View("~/Views/Template/FooterConfiguration.cshtml", model);
+    }
+
+    // SUMMARY: Template -> Update service logo
+    public ActionResult UpdateLogo()
+    {
+      TemplateServiceUpdateLogoModel model = new TemplateServiceUpdateLogoModel(this.PaywallContext, string.Empty);
+      return View("~/Views/Template/UpdateLogo.cshtml", model);
+    }
+
+    // SUMMARY: Template -> Create automation configuration for country
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult Automation()
+    {
+      if (this.PaywallContext.Service.ServiceData.FallbackCountry == null)
+        return Content("<strong>Fatal error. Service does not have Fallback country. Please contact service administrator! </strong>");
+
+      TemplateAutomationModel model = new TemplateAutomationModel(this.PaywallContext);
+      return View("~/Views/Template/Automation.cshtml", model);
+    }
+
+    // SUMMARY: Template -> Sort autoamations for country
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult AutomationGroups()
+    {
+      if (this.PaywallContext.Service.ServiceData.FallbackCountry == null)
+        return Content("<strong>Fatal error. Service does not have Fallback country. Please contact service administrator! </strong>");
+
+      TemplateAutomationGroupModel model = new TemplateAutomationGroupModel(this.PaywallContext);
+      return View("~/Views/Template/AutomationGroups.cshtml", model);
+    }
+
+    // SUMMARY: Template -> Create and modify custom pages on paywall
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult NewCustomPage()
+    {
+      PaywallViewModelBase model = new PaywallViewModelBase(this.PaywallContext);
+      return View("~/Views/Template/CustomPagesNew.cshtml", model);
+    }
+
+    // SUMMARY: Template -> Create and modify custom pages on paywall
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult CustomPage(string id)
+    {
+      int customPageID = -1;
+      if (!Int32.TryParse(id, out customPageID))
+        return Redirect("/template");
+
+      TempalteCustomPageDataModel model = new TempalteCustomPageDataModel(this.PaywallContext, customPageID) ;
+
+      return View("~/Views/Template/CustomPage.cshtml", model);
+    }
+
+    // SUMMARY: Template -> ServiceCOnfiguration (add or edit ServiceConfigurationEntry)
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ServiceConfiguration()
+    {
+      TemplateServiceConfigurationModel model = new TemplateServiceConfigurationModel(this.PaywallContext);
+      return View("~/Views/Template/ServiceConfiguration.cshtml", model);
+    }
+
+    // SUMMARY: Template -> TemplateModifications (edit template modifications for current template)
+    [TemplateAttribute(AdministratorAccess=true)]
+    public ActionResult TemplateModifications()
+    {
+      TemplateModificationsModel model = new TemplateModificationsModel(this.PaywallContext);
+      return View("~/Views/Template/TemplateModifications.cshtml", model);
+    }
+      
+    // SUMMARY: Template -> TemplateModifications (edit template modifications for current template)
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult AttributeFilterBypass()
+    {
+      TemplateFilterBypassModel model = new TemplateFilterBypassModel(this.PaywallContext);
+      return View("~/Views/Template/AttributeFilterBypass.cshtml", model);
+    }
+
+
+    // SUMMARY: Template -> TemplateModifications (edit template modifications for current template)
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult CopyServiceConfiguration()
+    {
+      TemplateCopyServiceConfigurationModel model = new TemplateCopyServiceConfigurationModel(this.PaywallContext);
+      return View("~/Views/Template/CopyServiceConfiguration.cshtml", model);
+    }
+
+
+    // SUMMARY: Template -> TemplateCompare (compare two services values)
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult TemplateCompare(string serviceID)
+    {
+      int _serviceID = -1;
+      if (!Int32.TryParse(serviceID, out _serviceID))
+        return this.Content("Could not parse serviceID");
+
+      Service service = Service.CreateManager().Load(_serviceID);
+      if(serviceID == null)
+        return this.Content("There is no service with id " + serviceID);
+
+      TemplateCompareModel model = new TemplateCompareModel(PaywallHttpContext.Current, service);
+      return View("~/Views/Template/CompareServices.cshtml", model);
+    }
+
+    // SUMMARY: Template -> TemplateCompare (compare two services values)
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult TemplateServiceStorage()
+    {
+      TemplateServiceStorageModel model = new TemplateServiceStorageModel(PaywallHttpContext.Current);
+      return View("~/Views/Template/ServiceStorage.cshtml", model);
+    }
+
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult TemplateContentEditor(string contentID)
+    {
+      TemplateEditContentModel model = new TemplateEditContentModel(PaywallHttpContext.Current, contentID);
+      if(model.HasError)
+        return this.Content(model.ErrorMessage);
+
+      return View("~/Views/Template/EditContent.cshtml", model);
+    }
+
+
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult TemplateCategoryEditor(string categoryID)
+    {
+      TemplateEditCategoryModel model = new TemplateEditCategoryModel(PaywallHttpContext.Current, categoryID);
+      if (model.HasError)
+        return this.Content(model.ErrorMessage);
+
+      return View("~/Views/Template/EditCategory.cshtml", model);
+    }
+    
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ServiceCap()
+    {
+      TemplateServiceCapModel model = new TemplateServiceCapModel(PaywallHttpContext.Current);
+      return View("~/Views/Template/ServiceCap.cshtml", model);
+    }
+
+  
+
+  }
+}

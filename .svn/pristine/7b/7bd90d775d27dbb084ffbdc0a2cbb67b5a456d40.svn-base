@@ -1,0 +1,144 @@
+﻿using System;
+using System.Linq;
+using System.Web;
+using System.Collections.Generic;
+
+using MobilePaywall.Data;
+
+using Senti.Localization;
+using Senti.Diagnostics.Log;
+
+ using log4net;
+using System.Web.Hosting;
+
+namespace MobilePaywall.CustomerCare
+{
+	public class PaywallHttpContext : PaywallHttpContextBase
+	{
+		#region #logging#
+		private static ILog _log = null;
+
+		protected static ILog Log
+		{
+			get
+			{
+				if (PaywallHttpContext._log == null)
+					PaywallHttpContext._log = LogManager.GetLogger(typeof(PaywallHttpContext));
+				return PaywallHttpContext._log;
+			}
+		}
+		#endregion
+
+		protected static readonly string PaywallHttpContextItemKey = "PaywallHttpContextItemKey";
+		protected static readonly string PaywallLocalizationItemKey = "PaywallLocalizationItemKey";
+    private ClientSession _clientSession = null;
+
+		public static PaywallHttpContext Current
+		{
+			get
+			{
+				HttpContext httpContext = HttpContext.Current;
+				return PaywallHttpContext.GetCurrent(httpContext);
+			}
+		}
+
+		public static PaywallHttpContext GetCurrent(HttpContext httpContext)
+		{
+			lock (httpContext.Request)
+			{
+				PaywallHttpContext paywallContext = httpContext.Items[PaywallHttpContextItemKey] as PaywallHttpContext;
+				if (paywallContext != null)
+					return paywallContext as PaywallHttpContext;
+				
+				paywallContext = new PaywallHttpContext(httpContext);
+				httpContext.Items[PaywallHttpContextItemKey] = paywallContext;
+				return paywallContext;
+			}
+		}
+
+    public ClientSession ClientSession { get { return this._clientSession; } }
+
+		public PaywallHttpContext(HttpContext context)
+			: base(context)
+		{
+			//string hostName = context.Request.Url.Host;
+      this.InitializeSession(context);
+    }
+
+		//private IService _service = null;
+		//private IUserSession _session = null;
+		//private Domain _domain = null;
+		//private bool _mustVerifyUserAge = false;
+
+		//public IService Service { get { return this._service; } }
+		//public IUserSession Session { get { return this._session; } }
+		//public Domain Domain { get { return this._domain; } }
+		//public bool MustVerifyUserAge { get { return this._mustVerifyUserAge; } set { this._mustVerifyUserAge = value; } }
+
+    protected virtual void InitializeSession(HttpContext httpContext)
+    {
+      string sessionID = httpContext.Session.SessionID;
+      Guid sessionGuid = Guid.Empty;
+      if (!Guid.TryParseExact(sessionID, "N", out sessionGuid))
+      {
+        PLog.Error("Invalid session ID");
+      }
+
+      IClientSessionManager cManager = ClientSession.CreateManager();
+      ClientSession session = cManager.Load(sessionGuid);
+
+      if(session != null && session.IPAdress != httpContext.Request.UserHostAddress)
+      {
+        // TODO: hijack
+      }
+      
+      if(session == null)
+      { 
+        session = new ClientSession(-1,
+                                     sessionGuid,
+                                     this.Runtime.ApplicationData,
+                                     null,
+                                     null,
+                                     httpContext.Request.Url.Host,
+                                     httpContext.Request.UserHostAddress,
+                                     IPAddressType.IPv4,
+                                     httpContext.Request.UserAgent,
+                                     true,
+                                     DateTime.Now.AddMinutes(30),
+                                     DateTime.Now,
+                                     DateTime.Now);
+        session.Insert();
+      }
+      
+      this._clientSession = session;
+
+      //INFO: DO NOT DO ANYTHING WITH THIS LINE BELOW!!!
+      httpContext.Session["someValue"] = "bla";
+		}
+		
+    //public ILocalization GetLocalization()
+    //{
+			//ILocalization localization = this.HttpContext.Items[PaywallLocalizationItemKey] as ILocalization;
+			//if (localization != null)
+			//	return localization;
+
+			//Country country = this.Session.GetUserSessionCountry();
+
+			//ILanguageManager lManager = Language.CreateManager();
+			//Language language = null;
+			//if (country != null)
+			//	language = lManager.Load(country.TwoLetterIsoCode, LanguageIdentifier.TwoLetterIsoCode);
+			
+			//KeyValuePair<MobilePaywall.Data.Localization, ILocalizationProvider> translationMapKeyEntry = (from tmk in this.Runtime.LocalizationProviders
+			//																																								 where tmk.Key.Application.ID == this.Runtime.ApplicationData.ID && tmk.Key.Product.ID == this.Service.ServiceData.Product.ID
+			//																																								 select tmk).FirstOrDefault();
+
+			//TranslationKey translationKey = new TranslationKey(translationMapKeyEntry.Key, language, this.Service.ServiceData);
+			//localization = translationMapKeyEntry.Value.GetLocalization(translationKey);
+			//this.HttpContext.Items[PaywallLocalizationItemKey] = localization;
+			//return localization;
+      //return null;
+    //}
+
+	}
+}

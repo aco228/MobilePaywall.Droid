@@ -1,0 +1,338 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ContentGroupTypeContentTypeMap))] 
+  public partial class ContentGroupTypeContentTypeMapManager : MobilePaywall.Data.Sql.SqlManagerBase<ContentGroupTypeContentTypeMap>, IContentGroupTypeContentTypeMapManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ContentGroupTypeContentTypeMap LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ContentGroupTypeContentTypeMapTable.GetColumnNames("[cgtctm]") + 
+							(this.Depth > 0 ? "," + ContentGroupTypeTable.GetColumnNames("[cgtctm_cgt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentTypeTable.GetColumnNames("[cgtctm_ct]") : string.Empty) + 
+					" FROM [core].[ContentGroupTypeContentTypeMap] AS [cgtctm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroupType] AS [cgtctm_cgt] ON [cgtctm].[ContentGroupTypeID] = [cgtctm_cgt].[ContentGroupTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentType] AS [cgtctm_ct] ON [cgtctm].[ContentTypeID] = [cgtctm_ct].[ContentTypeID] ";
+				sqlCmdText += "WHERE [cgtctm].[ContentGroupTypeContentTypeMapID] = @ContentGroupTypeContentTypeMapID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ContentGroupTypeContentTypeMapID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cgtctm", "loadinternal", "notfound"), "ContentGroupTypeContentTypeMap could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ContentGroupTypeContentTypeMapTable cgtctmTable = new ContentGroupTypeContentTypeMapTable(query);
+				ContentGroupTypeTable cgtctm_cgtTable = (this.Depth > 0) ? new ContentGroupTypeTable(query) : null;
+				ContentTypeTable cgtctm_ctTable = (this.Depth > 0) ? new ContentTypeTable(query) : null;
+
+        
+				ContentGroupType cgtctm_cgtObject = (this.Depth > 0) ? cgtctm_cgtTable.CreateInstance() : null;
+				ContentType cgtctm_ctObject = (this.Depth > 0) ? cgtctm_ctTable.CreateInstance() : null;
+				ContentGroupTypeContentTypeMap cgtctmObject = cgtctmTable.CreateInstance(cgtctm_cgtObject, cgtctm_ctObject);
+				sqlReader.Close();
+
+				return cgtctmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cgtctm", "loadinternal", "exception"), "ContentGroupTypeContentTypeMap could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ContentGroupTypeContentTypeMap", "Exception while loading ContentGroupTypeContentTypeMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ContentGroupTypeContentTypeMap Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ContentGroupTypeContentTypeMapTable.GetColumnNames("[cgtctm]") + 
+							(this.Depth > 0 ? "," + ContentGroupTypeTable.GetColumnNames("[cgtctm_cgt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentTypeTable.GetColumnNames("[cgtctm_ct]") : string.Empty) +  
+					" FROM [core].[ContentGroupTypeContentTypeMap] AS [cgtctm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroupType] AS [cgtctm_cgt] ON [cgtctm].[ContentGroupTypeID] = [cgtctm_cgt].[ContentGroupTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentType] AS [cgtctm_ct] ON [cgtctm].[ContentTypeID] = [cgtctm_ct].[ContentTypeID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cgtctm", "customload", "notfound"), "ContentGroupTypeContentTypeMap could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ContentGroupTypeContentTypeMapTable cgtctmTable = new ContentGroupTypeContentTypeMapTable(query);
+				ContentGroupTypeTable cgtctm_cgtTable = (this.Depth > 0) ? new ContentGroupTypeTable(query) : null;
+				ContentTypeTable cgtctm_ctTable = (this.Depth > 0) ? new ContentTypeTable(query) : null;
+
+        
+				ContentGroupType cgtctm_cgtObject = (this.Depth > 0) ? cgtctm_cgtTable.CreateInstance() : null;
+				ContentType cgtctm_ctObject = (this.Depth > 0) ? cgtctm_ctTable.CreateInstance() : null;
+				ContentGroupTypeContentTypeMap cgtctmObject = cgtctmTable.CreateInstance(cgtctm_cgtObject, cgtctm_ctObject);
+				sqlReader.Close();
+
+				return cgtctmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cgtctm", "customload", "exception"), "ContentGroupTypeContentTypeMap could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ContentGroupTypeContentTypeMap", "Exception while loading (custom/single) ContentGroupTypeContentTypeMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ContentGroupTypeContentTypeMap> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ContentGroupTypeContentTypeMapTable.GetColumnNames("[cgtctm]") + 
+							(this.Depth > 0 ? "," + ContentGroupTypeTable.GetColumnNames("[cgtctm_cgt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentTypeTable.GetColumnNames("[cgtctm_ct]") : string.Empty) +  
+					" FROM [core].[ContentGroupTypeContentTypeMap] AS [cgtctm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroupType] AS [cgtctm_cgt] ON [cgtctm].[ContentGroupTypeID] = [cgtctm_cgt].[ContentGroupTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentType] AS [cgtctm_ct] ON [cgtctm].[ContentTypeID] = [cgtctm_ct].[ContentTypeID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cgtctm", "customloadmany", "notfound"), "ContentGroupTypeContentTypeMap list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ContentGroupTypeContentTypeMap>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ContentGroupTypeContentTypeMapTable cgtctmTable = new ContentGroupTypeContentTypeMapTable(query);
+				ContentGroupTypeTable cgtctm_cgtTable = (this.Depth > 0) ? new ContentGroupTypeTable(query) : null;
+				ContentTypeTable cgtctm_ctTable = (this.Depth > 0) ? new ContentTypeTable(query) : null;
+
+        List<ContentGroupTypeContentTypeMap> result = new List<ContentGroupTypeContentTypeMap>();
+        do
+        {
+          
+					ContentGroupType cgtctm_cgtObject = (this.Depth > 0) ? cgtctm_cgtTable.CreateInstance() : null;
+					ContentType cgtctm_ctObject = (this.Depth > 0) ? cgtctm_ctTable.CreateInstance() : null;
+					ContentGroupTypeContentTypeMap cgtctmObject = (this.Depth > -1) ? cgtctmTable.CreateInstance(cgtctm_cgtObject, cgtctm_ctObject) : null;
+					result.Add(cgtctmObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cgtctm", "customloadmany", "exception"), "ContentGroupTypeContentTypeMap list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ContentGroupTypeContentTypeMap", "Exception while loading (custom/many) ContentGroupTypeContentTypeMap object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ContentGroupTypeContentTypeMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ContentGroupTypeContentTypeMap] ([ContentGroupTypeID],[ContentTypeID]) VALUES(@ContentGroupTypeID,@ContentTypeID); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ContentGroupTypeID", data.ContentGroupType.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentTypeID", data.ContentType.ID);
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cgtctm", "insert", "noprimarykey"), "ContentGroupTypeContentTypeMap could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ContentGroupTypeContentTypeMap", "Exception while inserting ContentGroupTypeContentTypeMap object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cgtctm", "insert", "exception"), "ContentGroupTypeContentTypeMap could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ContentGroupTypeContentTypeMap", "Exception while inserting ContentGroupTypeContentTypeMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ContentGroupTypeContentTypeMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ContentGroupTypeContentTypeMap] SET " +
+												"[ContentGroupTypeID] = @ContentGroupTypeID, " + 
+												"[ContentTypeID] = @ContentTypeID, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ContentGroupTypeContentTypeMapID] = @ContentGroupTypeContentTypeMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ContentGroupTypeID", data.ContentGroupType.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentTypeID", data.ContentType.ID);
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ContentGroupTypeContentTypeMapID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cgtctm", "update", "norecord"), "ContentGroupTypeContentTypeMap could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ContentGroupTypeContentTypeMap", "Exception while updating ContentGroupTypeContentTypeMap object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cgtctm", "update", "morerecords"), "ContentGroupTypeContentTypeMap was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ContentGroupTypeContentTypeMap", "Exception while updating ContentGroupTypeContentTypeMap object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cgtctm", "update", "exception"), "ContentGroupTypeContentTypeMap could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ContentGroupTypeContentTypeMap", "Exception while updating ContentGroupTypeContentTypeMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ContentGroupTypeContentTypeMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ContentGroupTypeContentTypeMap] WHERE ContentGroupTypeContentTypeMapID = @ContentGroupTypeContentTypeMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ContentGroupTypeContentTypeMapID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cgtctm", "delete", "norecord"), "ContentGroupTypeContentTypeMap could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ContentGroupTypeContentTypeMap", "Exception while deleting ContentGroupTypeContentTypeMap object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cgtctm", "delete", "exception"), "ContentGroupTypeContentTypeMap could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ContentGroupTypeContentTypeMap", "Exception while deleting ContentGroupTypeContentTypeMap object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

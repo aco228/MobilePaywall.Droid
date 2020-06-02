@@ -1,0 +1,230 @@
+﻿
+/*
+  SUMMARY:
+    System tag elements
+      .__sys
+        <div id="_sys_adjustFooter" headerid="templateHeader" contentid="templateContent" footerid="templateFooter" class="__sys"></div>
+      .__remove
+        Remove all elements with that class (for example, it removes Category button from header in case of AVS Portugal)
+*/
+
+function System()
+{
+  this._mode = false;
+
+  // SUMMARY: Constructor
+  this._init = function ()
+  {
+    var self = this;
+    $(document).ready(function () { self._onLoad(); });
+  };
+
+  // SUMMARY: On document loaded
+  this._onLoad = function () {
+    var self = this;
+    //this.AdjustFooter();
+    this.ConfigureAnchors();
+    this.Remove();
+    this.OnKeyboard();
+
+    setTimeout(function () { self.AdjustFooter(); }, 300); // fix
+    setTimeout(function () { self.AdjustFooter(); }, 1000); // fix
+  };
+
+  // SUMMARY: Go throught every <a> and append to it data-ajax="false"
+  this.ConfigureAnchors = function()
+  {
+    $('a').each(function () {
+      if (typeof $(this).attr('data-ajax') === 'undefined' || $(this).attr('data-ajax') == '' || $(this).attr('data-ajax') != 'false')
+        $(this).attr('data-ajax', 'false');
+    });
+  }
+
+  // SUMMARY: removes all elements with class .__remove
+  this.Remove = function () {
+    $('.__remove').each(function () {
+      $(this).remove();
+    });
+  };
+
+  // SUMMARY: Generic method for getting screen size
+  this.BrowserSize = function()
+  {
+    return  window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
+  }
+
+  // SUMMARY: Differet method for adjusting footer on service
+  this.AdjustFooter2 = function()
+  {
+    var self = this;
+    var sys = $('#_sys_adjustFooter');
+    if (sys.length == 0)
+    { this.Log("system.adjustFooter.noAttr", 'info'); return; }
+    if ($('#_sys_ignoreFooter').length != 0)
+    { this.Log("system.ignoreFooter", 'info'); return; }
+
+    var header = document.getElementById(sys.attr('headerid'));
+    var content = document.getElementById(sys.attr('contentid'));
+    var footer = document.getElementById(sys.attr('footerid'));
+
+    if (header.length == 0 || footer.length == 0) { this.Log("system.adjustFooter.attrError", 'error'); return; }
+    else this.Log("system.adjustFooter.attrs: header=" + sys.attr('headerid') + ', content=' + sys.attr('contentid') + ', footer=' + sys.attr('footerid'), 'info');
+
+    var height = self.BrowserSize() - (header.clientHeight + footer.clientHeight);
+    this.Log("system.adjustFooter.heights: header=" + header.clientHeight + ', footer=' + footer.clientHeight, 'info');
+    $('#'+sys.attr('contentid')).css('min-height', height + 'px');
+  }
+
+  // SUMMARY: Adjust footer position
+  this.AdjustFooter = function () {
+    var self = this;
+    var sys = $('#_sys_adjustFooter');
+    if ( sys.length == 0 )
+    { this.Log("system.adjustFooter.noAttr", 'info'); return; }
+    if ($('#_sys_ignoreFooter').length != 0)
+    { this.Log("system.ignoreFooter", 'info'); return; }
+
+    var header = document.getElementById(sys.attr('headerid'));
+    var content = document.getElementById(sys.attr('contentid'));
+    var footer = document.getElementById(sys.attr('footerid'));
+
+    if (header.length == 0 || footer.length == 0) { this.Log("system.adjustFooter.attrError", 'error'); return; }
+    else this.Log("system.adjustFooter.attrs: header=" + sys.attr('headerid') + ', content=' + sys.attr('contentid') + ', footer=' + sys.attr('footerid'), 'info');
+
+    var browserSize = window.innerHeight || document.documentElement.clientHeight || document.body.clientHeight;
+    browserSize -= footer.clientHeight;
+    var height = header.clientHeight + content.clientHeight + footer.clientHeight;
+    var contentBottom = content.offsetTop + content.clientHeight;
+
+    this.Log('system.adjustFooter.sizes : height: ' + height + '; browserSize: ' + browserSize, 'info');
+    this.Log('', 'info');
+
+    footer = $('#' + sys.attr('footerid'));
+    if (contentBottom < browserSize)
+      footer.css
+        ({
+          'position': 'fixed',
+          'width': '100%',
+          'left': '0px',
+          'bottom': '0px',
+          'height': 'initial!important'
+        });
+    else
+      footer.css('position', 'initial');
+  }
+
+  // SUMMARY: Adjust iframe (Add onload="_system.AdjustIframe(this)" on iframe )
+  this.AdjustIframe = function(id)
+  {
+    elem = $('#' + id);
+    elem.css('height', $(window).height() + 'px');
+    window.scrollTo(elem.offset().top, 0);
+
+    var footer = document.getElementById(sys.attr('footerid'));
+    footer.css('position', 'initial');
+  }
+
+  // SUMMARY: Process keys from keyboard
+  this.OnKeyboard = function()
+  {
+    var self = this;
+    document.onkeydown = function (evt) {
+      var keyCode = evt ? (evt.which ? evt.which : evt.keyCode) : event.keyCode;
+      if (keyCode == 13) {
+        // onEnter
+        if (typeof _visual === 'object')
+          _visual.KeyboardEvent('enter');
+      }
+      else if (keyCode == 9) {
+        // onTab
+      }
+      else if (keyCode == 27) {
+        // onEscape
+        if (typeof _visual === 'object')
+          _visual.KeyboardEvent('escape');
+      }
+      else if (keyCode == 113) {
+        // on F2 
+      }
+      else return true;
+    };
+  }
+
+  // SUMMARY: Returns is specific element viewble to the user
+  this.IsViewable = function (elem)
+  {
+
+    var positionY = this.GetScrollPosition();
+    var windowHeight = $(window).height();
+
+    var elemPosition = elem.offset().top;
+    var elemHeight = elem.height();
+
+
+    if (elemPosition >= positionY && elemPosition <= (positionY + windowHeight) ||
+			(elemPosition + elemHeight) >= positionY && (elemPosition + elemHeight) <= (positionY + windowHeight))
+      return true;
+
+    return false;
+  }
+
+  // SUMMARY: Returns scroll position of user on browser
+  this.GetScrollPosition = function ()
+  {
+    if (window.pageYOffset != undefined)
+      return pageYOffset;
+    else {
+      var sx, sy, d = document, r = d.documentElement, b = d.body;
+      // sx= r.scrollLeft || b.scrollLeft || 0;
+      sy = r.scrollTop || b.scrollTop || 0;
+      return sy;
+    }
+  }
+
+  // SUMMARY: Creates ID with given prefix (prefix_id)
+  this.ID = function (prefix)
+  {
+    if (typeof prefix == undefined) prefix = ""; else prefix += "_";
+    var text = "";
+    var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    for (var i = 0; i < 15; i++) text += possible.charAt(Math.floor(Math.random() * possible.length));
+    return prefix + text;
+  }
+
+  // SUMMARY: Get random number from min to max
+  this.Random = function (min, max)
+  {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  // SUMMARY: Returns true ? false, if is in template mode or not
+  this.Template = function () {
+    if (typeof __mode !== 'undefined' && __mode != 'null') {
+      this._mode = __mode == 'True' ? true : false;
+      __mode = 'null';
+    }
+
+    return this._mode;
+  };
+
+  // SUMMARY: Log message if is in template mode
+  //          type == ( info || debug || error || fatal )
+  this.Log = function (text, type) {
+    if (!this.Template())
+      return;
+
+    if (typeof type === 'undefined') type = 'debug';
+
+    switch(type)
+    {
+      case 'info': console.log("%c" + text, "font: 12px sans-serif; color: blue; background-color: rgba(0,0,0,.1); text-shadow:0px 0px 10px rgba(0,0,0,.5); padding:0px 25px; "); break;
+      case 'debug': console.log("%c" + text, "font: 12px sans-serif; color: black; background-color: rgba(0,0,0,.1); text-shadow:0px 0px 10px rgba(0,0,0,.5); padding:0px 25px; "); break;
+      case 'error': console.log("%c" + text, "font: 12px sans-serif; color: red; background-color: rgba(0,0,0,.1); text-shadow:0px 0px 10px rgba(0,0,0,.5); padding:0px 25px; "); break;
+      case 'fatal': console.log("%c" + text, "font: 12px sans-serif; color: red; background-color: rgba(0,0,0,.1); text-shadow:0px 0px 10px rgba(0,0,0,.5); padding:0px 25px; font-weight:bold;"); break;
+      default: break;
+    }
+  }
+
+  this._init();
+
+}

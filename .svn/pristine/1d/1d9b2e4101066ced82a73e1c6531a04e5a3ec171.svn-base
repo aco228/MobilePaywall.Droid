@@ -1,0 +1,341 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ContentStorage))] 
+  public partial class ContentStorageManager : MobilePaywall.Data.Sql.SqlManagerBase<ContentStorage>, IContentStorageManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ContentStorage LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ContentStorageTable.GetColumnNames("[cs]") + 
+							(this.Depth > 0 ? "," + ContentStorageTypeTable.GetColumnNames("[cs_cst]") : string.Empty) + 
+							(this.Depth > 0 ? "," + InstanceTable.GetColumnNames("[cs_i]") : string.Empty) + 
+					" FROM [core].[ContentStorage] AS [cs] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorageType] AS [cs_cst] ON [cs].[ContentStorageTypeID] = [cs_cst].[ContentStorageTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [cs_i] ON [cs].[InstanceID] = [cs_i].[InstanceID] ";
+				sqlCmdText += "WHERE [cs].[ContentStorageID] = @ContentStorageID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ContentStorageID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "loadinternal", "notfound"), "ContentStorage could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ContentStorageTable csTable = new ContentStorageTable(query);
+				ContentStorageTypeTable cs_cstTable = (this.Depth > 0) ? new ContentStorageTypeTable(query) : null;
+				InstanceTable cs_iTable = (this.Depth > 0) ? new InstanceTable(query) : null;
+
+        
+				ContentStorageType cs_cstObject = (this.Depth > 0) ? cs_cstTable.CreateInstance() : null;
+				Instance cs_iObject = (this.Depth > 0) ? cs_iTable.CreateInstance() : null;
+				ContentStorage csObject = csTable.CreateInstance(cs_cstObject, cs_iObject);
+				sqlReader.Close();
+
+				return csObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "loadinternal", "exception"), "ContentStorage could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ContentStorage", "Exception while loading ContentStorage object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ContentStorage Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ContentStorageTable.GetColumnNames("[cs]") + 
+							(this.Depth > 0 ? "," + ContentStorageTypeTable.GetColumnNames("[cs_cst]") : string.Empty) + 
+							(this.Depth > 0 ? "," + InstanceTable.GetColumnNames("[cs_i]") : string.Empty) +  
+					" FROM [core].[ContentStorage] AS [cs] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorageType] AS [cs_cst] ON [cs].[ContentStorageTypeID] = [cs_cst].[ContentStorageTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [cs_i] ON [cs].[InstanceID] = [cs_i].[InstanceID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "customload", "notfound"), "ContentStorage could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ContentStorageTable csTable = new ContentStorageTable(query);
+				ContentStorageTypeTable cs_cstTable = (this.Depth > 0) ? new ContentStorageTypeTable(query) : null;
+				InstanceTable cs_iTable = (this.Depth > 0) ? new InstanceTable(query) : null;
+
+        
+				ContentStorageType cs_cstObject = (this.Depth > 0) ? cs_cstTable.CreateInstance() : null;
+				Instance cs_iObject = (this.Depth > 0) ? cs_iTable.CreateInstance() : null;
+				ContentStorage csObject = csTable.CreateInstance(cs_cstObject, cs_iObject);
+				sqlReader.Close();
+
+				return csObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "customload", "exception"), "ContentStorage could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ContentStorage", "Exception while loading (custom/single) ContentStorage object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ContentStorage> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ContentStorageTable.GetColumnNames("[cs]") + 
+							(this.Depth > 0 ? "," + ContentStorageTypeTable.GetColumnNames("[cs_cst]") : string.Empty) + 
+							(this.Depth > 0 ? "," + InstanceTable.GetColumnNames("[cs_i]") : string.Empty) +  
+					" FROM [core].[ContentStorage] AS [cs] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorageType] AS [cs_cst] ON [cs].[ContentStorageTypeID] = [cs_cst].[ContentStorageTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [cs_i] ON [cs].[InstanceID] = [cs_i].[InstanceID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "customloadmany", "notfound"), "ContentStorage list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ContentStorage>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ContentStorageTable csTable = new ContentStorageTable(query);
+				ContentStorageTypeTable cs_cstTable = (this.Depth > 0) ? new ContentStorageTypeTable(query) : null;
+				InstanceTable cs_iTable = (this.Depth > 0) ? new InstanceTable(query) : null;
+
+        List<ContentStorage> result = new List<ContentStorage>();
+        do
+        {
+          
+					ContentStorageType cs_cstObject = (this.Depth > 0) ? cs_cstTable.CreateInstance() : null;
+					Instance cs_iObject = (this.Depth > 0) ? cs_iTable.CreateInstance() : null;
+					ContentStorage csObject = (this.Depth > -1) ? csTable.CreateInstance(cs_cstObject, cs_iObject) : null;
+					result.Add(csObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "customloadmany", "exception"), "ContentStorage list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ContentStorage", "Exception while loading (custom/many) ContentStorage object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ContentStorage data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ContentStorage] ([ContentStorageTypeID],[InstanceID],[Name]) VALUES(@ContentStorageTypeID,@InstanceID,@Name); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ContentStorageTypeID", data.ContentStorageType.ID);
+				sqlCmd.Parameters.AddWithValue("@InstanceID", data.Instance.ID);
+				sqlCmd.Parameters.AddWithValue("@Name", data.Name).SqlDbType = SqlDbType.NVarChar;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "insert", "noprimarykey"), "ContentStorage could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ContentStorage", "Exception while inserting ContentStorage object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "insert", "exception"), "ContentStorage could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ContentStorage", "Exception while inserting ContentStorage object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ContentStorage data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ContentStorage] SET " +
+												"[ContentStorageTypeID] = @ContentStorageTypeID, " + 
+												"[InstanceID] = @InstanceID, " + 
+												"[Name] = @Name, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ContentStorageID] = @ContentStorageID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ContentStorageTypeID", data.ContentStorageType.ID);
+				sqlCmd.Parameters.AddWithValue("@InstanceID", data.Instance.ID);
+				sqlCmd.Parameters.AddWithValue("@Name", data.Name).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ContentStorageID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "update", "norecord"), "ContentStorage could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ContentStorage", "Exception while updating ContentStorage object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "update", "morerecords"), "ContentStorage was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ContentStorage", "Exception while updating ContentStorage object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "update", "exception"), "ContentStorage could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ContentStorage", "Exception while updating ContentStorage object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ContentStorage data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ContentStorage] WHERE ContentStorageID = @ContentStorageID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ContentStorageID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "delete", "norecord"), "ContentStorage could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ContentStorage", "Exception while deleting ContentStorage object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cs", "delete", "exception"), "ContentStorage could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ContentStorage", "Exception while deleting ContentStorage object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

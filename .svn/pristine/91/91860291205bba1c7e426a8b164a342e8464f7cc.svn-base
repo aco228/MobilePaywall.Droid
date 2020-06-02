@@ -1,0 +1,163 @@
+﻿@model TemplateServiceConfigurationModel
+@{
+  Layout = "~/Views/Template/_Layout/_Layout.cshtml";
+  string[] serviceStatuses = new string[] { "", "Online", "Offline", "Updating", "Free" };
+  string[] booleans = new string[] { "0", "1", "" };
+
+  MobilePaywall.Direct.DirectContainer activeServicesForProvider = 
+    MobilePaywall.Direct.MobilePaywallDirect.Instance.LoadContainer(string.Format(@"
+      SELECT s.ServiceID, s.Name FROM MobilePaywall.core.Service AS s
+      LEFT OUTER JOIN MobilePaywall.core.TemplateServiceInfo AS info ON info.ServiceID=s.ServiceID
+      LEFT OUTER JOIN MobilePaywall.core.ServiceOffer AS so ON so.ServiceID=s.ServiceID
+      LEFT OUTER JOIN MobilePaywall.core.PaymentConfiguration AS pc ON so.PaymentConfigurationID=pc.PaymentConfigurationID
+      WHERE pc.PaymentProviderID={0} AND info.Progress=5 AND info.Color IN (1,2)
+      ORDER BY info.Color DESC;", PaywallHttpContext.Current.Service.PaymentProvider.ID));
+
+}
+
+
+@foreach (ServiceConfigurationEntry sce in Model.ServiceConfigurationEntry)
+{
+  <div class="md-card" id="serviceConfiguration">
+    <div class="md-card-content">
+      <h3 class="heading_a">Update Age Verification Is Required</h3>
+      <form class="form-inline">
+
+        <div class="form-group">
+          <label for="settings_time_format" class="uk-form-label">Is Age Verification Required</label>
+          <select name="settings_time_format" class="form-control" id="selectAgeVerificationRequired">
+            @for (int i = 0; i < booleans.Length - 1; i++)
+            {
+              string selected = Convert.ToBoolean(Convert.ToInt16(booleans[i])) == Convert.ToBoolean(Convert.ToInt16(sce.IsAgeVerificationRequired)) ? "selected=\"selected\"" : "";
+              <option sce="@sce.ID" value="@i" @selected>@Convert.ToBoolean(Convert.ToInt16(booleans[i]))</option>
+            }
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="settings_time_format" class="uk-form-label">HasSmsPayment</label>
+
+          <select name="settings_time_format" class="form-control" id="selectHasSmsPayment">
+
+            @for (int i = 0; i < booleans.Length - 1; i++)
+             {
+              string selected = Convert.ToBoolean(Convert.ToInt16(booleans[i])) == Convert.ToBoolean(Convert.ToInt16(sce.HasSmsPayment)) ? "selected=\"selected\"" : "";
+              <option sce="@sce.ID" value="@i" @selected>@Convert.ToBoolean(Convert.ToInt16(booleans[i]))</option>
+             }
+          </select>
+
+        </div>
+
+        <div class="form-group">
+          <label for="settings_time_format" class="uk-form-label">IsWelcomePageRequired</label>
+          <select name="settings_time_format" class="form-control" id="selectIsWelcomePageRequired">
+            @for (int i = 0; i < booleans.Length - 1; i++)
+            {
+              string selected = Convert.ToBoolean(Convert.ToInt16(booleans[i])) == Convert.ToBoolean(Convert.ToInt16(sce.IsWelcomePageRequired)) ? "selected=\"selected\"" : "";
+              <option sce="@sce.ID" value="@i" @selected>@Convert.ToBoolean(Convert.ToInt16(booleans[i]))</option>
+            }
+          </select>
+        </div>
+
+        <div class="form-group">
+          
+          <label for="settings_time_format" class="uk-form-label">IsPaymentEnabled</label>
+
+          <select name="settings_time_format" class="form-control" id="selectIsPaymentEnabled">
+
+            @for (int i = 0; i < booleans.Length - 1; i++)
+            {
+              string selected = Convert.ToBoolean(Convert.ToInt16(booleans[i])) == Convert.ToBoolean(Convert.ToInt16(sce.IsPaymentEnabled)) ? "selected=\"selected\"" : "";
+              <option sce="@sce.ID" value="@i" @selected>@Convert.ToBoolean(Convert.ToInt16(booleans[i]))</option>
+            }
+          </select>
+        </div>
+
+
+        <div class="uk-width-medium-1-6">
+          <a class="md-btn md-btn-flat md-btn-flat-primary" href="#" id="btnUpdateServiceConfiguration" inuse="false">Update</a>
+        </div>
+      </form>
+    </div>
+  </div> 
+}
+
+
+<div class="md-card" id="serviceConfiguration">
+  <div class="md-card-content">
+    <h3 class="heading_a">Compare service</h3>
+    <form class="form-inline">
+
+      <select id="selectService" style="padding: 5px; width: 100%; margin: 5px;">
+        @foreach(MobilePaywall.Direct.DirectContainerRow row in activeServicesForProvider.Rows)
+        {
+          <option id="@row.GetString("ServiceID")">@row.GetString("Name")</option>
+        }
+      </select>
+
+      <div class="uk-width-medium-1-6">
+        <a class="md-btn md-btn-flat md-btn-flat-primary" href="#" id="btnCompareServices" inuse="false">Compare</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+
+
+
+
+<script>
+
+  document.addEventListener("DOMContentLoaded", function () {
+    onUpdateServiceConfiguration();
+  });
+
+  function onUpdateServiceConfiguration() {
+    $('#btnUpdateServiceConfiguration').click(function () {
+      if ($(this).attr('inuse') == 'true') return;
+      var btn = $(this);
+      var parent = btn.closest('#serviceConfiguration');
+
+      visual.Confirm("Are you sure you want to make this change?", "Yes", "No", function () {
+        var serviceAgeVerificationRequiredID = parent.find('#selectAgeVerificationRequired').find(":selected").attr('value');
+        var serviceHasSmsPaymentID = parent.find('#selectHasSmsPayment').find(':selected').attr('value');
+        var serviceIsWelcomePageRequiredID = parent.find('#selectIsWelcomePageRequired').find(':selected').attr('value');
+        var serviceIsPaymentEnabledID = parent.find('#selectIsPaymentEnabled').find(':selected').attr('value');
+
+        var serviceConfigurationEntryID = parent.find('#selectAgeVerificationRequired').find(":selected").attr('sce');
+        var tmplText = btn.text();
+        btn.text('...');
+        console.log(serviceAgeVerificationRequiredID + ' ' + serviceHasSmsPaymentID + ' ' + serviceIsWelcomePageRequiredID + ' ' + serviceIsPaymentEnabledID + ' ' + serviceConfigurationEntryID);
+        template.call('ApiUpdateServiceConfiguration', {
+          serviceAgeVerificationRequired: serviceAgeVerificationRequiredID,
+          serviceHasSmsPayment : serviceHasSmsPaymentID,
+          serviceIsWelcomePageRequired: serviceIsWelcomePageRequiredID,
+          serviceIsPaymentEnabled: serviceIsPaymentEnabledID,
+          serviceConfigurationEntry: serviceConfigurationEntryID
+        },
+        function (response) {
+          btn.attr('inuse', 'false');
+          btn.text(tmplText);
+          visual.Alert(response.message);
+        });
+
+      });
+
+    });
+
+    $('#btnCompareServices').click(function () {
+      if ($('#selectService').find('option').length == 0)
+      {
+        _visual.Alert("No active services");
+        return;
+      }
+
+      var seletectedServiceID = $('#selectService option:selected').attr('id');
+      window.location = "/template/TemplateCompare?serviceID=" + seletectedServiceID;
+    });
+  }
+
+
+
+
+</script>

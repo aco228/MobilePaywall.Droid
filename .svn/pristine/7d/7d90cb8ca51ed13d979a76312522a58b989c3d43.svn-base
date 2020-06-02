@@ -1,0 +1,78 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Web.Filters;
+using MobilePaywall.Web.Models.Specific._Template;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers
+{
+  public partial class TemplateController : PaywallTemplateController
+  {
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateServiceStorageNewKey(string id, string key, string value)
+    {
+      int _serviceStorageID = -1;
+      if (!Int32.TryParse(id, out _serviceStorageID))
+        return this.Json(new { status = false, message = "ID could not be parsed", id = -1 });
+
+      ServiceStorage _serviceStorage = null;
+
+      if (_serviceStorageID == -1)
+      {
+        // TODO: ovdje treba da napravimo novi entry 
+        // return  return this.Json(new { status = true, message = "ID could not be parsed", id = -1 });
+        // provjeriti da li za postojeci servis postoji entry koji ima Key = this.key
+
+        // PaywallHttpContext.Current.Service.Storage.GetString(key)
+
+        ServiceStorage temp = ServiceStorage.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData, key);
+
+        if (temp == null)
+        {
+          _serviceStorage = new MobilePaywall.Data.ServiceStorage(_serviceStorageID, PaywallHttpContext.Current.Service.ServiceData, key, value, DateTime.Now, DateTime.Now);
+          _serviceStorage.InsertWithHistory(PaywallHttpContext.Current.Session.ClientSession);
+          return this.Json(new { status = true, message = "Successfully added!", id = _serviceStorage.ID });
+        }
+        return this.Json(new { status = false, message = "Service with that key already exists!", id = temp.ID });
+      }
+
+      // 1. pokusati da loadujes _serviceStorage na osnovu _serviceStorageID 
+      // ako ne postoji vratis gresku
+      // ako postoji updejtujes value i vratis true
+
+      _serviceStorage = ServiceStorage.CreateManager().Load(_serviceStorageID);
+
+      if(_serviceStorage==null)
+      {
+        return this.Json(new { status = false, message = "Service Storage Not Found!", id = _serviceStorageID });
+      }
+      _serviceStorage.Value = value;
+      _serviceStorage.UpdateWithHistory(PaywallHttpContext.Current.Session.ClientSession);
+      return this.Json(new { status = true, message = "Successfully edited!", id = _serviceStorageID });
+    }
+
+    
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateServiceStorageDeleteKey(string id)
+    {
+      int _serviceStorageID = -1;
+      if (!Int32.TryParse(id, out _serviceStorageID))
+        return this.Json(new { status = false, message = "ID could not be parsed", id = -1 });
+
+      if (_serviceStorageID == -1)
+        return this.Json(new { status = true, message = "", id = -1 });
+
+      
+
+      ServiceStorage _serviceStorage = null;
+      _serviceStorage = ServiceStorage.CreateManager().Load(_serviceStorageID);
+      _serviceStorage.DeleteWithHistory(PaywallHttpContext.Current.Session.ClientSession);
+      // delete _serviceStorage
+      return this.Json(new { status = true, message = "Successfully deleted!"});
+    }
+
+  }
+}

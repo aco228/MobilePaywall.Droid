@@ -1,0 +1,117 @@
+﻿using Direct.Core;
+using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.MobilePaywallDirect;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Implementation.Payment.Specific
+{
+
+  /// SUMMARY: This lookup manager does not call Casfhlow lookup, but checks if this customer has access policy on this service content. 
+  ///          If there is no Lookup, he will create dummy entry
+  public class PaywallBasedLookupManagerWithDummyLookup : LookupManagerBase
+  {
+    #region #log#
+
+    protected static ILog _log = null;
+
+    public static ILog Log
+    {
+      get
+      {
+        if (PaywallBasedLookupManagerWithDummyLookup._log == null)
+          PaywallBasedLookupManagerWithDummyLookup._log = LogManager.GetLogger(typeof(PaywallBasedLookupManagerWithDummyLookup));
+        return PaywallBasedLookupManagerWithDummyLookup._log;
+      }
+    }
+
+    #endregion
+
+    public PaywallBasedLookupManagerWithDummyLookup(IUserSession us)
+      :base(us)
+    {
+
+    }
+
+    public override Data.LookupSession InitiateLookupSession(string requestRawUrl, Data.UserHttpRequest originalRequest)
+    {
+			PaywallDirect db = PaywallDirect.Instance;
+      DirectContainer container = db.LoadContainer(string.Format(@"
+        SELECT TOP 1 lsr.LookupSessionResultID AS lsr, ls.LookupSessionID AS ls FROM MobilePaywall.core.LookupSession AS ls
+                LEFT OUTER JOIN MobilePaywall.core.LookupSessionResult AS lsr ON lsr.LookupSessionID=ls.LookupSessionID
+                WHERE ls.UserSessionID={0} ORDER BY lsr.LookupSessionResultID DESC, lsr.IsSuccessful, lsr.IsFinalResult;", this.Session.SessionData.ID));
+
+
+      int? lsid = container.HasValue ? container.GetInt("ls") : null;
+      LookupSession lookupSession;
+
+      if (!lsid.HasValue)
+      {
+        Log.Error("PaywallBasedLookupManagerWithAccessPolicy:: Could not load 'ls' from loaded direct container:");
+
+        if(originalRequest == null)
+        {
+          originalRequest = new UserHttpRequest(-1, Guid.NewGuid(), this.Session.SessionData, null, "-mil-", DateTime.Now, DateTime.Now);
+          originalRequest.Insert();
+        }
+
+        lookupSession = new LookupSession(-1, Guid.NewGuid(), LookupSessionStatus.Complete, this.Session.SessionData, originalRequest, null, "-nil-", DateTime.Now, DateTime.Now);
+        lookupSession.Insert();
+        LookupSessionResult lookupSessionResult = new LookupSessionResult(-1, lookupSession, true, true, Guid.Empty, null, "", "", DateTime.Now, DateTime.Now);
+        lookupSessionResult.Insert();
+      }
+      else
+        lookupSession = LookupSession.CreateManager().Load(lsid.Value);
+
+      if (lookupSession != null)
+        Log.Debug("PaywallBasedLookupManagerWithAccessPolicy:: Loaded LS :" + lookupSession.ID);
+      else
+        Log.Error("PaywallBasedLookupManagerWithAccessPolicy:: Could not load LookupSession by ID:" + lsid.Value);
+
+      return lookupSession;
+    }
+
+    public override LookupSessionResult TryGetLookupSessionResult()
+    {
+			PaywallDirect db = PaywallDirect.Instance;
+      DirectContainer container = db.LoadContainer(string.Format(@"
+        SELECT TOP 1 lsr.LookupSessionResultID AS lsr, ls.LookupSessionID AS ls FROM MobilePaywall.core.LookupSession AS ls
+        LEFT OUTER JOIN MobilePaywall.core.LookupSessionResult AS lsr ON lsr.LookupSessionID=ls.LookupSessionID
+        WHERE ls.UserSessionID={0} ORDER BY lsr.LookupSessionResultID DESC, lsr.IsSuccessful, lsr.IsFinalResult;", this.Session.SessionData.ID));
+
+      if (!container.HasValue)
+        return null;
+
+      int? lsrid = container.GetInt("lsr");
+      if (!lsrid.HasValue)
+        return null;
+
+      LookupSessionResult lsr = LookupSessionResult.CreateManager().Load(lsrid.Value);
+      return lsr;
+    }
+
+    public override LookupSessionResult ProcessLookupCallbackResult(string url)
+    {
+			PaywallDirect db = PaywallDirect.Instance;
+      DirectContainer container = db.LoadContainer(string.Format(@"
+        SELECT TOP 1 lsr.LookupSessionResultID AS lsr, ls.LookupSessionID AS ls FROM MobilePaywall.core.LookupSession AS ls
+        LEFT OUTER JOIN MobilePaywall.core.LookupSessionResult AS lsr ON lsr.LookupSessionID=ls.LookupSessionID
+        WHERE ls.UserSessionID={0} ORDER BY lsr.LookupSessionResultID DESC, lsr.IsSuccessful, lsr.IsFinalResult;", this.Session.SessionData.ID));
+
+      if (!container.HasValue)
+        return null;
+
+      int? lsrid = container.GetInt("lsr");
+      if (!lsrid.HasValue)
+        return null;
+
+      LookupSessionResult lsr = LookupSessionResult.CreateManager().Load(lsrid.Value);
+      return lsr;
+    }
+
+  }
+}

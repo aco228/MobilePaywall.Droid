@@ -1,0 +1,112 @@
+﻿@model QualityAssuranceModel
+@{
+  ViewBag.title = "Quality Assurance Reports";
+  MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+}
+
+<!-- BEGIN PAGE HEADER-->
+<div class="page-bar">
+  <ul class="page-breadcrumb">
+    <li>
+      <i class="icon-diamond"></i>
+      <a href="javascript:;">Quality Assurance</a>
+      <i class="fa fa-angle-right"></i>
+    </li>
+    <li>
+      <a href="#">@ViewBag.Title</a>
+    </li>
+  </ul>
+</div>
+<!-- END PAGE HEADER-->
+
+<div class="qa-wrapper">
+  <div class="row">
+    <div class="col-md-12 filters">
+      <div class="col-sm-6 col-md-3 col-lg-2 filter">
+        <select id="select_service" class="form-control select2" multiple>
+          @foreach (IService service in runtime.Services)
+          {
+            <option value="@service.ServiceData.ID">@service.ServiceData.Name</option>
+          }
+        </select>
+      </div>
+      <div class="col-sm-6 col-md-3 col-lg-2 filter">
+        <select id="select_provider" class="form-control select2" multiple>
+          @foreach (SelectListItem provider in MerchantHelper.PaymentProviders)
+          {
+            <option value="@provider.Value">@provider.Text</option>
+          }
+        </select>
+      </div>
+      <div class="col-sm-6 col-md-3 col-lg-2 filter">
+        <select id="select_country" class="form-control select2" multiple>
+          @foreach (Country country in runtime.Countries)
+          {
+            <option value="@country.ID" data-ccode="@country.CountryCode">@country.GlobalName</option>
+          }
+        </select>
+      </div>
+      <div class="col-sm-6 col-md-3 col-lg-2 filter">
+        <select id="select_operator" class="form-control select2" multiple>
+          @foreach (KeyValuePair<int, List<MobileOperator>> kv in runtime.CountryOperatorMap)
+          {
+            <optgroup value="@kv.Key" label="@runtime.GetCountryByID(kv.Key).GlobalName">
+
+              @foreach (MobileOperator mobileOperator in kv.Value)
+              {
+                if (mobileOperator.ExternalMobileOperatorID != null)
+                {
+                  <option value="@mobileOperator.ID">@mobileOperator.Name</option>
+                }
+              }
+            </optgroup>
+          }
+        </select>
+      </div>
+      @*<div class="col-xs-6 col-md-2 col-lg-1 group-by" id="group-by">
+          <select class="bs-select form-control" id="bs-select-group" data-none-selected-text="Group" multiple>
+            @foreach (string group in Enum.GetNames(typeof(QAGroup)))
+            {
+
+              int groupID = (int)(QAGroup)Enum.Parse(typeof(QAGroup), group);
+              if (groupID != 0)
+              {
+                <option value="@groupID">@group</option>
+              }
+            }
+          </select>
+        </div>*@
+      <div class="col-xs-12 col-sm-6 col-md-3 col-lg-3 filter">
+        <button id="reset" class="btn btn-info">Reset</button>
+        <button id="refresh" class="btn purple">Refresh</button>
+      </div>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-12">
+      <div class="portlet box green-haze">
+        <div class="portlet-title">
+          <div class="tools">
+            <a href="javascript:;" class="reload"> </a>
+          </div>
+        </div>
+        <div class="portlet-body">
+          <div id="qa_table_container">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+@section PageStyles{
+  @Styles.Render("~/pages/qa/css")  
+}
+
+@section PageScripts{
+  @Scripts.Render("~/pages/qa/js")
+}
+
+@section CustomScripts{
+  <script src="~/Scripts/metronic/pages/custom/quality-assurance.js"></script>
+}

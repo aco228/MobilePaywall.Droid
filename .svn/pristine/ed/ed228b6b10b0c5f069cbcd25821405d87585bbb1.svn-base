@@ -1,0 +1,274 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+using MobilePaywall.Data;
+using MobilePaywall.Merchant.Models;
+
+namespace MobilePaywall.Merchant.Controllers
+{
+  public class ServiceTaskController : PaywallController
+  {
+    public ActionResult Index(int? id)
+    {
+      ServiceTask serviceTask = null;
+
+      Client currentClient = PaywallHttpContext.Current.ClientSession.Client;
+      ClientType role = currentClient.ClientType;
+      bool isMerchant = role.Name.Equals("Merchant") || role.Name.Equals("MerchantUser");
+      string view = (!isMerchant ? "~/Views/ServiceTask/ServiceTask.cshtml" : "~/Views/ServiceTask/SimpleForm.cshtml");
+      string errorView = "~/Views/Shared/Template/Error.cshtml";
+
+      if (!id.HasValue)
+      {
+        serviceTask = new ServiceTask();
+        serviceTask.ActionType = ServiceConfigAction.Insert;
+        return View(view, serviceTask);
+      }
+
+      ITaskManager tManager = Data.Task.CreateManager();
+      Task task = tManager.Load(id.Value);
+      if (task == null)
+      {
+        ViewBag.Message = "Task with specified ID does not exist.";
+        return View(errorView);
+      }
+
+      if (task.Creator.ID != currentClient.ID && !role.Name.Equals("Administrator") && task.Resolver.ID != currentClient.ID)
+      {
+        ViewBag.Message = "You don't have permission to see this task.";
+        return View(errorView);
+      }
+
+      if (task.TaskStatus == TaskStatus.Requested || task.TaskStatus == TaskStatus.Declined)
+        view = "~/Views/ServiceTask/SimpleForm.cshtml";
+
+      serviceTask = task.Instantiate() as ServiceTask;
+      serviceTask.ActionType = ServiceConfigAction.Insert;
+      return View(view, serviceTask);
+    }
+
+    [HttpPost]
+    public JsonResult UpdateFormFields(string selectedValue, string dropdown /*string merchantId, string templateId, string fallbackCountryId, string fallbackLanguageId*/)
+    {
+      int result = -1;
+      if (selectedValue != null && selectedValue != "")
+      {
+        if (dropdown == "merchant")
+        {
+          Data.Merchant merchant = Data.Merchant.CreateManager().Load(Int32.Parse(selectedValue));
+          result = merchant.Template != null ? merchant.Template.ID : -1; //template to select
+        } 
+        else if (dropdown == "country")
+        {
+          Country country = Country.CreateManager().Load(Int32.Parse(selectedValue));
+          result = country.Language != null ? country.Language.ID : -1; //language to select
+        }
+      }
+
+      //int[] results = new int[2];
+
+      //if (!string.IsNullOrEmpty(merchantId) && string.IsNullOrEmpty(templateId))
+      //{
+      //  Data.Merchant merchant = Data.Merchant.CreateManager().Load(Int32.Parse(merchantId));
+      //  results[0] = merchant.Template != null ? merchant.Template.ID : -1; //template to select
+      //}
+
+      //if (!string.IsNullOrEmpty(fallbackCountryId) && string.IsNullOrEmpty(fallbackLanguageId))
+      //{
+      //  Country country = Country.CreateManager().Load(Int32.Parse(fallbackCountryId));
+      //  results[1] = country.Language != null ? country.Language.ID : -1; //language to select
+      //}
+
+      return Json(result);
+    }
+
+    [HttpPost]
+    public JsonResult LoadContentGroupTypeName(string typeID)
+    {
+      string result = ContentGroupType.CreateManager().Load(Int32.Parse(typeID)).Name;
+      return Json(result);
+    }
+
+    [HttpPost]
+    public JsonResult CheckServiceName(string serviceName, string oldServiceName)
+    {
+      bool result = true;
+
+      if (serviceName != oldServiceName)
+      {
+        Service service = Service.CreateManager().Load(serviceName);
+        result = service != null ? false : true;
+      }
+      return Json(result);
+    }
+
+
+    [HttpPost]
+    public JsonResult IsDomainValid(string domainName, string serviceID)
+    {
+      int i;
+      Domain domain = Domain.CreateManager().Load(domainName);
+      bool result = domain != null && domain.Service.ID != (Int32.TryParse(serviceID, out i) ? i : -1) ? false : true;
+      return Json(result);
+    }
+
+    [HttpPost]
+    public JsonResult UpdatePaymentConfigName(string paymentInterface, string paymentProvider, string product, string fallbackCountryId, string serviceName)
+    {
+
+      Country fallbackCountry = Country.CreateManager().Load(!string.IsNullOrEmpty(fallbackCountryId) ? Int32.Parse(fallbackCountryId) : -1);
+
+      string pcName = string.Format("{0}_{1}_{2}_{3}_{4}", fallbackCountry != null ? fallbackCountry.TwoLetterIsoCode : "null", !string.IsNullOrEmpty(paymentInterface) ? paymentInterface.ToUpper() : "null", !string.IsNullOrEmpty(paymentProvider) ? paymentProvider.ToUpper() : "null", !string.IsNullOrEmpty(serviceName) ? serviceName.ToUpper() : "null", !string.IsNullOrEmpty(product) ? product.ToUpper() : "null");
+
+      //List<PaymentConfiguration> paymentConfigurations = PaymentConfiguration.CreateManager().LoadByNamePart(pcName);
+      //if (paymentConfigurations.Count() > 0)
+      //  pcName = string.Format("{0}_{1}", pcName, paymentConfigurations.Count());
+
+      return Json(pcName);
+    }
+
+
+    [HttpPost]
+    public ActionResult Save(ServiceTask serviceTask, string actionText = "", string task_id = "")
+    {
+      ClientSession clientSession = PaywallHttpContext.Current.ClientSession;
+
+      Data.Merchant merchant = null;
+      if (!serviceTask.TemporaryData.Service.MerchantModel.MerchantID.HasValue && !string.IsNullOrEmpty(serviceTask.TemporaryData.NewMerchant.Name) && !actionText.Equals("request"))
+      {
+        merchant = new Data.Merchant(-1,
+                                    serviceTask.TemporaryData.NewMerchant.InstanceModel.Instance,
+                                    serviceTask.TemporaryData.NewMerchant.TemplateModel.Template,
+                                    null,
+                                    serviceTask.TemporaryData.NewMerchant.Name.Trim(),
+                                    serviceTask.TemporaryData.NewMerchant.Address.Trim(),
+                                    serviceTask.TemporaryData.NewMerchant.Phone.Trim(),
+                                    serviceTask.TemporaryData.NewMerchant.Email.Trim(),
+                                    serviceTask.TemporaryData.NewMerchant.RegistrationNo.Trim(),
+                                    serviceTask.TemporaryData.NewMerchant.VatNo.Trim(),
+                                    DateTime.Now, DateTime.Now);
+
+        merchant.Insert();
+
+        MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+        runtime.RefreshMerchants();
+
+        serviceTask.TemporaryData.Service.MerchantModel.MerchantID = merchant.ID;
+        serviceTask.TemporaryData.NewMerchant = new Models.MerchantModel();
+      }
+
+      if (actionText.Equals("request"))
+      {
+        serviceTask.Resolver = new TaskBase.ResolverModel();
+
+        if (serviceTask.TemporaryData.RequestedCountries.Count == 1) //if one country is selected set it as fallback country. Otherwise just list them.
+          serviceTask.TemporaryData.Service.CountryModel.CountryID = serviceTask.TemporaryData.RequestedCountries.FirstOrDefault();
+
+        serviceTask.TemporaryData.ServiceConfigurationEntryMaps.Clear();
+
+        foreach (int countryID in serviceTask.TemporaryData.RequestedCountries)
+        {
+          ServiceConfigurationEntryMap sceMap = new ServiceConfigurationEntryMap();
+          sceMap.CountryModel.CountryID = countryID;
+          serviceTask.TemporaryData.ServiceConfigurationEntryMaps.Add(sceMap);
+        }
+
+        if (serviceTask.TemporaryData.Service.MerchantModel.MerchantID.HasValue)
+        {
+          serviceTask.TemporaryData.Instance.InstanceID = serviceTask.TemporaryData.Service.MerchantModel.Merchant.Instance.ID;
+          serviceTask.TemporaryData.Service.TemplateModel.TemplateID = serviceTask.TemporaryData.Service.MerchantModel.Merchant.Template.ID;
+        }
+      }
+
+      ITaskTypeManager ttManager = TaskType.CreateManager();
+      TaskType taskType = ttManager.Load(1);
+
+      int taskID = -1;
+      Task task = null;
+      if (!task_id.Equals("-1") && Int32.TryParse(task_id, out taskID))
+        task = Task.CreateManager().Load(taskID);
+
+      if (task == null)
+        task = new Task(-1, taskType, TaskStatus.Incomplete, actionText == "editService" ? TaskAction.Editing : TaskAction.Inserting, clientSession.Client, null, null, null, DateTime.Now, DateTime.Now);
+      task.Data = serviceTask.Serialize();
+
+      string notificationView = "~/Views/Shared/Template/Notification.cshtml";
+
+      if (actionText.Equals("save"))
+      {
+        ViewBag.Title = "Task saved";
+        ViewBag.MessageText = "Task successfully saved.";
+      }
+      else if (actionText.Equals("send") || actionText.Equals("request"))
+      {
+        if (actionText.Equals("request"))
+          task.TaskStatus = TaskStatus.Requested;
+        else
+        {
+          if (serviceTask.Resolver.Resolver == null)
+            task.TaskStatus = TaskStatus.Waiting;
+          else
+            task.TaskStatus = TaskStatus.Processing;
+        }
+
+        task.Resolver = serviceTask.Resolver.Resolver;
+
+        ViewBag.Title = "Task sent";
+        ViewBag.MessageText = "Task successfully sent.";
+      }
+      else if (actionText.Equals("configure") || actionText.Equals("editService"))
+      {
+        bool serviceInsertedOrUpdated = serviceTask.UpdateOrInsert(clientSession);
+
+        if (!serviceInsertedOrUpdated)
+        {
+          ViewBag.Title = "Error";
+          ViewBag.MessageHeader = "Error";
+          ViewBag.MessageText = "Service with this name already exists";
+          return View(notificationView);
+        }
+
+        MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+        runtime.RefreshServices();
+
+        task.TaskStatus = TaskStatus.Done;
+        task.Resolver = clientSession.Client;
+
+        ViewBag.Title = "Configured";
+        ViewBag.MessageText = "Service configured successfully.";
+      }
+      else
+      {
+        ViewBag.Title = "Error";
+        ViewBag.MessageHeader = "Error";
+        ViewBag.MessageText = "Action is not recognized.";
+        return View(notificationView);
+      }
+
+      task.UpdateOrInsert();
+      return View(notificationView);
+    }
+
+
+    public JsonResult Resolve(int id, string action)
+    {
+      Task task = Task.CreateManager().Load(id);
+      task.TaskStatus = action.Equals("cancel") ? TaskStatus.Cancelled : action.Equals("accept") ? TaskStatus.Waiting : action.Equals("decline") ? TaskStatus.Declined : task.TaskStatus;
+
+      if (action.Equals("cancel") || action.Equals("decline"))
+      {
+        task.Resolver = PaywallHttpContext.Current.ClientSession.Client;
+        task.TaskStatus = action.Equals("cancel") ? TaskStatus.Cancelled : action.Equals("decline") ? TaskStatus.Declined : task.TaskStatus;
+      }
+      else if (action.Equals("accept"))
+        task.TaskStatus = TaskStatus.Waiting;
+
+      task.Update();
+
+      return Json(new { status = true });
+    }
+  }
+}

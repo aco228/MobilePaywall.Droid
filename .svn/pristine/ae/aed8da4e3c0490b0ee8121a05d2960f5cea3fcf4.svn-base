@@ -1,0 +1,477 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+using MobilePaywall.Data;
+using MobilePaywall.Web.Models;
+using MobilePaywall.Web.Localization;
+
+using Cashflow.Client;
+using Cashflow.Message;
+using Cashflow.Message.Data;
+
+using log4net;
+
+using Senti.Diagnostics.Log;
+using MobilePaywall.Web.Log;
+
+namespace MobilePaywall.Web.Controllers
+{
+	public class PaymentController : PaywallController, IAuthenticationController //PaywallRestrictedAccessController
+	{
+		#region #logging#
+		private static ILog _log = null;
+
+		protected static ILog Log
+		{
+			get
+			{
+				if (PaymentController._log == null)
+					PaymentController._log = LogManager.GetLogger(typeof(PaymentController));
+				return PaymentController._log;
+			}
+		}
+		#endregion
+
+		// SUMMARY: Returns all subscriptions for the currently authenticated customer
+		public ActionResult GetPaymentList()
+		{
+      UserHttpRequest httpRequest = new UserHttpRequest(-1, Guid.NewGuid(), this.PaywallContext.Session.SessionData, null, this.Request.Url.ToString(), DateTime.Now, DateTime.Now);
+      httpRequest.Insert();
+
+      if (this.PaywallContext.Session.SessionData.Customer == null ||
+        !this.PaywallContext.Session.SessionData.Customer.ExternalCustomerGuid.HasValue)
+      {
+        Log.Debug("PaymentController:: There is no customer in session:" + this.PaywallContext.Session.SessionData.ID);
+
+        #region # quick fix for ES go4mobility (they demanded that if customer does not have any subscription he should allways get error page) #
+
+        if(PaywallHttpContext.Current.Service.PaymentProvider.ID == 17 && PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("ES"))
+        {
+          ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, Translations.Web.Error.ErrTitle, Translations.Web.Cancel.ErrNoPayments);
+          return View("Error", errorModel);
+        }
+
+        #endregion
+        #region #quick fix for sg1.mobile-games.me
+        if (PaywallHttpContext.Current.Service.ServiceData.ID == 456)
+        {
+          ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext,ErrorCode.Unknown);
+          errorModel.ErrorDescription = "Sorry, but you dont have any active subscription";
+          return View("Error", errorModel);
+        }
+        #endregion
+
+        #region #quick fix for bardajona.mobi 
+        if (PaywallHttpContext.Current.Service.ServiceData.ID == 28)
+        {
+          ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Unknown);
+          errorModel.ErrorDescription = "Desculpe, mas você não possui nenhuma assinatura ativa";
+          return View("Error", errorModel);
+        }
+        #endregion
+
+        CustomerModel loginModel = new CustomerModel(this.PaywallContext, Request.RawUrl);
+        return View("Login", loginModel);
+      }
+			
+
+      Data.IPaymentManager pManager = Payment.CreateManager();
+      Payment payment = pManager.Load<Payment>(this.PaywallContext.Session.SessionData.Customer);
+      if(payment == null)
+      {
+				int? originalPaymentID = PaywallHttpContext.Current.Session.Storage.GetInt("sub_exists");
+				if (originalPaymentID.HasValue)
+					return this.GetPaymentList_ForActiveSubscription(originalPaymentID.Value);
+				else
+				{
+					Log.Debug("PaymentController:: There is no payments for Customer:" + this.PaywallContext.Session.SessionData.Customer.ID);
+					ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, Translations.Web.Error.ErrTitle, Translations.Web.Cancel.ErrNoPayments);
+					return View("Error", errorModel);
+				}
+      }
+
+      CustomerClient customerClient = CashflowClientPaywallManager.GetCustomerClient(PaywallHttpContext.Current.Service.ServiceData);
+      customerClient.AttachLogWriter(new CashflowLog(PaywallContext.Service.ServiceData));
+
+      List<Subscription> subscriptions = new List<Subscription>();
+      List<Purchase> purchases = new List<Purchase>();
+
+      if(payment.PaymentType == PaymentType.Subscription)
+      {        
+        GetSubscriptionsRequest request = new GetSubscriptionsRequest(RequestMode.Synchronous,
+                                                                      this.PaywallContext.Session.SessionData.Guid.ToString(),
+                                                                      payment.ServiceOffer.PaymentConfiguration.PaymentCredentials.Username,
+                                                                      payment.ServiceOffer.PaymentConfiguration.PaymentCredentials.Password,
+                                                                      null,
+                                                                      this.PaywallContext.Session.SessionData.Customer.ExternalCustomerGuid.Value);
+        request.ReferenceIntID = this.PaywallContext.Session.SessionData.ID;
+
+        GetSubscriptionsResponse response = customerClient.GetSubscriptions(request, null);
+        if (response.Status.Code != MessageStatusCode.Success)
+        {
+          Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "subscriptioncontroller", "getlist"),
+                                                            "GetSubscriptionsResponse not successful", request, response));
+          ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, Translations.Web.Error.ErrTitle, Translations.Web.Cancel.ErrNoPayments);
+          return View("Error", errorModel);
+        }
+
+        subscriptions = response.Subscriptions.ToList();
+      }
+      else if(payment.PaymentType == PaymentType.Purchase)
+      {
+        GetPurchasesRequest request = new GetPurchasesRequest(RequestMode.Synchronous,
+          this.PaywallContext.Session.SessionData.Guid.ToString(),
+          payment.ServiceOffer.PaymentConfiguration.PaymentCredentials.Username,
+          payment.ServiceOffer.PaymentConfiguration.PaymentCredentials.Password,
+          null,
+          this.PaywallContext.Session.SessionData.Customer.ExternalCustomerGuid.Value);
+
+        GetPurchasesResponse response = customerClient.GetPurchases(request, null);
+        if(response.Status.Code != MessageStatusCode.Success)
+        {
+          Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "subscriptioncontroller", "getlist"),
+                                                            "GetPurchasesResponse not successful", request, response));
+          ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, Translations.Web.Error.ErrTitle, Translations.Web.Cancel.ErrNoPayments);
+          return View("Error", errorModel);
+        }
+        purchases = response.Purchases.ToList();
+      }
+
+
+
+      List<Data.Payment> payments = null;
+      if(payment.Customer.Service.ID == 34 || payment.Customer.Service.ID == 59)
+        payments = pManager.Load<List<Payment>>(this.PaywallContext.Session.SessionData.Customer);
+
+      PaymentsViewModel model = new PaymentsViewModel(this.PaywallContext, subscriptions, purchases, payments);
+      ViewBag.HideCancelOption = true;
+      return View("Payments", model);
+		}
+
+		public ActionResult GetPaymentList_ForActiveSubscription(int originalPaymentID)
+		{
+			Data.IPaymentManager pManager = Payment.CreateManager();
+			Payment payment = Payment.CreateManager().Load(originalPaymentID);
+
+			CustomerClient customerClient = CashflowClientPaywallManager.GetCustomerClient(PaywallHttpContext.Current.Service.ServiceData);
+			customerClient.AttachLogWriter(new CashflowLog(PaywallContext.Service.ServiceData));
+
+			List<Subscription> subscriptions = new List<Subscription>();
+			List<Purchase> purchases = new List<Purchase>();
+
+			if (payment.PaymentType == PaymentType.Subscription)
+			{
+				GetSubscriptionsRequest request = new GetSubscriptionsRequest(RequestMode.Synchronous,
+																																			this.PaywallContext.Session.SessionData.Guid.ToString(),
+																																			payment.ServiceOffer.PaymentConfiguration.PaymentCredentials.Username,
+																																			payment.ServiceOffer.PaymentConfiguration.PaymentCredentials.Password,
+																																			null,
+																																			payment.Customer.ExternalCustomerGuid.Value);
+				request.ReferenceIntID = this.PaywallContext.Session.SessionData.ID;
+
+				GetSubscriptionsResponse response = customerClient.GetSubscriptions(request, null);
+				if (response.Status.Code != MessageStatusCode.Success)
+				{
+					Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "subscriptioncontroller", "getlist"),
+																														"GetSubscriptionsResponse not successful", request, response));
+					ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, Translations.Web.Error.ErrTitle, Translations.Web.Cancel.ErrNoPayments);
+					return View("Error", errorModel);
+				}
+
+				subscriptions = response.Subscriptions.ToList();
+			}
+			else if (payment.PaymentType == PaymentType.Purchase)
+			{
+				GetPurchasesRequest request = new GetPurchasesRequest(RequestMode.Synchronous,
+					this.PaywallContext.Session.SessionData.Guid.ToString(),
+					payment.ServiceOffer.PaymentConfiguration.PaymentCredentials.Username,
+					payment.ServiceOffer.PaymentConfiguration.PaymentCredentials.Password,
+					null,
+					payment.Customer.ExternalCustomerGuid.Value);
+
+				GetPurchasesResponse response = customerClient.GetPurchases(request, null);
+				if (response.Status.Code != MessageStatusCode.Success)
+				{
+					Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "subscriptioncontroller", "getlist"),
+																														"GetPurchasesResponse not successful", request, response));
+					ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, Translations.Web.Error.ErrTitle, Translations.Web.Cancel.ErrNoPayments);
+					return View("Error", errorModel);
+				}
+				purchases = response.Purchases.ToList();
+			}
+			
+			List<Data.Payment> payments = null;
+			if (payment.Customer.Service.ID == 34 || payment.Customer.Service.ID == 59)
+				payments = pManager.Load<List<Payment>>(this.PaywallContext.Session.SessionData.Customer);
+
+			PaymentsViewModel model = new PaymentsViewModel(this.PaywallContext, subscriptions, purchases, payments);
+			ViewBag.HideCancelOption = true;
+			return View("Payments", model);
+		}
+
+		public ActionResult GetPayment()
+    {
+      if (this.PaywallContext.Session.SessionData.Customer == null ||
+        !this.PaywallContext.Session.SessionData.Customer.ExternalCustomerGuid.HasValue)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "subscriptioncontroller", "getlist"),
+          "Displaying error notification. Customer is null or has no external guid"));
+        
+        CustomerModel loginModel = new CustomerModel(this.PaywallContext, Request.RawUrl);
+        return View("Login", loginModel);
+      }
+
+      Data.IPaymentManager pManager = Payment.CreateManager();
+      Payment payment = pManager.Load<Payment>(this.PaywallContext.Session.SessionData.Customer);
+      if (payment == null)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "subscriptioncontroller", "getlist"),
+          "Displaying error notification. Could not load payments for this customer", this.PaywallContext.Session.SessionData.Customer));
+
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, Translations.Web.Error.ErrTitle, Translations.Web.Cancel.ErrNoPayments);
+        return View("Error", errorModel);
+      }
+
+      CustomerClient customerClient = CashflowClientPaywallManager.GetCustomerClient(payment.ServiceOffer.Service);// new CustomerClient();
+      customerClient.AttachLogWriter(new CashflowLog(PaywallContext.Service.ServiceData));
+      GetSubscriptionsRequest request = new GetSubscriptionsRequest(RequestMode.Synchronous,
+                                                                    string.Empty,
+                                                                    payment.ServiceOffer.PaymentConfiguration.PaymentCredentials.Username,
+                                                                    payment.ServiceOffer.PaymentConfiguration.PaymentCredentials.Password,
+                                                                    null,
+                                                                    this.PaywallContext.Session.SessionData.Customer.ExternalCustomerGuid.Value);
+      request.ReferenceIntID = this.PaywallContext.Session.SessionData.ID;
+
+      GetSubscriptionsResponse response = customerClient.GetSubscriptions(request, null);
+      if ( response.Status.Code != MessageStatusCode.Success || response.Subscriptions.Length < 1 || response.Subscriptions.ElementAt(0) == null )
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "subscriptioncontroller", "getlist"),
+          "Response not successful or there is no active subscriptions.. Showing error view. ", request, response));
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, Translations.Web.Error.ErrTitle, Translations.Web.Cancel.ErrNoPayments);
+        return View("Error", errorModel);
+      }
+
+      PaymentsViewModel model = new PaymentsViewModel(this.PaywallContext, response.Subscriptions.ToList(), null, null);
+      ViewBag.HideCancelOption = true;
+      return View("Payment", model);
+		}
+
+    // Cancels subscription with given Guid (This maybe should be web api?) /action/cancel
+    public ActionResult Cancel(string paymentGuidParam)
+    {
+      ViewBag.HideCancelOption = true; // because we are already on cancel screen
+      //if (this.Request.UrlReferrer.AbsolutePath.Contains("template"))
+      //  return View("Notification", new NotificationViewModel(this.PaywallContext, Translations.Web.Error.ErrTitle + " (t)", Translations.Web.Error.ErrInternal));
+      
+      UserHttpRequest httpRequest = new UserHttpRequest(-1, Guid.NewGuid(), this.PaywallContext.Session.SessionData, null, this.Request.Url.ToString(), DateTime.Now, DateTime.Now);
+      httpRequest.Insert();
+
+      Guid paymentGuid = Guid.Empty;
+      if (!Guid.TryParse(paymentGuidParam, out paymentGuid))
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "paymentcontroller", "cancel"),
+          "Displaying error notification. Could not parse given guid", paymentGuid));
+
+        if (this.Request.IsAjaxRequest())
+          return this.Json(new { result = true, message = Translations.Web.Error.ErrInternal }, JsonRequestBehavior.AllowGet);
+        else
+          return View("Notification", new NotificationViewModel(this.PaywallContext, Translations.Web.Error.ErrTitle, Translations.Web.Error.ErrInternal));
+      }
+
+      Data.IPaymentManager pManager = Payment.CreateManager(2);
+      Data.Payment payment = pManager.Load(paymentGuid, GuidType.External);
+      if(payment == null)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "paymentcontroller", "cancel"),
+          "Displaying error notification. Could not load payment for given guid.", paymentGuid));
+
+        if (this.Request.IsAjaxRequest())
+          return this.Json(new { result = false, message = Translations.Web.Cancel.Error, subscription = paymentGuid, redirect = "/subscription/cancel/fail" }, JsonRequestBehavior.AllowGet);
+        else
+          return View("Notification", new NotificationViewModel(this.PaywallContext, Translations.Web.Error.ErrTitle, Translations.Web.Error.ErrInternal));
+      }
+
+      if(payment.PaymentStatus != PaymentStatus.Successful)
+        return View("Notification", new NotificationViewModel(this.PaywallContext, Translations.Web.Error.ErrTitle, Translations.Web.Error.ErrSubscriptionCancelledAlready));
+
+      SubscriptionClient subscriptionClient = CashflowClientPaywallManager.GetSubscriptionClient(PaywallContext.Service.ServiceData);
+      subscriptionClient.AttachLogWriter(new CashflowLog(PaywallContext.Service.ServiceData));
+      CancelSubscriptionRequest request = new CancelSubscriptionRequest(RequestMode.Synchronous,
+                                                                        PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+                                                                        payment.ServiceOffer.PaymentConfiguration.PaymentCredentials.Username,
+                                                                        payment.ServiceOffer.PaymentConfiguration.PaymentCredentials.Password,
+                                                                        payment.ExternalPaymentGuid.Value,
+                                                                        SubscriptionCancellationMode.Immediate,
+                                                                        null);
+      request.ReferenceIntID = PaywallContext.Session.SessionData.ID;
+      CancelSubscriptionResponse response = subscriptionClient.CancelSubscription(request, null);
+      
+      if (response.Status.Code == MessageStatusCode.Redirect)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "paymentcontroller", "cancel"),
+          "Customer will be redirected to cancellation link " + response.RedirectUrl, response, request));
+        return Redirect(response.RedirectUrl);
+      }
+      else if (response.Status.Code != MessageStatusCode.Success)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "paymentcontroller", "cancel"),
+          "CancelSubscriptionResponse is not successfull", response, request));
+        
+        if (this.Request.IsAjaxRequest())
+          return this.Json(new { result = false, message = Translations.Web.Cancel.Error, subscription = paymentGuid, redirect = "/subscription/cancel/fail" }, JsonRequestBehavior.AllowGet);
+        else
+          return View("Notification", new NotificationViewModel(this.PaywallContext, Translations.Web.Error.ErrTitle, Translations.Web.Error.ErrInternal));
+      }
+
+      payment.PaymentStatus = PaymentStatus.Cancelled;
+      payment.Update();
+
+      if (this.Request.IsAjaxRequest())
+        return this.Json(new { result = true, message = Translations.Web.Cancel.Success, subscription = paymentGuid, redirect = "/payments" }, JsonRequestBehavior.AllowGet);
+      else
+      {
+        string translation = Translations.Web.Cancel.Success;
+
+        #region # check [Payment.DaysLeft] for counting how many days have left for subscription #
+        if (translation.Contains("[Payment.DaysLeft]"))
+        {
+          PaymentContentAccessPolicyMap cap = (from c in PaymentContentAccessPolicyMap.CreateManager().Load(payment) where c.IsValid && !c.IsTemporary && c.Transaction != null && c.ValidTo > DateTime.Now select c).FirstOrDefault();
+          string days = cap != null ? ((cap.ValidTo.Value - DateTime.Now).Days).ToString() : "";
+          translation = translation.Replace("[Payment.DaysLeft]", days);
+
+        }
+        #endregion
+
+        return View("Notification", new NotificationViewModel(this.PaywallContext, Translations.Web.Cancel.SuccessTitle, translation));
+      }
+    }
+   
+    public ActionResult Cancellation()
+    {
+      UserHttpRequest httpRequest = new UserHttpRequest(-1, Guid.NewGuid(), this.PaywallContext.Session.SessionData, null, this.Request.Url.ToString(), DateTime.Now, DateTime.Now);
+      httpRequest.Insert();
+
+      if (this.PaywallContext.Session.SessionData.Customer == null ||
+       !this.PaywallContext.Session.SessionData.Customer.ExternalCustomerGuid.HasValue)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "paymentcontroller", "cancellation"),
+          "Displaying error view. There is no customer inside session", this.PaywallContext.Session.SessionData));
+
+        CustomerModel loginModel = new CustomerModel(this.PaywallContext, Request.RawUrl);
+        return View("Login", loginModel);
+      }
+
+      Data.IPaymentManager pManager = Payment.CreateManager();
+      Payment payment = pManager.Load<Payment>(this.PaywallContext.Session.SessionData.Customer);
+      if (payment == null)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "paymentcontroller", "cancellation"),
+          "Displaying error view. There is no payment for customer", this.PaywallContext.Session.SessionData.Customer));
+
+        CustomerModel loginModel = new CustomerModel(this.PaywallContext, Request.RawUrl);
+        return View("Login", loginModel);
+      }
+
+      CustomerClient customerClient = CashflowClientPaywallManager.GetCustomerClient(PaywallHttpContext.Current.Service.ServiceData);
+      customerClient.AttachLogWriter(new CashflowLog(PaywallContext.Service.ServiceData));
+      GetSubscriptionsRequest request = new GetSubscriptionsRequest(RequestMode.Synchronous,
+                                                                    string.Empty,
+                                                                    payment.ServiceOffer.PaymentConfiguration.PaymentCredentials.Username,
+                                                                    payment.ServiceOffer.PaymentConfiguration.PaymentCredentials.Password,
+                                                                    null,
+                                                                    this.PaywallContext.Session.SessionData.Customer.ExternalCustomerGuid.Value);
+      request.ReferenceIntID = this.PaywallContext.Session.SessionData.ID;
+
+      GetSubscriptionsResponse response = customerClient.GetSubscriptions(request, null);
+      if (response.Status.Code != MessageStatusCode.Success)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "paymentcontroller", "cancellation"),
+                                                          "Displaying error view. Response not successful", request, response));
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, Translations.Web.Error.ErrTitle, Translations.Web.Cancel.ErrNoPayments);
+        return View("Error", errorModel);
+      }
+            
+      PaymentsViewModel model = new PaymentsViewModel(this.PaywallContext, response.Subscriptions.ToList(), null, null);
+      bool hasActiveSubscription = model.ActiveSubscriptions.Where(x => x.Status == Cashflow.Message.Data.SubscriptionStatus.Active).FirstOrDefault() != null ? true : false;
+      if (!hasActiveSubscription)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "paymentcontroller", "cancellation"),
+                                                          "Displaying error view. Customer don't have active subscription.", request, response));
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, Translations.Web.Error.ErrTitle, Translations.Web.Cancel.ErrNoPayments);
+        return View("Error", errorModel);
+      }
+
+      ViewBag.HideCancelOption = true;
+      return View("Cancel", model);
+    }
+	
+    // SUMMARY: basicly same as Cancellation, but with his own model, and no error redirection (fix for spain)
+    public ActionResult Unsubscribe()
+    {
+      UnsubscribeViewModel model = new UnsubscribeViewModel(this.PaywallContext);
+
+      UserHttpRequest httpRequest = new UserHttpRequest(-1, Guid.NewGuid(), this.PaywallContext.Session.SessionData, null, this.Request.Url.ToString(), DateTime.Now, DateTime.Now);
+      httpRequest.Insert();
+
+      #region checking customer
+      if (this.PaywallContext.Session.SessionData.Customer == null ||
+       !this.PaywallContext.Session.SessionData.Customer.ExternalCustomerGuid.HasValue)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "paymentcontroller", "cancellation"),
+          "Unsubscribe is not successful.  There is no customer inside session", this.PaywallContext.Session.SessionData));
+
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, Translations.Web.Error.ErrTitle, Translations.Web.Cancel.ErrNoPayments);
+        return View("Error", errorModel);
+      }
+      #endregion
+
+      #region checking payment
+      Data.IPaymentManager pManager = Payment.CreateManager();
+      Payment payment = pManager.Load<Payment>(this.PaywallContext.Session.SessionData.Customer);
+      if (payment == null)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "paymentcontroller", "cancellation"),
+          " - UNSUBSCRIBE - Unsubscribe is not successful. Customer does not have payments", this.PaywallContext.Session.SessionData.Customer));
+
+        model.IsSuccessful = false;
+        return View("Unsubscribe", model);
+      }
+      #endregion
+
+      model.Payment = payment;
+
+      #region cashflow cancellation
+      SubscriptionClient subscriptionClient = CashflowClientPaywallManager.GetSubscriptionClient(payment.ServiceOffer.Service);
+      subscriptionClient.AttachLogWriter(new CashflowLog(PaywallContext.Service.ServiceData));
+      CancelSubscriptionRequest request = new CancelSubscriptionRequest(RequestMode.Synchronous,
+                                                                        string.Empty,
+                                                                        payment.ServiceOffer.PaymentConfiguration.PaymentCredentials.Username,
+                                                                        payment.ServiceOffer.PaymentConfiguration.PaymentCredentials.Password,
+                                                                        payment.ExternalPaymentGuid.Value,
+                                                                        SubscriptionCancellationMode.Immediate,
+                                                                        null);
+      request.ReferenceIntID = this.PaywallContext.Session.SessionData.ID;
+
+      CancelSubscriptionResponse response = subscriptionClient.CancelSubscription(request, null);
+      if (response.Status.Code != MessageStatusCode.Success)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "paymentcontroller", "cancellation"),
+          " - UNSUBSCRIBE - Cahsflow.CancelSubscriptionResponse was not successfull.", response, this.PaywallContext.Session.SessionData.Customer));
+
+        model.IsSuccessful = false;
+        return View("Unsubscribe", model);
+      }
+      #endregion
+
+      payment.PaymentStatus = PaymentStatus.Cancelled;
+      payment.Update();
+      model.IsSuccessful = true;
+
+      return View("Unsubscribe", model);
+      
+    }
+  }
+}

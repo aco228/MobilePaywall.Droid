@@ -1,0 +1,234 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class PaymentContentAccessPolicyMapManager : IPaymentContentAccessPolicyMapManager
+  {
+
+    public T Load<T>(Customer customer, ContentGroup contentGroup, Content content)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load<T>(connection, customer, contentGroup, content);
+    }
+
+    public T Load<T>(IConnectionInfo connection, Customer customer, ContentGroup contentGroup, Content content)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load<T>(sqlConnection, customer, contentGroup, content);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load<T>(sqlConnection, customer, contentGroup, content);
+    }
+
+    public T Load<T>(ISqlConnectionInfo connection, Customer customer, ContentGroup contentGroup, Content content)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+
+			parameters.Where = "[pcapm_p_c].CustomerID = @CustomerID AND " +
+												 "([pcapm_cap_cg].ContentGroupID = @ContentGroupID OR [pcapm_cap_cg].ContentGroupID IS NULL) AND " +
+												 "([pcapm_cap_c].ContentID = @ContentID OR [pcapm_cap_c].ContentID IS NULL) AND " +
+												 "[pcapm].IsValid = 1 AND ([pcapm].ValidTo >= GETDATE() OR [pcapm].ValidTo IS NULL)";
+      
+      parameters.Arguments.Add("CustomerID", customer.ID);
+			parameters.Arguments.Add("ContentGroupID", contentGroup == null ? (object)DBNull.Value : contentGroup.ID);
+			parameters.Arguments.Add("ContentID", content == null ? (object)DBNull.Value : content.ID);
+      if (typeof(T).Equals(typeof(List<PaymentContentAccessPolicyMap>)))
+        return (T)Convert.ChangeType(this.LoadMany(connection, parameters), typeof(T));
+      else
+        return (T)Convert.ChangeType(this.Load(connection, parameters), typeof(T));
+    }
+
+    public List<PaymentContentAccessPolicyMap> Load(Payment payment)
+		{
+			using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+				return this.Load(connection, payment);
+		}
+
+    public List<PaymentContentAccessPolicyMap> Load(IConnectionInfo connection, Payment payment)
+		{
+			ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+			if (sqlConnection != null)
+				return this.Load(sqlConnection, payment);
+			using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+				return this.Load(sqlConnection, payment);
+		}
+
+    public List<PaymentContentAccessPolicyMap> Load(ISqlConnectionInfo connection, Payment payment)
+		{
+			SqlQueryParameters parameters = new SqlQueryParameters();
+			parameters.Where = "[pcapm].PaymentID = @PaymentID";
+			parameters.Arguments.Add("PaymentID", payment.ID);
+			return this.LoadMany(connection, parameters);
+		}
+				
+		public List<PaymentContentAccessPolicyMap> Load(Customer customer)
+		{
+			using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+				return this.Load(connection, customer);
+		}
+
+		public List<PaymentContentAccessPolicyMap> Load(IConnectionInfo connection, Customer customer)
+		{
+			ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+			if (sqlConnection != null)
+				return this.Load(sqlConnection,  customer);
+			using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+				return this.Load(sqlConnection,  customer);
+		}
+
+		public List<PaymentContentAccessPolicyMap> Load(ISqlConnectionInfo connection, Customer customer)
+		{
+			SqlQueryParameters parameters = new SqlQueryParameters();
+			parameters.Where = "[pcapm_p_c].CustomerID = @CustomerID";
+			parameters.Arguments.Add("CustomerID", customer.ID);
+			return this.LoadMany(connection, parameters);
+		}
+
+    public PaymentContentAccessPolicyMap Load(Payment payment, Transaction transaction)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, payment, transaction);
+    }
+
+    public PaymentContentAccessPolicyMap Load(IConnectionInfo connection, Payment payment, Transaction transaction)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, payment, transaction);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, payment, transaction);
+    }
+
+    public PaymentContentAccessPolicyMap Load(ISqlConnectionInfo connection, Payment payment, Transaction transaction)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[pcapm].PaymentID=@PaymentID AND [pcapm].TransactionID=@TransactionID";
+      parameters.Arguments.Add("PaymentID", payment.ID);
+      parameters.Arguments.Add("TransactionID", transaction.ID);
+      return this.Load(connection, parameters);
+    }
+
+
+
+		//public PaymentContentAccessPolicyMap Load(Payment payment)
+		//{
+		//	using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+		//		return this.Load(connection, payment);
+		//}
+
+		//public PaymentContentAccessPolicyMap Load(IConnectionInfo connection, Payment payment)
+		//{
+		//	ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+		//	if (sqlConnection != null)
+		//		return this.Load(sqlConnection, payment);
+		//	using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+		//		return this.Load(sqlConnection, payment);
+		//}
+
+		//public PaymentContentAccessPolicyMap Load(ISqlConnectionInfo connection, Payment payment)
+		//{
+		//	SqlQueryParameters parameters = new SqlQueryParameters();
+		//	parameters.Where = "[pcapm].PaymentID = @PaymentID";
+		//	parameters.Arguments.Add("PaymentID", payment.ID);
+		//	return this.Load(connection, parameters);
+		//}
+
+		//public List<PaymentContentAccessPolicyMap> Load(Payment payment, Content content)
+		//{
+		//	using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+		//		return this.Load(connection, payment, content);
+		//}
+
+		//public List<PaymentContentAccessPolicyMap> Load(IConnectionInfo connection, Payment payment, Content content)
+		//{
+		//	ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+		//	if (sqlConnection != null)
+		//		return this.Load(sqlConnection, payment, content);
+		//	using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+		//		return this.Load(sqlConnection, payment, content);
+		//}
+
+		//public List<PaymentContentAccessPolicyMap> Load(ISqlConnectionInfo connection, Payment payment, Content content)
+		//{
+		//	SqlQueryParameters parameters = new SqlQueryParameters();
+		//	parameters.Where = "[pcapm].PaymentID = @PaymentID AND ContentID = @ContentID AND IsValid = 1";
+		//	parameters.Arguments.Add("PaymentID", payment.ID);
+		//	parameters.Arguments.Add("ContentID", content.ID);
+		//	return this.LoadMany(connection, parameters);
+		//}
+
+
+		//public List<PaymentContentAccessPolicyMap> Load(List<Payment> payments, Content content)
+		//{
+		//	using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+		//		return this.Load(connection, payments, content);
+		//}
+
+		//public List<PaymentContentAccessPolicyMap> Load(IConnectionInfo connection, List<Payment> payments, Content content)
+		//{
+		//	ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+		//	if (sqlConnection != null)
+		//		return this.Load(sqlConnection, payments, content);
+		//	using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+		//		return this.Load(sqlConnection, payments, content);
+		//}
+
+		//public List<PaymentContentAccessPolicyMap> Load(ISqlConnectionInfo connection, List<Payment> payments, Content content)
+		//{
+		//	SqlQueryParameters parameters = new SqlQueryParameters();
+		//	string where = "(";
+
+		//	for (int i = 0; i < payments.Count; i++)
+		//	{
+		//		if (i != 0) where += " OR ";
+		//		where += "PaymentID = " + payments.ElementAt(i).ID;
+		//	}
+
+		//	parameters.Where = where + ") AND ContentID = @ContentID";
+		//	parameters.Arguments.Add("ContentID", content.ID);
+		//	return this.LoadMany(connection, parameters);
+		//}
+
+
+		
+
+
+
+		//public List<PaymentContentAccessPolicyMap> Load(Customer customer)
+		//{
+		//	using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+		//		return this.Load(connection, customer);
+		//}
+
+		//public List<PaymentContentAccessPolicyMap> Load(IConnectionInfo connection, Customer customer)
+		//{
+		//	ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+		//	if (sqlConnection != null)
+		//		return this.Load(sqlConnection, customer);
+		//	using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+		//		return this.Load(sqlConnection, customer);
+		//}
+
+		//public List<PaymentContentAccessPolicyMap> Load(ISqlConnectionInfo connection, Customer customer)
+		//{
+		//	SqlQueryParameters parameters = new SqlQueryParameters();
+		//	parameters.Where = "[pcapm_p].CustomerID = @CustomerID AND IsValid = 1";
+		//	parameters.Arguments.Add("CustomerID", customer.ID);
+		//	return this.LoadMany(connection, parameters);
+		//}
+
+
+
+  }
+}
+

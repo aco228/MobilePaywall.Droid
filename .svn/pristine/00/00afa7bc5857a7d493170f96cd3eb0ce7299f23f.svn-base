@@ -1,0 +1,359 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(AutomationGroup))] 
+  public partial class AutomationGroupManager : MobilePaywall.Data.Sql.SqlManagerBase<AutomationGroup>, IAutomationGroupManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override AutomationGroup LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							AutomationGroupTable.GetColumnNames("[ag]") + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[ag_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[ag_c_l]") : string.Empty) + 
+					" FROM [core].[AutomationGroup] AS [ag] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [ag_c] ON [ag].[CountryID] = [ag_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [ag_c_l] ON [ag_c].[LanguageID] = [ag_c_l].[LanguageID] ";
+				sqlCmdText += "WHERE [ag].[AutomationGroupID] = @AutomationGroupID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AutomationGroupID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ag", "loadinternal", "notfound"), "AutomationGroup could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AutomationGroupTable agTable = new AutomationGroupTable(query);
+				CountryTable ag_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable ag_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+
+        
+				Language ag_c_lObject = (this.Depth > 1) ? ag_c_lTable.CreateInstance() : null;
+				Country ag_cObject = (this.Depth > 0) ? ag_cTable.CreateInstance(ag_c_lObject) : null;
+				AutomationGroup agObject = agTable.CreateInstance(ag_cObject);
+				sqlReader.Close();
+
+				return agObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ag", "loadinternal", "exception"), "AutomationGroup could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AutomationGroup", "Exception while loading AutomationGroup object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public AutomationGroup Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AutomationGroupTable.GetColumnNames("[ag]") + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[ag_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[ag_c_l]") : string.Empty) +  
+					" FROM [core].[AutomationGroup] AS [ag] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [ag_c] ON [ag].[CountryID] = [ag_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [ag_c_l] ON [ag_c].[LanguageID] = [ag_c_l].[LanguageID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ag", "customload", "notfound"), "AutomationGroup could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AutomationGroupTable agTable = new AutomationGroupTable(query);
+				CountryTable ag_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable ag_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+
+        
+				Language ag_c_lObject = (this.Depth > 1) ? ag_c_lTable.CreateInstance() : null;
+				Country ag_cObject = (this.Depth > 0) ? ag_cTable.CreateInstance(ag_c_lObject) : null;
+				AutomationGroup agObject = agTable.CreateInstance(ag_cObject);
+				sqlReader.Close();
+
+				return agObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ag", "customload", "exception"), "AutomationGroup could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AutomationGroup", "Exception while loading (custom/single) AutomationGroup object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<AutomationGroup> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AutomationGroupTable.GetColumnNames("[ag]") + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[ag_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[ag_c_l]") : string.Empty) +  
+					" FROM [core].[AutomationGroup] AS [ag] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [ag_c] ON [ag].[CountryID] = [ag_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [ag_c_l] ON [ag_c].[LanguageID] = [ag_c_l].[LanguageID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ag", "customloadmany", "notfound"), "AutomationGroup list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<AutomationGroup>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AutomationGroupTable agTable = new AutomationGroupTable(query);
+				CountryTable ag_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable ag_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+
+        List<AutomationGroup> result = new List<AutomationGroup>();
+        do
+        {
+          
+					Language ag_c_lObject = (this.Depth > 1) ? ag_c_lTable.CreateInstance() : null;
+					Country ag_cObject = (this.Depth > 0) ? ag_cTable.CreateInstance(ag_c_lObject) : null;
+					AutomationGroup agObject = (this.Depth > -1) ? agTable.CreateInstance(ag_cObject) : null;
+					result.Add(agObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ag", "customloadmany", "exception"), "AutomationGroup list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AutomationGroup", "Exception while loading (custom/many) AutomationGroup object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, AutomationGroup data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[AutomationGroup] ([CountryID],[Name],[ExternalCleanOffer],[RotationTime],[StartTime],[EndTime],[AutoStart],[IsActive],[Description]) VALUES(@CountryID,@Name,@ExternalCleanOffer,@RotationTime,@StartTime,@EndTime,@AutoStart,@IsActive,@Description); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@CountryID", data.Country.ID);
+				sqlCmd.Parameters.AddWithValue("@Name", data.Name).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@ExternalCleanOffer", data.ExternalCleanOffer).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@RotationTime", data.RotationTime).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@StartTime", data.StartTime).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@EndTime", data.EndTime).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@AutoStart", data.AutoStart).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsActive", data.IsActive).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NText;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ag", "insert", "noprimarykey"), "AutomationGroup could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "AutomationGroup", "Exception while inserting AutomationGroup object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ag", "insert", "exception"), "AutomationGroup could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "AutomationGroup", "Exception while inserting AutomationGroup object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, AutomationGroup data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[AutomationGroup] SET " +
+												"[CountryID] = @CountryID, " + 
+												"[Name] = @Name, " + 
+												"[ExternalCleanOffer] = @ExternalCleanOffer, " + 
+												"[RotationTime] = @RotationTime, " + 
+												"[StartTime] = @StartTime, " + 
+												"[EndTime] = @EndTime, " + 
+												"[AutoStart] = @AutoStart, " + 
+												"[IsActive] = @IsActive, " + 
+												"[Description] = @Description, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [AutomationGroupID] = @AutomationGroupID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@CountryID", data.Country.ID);
+				sqlCmd.Parameters.AddWithValue("@Name", data.Name).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@ExternalCleanOffer", data.ExternalCleanOffer).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@RotationTime", data.RotationTime).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@StartTime", data.StartTime).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@EndTime", data.EndTime).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@AutoStart", data.AutoStart).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsActive", data.IsActive).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@AutomationGroupID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ag", "update", "norecord"), "AutomationGroup could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "AutomationGroup", "Exception while updating AutomationGroup object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ag", "update", "morerecords"), "AutomationGroup was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "AutomationGroup", "Exception while updating AutomationGroup object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ag", "update", "exception"), "AutomationGroup could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "AutomationGroup", "Exception while updating AutomationGroup object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, AutomationGroup data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[AutomationGroup] WHERE AutomationGroupID = @AutomationGroupID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AutomationGroupID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ag", "delete", "norecord"), "AutomationGroup could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "AutomationGroup", "Exception while deleting AutomationGroup object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ag", "delete", "exception"), "AutomationGroup could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "AutomationGroup", "Exception while deleting AutomationGroup object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

@@ -1,0 +1,209 @@
+﻿@model TemplateFilterBypassModel
+@{
+  Layout = "~/Views/Template/_Layout/_Layout.cshtml";
+}
+
+<link href="~/Content/Template/filterbypass.css" rel="stylesheet" />
+
+@{
+  string[] serviceFilterType = new string[] { "", "ContextValidationAttribute", "AgeVerificationAttribute", "AuthenticationAttribute" };
+}
+
+<div class="md-card" id="serviceConfiguration">
+  <div class="md-card-content">
+    <h3 class="heading_a">Attribute Filter Bypass</h3>
+
+    <div class="uk-grid" data-uk-grid-margin="">
+      <div style="width: 230px;">
+        <label for="settings_time_format" class="uk-form-label">Service status</label>
+        <select id="selectFilterBypassType" name="settings_time_format" data-md-selectize>
+          @for (int i = 1; i < serviceFilterType.Length; i++)
+          {
+            <option value="@i">@serviceFilterType[i]</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    <div class="uk-grid">
+      <div class="uk-width-medium-1-6">
+        <a class="md-btn md-btn-flat md-btn-flat-primary" href="#" id="btnAddFilterBypass" inuse="false">Add</a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="md-card" id="serviceConfiguration">
+  <div hidden class="filterTemplate">
+    <div class="uk-grid closestFilter" filterbypassid="" data-uk-grid-margin="">
+      <div style="width:50%">
+        <table class="filterBypassTable">
+          <tr>
+            <td colspan="2">
+              <div class="filterName"></div>
+            </td>
+            <td colspan="2" align="right">
+              <div class="specific">
+                (Service specific)
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-left: 10px;">
+              <input type="checkbox" class="isEnabled" checked>IsEnabled
+            </td>
+            <td colspan="3" align="right">
+              <a class="md-btn md-btn-flat md-btn-flat-primary btnUpdateFilterBypass " href="#" inuse="false">Update</a>
+              <a class="md-btn md-btn-flat md-btn-flat-primary btnDeleteFilterBypass " href="#" inuse="false">Delete</a>
+            </td>
+          </tr>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+<div class="md-card" id="serviceConfiguration">
+  <div class="md-card-content">
+    <h3 class="heading_a">Attribute Filter Bypass</h3>
+    <div class="filterBypassContainer">
+      @foreach (FilterBypass filter in Model.FilterBypass)
+      {
+        <div class="uk-grid closestFilter" filterbypassid="@filter.ID" data-uk-grid-margin="">
+          <div style="width:50%">
+            <table class="filterBypassTable @Html.Raw(filter.Enabled ? "" : "notEnabled")">
+              <tr>
+                <td colspan="2">
+                  <div class="filterName">@filter.FilterBypassType</div>
+                </td>
+                <td colspan="2" align="right">
+                  @{
+                    var specific = "";
+                    if (filter.Service == null && filter.PaymentProvider != null) { specific = "(PaymentProvider specific)"; }
+                    else if (filter.Service == null && filter.Country != null) { specific = "(Country specific)"; }
+                  }
+                  <div class="specific">
+                    @specific
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding-left: 10px;">
+                  <input type="checkbox" class="isEnabled" @Html.Raw(filter.Service != null ? "" : "disabled") @Html.Raw(filter.Enabled ? "checked" : "")>IsEnabled | 
+                  @foreach (MobilePaywall.Base.StorageEntry se in filter.Storage.Entries)
+                  {
+                    <input type="checkbox" class="isEnabled" @Html.Raw(se.Value.Equals("1") ? "" : "disabled") @Html.Raw(filter.Enabled ? "checked" : "")>@Html.Raw(se.Key + " | ")
+                  }
+                </td>
+                <td colspan="3" align="right">
+                  @if (filter.Service != null)
+                  {
+                    <a class="md-btn md-btn-flat md-btn-flat-primary btnUpdateFilterBypass" href="#" inuse="false">Update</a>
+                    <a class="md-btn md-btn-flat md-btn-flat-primary btnDeleteFilterBypass" href="#" inuse="false">Delete</a>
+                  }
+                </td>
+              </tr>
+            </table>
+          </div>
+        </div>
+      }
+    </div>
+
+  </div>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    onAddNewFilterBypass();
+    onUpdateFilterBypassEnabled();
+    onDeleteFilterBypass();
+  });
+
+  function onUpdateFilterBypassEnabled() {
+    $('.btnUpdateFilterBypass').click(function () {
+
+      if ($(this).attr('inuse') == 'true')
+        return;
+
+      var btn = $(this);
+      var parent = btn.closest(".closestFilter");
+      var tmplText = btn.text();
+      visual.Confirm("Are you sure you want to make this change?", "Yes", "No", function () {
+
+        btn.attr('inuse', 'true');
+
+        var filterBypassID = parent.attr("filterbypassid");
+        var _isEnabled = "0";
+        if (btn.closest('.closestFilter').find('.isEnabled').is(':checked'))
+          _isEnabled = "1";
+
+        btn.text('...');
+        template.call('ApiTemplateAttributeFilterBypassUpdate', { filterBypassID: filterBypassID, isEnabled: _isEnabled }, function (response) {
+          btn.attr('inuse', 'false');
+          btn.text(tmplText);
+          visual.Alert(response.message);
+        });
+
+      });
+    });
+  }
+
+  function onDeleteFilterBypass() {
+    $('.btnDeleteFilterBypass').click(function () {
+
+      if ($(this).attr('inuse') == 'true')
+        return;
+
+      var btn = $(this);
+      var parent = btn.closest(".closestFilter");
+      var tmplText = btn.text();
+      visual.Confirm("Are you sure you want to make this change?", "Yes", "No", function () {
+        btn.attr('inuse', 'true');
+
+        var filterBypassID = parent.attr("filterbypassid");
+
+        btn.text('...');
+        template.call('ApiTemplateAttributeFilterBypassDelete', { filterBypassID: filterBypassID }, function (response) {
+          btn.attr('inuse', 'false');
+          btn.text(tmplText);
+          if (response.status)
+            btn.closest(".closestFilter").remove();
+          visual.Alert(response.message);
+        });
+
+      });
+    });
+  }
+
+  function onAddNewFilterBypass() {
+    $('#btnAddFilterBypass').click(function () {
+      if ($(this).attr('inuse') == 'true')
+        return;
+
+      var btn = $(this);
+      var parent = btn.closest(".closestFilter");
+      var tmplText = btn.text();
+      visual.Confirm("Are you sure you want to make this change?", "Yes", "No", function () {
+        btn.attr('inuse', 'true');
+        var filterBypassType = $('#selectFilterBypassType').find(':selected').attr('value');
+        btn.text('...');
+        template.call('ApiTemplateAttributeFilterBypassAddNew', { filterBypassType: filterBypassType }, function (response) {
+          btn.attr('inuse', 'false');
+          btn.text(tmplText);
+          if (response.status) {
+            var template = $(".filterTemplate");
+            template.find(".closestFilter").attr("filterbypassid", response.id);
+            template.find(".filterName").text($('#selectFilterBypassType').find(':selected').text());
+            $(".filterBypassContainer").append(template.html());
+          }
+          visual.Alert(response.message);
+        });
+      });
+
+    });
+  }
+
+</script>

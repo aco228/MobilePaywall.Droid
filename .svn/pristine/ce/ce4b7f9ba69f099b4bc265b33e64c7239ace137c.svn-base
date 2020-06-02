@@ -1,0 +1,195 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+using MobilePaywall.Data;
+using MobilePaywall.Web;
+using MobilePaywall.Web.Models;
+using MobilePaywall.Web.Localization;
+using log4net;
+using Senti.Diagnostics.Log;
+using MobilePaywall.Web.Filters;
+using MobilePaywall.Web.Log;
+
+namespace MobilePaywall.Web.Controllers
+{
+	public class HomeController : PaywallController
+	{
+		#region #logging#
+		private static ILog _log = null;
+
+		protected static ILog Log
+		{
+			get
+			{
+				if (HomeController._log == null)
+					HomeController._log = LogManager.GetLogger(typeof(HomeController));
+				return HomeController._log;
+			}
+		}
+		#endregion
+
+    //LEARN: C# Convention for constants is to use CamelCase and not Screaming Caps.
+		public int PageItems = 10; // Number of content items per page
+
+		// Gets content list of specified categories (or all if null) for specified page
+		//ROUTE: /list/{page}/{category} 
+		public ActionResult List(int page = 0, int categoryID = 0)
+		{
+
+      int? serviceStoragePageItems = PaywallHttpContext.Current.Service.Storage.GetInt("PageItems");
+      if (serviceStoragePageItems.HasValue)
+        PageItems = serviceStoragePageItems.Value;
+
+      bool isCategoryProvided = categoryID == 0 ? false : true;
+      Category category = null;
+
+      if (isCategoryProvided)
+      {
+        ICategoryManager cManager = Category.CreateManager();
+        category = cManager.Load(categoryID);
+        if(category == null)
+        {
+          Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "home", "list"), 
+            string.Format("Category (ID: {0}) is not loaded. Please check what is going on. Service: {1} {ID: {2}) // Session (GUID: {3})", 
+            categoryID, this.PaywallContext.Service.ServiceData.Name, this.PaywallContext.Service.ServiceData.ID, this.PaywallContext.Session.SessionData.Guid)));
+
+          ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, Translations.Web.Category.ErrNoCategoryTitle, Translations.Web.Category.ErrNoCategoryMessage);
+          return View("Error", errorModel);
+        }
+      }
+      
+      List<IContent> content = this.Cache.FilterContent(this.PaywallContext.Service.ServiceData, this.PaywallContext.GetConfiguration(), category, page, PageItems);
+      if(content == null || content.Count == 0)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "home", "list"), 
+          string.Format("Content not found. Service: {0} (ID: {1}) // Configuration: {2} (ID: {3}), Category: {4} // Page: {5} // Items: {6}", 
+            this.PaywallContext.Service.ServiceData.Name, this.PaywallContext.Service.ServiceData.ID,  (this.PaywallContext.GetConfiguration() != null) ? this.PaywallContext.GetConfiguration().ServiceConfiguration.Name : "#serviceConfiguration.none#", 
+            this.PaywallContext.GetConfiguration(), isCategoryProvided ? category.Name : "#none", page, PageItems)));
+
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, Translations.Web.Error.ErrTitle, Translations.Web.Error.ErrInternal);
+        return View("Error", errorModel);
+      }
+      
+      if (this.PaywallContext.Session.Service.ServiceData.ID == 77)
+        content = (from c in content where c.ContentData.ContentGroup.ID == 8 select c).ToList();
+
+			ContentListViewModel model = new ContentListViewModel(PaywallHttpContext.Current, category, content, PageItems, page);
+      
+      #region # TPAY Landing pages #
+
+      //if (this.PaywallContext.Service.PaymentProvider.ID == 21 && this.PaywallContext.Session.SessionData.Customer != null)
+      //{
+      //  int? activePayments =
+      //    MobilePaywall.Direct.MobilePaywallDirect.Instance.LoadInt(string.Format("SELECT COUNT(*) FROM MobilePaywall.core.Payment WHERE CustomerID={0} AND PaymentStatusID=3", this.PaywallContext.Session.SessionData.Customer.ID));
+
+      //  if (!activePayments.HasValue || activePayments.Value == 0)
+      //    return View("Landing", model);
+      //}
+
+      #endregion
+
+      if (content.ElementAt(0).ContentData.ContentType.Name.Equals("Android"))
+        return View("HomeAndroid", model);
+      else if (content.ElementAt(0).ContentData.ContentType.Name.Equals("Auction"))
+        return View("HomeAuction", model);
+      else if (content.ElementAt(0).ContentData.ContentType.Name.Equals("Quiz"))
+      {
+        if (content.Count > 1) return View("HomeQuiz", model);
+        else
+        {
+          return Redirect("/quiz/" + content.ElementAt(0).ContentData.ID);
+        }
+      }
+
+			#region # VEOO payment page when content is not quiz #
+			
+			if (PaywallHttpContext.Current.Service.PaymentProvider.ID == 18 && !_Specific._ProviderSpecific.Veoo.GR.GreeceVeoHelper.CheckIfClientShouldBeSentToHomePageOrPaymentPage())
+				return Redirect("/login");
+			
+			#endregion
+
+			return View("Home", model);
+		}
+
+    // AJAX call for appending list videos
+    // ROUTE: /home/videos (for now)
+    //[HttpPost]
+    public ActionResult Videos(int page, int categoryID = 0)
+    {
+      ContentListViewModel model = null;
+      bool isCategoryProvided = categoryID == 0 ? false : true;
+      Category category = null;
+      if (isCategoryProvided)
+      {
+        ICategoryManager cManager = Category.CreateManager();
+        category = cManager.Load(categoryID);
+        if (category == null)
+        {
+          Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "home", "list"),
+            string.Format("Category (ID: {0}) is not loaded. Please check what is going on. Service: {1} {ID: {2}) // Session (GUID: {3})",
+            categoryID, this.PaywallContext.Service.ServiceData.Name, this.PaywallContext.Service.ServiceData.ID, this.PaywallContext.Session.SessionData.Guid)));
+
+          model = new ContentListViewModel(PaywallHttpContext.Current, category, new List<IContent>(), PageItems, page);
+          return PartialView("_Videos", model);
+        }
+      }
+
+      List<IContent> content = this.Cache.FilterContent(this.PaywallContext.Service.ServiceData, this.PaywallContext.GetConfiguration(), category, page, PageItems);
+      if (content == null)
+      {
+        Log.Error(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "home", "list"),
+          string.Format("Content not found. Service: {0} (ID: {1}) // Configuration: {2} (ID: {3}), Category: {4} // Page: {5} // Items: {6}",
+            this.PaywallContext.Service.ServiceData.Name, this.PaywallContext.Service.ServiceData.ID, this.PaywallContext.GetConfiguration().ServiceConfiguration.Name,
+            this.PaywallContext.GetConfiguration(), isCategoryProvided ? category.Name : "#none", page, PageItems)));
+
+        model = new ContentListViewModel(PaywallHttpContext.Current, category, new List<IContent>(), PageItems, page);
+        return PartialView("_Videos", model);
+      }
+
+      model = new ContentListViewModel(PaywallHttpContext.Current, category, content, PageItems, page);
+      return PartialView("_Videos", model);
+    }
+
+		// Display list of categories
+		//ROUTE: /categories
+    //TODO: Rewrite this method later!!!
+		public ActionResult Categories()
+		{
+      CategoryViewModel model = new CategoryViewModel(PaywallHttpContext.Current);
+      if(this.Request.IsAjaxRequest() && PaywallViewEngineHelper.PartialViewExists("_Categories"))
+          return PartialView("_Categories", model);
+      
+      return View("Category", model);
+    }
+
+		//QUESTION: Is this neccessary, because it is redudant with List(int page = 0, string categoryName = null) from above?
+    public ActionResult Index(int page = 0, int categoryId = 0)
+		{
+
+      // SUMMARY: Display landing page (only if customer does not exists or does not have PaymentContentAccessPolicy), if you want to Landing page be allways visible, change it with specific Home.cshtml
+      //if(this.PaywallContext.Service.GetConfiguration(this.PaywallContext.Service.ServiceData.FallbackCountry, this.PaywallContext.Session.SessionData.MobileOperator).IsLandingPageRequired &&
+      //  (this.PaywallContext.Session.SessionData.Customer == null || this.PaywallContext.Session.SessionData.Customer.HasAccess(this.PaywallContext.Service.ServiceData)))
+      //{
+      //  WelcomeViewModel model = new WelcomeViewModel(this.PaywallContext, null, null);
+      //  Log.Debug(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web", "home", "list"),
+      //    string.Format("LANDING VIEW!! This service requires landing page")));
+      //  return View("Landing", model);
+      //}
+
+      return List(page, categoryId);
+		}
+
+
+
+    public ActionResult Avs()
+    {
+      PaywallViewModelBase model = new PaywallViewModelBase(this.PaywallContext);
+      return View("AgeVerification", model);
+    }
+    
+    
+	}
+}

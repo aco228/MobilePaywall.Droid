@@ -1,0 +1,64 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.ComponentModel;
+using System.Data;
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IContentGroupManager 
+  {
+		List<ContentGroup> Load();
+		List<ContentGroup> Load(IConnectionInfo connection);
+		ContentGroup Load(string name);
+		ContentGroup Load(IConnectionInfo connection, string name);
+		List<ContentGroup> Load(Instance instance);
+		List<ContentGroup> Load(IConnectionInfo connection, Instance instance);
+		List<ContentGroup> Load(ContentGroupType contentGroupType);
+		List<ContentGroup> Load(IConnectionInfo connection, ContentGroupType contentGroupType);
+		List<ContentGroup> Load(Instance instance, ContentGroupType contentGroupType);
+		List<ContentGroup> Load(IConnectionInfo connection, Instance instance, ContentGroupType contentGroupType);
+		List<ContentGroup> Load(Instance instance, ContentGroupType contentGroupType, bool IsEnabled);
+		List<ContentGroup> Load(IConnectionInfo connection, Instance instance, ContentGroupType contentGroupType, bool isEnabled);
+		List<ContentGroup> Load(Instance instance, bool isEnabled);
+		List<ContentGroup> Load(IConnectionInfo connection, Instance instance, bool isEnabled);
+  }
+
+  public partial class ContentGroup
+	{
+		public IContentGroup Instantiate()
+		{
+			return this.ContentGroupType.Instantiate(this);
+		}
+
+    public static List<ContentGroup> LoadAll()
+    {
+      return LoadAll(1);
+    }
+
+    public static List<ContentGroup> LoadAll(int depth)
+    {
+      List<ContentGroup> contentGroups = null;
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        try
+        {
+          connection.Transaction.Begin();
+          IContentGroupManager manager = ContentGroup.CreateManager(depth);
+          contentGroups = manager.Load(connection);
+          connection.Transaction.Commit();
+          return contentGroups;
+        }
+        catch (Exception ex)
+        {
+          connection.Transaction.Rollback();
+          return null;
+        }
+      }
+    }
+  }
+}
+

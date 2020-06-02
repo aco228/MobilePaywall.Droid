@@ -1,0 +1,313 @@
+﻿@model Statistics
+@{
+  ViewBag.Title = "Identifications";
+}
+
+<!-- BEGIN PAGE HEADER-->
+<div class="page-bar">
+  <ul class="page-breadcrumb">
+    @*<li>
+        <i class="fa fa-home"></i>
+        <a href="index.html">Home</a>
+        <i class="fa fa-angle-right"></i>
+      </li>*@
+    <li>
+      <i class="icon-bar-chart"></i>
+      <a href="#">@ViewBag.Title</a>
+    </li>
+  </ul>
+  @*<div class="page-toolbar">
+      <div id="dashboard-report-range" class="pull-right tooltips btn btn-sm btn-default" data-container="body" data-placement="bottom" data-original-title="Change dashboard date range">
+        <i class="icon-calendar"></i>&nbsp; <span class="thin uppercase visible-lg-inline-block"></span>&nbsp; <i class="fa fa-angle-down"></i>
+      </div>
+    </div>*@
+</div>
+<div class="row statistics-header">
+  <div class="col-xs-6">
+    <h3 class="page-title">
+      Statistics @*<small>...some description</small>*@
+    </h3>
+  </div>
+  <div class="col-xs-6 calendar">
+    <div id="dashboard-report-range" class="tooltips btn btn-sm btn-default" data-container="body" data-placement="bottom" data-original-title="Change statistics date range">
+      <i class="icon-calendar"></i>&nbsp; <span class="thin uppercase visible-lg-inline-block"></span>&nbsp; <i class="fa fa-angle-down"></i>
+    </div>
+  </div>
+</div>
+
+<!-- END PAGE HEADER-->
+
+<div class="col-md-12">
+  <div class="row filters">
+    <div class="col-sm-6 col-md-4 col-lg-2 filter">
+      <select id="select_merchant" class="form-control select2" placeholder="Merchant" multiple>
+        @{
+          foreach (Merchant merchant in PaywallHttpContext.Current.Runtime.Merchants)
+          {
+            <option value="@merchant.ID">@merchant.Name</option>
+          }
+        }
+      </select>
+    </div>
+    <div class="col-sm-6 col-md-4 col-lg-2 filter">
+      <select id="select_service" class="form-control select2" multiple>
+        @{
+          foreach (KeyValuePair<int, List<IService>> kv in PaywallHttpContext.Current.Runtime.MerchantServiceMap)
+          {
+            <optgroup value="@kv.Key" label="@PaywallHttpContext.Current.Runtime.GetMerchantByID(kv.Key).Name">
+              @foreach (IService service in kv.Value)
+              {
+                <option value="@service.ServiceData.ID">@service.ServiceData.Name</option>
+              }
+            </optgroup>
+          }
+        }
+      </select>
+    </div>
+    <div class="col-sm-6 col-md-4 col-lg-2 filter">
+      <select id="select_country" class="form-control select2" multiple>
+        @{
+          foreach (Country country in PaywallHttpContext.Current.Runtime.Countries)
+          {
+            <option value="@country.ID">@country.GlobalName</option>
+          }
+        }
+      </select>
+    </div>
+    <div class="col-sm-6 col-md-4 col-lg-2 filter">
+      <select id="select_operator" class="form-control select2" multiple>
+
+        @foreach (KeyValuePair<int, List<MobileOperator>> kv in PaywallHttpContext.Current.Runtime.CountryOperatorMap)
+        {
+          <optgroup value="@kv.Key" label="@PaywallHttpContext.Current.Runtime.GetCountryByID(kv.Key).GlobalName">
+
+            @foreach (MobileOperator mobileOperator in kv.Value)
+            {
+              <option value="@mobileOperator.ID">@mobileOperator.Name</option>
+            }
+          </optgroup>
+        }
+      </select>
+    </div>
+    <div class="col-xs-6 col-md-4 col-lg-2 group-by" id="group-by">
+      <select class="bs-select form-control" id="bs-select-group" data-none-selected-text="Group" multiple>
+        @{
+          foreach (string group in Enum.GetNames(typeof(Group)))
+          {
+            int groupID = (int)(Group)Enum.Parse(typeof(Group), group);
+            if (groupID != 0)
+            {
+              <option value="@groupID">@group</option>
+            }
+          }
+        }
+      </select>
+    </div>
+    <div class="col-xs-6 col-md-4 col-lg-2 show-by" id="bs-select-showby">
+      <select class="bs-select form-control" id="bs-select-show" data-style="red" data-none-selected-text="Split">
+        @{
+          foreach (string split in Enum.GetNames(typeof(Split)))
+          {
+            int splitID = (int)(Split)Enum.Parse(typeof(Split), split);
+            <option value="@splitID">@split</option>
+          }
+        }
+      </select>
+    </div>
+  </div>
+</div>
+
+<div id="mptable">
+  <div class="col-md-12">
+    <div class="row">
+      <div class="portlet box blue-steel statistics-table">
+        <div class="portlet-title">
+          @*<div class="caption">
+                <i class="fa fa-globe"></i>Table Title
+            </div>*@
+          <div id="statistics_table_controls" class="actions">
+            <div id="table_export" class="btn-group">
+              <button class="btn btn-default dropdown-toggle" data-toggle="dropdown">Tools <i class="fa fa-angle-down"></i></button>
+              <ul class="dropdown-menu">
+                <li>
+                  <a href="javascript:;">Print</a>
+                </li>
+                <li>
+                  <a href="javascript:;">Save as PDF</a>
+                </li>
+                <li>
+                  <a href="javascript:;">Export to Excel</a>
+                </li>
+                <li>
+                  <a href="javascript:;">Export to CSV</a>
+                </li>
+              </ul>
+            </div>
+            <div id="column_picker" class="btn-group">
+              <a class="btn btn-default" href="javascript:;" data-toggle="dropdown">
+                Columns <i class="fa fa-angle-down"></i>
+              </a>
+              <div id="statistics_table_column_toggler" class="dropdown-menu hold-on-click dropdown-checkboxes pull-right">
+                <label><input type="checkbox" checked data-column="4">Clicks</label>
+                <label><input type="checkbox" checked data-column="5">Identifications</label>
+                <label><input type="checkbox" checked data-column="6">Payments</label>
+                <label><input type="checkbox" checked data-column="7">Transactions</label>
+              </div>
+            </div>
+            <button id="reset_btn" class="btn btn-default" style="cursor: pointer;">Reset</button>
+            <button id="refresh_btn" class="btn btn-default" style="cursor: pointer;">Refresh</button>
+          </div>
+        </div>
+        <div class="portlet-body" id="mptable-portlet-body">
+          @Html.Partial("_Table", Model)
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="clearfix">
+</div>
+
+
+@section PageScripts{
+  @Scripts.Render("~/pages/statistic/js")
+}
+
+@section CustomScripts {
+<script>
+  jQuery(document).ready(function () {
+    Metronic.init(); // init metronic core components
+    //Layout.init(); // init current layout
+    //QuickSidebar.init(); // init quick sidebar
+    //Demo.init(); // init demo features
+    TableAdvanced.init();
+    Index.initDashboardDaterange();
+    ComponentsDropdowns.init();
+  });
+
+  $('#refresh_btn').on('click', function () {
+    refresh();
+  });
+
+  $('#reset_btn').on('click', function () {
+    reset();
+  });
+
+  //$('#refresh_btn').live('touchstart', function () {
+  //  refresh();
+  //});
+
+
+
+  function refresh() {
+    Metronic.blockUI({
+      target: '#mptable-portlet-body',
+      animate: true
+    });
+
+    $.ajax({
+      url: '/statistic/transactions/table',
+      cache: false,
+      //data: { qsMerchants: getValues('merchant'), qsServices: getValues('service'), qsCountries: getValues('country'), qsOperators: getValues('operator') },
+      //data: { qsMerchants: $("#select_merchant").val(), qsServices: $("#select_service").val(), qsCountries: $("#select_country").val(), qsOperators: $("#select_operator").val(), qsGroupBy: getFromSelect(), qsShow: getShow() },
+      data: {
+        rqsMerchants: getValues('#select_merchant'),
+        rqsServices: getValues('#select_service'),
+        rqsCountries: getValues('#select_country'),
+        rqsOperators: getValues('#select_operator'),
+        rqsGroupBy: getValues('#bs-select-group'),
+        rqsShow: $('#bs-select-show').attr('value'),
+        rqsStart: $('input[name=daterangepicker_start]').val(),
+        rqsEnd: $('input[name=daterangepicker_end]').val()
+      },
+      //data: '&rqsMerchants=' + getValues('#select_merchant'),
+      method: 'POST',
+      success: function (response) {
+        $('.portlet-body').html(response);
+        TableAdvanced.init();
+        Metronic.unblockUI('#mptable-portlet-body');
+
+      },
+      error: function () {
+        Metronic.unblockUI('#mptable-portlet-body');
+      }
+    });
+
+    //Metronic.unblockUI('#mptable-portlet-body');
+  }
+
+  //function block() {
+  //  Metronic.blockUI({
+  //    target: '#mptable-portlet-body',
+  //    animate: true
+  //  });
+  //};
+
+  function getValues(select) {
+    var data = '';
+
+    if ($(select).val() == null)
+      return data;
+    $.each($(select).val(), function (i, v) {
+      if (data != '')
+        data += ',' + v;
+      else
+        data += v;
+    });
+    return data;
+  }
+
+  $('#select_merchant').on("change", function (e) { change(e, "#select_service"); });
+  $('#select_country').on("change", function (e) { change(e, "#select_operator"); });
+
+  function change(e, id) {
+    if (!e) {
+      var args = "{}";
+    } else {
+      if (e.val.length > 0) {
+
+        //Set all to hidden up front
+        $(id + " optgroup").each(function () {
+          if (!$(this).hasClass('hidden')) {
+            $(this).addClass('hidden');
+          }
+        });
+
+        //Remove hidden if match
+        $.each(e.val, function (key, value) {
+          $(id + " optgroup").each(function () {
+            if (value == $(this).attr('value') && $(this).hasClass('hidden')) {
+              $(this).removeClass('hidden');
+            }
+          });
+        });
+      } else {
+        $(id + " optgroup").each(function () {
+          if ($(this).hasClass('hidden')) {
+            $(this).removeClass('hidden');
+          }
+        });
+      }
+    }
+  }
+
+  function reset() {
+    var selector = ['#select_merchant', '#select_service', '#select_country', '#select_operator', '#bs-select-group'];
+    $.each(selector, function (k, v) {
+      $(select).each(function () {
+        $(this).select2('val', '');
+      });
+    });
+
+    //rqsMerchants: getValues('#select_merchant'),
+    //rqsServices: getValues('#select_service'),
+    //rqsCountries: getValues('#select_country'),
+    //rqsOperators: getValues('#select_operator'),
+    //rqsGroupBy: getValues('#bs-select-group'),
+    //rqsShow: $('#bs-select-show').attr('value'),
+    //rqsStart: $('input[name=daterangepicker_start]').val(),
+    //rqsEnd: $('input[name=daterangepicker_end]').val()
+  }
+
+</script>
+}

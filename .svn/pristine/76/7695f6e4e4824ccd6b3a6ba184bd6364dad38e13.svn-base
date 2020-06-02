@@ -1,0 +1,959 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+using System.Xml.Serialization;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Merchant.Models
+{
+  [Serializable, XmlRoot("ConfigurationModel")]
+  public class ConfigurationModel
+  {
+    private InstanceModel _instance = new InstanceModel();
+    //private ApplicationModel _application = null;
+    //private ProductModel _product = null;
+    //private MerchantModel _merchant = null;
+    private ServiceModel _service = new ServiceModel();
+    private ServiceConfigurationModel _serviceConfiguration = new ServiceConfigurationModel();
+    //private List<ServiceConfigurationEntryModel> _serviceConfigurationEntries = null;
+    private List<PaymentConfigurationServiceOffersMap> _paymentConfigurationServiceOffersMaps = new List<PaymentConfigurationServiceOffersMap>();
+    private List<DomainModel> _domains = new List<DomainModel>();
+    private List<int> _contentStorages = new List<int>();
+    private ContentGroupTypeModel _contentGroupType = new ContentGroupTypeModel();
+    private List<int> _contentGroups = new List<int>();
+    private List<ServiceLookupMethodMapModel> _serviceLookupMethodMaps = new List<ServiceLookupMethodMapModel>();
+    private List<ServiceConfigurationEntryMap> _serviceConfigurationEntryMaps = new List<ServiceConfigurationEntryMap>();
+    private string _terms = string.Empty;
+    private string _imprint = string.Empty;
+    private MerchantModel _newMerchant = new MerchantModel();
+
+    //for simple form
+    private List<int> _requestedCountries = new List<int>(); //requested by third party user
+    private decimal _price;
+    private string _requestedServiceType = string.Empty;
+
+    public InstanceModel Instance { get { return this._instance; } set { this._instance = value; } }
+    //public ApplicationModel Application { get { return this._application; } set { this._application = value; } }
+    //public ProductModel Product { get { return this._product; } set { this._product = value; } }
+    //public MerchantModel Merchant { get { return this._merchant; } set { this._merchant = value; } }
+    public ServiceModel Service { get { return this._service; } set { this._service = value; } }
+    public ServiceConfigurationModel ServiceConfiguration { get { return this._serviceConfiguration; } set { this._serviceConfiguration = value; } }
+    //public List<ServiceConfigurationEntryModel> ServiceConfigurationEntries { get { return this._serviceConfigurationEntries; } set { this._serviceConfigurationEntries = value; } }
+    public List<PaymentConfigurationServiceOffersMap> PaymentConfigurationServiceOffersMaps { get { return this._paymentConfigurationServiceOffersMaps; } set { this._paymentConfigurationServiceOffersMaps = value; } }
+    public List<DomainModel> Domains { get { return this._domains; } set { this._domains = value; } }
+    public List<int> ContentStorages { get { return this._contentStorages; } set { this._contentStorages = value; } }
+    public ContentGroupTypeModel ContentGroupType { get { return this._contentGroupType; } set { this._contentGroupType = value; } }
+    public List<int> ContentGroups { get { return this._contentGroups; } set { this._contentGroups = value; } }
+    public List<ServiceLookupMethodMapModel> ServiceLookupMethodMaps { get { return this._serviceLookupMethodMaps; } set { this._serviceLookupMethodMaps = value; } }
+    public List<ServiceConfigurationEntryMap> ServiceConfigurationEntryMaps { get { return this._serviceConfigurationEntryMaps; } set { this._serviceConfigurationEntryMaps = value; } }
+    [AllowHtml]
+    public string Terms { get { return this._terms; } set { this._terms = value; } }
+    [AllowHtml]
+    public string Imprint { get { return this._imprint; } set { this._imprint = value; } }
+    public MerchantModel NewMerchant { get { return this._newMerchant; } set { this._newMerchant = value; } }
+
+    public List<int> RequestedCountries { get { return this._requestedCountries; } set { this._requestedCountries = value; } }
+    public decimal Price { get { return this._price; } set { this._price = value; } }
+    public string RequestedServiceType { get { return this._requestedServiceType; } set { this._requestedServiceType = value; } }
+
+    public ConfigurationModel()
+    {
+    }
+
+    public ConfigurationModel(Service service)
+    {
+      // Service
+      this._service.ServiceID = service.ID;
+      this._service.Name = this._service.Service.Name;
+      this._service.ApplicationModel.ApplicationID = this._service.Service.Application.ID;
+      this._instance.InstanceID = this._service.ApplicationModel.Application.Instance.ID;
+      this._service.ServiceStatus = this._service.Service.ServiceStatus;
+      this._service.ServiceTypeModel.ServiceTypeID = this._service.Service.ServiceType.ID;
+      this._service.UserSessionTypeModel.UserSessionTypeID = this._service.Service.UserSessionType.ID;
+      this._service.ProductModel.ProductID = this._service.Service.Product.ID;
+      List<ServiceContentStorageMap> storageMaps = ServiceContentStorageMap.CreateManager().Load(this._service.Service);
+      if (storageMaps.Count == 0)
+        this._contentStorages.Add(1);
+      foreach (ServiceContentStorageMap scsm in storageMaps)
+        this._contentStorages.Add(scsm.ContentStorage.ID);
+
+      IServiceContentGroupMapManager scgmManager = ServiceContentGroupMap.CreateManager();
+      List<ServiceContentGroupMap> contentGroupMaps = scgmManager.Load(this._service.Service);
+
+      this._contentGroupType.ContentGroupTypeID = (from cgm in contentGroupMaps select cgm.ContentGroup.ContentGroupType.ID).Distinct().FirstOrDefault();
+
+      foreach (ServiceContentGroupMap scgm in contentGroupMaps)
+        this._contentGroups.Add(scgm.ContentGroup.ID);
+
+      TranslationKey trKey = TranslationKey.CreateManager().Load(this._service.Service);
+      //TranslationKey fallbackTrKey = TranslationKey.CreateManager().Load(this._service.Service.FallbackLanguage);
+      ITranslationValueManager tvManager = TranslationValue.CreateManager();
+      ITranslationGroupKeyManager tgkManager = TranslationGroupKey.CreateManager();
+      TranslationGroupKey tgkTerms = tgkManager.Load(49);
+      TranslationGroupKey tgkImprint = tgkManager.Load(46);
+      if (trKey != null)
+      {
+        TranslationValue trValueTerms = tvManager.Load(trKey, tgkTerms);
+        this._terms = trValueTerms != null ? trValueTerms.Value : string.Empty;
+        TranslationValue trValueImprint = tvManager.Load(trKey, tgkImprint);
+        this._imprint = trValueImprint != null ? trValueImprint.Value : string.Empty;
+      }
+
+      this._service.TemplateModel.TemplateID = this._service.Service.Template.ID;
+      this._service.MerchantModel.MerchantID = this._service.Service.Merchant.ID;
+      this._service.CountryModel.CountryID = this._service.Service.FallbackCountry != null ? this._service.Service.FallbackCountry.ID : 1;//ispraviti. ovo je samo za test
+      this._service.LanguageModel.LanguageID = this._service.Service.FallbackLanguage.ID;
+      this._service.AgeRatingModel.AgeRatingID = this._service.Service.FallbackAgeRating.ID;
+      this._service.AgeRatingSelectionMode = this._service.Service.FallbackAgeRatingSelectionMode;
+      List<Domain> domains = Domain.CreateManager().Load(this._service.Service);
+      foreach (Domain d in domains)
+      {
+        DomainModel domainModel = new DomainModel();
+        domainModel.DomainID = d.ID;
+        domainModel.DomainName = d.DomainName;
+        this._domains.Add(domainModel);
+      }
+
+      // Service Configuration
+      this._serviceConfiguration.ServiceConfigurationID = this._service.Service.ServiceConfiguration.ID;
+      List<ServiceConfigurationEntry> sConfigEntries = ServiceConfigurationEntry.CreateManager().Load(this._service.Service.ServiceConfiguration);
+      var sceGroups = from entry in sConfigEntries
+                      group entry by new { entry.Country, entry.LookupMode, entry.ShortMessageProvider, entry.AgeVerificationMode } into newGroup
+                      select newGroup;
+      foreach (var group in sceGroups)
+      {
+        ServiceConfigurationEntryMap scem = new ServiceConfigurationEntryMap();
+        List<ServiceConfigurationEntryModel> entries = new List<ServiceConfigurationEntryModel>();
+        foreach (var entry in group)
+        {
+          ServiceConfigurationEntryModel entryModel = new ServiceConfigurationEntryModel();
+          entryModel.ServiceConfigurationEntryID = entry.ID;
+          if (entry.MobileOperator != null)
+            entryModel.MobileOperatorModel.MobileOperatorID = entry.MobileOperator.ID;
+          entryModel.IsAgeVerificationRequired = entry.IsAgeVerificationRequired;
+          entryModel.AgeRatingModel.AgeRatingID = entry.AgeRating.ID;
+          entryModel.AgeRatingSelectionMode = entry.AgeRatingSelectionMode != AgeRatingSelectionMode.Unknown ? entry.AgeRatingSelectionMode : AgeRatingSelectionMode.Exact; //????
+          entryModel.IsWelcomePageRequired = entry.IsWelcomePageRequired;
+          entryModel.IsPaymentEnabled = entry.IsPaymentEnabled;
+          entries.Add(entryModel);
+        }
+        scem.CountryModel.CountryID = group.Key.Country.ID;
+        scem.LookupMode = group.Key.LookupMode;
+        scem.ShortMessageProviderModel.ShortMessageProviderID = group.Key.ShortMessageProvider.ID;
+        scem.AgeVerificationMode = group.Key.AgeVerificationMode;
+        scem.ServiceConfigurationEntryModels = entries;
+
+        this._serviceConfigurationEntryMaps.Add(scem);
+      }
+
+      //Payment Configuration
+      List<ServiceOffer> offers = ServiceOffer.CreateManager().Load(this._service.Service);
+      var pcGroups = from offer in offers
+                     group offer by offer.PaymentConfiguration into newGroup
+                     select newGroup;
+
+      foreach (var group in pcGroups)
+      {
+        PaymentConfigurationServiceOffersMap pcsom = new PaymentConfigurationServiceOffersMap();
+        PaymentConfigurationModel pcModel = new PaymentConfigurationModel();
+        ServiceLookupMethodMapModel slmmModel = new ServiceLookupMethodMapModel();
+
+        //ServiceLookupMethodMap slmm = ServiceLookupMethodMap.CreateManager().Load(group.Key).FirstOrDefault();
+        //slmmModel.ServiceLookupMethodMapID = slmm.ID;
+        //slmmModel.CountryModel.CountryID = slmm.Country.ID;
+        //slmmModel.LookupMethod = slmm.LookupMethod;
+
+        List<ServiceOfferModel> offerModels = new List<ServiceOfferModel>();
+        foreach (ServiceOffer offer in group)
+        {
+          ServiceOfferModel offerModel = new ServiceOfferModel();
+          offerModel.ServiceOfferID = offer.ID;
+          offerModel.Name = offer.Name;
+          offerModel.IsDefault = offer.IsDefault;
+          offerModel.IsActive = offer.IsActive;
+          offerModel.ValidFrom = offer.ValidFrom;
+          offerModel.ValidTo = offer.ValidTo;
+          offerModel.ContentAccessPolicyModel.TemporarySetupAccessMode = offer.ContentAccessPolicy.TemporarySetupAccessMode;
+          offerModel.ContentAccessPolicyModel.TemporaryAccessInSeconds = offer.ContentAccessPolicy.TemporaryAccessInSeconds / 60;
+          offerModel.ContentAccessPolicyModel.BusinessModelModel.BusinessModelID = offer.ContentAccessPolicy.BusinessModel.ID;
+          offerModel.ContentAccessPolicyModel.BusinessModelEntryModel.BusinessModelEntryID = offer.ContentAccessPolicy.BusinessModelEntry.ID;
+          offerModel.ContentAccessPolicyModel.NumberOfItems = offer.ContentAccessPolicy.NumberOfItems;
+          offerModel.ContentAccessPolicyModel.NumberOfItemDownloads = offer.ContentAccessPolicy.NumberOfItemDownloads;
+          offerModel.ContentAccessPolicyModel.NumberOfTotalDownloads = offer.ContentAccessPolicy.NumberOfTotalDownloads;
+          offerModel.ContentAccessPolicyModel.IntervalInSeconds = offer.ContentAccessPolicy.IntervalInSeconds / 86400;
+          offerModels.Add(offerModel);
+        }
+
+        pcModel.PaymentConfigurationID = group.Key.ID;
+        pcModel.Name = group.Key.Name;
+        pcModel.PaymentProviderModel.PaymentProviderID = group.Key.PaymentProvider.ID;
+        pcModel.PaymentCredentialsModel.PaymentCredentialsID = group.Key.PaymentCredentials.ID;
+        pcModel.PaymentInterfaceModel.PaymentInterfaceID = group.Key.PaymentInterface.ID;
+        pcModel.PaymentType = group.Key.PaymentType;
+        pcModel.ProductModel.ProductID = group.Key.Product.ID;
+        pcModel.BehaviorModelModel.BehaviorModelID = group.Key.BehaviorModel.ID;
+        pcModel.BehaviorModelModel.Name = group.Key.BehaviorModel.Name;
+        pcModel.BehaviorModelModel.ExternalServiceID = group.Key.BehaviorModel.ExternalServiceID;
+        pcModel.BehaviorModelModel.ExternalBehaviorModelGuid = group.Key.BehaviorModel.ExternalBehaviorModelGuid.ToString();
+
+        pcsom.PaymentConfigurationModel = pcModel;
+        //pcsom.ServiceLookupMethodMapModel = slmmModel;
+        pcsom.ServiceOffers = offerModels;
+        this._paymentConfigurationServiceOffersMaps.Add(pcsom);
+      }
+
+      //Identification Configuration
+      List<ServiceLookupMethodMap> slmms = ServiceLookupMethodMap.CreateManager().Load(this._service.Service);
+      foreach (ServiceLookupMethodMap slmm in slmms)
+      {
+        ServiceLookupMethodMapModel slmmModel = new ServiceLookupMethodMapModel();
+        slmmModel.ServiceLookupMethodMapID = slmm.ID;
+        slmmModel.PaymentConfigurationModel.PaymentConfigurationID = slmm.PaymentConfiguration.ID;
+        slmmModel.CountryModel.CountryID = slmm.Country.ID;
+        slmmModel.LookupMethod = slmm.LookupMethod;
+
+        this._serviceLookupMethodMaps.Add(slmmModel);
+      }
+    }
+  }
+
+  public class PaymentConfigurationServiceOffersMap
+  {
+    private PaymentConfigurationModel _paymentConfigurationModel = new PaymentConfigurationModel();
+    //private ServiceLookupMethodMapModel _serviceLookupMethodMapModel = new ServiceLookupMethodMapModel();
+    private List<ServiceOfferModel> _serviceOffers = new List<ServiceOfferModel>();
+
+    public PaymentConfigurationModel PaymentConfigurationModel { get { return this._paymentConfigurationModel; } set { this._paymentConfigurationModel = value; } }
+    //public ServiceLookupMethodMapModel ServiceLookupMethodMapModel { get { return this._serviceLookupMethodMapModel; } set { this._serviceLookupMethodMapModel = value; } }
+    public List<ServiceOfferModel> ServiceOffers { get { return this._serviceOffers; } set { this._serviceOffers = value; } }
+  }
+
+  public class ServiceConfigurationEntryMap
+  {
+    private CountryModel _countryModel = new CountryModel();
+    private LanguageModel _languageModel = new LanguageModel();
+    private LookupMode _lookupMode = LookupMode.Unknown;
+    private ShortMessageProviderModel _shortMessageProviderModel = new ShortMessageProviderModel();
+    private AgeVerificationMode _ageVerificationMode = AgeVerificationMode.Unknown;
+    private List<ServiceConfigurationEntryModel> _serviceConfigurationEntryModels = new List<ServiceConfigurationEntryModel>();
+
+    public CountryModel CountryModel { get { return this._countryModel; } set { this._countryModel = value; } }
+    public LanguageModel LanguageModel { get { return this._languageModel; } set { this._languageModel = value; } }
+    public LookupMode LookupMode { get { return this._lookupMode; } set { this._lookupMode = value; } }
+    public ShortMessageProviderModel ShortMessageProviderModel { get { return this._shortMessageProviderModel; } set { this._shortMessageProviderModel = value; } }
+    public AgeVerificationMode AgeVerificationMode { get { return this._ageVerificationMode; } set { this._ageVerificationMode = value; } }
+    public List<ServiceConfigurationEntryModel> ServiceConfigurationEntryModels { get { return this._serviceConfigurationEntryModels; } set { this._serviceConfigurationEntryModels = value; } }
+  }
+
+  public class InstanceModel
+  {
+    private int? _instanceID = null;
+    private string _name = String.Empty;
+
+    public int? InstanceID { get { return this._instanceID; } set { this._instanceID = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+
+    public Instance Instance { get { return this._instanceID.HasValue ? Data.Instance.CreateManager().Load(this._instanceID.Value) : null; } }
+  }
+
+  public class RuntimeTypeModel
+  {
+    private int? _runtimeTypeID = null;
+    private string _name = String.Empty;
+    private string _typeName = String.Empty;
+    private string _description = String.Empty;
+
+    public int? RuntimeTypeID { get { return this._runtimeTypeID; } set { this._runtimeTypeID = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public string TypeName { get { return this._typeName; } set { this._typeName = value; } }
+    public string Description { get { return this._description; } set { this._description = value; } }
+
+    public RuntimeType RuntimeType { get { return this._runtimeTypeID.HasValue ? RuntimeType.CreateManager().Load(this._runtimeTypeID.Value) : null; } }
+  }
+
+  public class ApplicationModel
+  {
+    private int? _applicationID = null;
+    private InstanceModel _instanceModel = new InstanceModel();
+    private ApplicationType _applicationType = ApplicationType.Unknown;
+    private RuntimeTypeModel _runtimeTypeModel = new RuntimeTypeModel();
+    private string _name = String.Empty;
+    private string _applicationName = String.Empty;
+
+    public int? ApplicationID { get { return this._applicationID; } set { this._applicationID = value; } }
+    public InstanceModel InstanceModele { get { return this._instanceModel; } set { this._instanceModel = value; } }
+    public ApplicationType ApplicationType { get { return this._applicationType; } set { this._applicationType = value; } }
+    public RuntimeTypeModel RuntimeTypeModel { get { return this._runtimeTypeModel; } set { this._runtimeTypeModel = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public string ApplicationName { get { return this._applicationName; } set { this._applicationName = value; } }
+
+    public Data.Application Application { get { return this._applicationID.HasValue ? Data.Application.CreateManager().Load(this._applicationID.Value) : null; } }
+  }
+
+  public class ProductModel
+  {
+    private int? _productID = null;
+    private InstanceModel _instanceModel = new InstanceModel();
+    private string _name = String.Empty;
+    private string _description = String.Empty;
+
+    public int? ProductID { get { return this._productID; } set { this._productID = value; } }
+    public InstanceModel InstanceModel { get { return this._instanceModel; } set { this._instanceModel = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public string Description { get { return this._description; } set { this._description = value; } }
+
+    public Product Product { get { return this._productID.HasValue ? Product.CreateManager().Load(this._productID.Value) : null; } }
+  }
+
+  public class MerchantModel
+  {
+    private int? _merchantID = null;
+    private InstanceModel _instanceModel = new InstanceModel();
+    private TemplateModel _templateModel = new TemplateModel();
+    private string _name = String.Empty;
+    private string _address = String.Empty;
+    private string _phone = String.Empty;
+    private string _email = String.Empty;
+    private string _registrationNo = String.Empty;
+    private string _vatNo = String.Empty;
+
+    public int? MerchantID { get { return this._merchantID; } set { this._merchantID = value; } }
+    public InstanceModel InstanceModel { get { return this._instanceModel; } set { this._instanceModel = value; } }
+    public TemplateModel TemplateModel { get { return this._templateModel; } set { this._templateModel = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public string Address { get { return this._address; } set { this._address = value; } }
+    public string Phone { get { return this._phone; } set { this._phone = value; } }
+    public string Email { get { return this._email; } set { this._email = value; } }
+    public string RegistrationNo { get { return this._registrationNo; } set { this._registrationNo = value; } }
+    public string VatNo { get { return this._vatNo; } set { this._vatNo = value; } }
+
+    public Data.Merchant Merchant { get { return this._merchantID.HasValue ? Data.Merchant.CreateManager().Load(this._merchantID.Value) : null; } }
+  }
+
+  public class ServiceTypeModel
+  {
+    private int? _serviceTypeID = null;
+    private string _name = String.Empty;
+    private string _typeName = String.Empty;
+    private string _description = String.Empty;
+
+    public int? ServiceTypeID { get { return this._serviceTypeID; } set { this._serviceTypeID = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public string TypeName { get { return this._typeName; } set { this._typeName = value; } }
+    public string Description { get { return this._description; } set { this._description = value; } }
+
+    public ServiceType ServiceType { get { return this._serviceTypeID.HasValue ? ServiceType.CreateManager().Load(this._serviceTypeID.Value) : null; } }
+  }
+
+  public class UserSessionTypeModel
+  {
+    private int? _userSessionTypeID = null;
+    private string _name = String.Empty;
+    private string _typeName = String.Empty;
+
+    public int? UserSessionTypeID { get { return this._userSessionTypeID; } set { this._userSessionTypeID = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public string TypeName { get { return this._typeName; } set { this._typeName = value; } }
+
+    public UserSessionType UserSessionType { get { return this._userSessionTypeID.HasValue ? UserSessionType.CreateManager().Load(this._userSessionTypeID.Value) : null; } }
+  }
+
+  public class CountryModel
+  {
+    private int? _countryID;
+    private string _globalName = String.Empty;
+    private string _localName = String.Empty;
+    private string _countryCode = String.Empty;
+    private string _cultureCode = String.Empty;
+    private string _twoLetterIsoCode = String.Empty;
+    private int? _lCID = null;
+    private int? _callingCode = null;
+
+    public int? CountryID { get { return this._countryID; } set { this._countryID = value; } }
+    public string GlobalName { get { return this._globalName; } set { this._globalName = value; } }
+    public string LocalName { get { return this._localName; } set { this._localName = value; } }
+    public string CountryCode { get { return this._countryCode; } set { this._countryCode = value; } }
+    public string CultureCode { get { return this._cultureCode; } set { this._cultureCode = value; } }
+    public string TwoLetterIsoCode { get { return this._twoLetterIsoCode; } set { this._twoLetterIsoCode = value; } }
+    public int? LCID { get { return this._lCID; } set { this._lCID = value; } }
+    public int? CallingCode { get { return this._callingCode; } set { this._callingCode = value; } }
+
+    public Country Country { get { return this._countryID.HasValue ? Country.CreateManager().Load(this._countryID.Value) : null; } }
+  }
+
+  public class LanguageModel
+  {
+    private int? _languageID = null;
+    private string _globalName = String.Empty;
+    private string _localName = String.Empty;
+    private string _charset = String.Empty;
+    private string _twoLetterIsoCode = String.Empty;
+    private bool _isSupported = false;
+
+    public int? LanguageID { get { return this._languageID; } set { this._languageID = value; } }
+    public string GlobalName { get { return this._globalName; } set { this._globalName = value; } }
+    public string LocalName { get { return this._localName; } set { this._localName = value; } }
+    public string Charset { get { return this._charset; } set { this._charset = value; } }
+    public string TwoLetterIsoCode { get { return this._twoLetterIsoCode; } set { this._twoLetterIsoCode = value; } }
+    public bool IsSupported { get { return this._isSupported; } set { this._isSupported = value; } }
+
+    public Language Language { get { return this._languageID.HasValue ? Language.CreateManager().Load(this._languageID.Value) : null; } }
+  }
+
+  public class AgeRatingModel
+  {
+    private int? _ageRatingID = null;
+    private string _name = String.Empty;
+    private int? _index = null;
+    private string _description = String.Empty;
+
+    public int? AgeRatingID { get { return this._ageRatingID; } set { this._ageRatingID = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public int? Index { get { return this._index; } set { this._index = value; } }
+    public string Description { get { return this._description; } set { this._description = value; } }
+
+    public AgeRating AgeRating { get { return _ageRatingID.HasValue ? AgeRating.CreateManager().Load(this._ageRatingID.Value) : null; } }
+  }
+
+  public class DomainModel
+  {
+    private int? _domainID = null;
+    private string _domainName = String.Empty;
+    private ServiceModel _serviceModel = new ServiceModel();
+
+    public int? DomainID { get { return this._domainID; } set { this._domainID = value; } }
+    public string DomainName { get { return this._domainName; } set { this._domainName = value; } }
+    public ServiceModel ServiceModel { get { return this._serviceModel; } set { this._serviceModel = value; } }
+
+    public Domain Domain { get { return this._domainID.HasValue ? Domain.CreateManager().Load(this._domainID.Value) : null; } }
+
+    //public DomainModel() { }
+  }
+
+  public class ServiceConfigurationModel
+  {
+    private int? _serviceConfigurationID = null;
+    private InstanceModel _instanceModel = new InstanceModel();
+
+    public int? ServiceConfigurationID { get { return this._serviceConfigurationID; } set { this._serviceConfigurationID = value; } }
+    public InstanceModel InstanceModel { get { return this._instanceModel; } set { this._instanceModel = value; } }
+
+    public ServiceConfiguration ServiceConfiguration { get { return this._serviceConfigurationID.HasValue ? ServiceConfiguration.CreateManager().Load(this._serviceConfigurationID.Value) : null; } }
+  }
+
+  public class BusinessModelModel
+  {
+    private int? _businessModelID = null;
+    private string _name = String.Empty;
+    private string _description = String.Empty;
+
+    public int? BusinessModelID { get { return this._businessModelID; } set { this._businessModelID = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public string Description { get { return this._description; } set { this._description = value; } }
+
+    public BusinessModel BusinessModel { get { return this._businessModelID.HasValue ? BusinessModel.CreateManager().Load(this._businessModelID.Value) : null; } }
+  }
+
+  public class TemplateModel
+  {
+    private int? _templateID = null;
+    private string _name = String.Empty;
+    private string _description = String.Empty;
+
+    public int? TemplateID { get { return this._templateID; } set { this._templateID = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public string Description { get { return this._description; } set { this._description = value; } }
+
+    public Template Template { get { return this._templateID.HasValue ? Template.CreateManager().Load(this._templateID.Value) : null; } }
+  }
+
+  public class ServiceModel
+  {
+    private int? _serviceID = null;
+    private ApplicationModel _applicationModel = new ApplicationModel();
+    private ProductModel _productModel = new ProductModel();
+    private MerchantModel _merchantModel = new MerchantModel();
+    private ServiceStatus _serviceStatus = ServiceStatus.Free;
+    private ServiceTypeModel _serviceTypeModel = new ServiceTypeModel();
+    private UserSessionTypeModel _userSessionTypeModel = new UserSessionTypeModel();
+    private CountryModel _countryModel = new CountryModel();
+    private LanguageModel _languageModel = new LanguageModel();
+    private AgeRatingModel _ageRatingModel = new AgeRatingModel();
+    private AgeRatingSelectionMode _ageRatingSelectionMode = AgeRatingSelectionMode.Unknown;
+    private ServiceConfigurationModel _serviceConfigurationModel = new ServiceConfigurationModel();
+    private BusinessModelModel _businessModelModel = new BusinessModelModel();
+    private TemplateModel _templateModel = new TemplateModel();
+    private string _name = string.Empty;
+    private string _description = string.Empty;
+
+    public int? ServiceID { get { return this._serviceID; } set { this._serviceID = value; } }
+    public ApplicationModel ApplicationModel { get { return this._applicationModel; } set { this._applicationModel = value; } }
+    public ProductModel ProductModel { get { return this._productModel; } set { this._productModel = value; } }
+    public MerchantModel MerchantModel { get { return this._merchantModel; } set { this._merchantModel = value; } }
+    public ServiceStatus ServiceStatus { get { return this._serviceStatus; } set { this._serviceStatus = value; } }
+    public ServiceTypeModel ServiceTypeModel { get { return this._serviceTypeModel; } set { this._serviceTypeModel = value; } }
+    public UserSessionTypeModel UserSessionTypeModel { get { return this._userSessionTypeModel; } set { this._userSessionTypeModel = value; } }
+    public CountryModel CountryModel { get { return this._countryModel; } set { this._countryModel = value; } }
+    public LanguageModel LanguageModel { get { return this._languageModel; } set { this._languageModel = value; } }
+    public AgeRatingModel AgeRatingModel { get { return this._ageRatingModel; } set { this._ageRatingModel = value; } }
+    public AgeRatingSelectionMode AgeRatingSelectionMode { get { return this._ageRatingSelectionMode; } set { this._ageRatingSelectionMode = value; } }
+    public ServiceConfigurationModel ServiceConfigurationModel { get { return this._serviceConfigurationModel; } set { this._serviceConfigurationModel = value; } }
+    public BusinessModelModel BusinessModelModel { get { return this._businessModelModel; } set { this._businessModelModel = value; } }
+    public TemplateModel TemplateModel { get { return this._templateModel; } set { this._templateModel = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public string Description { get { return this._description; } set { this._description = value; } }
+
+    public Service Service { get { return this._serviceID.HasValue ? Service.CreateManager().Load(this._serviceID.Value) : null; } }
+  }
+
+  public class BehaviorModelModel
+  {
+    private int? _behaviorModelID = null;
+    private string _name = string.Empty;
+    private string _externalServiceID = string.Empty;
+    private string _externalBehaviorModelGuid = string.Empty;
+
+    public int? BehaviorModelID { get { return this._behaviorModelID; } set { this._behaviorModelID = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public string ExternalServiceID { get { return this._externalServiceID; } set { this._externalServiceID = value; } }
+    public string ExternalBehaviorModelGuid { get { return this._externalBehaviorModelGuid; } set { this._externalBehaviorModelGuid = value; } }
+
+    public BehaviorModel BehaviorModel { get { return this._behaviorModelID.HasValue ? BehaviorModel.CreateManager().Load(this._behaviorModelID.Value) : null; } }
+  }
+
+  public class MobileOperatorModel
+  {
+    public int? _mobileOperatorID = null;
+    private int? _externalMobileOperatorID = null;
+    private CountryModel _countryModel = new CountryModel();
+    private string _name = String.Empty;
+
+    public int? MobileOperatorID { get { return this._mobileOperatorID; } set { this._mobileOperatorID = value; } }
+    public int? ExternalMobileOperatorID { get { return this._externalMobileOperatorID; } set { this._externalMobileOperatorID = value; } }
+    public CountryModel CountryModel { get { return this._countryModel; } set { this._countryModel = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+
+    public MobileOperator MobileOperator { get { return this._mobileOperatorID.HasValue ? MobileOperator.CreateManager().Load(this._mobileOperatorID.Value) : null; } }
+  }
+
+  public class ShortMessageProviderTypeModel
+  {
+    private int? _shortMessageProviderTypeID = null;
+    private string _name = String.Empty;
+    private string _typeName = String.Empty;
+    private string _description = String.Empty;
+
+    public int? ShortMessageProviderTypeID { get { return this._shortMessageProviderTypeID; } set { this._shortMessageProviderTypeID = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public string TypeName { get { return this._typeName; } set { this._typeName = value; } }
+    public string Description { get { return this._description; } set { this._description = value; } }
+
+    public ShortMessageProviderType ShortMessageProviderType { get { return this._shortMessageProviderTypeID.HasValue ? ShortMessageProviderType.CreateManager().Load(this._shortMessageProviderTypeID.Value) : null; } }
+  }
+
+  public class ShortMessageProviderConfigurationModel
+  {
+    private int? _shortMessageProviderConfigurationID = null;
+    private string _name = String.Empty;
+    private string _description = String.Empty;
+    private string _url = String.Empty;
+    private string _username = String.Empty;
+    private string _password = String.Empty;
+
+    public int? ShortMessageProviderConfigurationID { get { return this._shortMessageProviderConfigurationID; } set { this._shortMessageProviderConfigurationID = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public string Description { get { return this._description; } set { this._description = value; } }
+    public string Url { get { return this._url; } set { this._url = value; } }
+    public string Username { get { return this._username; } set { this._username = value; } }
+    public string Password { get { return this._password; } set { this._password = value; } }
+
+    public ShortMessageProviderConfiguration ShortMessageProviderConfiguration { get { return this._shortMessageProviderConfigurationID.HasValue ? ShortMessageProviderConfiguration.CreateManager().Load(this._shortMessageProviderConfigurationID.Value) : null; } }
+  }
+
+  public class ShortMessageProviderModel
+  {
+    private int? _shortMessageProviderID = null;
+    private ShortMessageProviderTypeModel _shortMessageProviderTypeModel = new ShortMessageProviderTypeModel();
+    private ShortMessageProviderConfigurationModel _shortMessageProviderConfigurationModel = new ShortMessageProviderConfigurationModel();
+    private string _name = String.Empty;
+    private string _description = String.Empty;
+
+    public int? ShortMessageProviderID { get { return this._shortMessageProviderID; } set { this._shortMessageProviderID = value; } }
+    public ShortMessageProviderTypeModel ShortMessageProviderTypeModel { get { return this._shortMessageProviderTypeModel; } set { this._shortMessageProviderTypeModel = value; } }
+    public ShortMessageProviderConfigurationModel ShortMessageProviderConfigurationModel { get { return this._shortMessageProviderConfigurationModel; } set { this._shortMessageProviderConfigurationModel = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public string Description { get { return this._description; } set { this._description = value; } }
+
+    public ShortMessageProvider ShortMessageProvider { get { return this._shortMessageProviderID.HasValue ? ShortMessageProvider.CreateManager().Load(this._shortMessageProviderID.Value) : null; } }
+  }
+
+  public class ServiceConfigurationEntryModel
+  {
+    private int? _serviceConfigurationEntryID = null;
+    private ServiceConfigurationModel _serviceConfigurationModel = new ServiceConfigurationModel();
+    private CountryModel _countryModel = new CountryModel();
+    private MobileOperatorModel _mobileOperatorModel = new MobileOperatorModel();
+    private LookupMode _lookupMode = LookupMode.Unknown;
+    private AgeVerificationMode _ageVerificationMode = AgeVerificationMode.Unknown;
+    private AgeRatingModel _ageRatingModel = new AgeRatingModel();
+    private AgeRatingSelectionMode _ageRatingSelectionMode = AgeRatingSelectionMode.Unknown;
+    private ShortMessageProviderModel _shortMessageProviderModel = new ShortMessageProviderModel();
+    private bool _isAgeVerificationRequired;
+    private bool _isWelcomePageRequired;
+    private bool _isPaymentEnabled;
+
+    public int? ServiceConfigurationEntryID { get { return this._serviceConfigurationEntryID; } set { this._serviceConfigurationEntryID = value; } }
+    public ServiceConfigurationModel ServiceConfigurationModel { get { return this._serviceConfigurationModel; } set { this._serviceConfigurationModel = value; } }
+    public CountryModel CountryModel { get { return this._countryModel; } set { this._countryModel = value; } }
+    public MobileOperatorModel MobileOperatorModel { get { return this._mobileOperatorModel; } set { this._mobileOperatorModel = value; } }
+    public LookupMode LookupMode { get { return this._lookupMode; } set { this._lookupMode = value; } }
+    public AgeVerificationMode AgeVerificationMode { get { return this._ageVerificationMode; } set { this._ageVerificationMode = value; } }
+    public AgeRatingModel AgeRatingModel { get { return this._ageRatingModel; } set { this._ageRatingModel = value; } }
+    public AgeRatingSelectionMode AgeRatingSelectionMode { get { return this._ageRatingSelectionMode; } set { this._ageRatingSelectionMode = value; } }
+    public ShortMessageProviderModel ShortMessageProviderModel { get { return this._shortMessageProviderModel; } set { this._shortMessageProviderModel = value; } }
+    public bool IsAgeVerificationRequired { get { return this._isAgeVerificationRequired; } set { this._isAgeVerificationRequired = value; } }
+    public bool IsWelcomePageRequired { get { return this._isWelcomePageRequired; } set { this._isWelcomePageRequired = value; } }
+    public bool IsPaymentEnabled { get { return this._isPaymentEnabled; } set { this._isPaymentEnabled = value; } }
+
+    public ServiceConfigurationEntry ServiceConfigurationEntry { get { return this._serviceConfigurationEntryID.HasValue ? ServiceConfigurationEntry.CreateManager().Load(this._serviceConfigurationEntryID.Value) : null; } }
+  }
+
+  public class BusinessModelTypeModel
+  {
+    private int? _businessModelTypeID = null;
+    private string _name = String.Empty;
+    private string _typeName = String.Empty;
+
+    public int? BusinessModelTypeID { get { return this._businessModelTypeID; } set { this._businessModelTypeID = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public string TypeName { get { return this._typeName; } set { this._typeName = value; } }
+
+    public BusinessModelType BusinessModelType { get { return this._businessModelTypeID.HasValue ? BusinessModelType.CreateManager().Load(this._businessModelTypeID.Value) : null; } }
+  }
+
+  public class BusinessModelEntryModel
+  {
+    private int? _businessModelEntryID = null;
+    private BusinessModelEntryStatus _businessModelEntryStatus = BusinessModelEntryStatus.Unknown;
+    private BusinessModelModel _businessModelModel = new BusinessModelModel();
+    private CountryModel _countryModel = new CountryModel();
+    private MobileOperatorModel _mobileOperatorModel = new MobileOperatorModel();
+    private BusinessModelTypeModel _businessModelTypeModel = new BusinessModelTypeModel();
+
+    public int? BusinessModelEntryID { get { return this._businessModelEntryID; } set { this._businessModelEntryID = value; } }
+    public BusinessModelEntryStatus BusinessModelEntryStatus { get { return this._businessModelEntryStatus; } set { this._businessModelEntryStatus = value; } }
+    public BusinessModelModel BusinessModelModel { get { return this._businessModelModel; } set { this._businessModelModel = value; } }
+    public CountryModel CountryModel { get { return this._countryModel; } set { this._countryModel = value; } }
+    public MobileOperatorModel MobileOperatorModel { get { return this._mobileOperatorModel; } set { this._mobileOperatorModel = value; } }
+    public BusinessModelTypeModel BusinessModelTypeModel { get { return this._businessModelTypeModel; } set { this._businessModelTypeModel = value; } }
+
+    public BusinessModelEntry BusinessModelEntry { get { return this._businessModelEntryID.HasValue ? BusinessModelEntry.CreateManager().Load(this._businessModelEntryID.Value) : null; } }
+  }
+
+  public class ContentGroupTypeModel
+  {
+    private int? _contentGroupTypeID = null;
+    private string _name = String.Empty;
+    private string _typeName = String.Empty;
+
+    public int? ContentGroupTypeID { get { return this._contentGroupTypeID; } set { this._contentGroupTypeID = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public string TypeName { get { return this._typeName; } set { this._typeName = value; } }
+
+    public ContentGroupType ContentGroupType { get { return this._contentGroupTypeID.HasValue ? ContentGroupType.CreateManager().Load(this._contentGroupTypeID.Value) : null; } }
+  }
+
+  public class ContentGroupModel
+  {
+    private int? _contentGroupID = null;
+    private InstanceModel _instanceModel = new InstanceModel();
+    private ContentGroupTypeModel _contentGroupTypeModel = new ContentGroupTypeModel();
+    private string _name = String.Empty;
+    private bool _isEnabled = false;
+
+    public int? ContentGroupID { get { return this._contentGroupID; } set { this._contentGroupID = value; } }
+    public InstanceModel InstanceModel { get { return this._instanceModel; } set { this._instanceModel = value; } }
+    public ContentGroupTypeModel ContentGroupTypeModel { get { return this._contentGroupTypeModel; } set { this._contentGroupTypeModel = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public bool IsEnabled { get { return this._isEnabled; } set { this._isEnabled = value; } }
+
+    public ContentGroup ContentGroup { get { return this._contentGroupID.HasValue ? ContentGroup.CreateManager().Load(this._contentGroupID.Value) : null; } }
+  }
+
+  public class ContentTypeModel
+  {
+    private int? _contentTypeID = null;
+    private string _name = String.Empty;
+    private string _typeName = String.Empty;
+    private string _description = String.Empty;
+
+    public int? ContentTypeID { get { return this._contentTypeID; } set { this._contentTypeID = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public string TypeName { get { return this._typeName; } set { this._typeName = value; } }
+    public string Description { get { return this._description; } set { this._description = value; } }
+
+    public ContentType ContentType { get { return this._contentTypeID.HasValue ? ContentType.CreateManager().Load(this._contentTypeID.Value) : null; } }
+  }
+
+  public class ContentStorageTypeModel
+  {
+    private int? _contentStorageTypeID = null;
+    private string _name = String.Empty;
+    private string _typeName = String.Empty;
+
+    public int? ContentStorageTypeID { get { return this._contentStorageTypeID; } set { this._contentStorageTypeID = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public string TypeName { get { return this._typeName; } set { this._typeName = value; } }
+
+    public ContentStorageType ContentStorageType { get { return this._contentStorageTypeID.HasValue ? ContentStorageType.CreateManager().Load(this._contentStorageTypeID.Value) : null; } }
+  }
+
+  public class ContentStorageModel
+  {
+    private int? _contentStorageID = null;
+    private ContentStorageTypeModel _contentStorageTypeModel = new ContentStorageTypeModel();
+    private InstanceModel _instanceModel = new InstanceModel();
+    private string _name = String.Empty;
+
+    public int? ContentStorageID { get { return this._contentStorageID; } set { this._contentStorageID = value; } }
+    public ContentStorageTypeModel ContentStorageTypeModel { get { return this._contentStorageTypeModel; } set { this._contentStorageTypeModel = value; } }
+    public InstanceModel InstanceModel { get { return this._instanceModel; } set { this._instanceModel = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+
+    public ContentStorage ContentStorage { get { return this._contentStorageID.HasValue ? ContentStorage.CreateManager().Load(this._contentStorageID.Value) : null; } }
+  }
+
+  public class ContentModel
+  {
+    private int? _contentID = null;
+    private ContentGroupModel _contentGroupModel = new ContentGroupModel();
+    private ContentTypeModel _contentTypeModel = new ContentTypeModel();
+    private ContentStorageModel _contentStorageModel = new ContentStorageModel();
+    private AgeRatingModel _ageRatingModel = new AgeRatingModel();
+    private bool _isEnabled = false;
+
+    public int? ContentID { get { return this._contentID; } set { this._contentID = value; } }
+    public ContentGroupModel ContentGroupTypeModel { get { return this._contentGroupModel; } set { this._contentGroupModel = value; } }
+    public ContentTypeModel ContentTypeModel { get { return this._contentTypeModel; } set { this._contentTypeModel = value; } }
+    public ContentStorageModel ContentStorageModel { get { return this._contentStorageModel; } set { this._contentStorageModel = value; } }
+    public AgeRatingModel AgeRatingModel { get { return this._ageRatingModel; } set { this._ageRatingModel = value; } }
+    public bool IsEnabled { get { return this._isEnabled; } set { this._isEnabled = value; } }
+
+    public Content Content { get { return this._contentID.HasValue ? Content.CreateManager().Load(this._contentID.Value) : null; } }
+  }
+
+  public class ContentAccessPolicyModel
+  {
+    private int? _contentAccessPolicyID = null;
+    private BusinessModelModel _businessModelModel = new BusinessModelModel();
+    private BusinessModelEntryModel _businessModelEntryModel = new BusinessModelEntryModel();
+    private ServiceModel _serviceModel = new ServiceModel();
+    private ContentGroupModel _contentGroupModel = new ContentGroupModel();
+    private ContentModel _contentModel = new ContentModel();
+    private TemporarySetupAccessMode _temporarySetupAccessMode = TemporarySetupAccessMode.Unknown;
+    private int? _temporaryAccessInSeconds = null;
+    private int? _numberOfItems = null;
+    private int? _numberOfItemDownloads = null;
+    private int? _numberOfTotalDownloads = null;
+    private int? _intervalInSeconds = null;
+
+    public int? ContentAccessPolicyID { get { return this._contentAccessPolicyID; } set { this._contentAccessPolicyID = value; } }
+    public BusinessModelModel BusinessModelModel { get { return this._businessModelModel; } set { this._businessModelModel = value; } }
+    public BusinessModelEntryModel BusinessModelEntryModel { get { return this._businessModelEntryModel; } set { this._businessModelEntryModel = value; } }
+    public ServiceModel ServiceModel { get { return this._serviceModel; } set { this._serviceModel = value; } }
+    public ContentGroupModel ContentGroupModel { get { return this._contentGroupModel; } set { this._contentGroupModel = value; } }
+    public ContentModel ContentModel { get { return this._contentModel; } set { this._contentModel = value; } }
+    public TemporarySetupAccessMode TemporarySetupAccessMode { get { return this._temporarySetupAccessMode; } set { this._temporarySetupAccessMode = value; } }
+    public int? TemporaryAccessInSeconds { get { return this._temporaryAccessInSeconds; } set { this._temporaryAccessInSeconds = value; } }
+    public int? NumberOfItems { get { return this._numberOfItems; } set { this._numberOfItems = value; } }
+    public int? NumberOfItemDownloads { get { return this._numberOfItemDownloads; } set { this._numberOfItemDownloads = value; } }
+    public int? NumberOfTotalDownloads { get { return this._numberOfTotalDownloads; } set { this._numberOfTotalDownloads = value; } }
+    public int? IntervalInSeconds { get { return this._intervalInSeconds; } set { this._intervalInSeconds = value; } }
+
+    public ContentAccessPolicy ContentAccessPolicy { get { return this._contentAccessPolicyID.HasValue ? ContentAccessPolicy.CreateManager().Load(this._contentAccessPolicyID.Value) : null; } }
+  }
+
+  public class PaymentProviderModel
+  {
+    private int? _paymentProviderID = null;
+    private string _name = String.Empty;
+
+    public int? PaymentProviderID { get { return this._paymentProviderID; } set { this._paymentProviderID = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+
+    public PaymentProvider PaymentProvider { get { return this._paymentProviderID.HasValue ? PaymentProvider.CreateManager().Load(this._paymentProviderID.Value) : null; } }
+  }
+
+  public class PaymentCredentialsModel
+  {
+    private int? _paymentCredentialsID = null;
+    private string _username = String.Empty;
+    private string _password = String.Empty;
+
+    public int? PaymentCredentialsID { get { return this._paymentCredentialsID; } set { this._paymentCredentialsID = value; } }
+    public string Username { get { return this._username; } set { this._username = value; } }
+    public string Password { get { return this._password; } set { this._password = value; } }
+
+    public PaymentCredentials PaymentCredentials { get { return this._paymentCredentialsID.HasValue ? PaymentCredentials.CreateManager().Load(this._paymentCredentialsID.Value) : null; } }
+  }
+
+  public class PaymentInterfaceModel
+  {
+    private int? _paymentInterfaceID = null;
+    private string _name = String.Empty;
+
+    public int? PaymentInterfaceID { get { return this._paymentInterfaceID; } set { this._paymentInterfaceID = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+
+    public PaymentInterface PaymentInterface { get { return this._paymentInterfaceID.HasValue ? PaymentInterface.CreateManager().Load(this._paymentInterfaceID.Value) : null; } }
+  }
+
+  public class PaymentConfigurationModel
+  {
+    private int? _paymentConfigurationID = null;
+    private string _name = String.Empty;
+    private string _description = String.Empty;
+    private PaymentCredentialsModel _paymentCredentialsModel = new PaymentCredentialsModel();
+    private PaymentInterfaceModel _paymentInterfaceModel = new PaymentInterfaceModel();
+    private PaymentProviderModel _paymentProviderModel = new PaymentProviderModel();
+    private BehaviorModelModel _behaviorModelModel = new BehaviorModelModel();
+    private PaymentType _paymentType = PaymentType.Unknown;
+    private ProductModel _productModel = new ProductModel();
+
+    public int? PaymentConfigurationID { get { return this._paymentConfigurationID; } set { this._paymentConfigurationID = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public string Description { get { return this._description; } set { this._description = value; } }
+    public PaymentCredentialsModel PaymentCredentialsModel { get { return this._paymentCredentialsModel; } set { this._paymentCredentialsModel = value; } }
+    public PaymentInterfaceModel PaymentInterfaceModel { get { return this._paymentInterfaceModel; } set { this._paymentInterfaceModel = value; } }
+    public PaymentProviderModel PaymentProviderModel { get { return this._paymentProviderModel; } set { this._paymentProviderModel = value; } }
+    public BehaviorModelModel BehaviorModelModel { get { return this._behaviorModelModel; } set { this._behaviorModelModel = value; } }
+    public PaymentType PaymentType { get { return this._paymentType; } set { this._paymentType = value; } }
+    public ProductModel ProductModel { get { return this._productModel; } set { this._productModel = value; } }
+
+    public PaymentConfiguration PaymentConfiguration { get { return this._paymentConfigurationID.HasValue ? PaymentConfiguration.CreateManager().Load(this._paymentConfigurationID.Value) : null; } }
+  }
+
+  public class ServiceOfferModel
+  {
+    private int? _serviceOfferID = null;
+    private string _name = String.Empty;
+    private string _description = String.Empty;
+    private ServiceModel _serviceModel = new ServiceModel();
+    private BusinessModelEntryModel _businessModelEntryModel = new BusinessModelEntryModel();
+    private PaymentConfigurationModel _paymentConfigurationModel = new PaymentConfigurationModel();
+    private ContentAccessPolicyModel _contentAccessPolicyModel = new ContentAccessPolicyModel();
+    private bool _isDefault = true;
+    private bool _isActive = true;
+    private DateTime? _validFrom = null;
+    private DateTime? _validTo = null;
+
+    public int? ServiceOfferID { get { return this._serviceOfferID; } set { this._serviceOfferID = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public string Description { get { return this._description; } set { this._description = value; } }
+    public ServiceModel ServiceModel { get { return this._serviceModel; } set { this._serviceModel = value; } }
+    public BusinessModelEntryModel BusinessModelEntryModel { get { return this._businessModelEntryModel; } set { this._businessModelEntryModel = value; } }
+    public PaymentConfigurationModel PaymentConfigurationModel { get { return this._paymentConfigurationModel; } set { this._paymentConfigurationModel = value; } }
+    public ContentAccessPolicyModel ContentAccessPolicyModel { get { return this._contentAccessPolicyModel; } set { this._contentAccessPolicyModel = value; } }
+    public bool IsDefault { get { return this._isDefault; } set { this._isDefault = value; } }
+    public bool IsActive { get { return this._isActive; } set { this._isActive = value; } }
+    public DateTime? ValidFrom { get { return this._validFrom; } set { this._validFrom = value; } }
+    public DateTime? ValidTo { get { return this._validTo; } set { this._validTo = value; } }
+
+    public ServiceOffer ServiceOffer { get { return this._serviceOfferID.HasValue ? ServiceOffer.CreateManager().Load(this._serviceOfferID.Value) : null; } }
+  }
+
+  public class ServiceLookupMethodMapModel
+  {
+    private int? _serviceLookupMethodMapID = null;
+    private ServiceModel _serviceModel = new ServiceModel();
+    private CountryModel _countryModel = new CountryModel();
+    private LookupMethod _lookupMethod = LookupMethod.Unknown;
+    private PaymentConfigurationModel _paymentConfigurationModel = new PaymentConfigurationModel();
+
+    public int? ServiceLookupMethodMapID { get { return this._serviceLookupMethodMapID; } set { this._serviceLookupMethodMapID = value; } }
+    public ServiceModel ServiceModel { get { return this._serviceModel; } set { this._serviceModel = value; } }
+    public CountryModel CountryModel { get { return this._countryModel; } set { this._countryModel = value; } }
+    public LookupMethod LookupMethod { get { return this._lookupMethod; } set { this._lookupMethod = value; } }
+    public PaymentConfigurationModel PaymentConfigurationModel { get { return this._paymentConfigurationModel; } set { this._paymentConfigurationModel = value; } }
+
+    public ServiceLookupMethodMap ServiceLookupMethodMap { get { return this._serviceLookupMethodMapID.HasValue ? ServiceLookupMethodMap.CreateManager().Load(this._serviceLookupMethodMapID.Value) : null; } }
+  }
+
+  public class CurrencyModel
+  {
+    private int? _currencyID = null;
+    private string _name = String.Empty;
+    private string _abbreviation = String.Empty;
+    private string _symbol = String.Empty;
+
+    public int? CurrencyID { get { return this._currencyID; } set { this._currencyID = value; } }
+    public string Name { get { return this._name; } set { this._name = value; } }
+    public string Abbreviation { get { return this._abbreviation; } set { this._abbreviation = value; } }
+    public string Symbol { get { return this._symbol; } set { this._symbol = value; } }
+
+    public Currency Currency { get { return this._currencyID.HasValue ? Currency.CreateManager().Load(this._currencyID.Value) : null; } }
+
+  }
+
+  [Serializable, XmlRoot("ConfigurationModel")]
+  public class MsisdnBlacklistModel
+  {
+    private MsisdnBlacklist _msisdnBlackList = new MsisdnBlacklist();
+    private InstanceModel _instanceModel = new InstanceModel();
+    private MerchantModel _merchantModel = new MerchantModel();
+    private ServiceModel _serviceModel = new ServiceModel();
+    private string _msisdn = string.Empty;
+    private string _description = string.Empty;
+    private bool _isActive = true;
+    private bool _doesExist = false;
+    private bool _toInsert = false;
+    public MsisdnBlacklist MsidnBlackList { get { return this._msisdnBlackList; } set { this._msisdnBlackList = value; } }
+    public InstanceModel InstanceModel { get { return this._instanceModel; } set { this._instanceModel = value; } }
+    public MerchantModel MerchantModel { get { return this._merchantModel; } set { this._merchantModel = value; } }
+    public ServiceModel ServiceModel { get { return this._serviceModel; } set { this._serviceModel = value; } }
+    public string MSISDN { get { return this._msisdn; } set { this._msisdn = value; } }
+    public string Description { get { return this._description; } set { this._description = value; } }
+    public bool IsActive { get { return this._isActive; } set { this._isActive = value; } }
+    public bool DoesExist
+    {
+      get
+      {
+        IMsisdnBlacklistManager mbManager = MsisdnBlacklist.CreateManager();
+        MsisdnBlacklist mbEntry = mbManager.Load(this._msisdn).FirstOrDefault();
+        this._doesExist = mbEntry != null ? true : false;
+        return this._doesExist;
+      }
+    }
+    public bool ToInsert { get { return this._toInsert; } set { this._toInsert = value; } }
+
+
+    public MsisdnBlacklistModel()
+    {
+    }
+
+    public MsisdnBlacklistModel(string msisdn)
+    {
+      this._msisdn = msisdn;
+    }
+  }
+
+
+  //public class ServiceContentStorageMapModel
+  //{
+  //  private int? _serviceContentStorageMapID = null;
+  //  private ServiceModel _serviceModel = null;
+  //  private ContentStorageModel _contentStorageModel = null;
+
+  //  public int? ServiceContentStorageMapID { get { return this._serviceContentStorageMapID; } set { this._serviceContentStorageMapID = value; } }
+  //  public ServiceModel ServiceModel { get { return this._serviceModel; } set { this._serviceModel = value; } }
+  //  public ContentStorageModel ContentStorageModel { get { return this._contentStorageModel; } set { this._contentStorageModel = value; } } 
+
+  //  public ServiceContentStorageMap ServiceContentStorageMap { get { return this._serviceContentStorageMapID.HasValue ? ServiceContentStorageMap.CreateManager().Load(this._serviceContentStorageMapID.Value) : null; } }
+  //}
+}

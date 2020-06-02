@@ -1,0 +1,93 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+
+
+namespace MobilePaywall.Data
+{
+	public partial interface IServiceManager
+	{
+		Service Load(string name);
+		Service Load(IConnectionInfo connection, string name);
+		Service Load(Guid serviceGuid);
+		Service Load(IConnectionInfo connection, Guid serviceGuid);
+
+		List<Service> Load();
+		List<Service> Load(IConnectionInfo connection);
+		List<Service> Load(Instance instance);
+		List<Service> Load(IConnectionInfo connection, Instance instance);
+		List<Service> Load(Application application);
+		List<Service> Load(IConnectionInfo connection, Application application);
+		List<Service> Load(Product product);
+		List<Service> Load(IConnectionInfo connection, Product product);
+		List<Service> Load(ServiceStatus serviceStatus);
+		List<Service> Load(IConnectionInfo connection, ServiceStatus serviceStatus);
+		List<Service> Load(ServiceType serviceType);
+		List<Service> Load(IConnectionInfo connection, ServiceType serviceType);
+		List<Service> Load(Merchant merchant);
+		List<Service> Load(IConnectionInfo connection, Merchant merchant);
+    
+    List<Service> Load(Country country);
+    List<Service> Load(IConnectionInfo connection, Country country);
+
+    
+    List<Service> Load(Application application, Merchant merchant, Product product);
+    List<Service> Load(IConnectionInfo connection, Application application, Merchant merchant, Product product);
+
+    
+    List<Service> Load(Product product, Merchant merchant);
+    List<Service> Load(IConnectionInfo connection, Product product, Merchant merchant);
+
+	}
+
+	public partial class Service
+	{
+
+    private TemplateServiceInfo _serviceInfo = null;
+
+    public TemplateServiceInfo ServiceInfo
+    {
+      get
+      {
+        if (this._serviceInfo != null)
+          return this._serviceInfo;
+        this._serviceInfo = TemplateServiceInfo.CreateManager().Load(this);
+        return this._serviceInfo;
+      }
+      set { this._serviceInfo = value; }
+    }
+
+    public Domain DefaultDomain
+    {
+      get
+      {
+        return Domain.CreateManager().Load(this).FirstOrDefault();
+      }
+    }
+
+		public IService Instantiate(IPaywallRuntime runtime)
+		{
+			return this.ServiceType.Instantiate(this, runtime);
+		}
+
+    public void UpdateWithHistory(ClientSession cs)
+    {
+      EditHistory.Track(EditHistoryAction.Update, cs, "Service", "core", this);
+    }
+
+    public void UpdateWithHistory(IUserSession cs)
+    {
+      EditHistory.Track(EditHistoryAction.Update, cs, "Service", "core", this);
+    }
+
+    public void UpdateOrInsertWithHistory(ConnectionInfo connection, ClientSession cs, Service service)
+    {
+      EditHistory.Track(EditHistoryAction.UpdateOrInsert, cs, this, connection, service);
+    }
+
+  }
+}
+

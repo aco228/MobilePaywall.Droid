@@ -1,0 +1,63 @@
+﻿@model MobilePaywall.Web.Models.ContentModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+  MobilePaywall.Video videoContent = Model.Content as MobilePaywall.Video;
+
+  System.Collections.Specialized.NameValueCollection nvc = videoContent.GetMetaInformation(PaywallHttpContext.Current.Service.ServiceData, PaywallHttpContext.Current.Session.GetUserSessionLanguage());
+
+  ViewBag.Title = nvc.Get("Title");
+  ViewBag.MetaDescription = nvc.Get("MetaDescription");
+  ViewBag.MetaKeywords = nvc.Get("MetaKeywords");
+
+  string title = string.IsNullOrEmpty(nvc.Get("Title")) ? "Stream" : nvc.Get("Title");
+}
+
+@Styles.Render("~/Style/Pink/Video")
+@section _notification2{
+  <div class="content notification">
+    <div class="decoration"></div>
+    <div class="container">
+      <p>
+        @Html.Raw(Server.HtmlDecode(ViewHelper.Prepare(Translations.Web.Home.Notification2)))
+      </p>
+    </div>
+    <div class="decoration"></div>
+  </div>
+}
+
+<div class="content">
+  <div id="stream">
+    <h3 class="pageTitle">@title</h3>
+
+    <video id="video_stream" poster="@Model.Content.GetThumbnailUrl(this.Request.UserAgent)" controls>
+      @foreach (MobilePaywall.ContentStreamingOption streamOption in Model.ContentStreamingOptions)
+      {
+        <source src="@Model.AppendSessionID(streamOption)" type="@streamOption.MimeType" />
+        <source src="@Model.AppendSessionID(streamOption)" />
+      }
+    </video>
+
+  </div>
+
+  <div id="download">
+    <h3 class="pageTitle">@Translations.Web.Content.Download</h3>
+
+    <table id="download_table">
+      @{
+        List<MobilePaywall.ContentDownloadOption> downloadList = Model.ContentDownloadOptions;
+        foreach (MobilePaywall.ContentDownloadOption downloadOption in downloadList)
+        {
+          <tr>
+            <td>@downloadOption.Label</td>
+            <td>
+              <a href="@Model.AppendSessionID(downloadOption)" data-ajax="false">
+                <input type="button" class="buttonWrap button button-blue contactSubmitButton download_btn" value="@Translations.Web.Content.Download">
+              </a>
+            </td>
+          </tr>
+        }
+      }
+    </table>
+
+  </div>
+</div>

@@ -1,0 +1,312 @@
+﻿
+
+function VideoShortcut(templateID) {
+    this.templateID = templateID;
+    this.popup = new VideoShortcutPopup(this);
+
+
+    // -----------------------------------------------------------------------------------------------
+    // INIT
+
+    this.init = function () {
+
+
+        this.createEvent();
+    };
+
+
+    this.createID = function () {
+        // create id for box... 
+        var text = "";
+        var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        for (var i = 0; i < 15; i++) text += possible.charAt(Math.floor(Math.random() * possible.length));
+        return text;
+    }
+
+    // -----------------------------------------------------------------------------------------------
+    // EVENTS
+
+    this.createEvent = function () {
+        if (this.templateID == 1) this.createEventOnTemplate("videoitem");
+        else this.createEventOnTemplate('');
+    }
+
+    // CAPTURE 1st TEMPLATE EVENTS
+    this.createEventOnTemplate = function (classes) {
+        var self = this;
+        $('body').on('mousedown', '.' + classes, function (event) { self.listenerDown(event, $(this), 'mouse'); });
+        $('body').on('mouseup', '.' + classes, function (event) { self.listenerUp(event, 'mouse'); });
+        $('body').on('touchstart', '.' + classes, function (event) { self.listenerDown(event, $(this), 'touch'); });
+        //$('body').on('touchend', '.'+classes, function (event) { self.listenerUp(event, 'touch'); });
+
+        // Disable context menu
+        $('body').on('contextmenu', '.' + classes, function (event) { self.listenerUp(event, 'context'); return false; });
+
+    }
+
+
+    // Event listener
+    this.listenerPressed = null;            // Time when video has pressed
+    this.videoAdress = "";                  // Adress of video
+    this.videoID = "";                      // Video ID for thumbnail, stream and download (taken from img thumbnail of video link)
+    this.longPressTime = 1000;              // Time necesary for longpress (mili)
+    this.touchStartPosition = 0;            // Collect start position to see if user is scrolling
+
+    this.listenerDown = function (event, elem, type) {
+        //event.preventDefault();
+
+        if (type == 'touch') this.touchStartPosition = event.originalEvent.touches[0].pageX;
+        else this.touchStartPosition = -1;
+
+        var imgHref = elem.find('img').not('.overlay').attr('src');
+
+        imgHref = imgHref.split('/');
+        this.videoID = imgHref[imgHref.length - 1];
+
+        elem = elem.find('a');
+        this.videoAdress = elem.attr('href');
+
+
+        this.listenerPressed = new Date().getTime();
+    }
+
+
+    this.listenerUp = function (event, type) {
+        /*if(type=='touch'){
+            var pos = event.originalEvent.touches[0].pageX;
+            if(pos!=this.touchStartPosition) return;
+        }*/
+
+        if (type == 'context' || new Date().getTime() >= this.listenerPressed + this.longPressTime) {
+            // longpress
+            this.getVideoInformations();
+        } else { }
+    }
+
+
+    // -----------------------------------------------------------------------------------------------
+    // INFORMATIONS
+
+    this.getVideoInformations = function () {
+        var self = this;
+        var videoID = this.videoID;
+        var loaderID = this.createLoader();
+        $.ajax({
+            type: 'GET', url: self.videoAdress,
+            //type: 'GET', url: 'Video.php',
+            success: function (o) {
+                var title = o.match('<title>(.*)</title>')[1];
+                if (title != 'Index') {
+                    self.popup.Add(videoID, title);
+                }
+
+                $('#' + loaderID).fadeOut(500, function () { $(this).remove(); });
+            }
+        });
+    }
+
+    /*
+        ===========================================================================================
+        LOADER
+    */
+
+    this.createLoader = function () {
+        var id = this.createID();
+        var html = '<div class="videoLoader" id="' + id + '" style="opacity:0"></div>';
+        $('body').append(html);
+        $('#' + id).css('opacity', '.4');
+        return id;
+    }
+
+
+
+
+
+    this.init();
+}
+
+function VideoShortcutPopup(dad) {
+    this.parent = dad;
+
+
+    // -----------------------------------------------------------------------------------------------
+    // INIT
+    this.init = function () {
+        $('body').append('<link href="/Scripts/mobilem/videoShourtcut/VideoShortcut.css" rel="stylesheet" />');
+        this.listener();
+    }
+
+    this.listener = function () {
+        var self = this;
+        // Close Video Shortcut
+        $('body').on('click', '.videoShortcutHolderBack', function () { self.closeEvent($(this)); });
+        $('body').on('click', '.videoShortcutBtnClose', function () { self.closeEvent($(this)); });
+
+        // Open Video
+        $('body').on('click', '.videoWatchBtn', function () {
+            var loaderID = self.parent.createLoader();
+            var elem = $(this).closest('.videoShortcutHolder');
+            if (elem.attr('videoDisplay') == true) return; else elem.attr('videoDisplay', 'true');
+
+            var videoID = elem.attr('videoID');
+            var html = self.getVideoHtml(videoID);
+
+
+            // Hide all unneceserry elements
+            $('body').children().each(function () {
+                $(this).css('visibility', 'hidden');
+            });
+
+            $('body').append(html);
+            $('#' + loaderID).fadeOut(500, function () { $(this).remove(); });
+        });
+
+        // Display Video close button
+        $('body').on('click', '.video-js', function () {
+            console.log($(this).attr('closeVideoDisplay'));
+            if ($(this).attr('closeVideoDisplay') == 'false') {
+                $(this).parent().find('.videoPlayerClose').css('opacity', '1');
+                $(this).attr('closeVideoDisplay', 'true');
+            } else {
+                $(this).parent().find('.videoPlayerClose').css('opacity', '0');
+                $(this).attr('closeVideoDisplay', 'false');
+            }
+            return false;
+        });
+
+        // Close video
+        $('body').on('click', '.videoPlayerClose', function () {
+            var loaderID = self.parent.createLoader();
+            // Show hidden elements
+
+            $('body').children().each(function () {
+                $(this).css('visibility', 'initial');
+            });
+
+            $('.videoPlayer').fadeOut(500, function () {
+                $(this).remove();
+                $('body').html($('.bodyTemp').html());
+            });
+
+            $('#' + loaderID).fadeOut(500, function () { $(this).remove(); });
+        });
+
+        // Open Preview
+        $('body').on('click', '.videoShortcutBtnPreview', function () {
+            var loaderID = self.parent.createLoader();
+            // Creating temporaly element for box inside
+            $('body').append('<div id="temoObjectForVideoPreview" style="display:none"></div>');
+            $('.videoShortcut').attr('videoPreview', 'true');
+            $('.videoShortcutIn').fadeOut(250, function () {
+                // Removing current html
+                $('#temoObjectForVideoPreview').html($(this).html());
+
+                // Resizing 
+                var box = $(this).closest('.videoShortcut');
+                box.css({ 'height': '90%', 'top': '5%' });
+                var elem = $(this);
+
+                setTimeout(function () {
+
+                    // Adding new html
+                    elem.html(self.getPreviewHtml('videoPreviewInput'));
+                    $('.videoPreviewContainer').css({ 'height': box.height() - 35, 'margin-top': '35px' });
+                    new VideoScreenshoot(self.parent.videoID, 'videoPreviewInput', 3, 5);
+                    elem.fadeIn(250);
+
+                    $('#' + loaderID).fadeOut(500, function () { $(this).remove(); });
+                }, self.animationDuration * 1000);
+            });
+
+        });
+    }
+
+    this.closeEvent = function (elem) {
+        var loaderID = this.parent.createLoader();
+        var box = elem.closest('.videoShortcut');
+
+        if (box.attr('videoPreview') == 'true') {
+            // CLOSE VIDEO PREVIEW
+            $('.videoShortcutIn').fadeOut(255, function () {
+                $(this).html($('#temoObjectForVideoPreview').html());
+                $('#temoObjectForVideoPreview').remove();
+                box.css({ 'top': box.attr('top') + 'px', 'height': box.attr('height') + 'px' });
+                $(this).fadeIn(255, function () { $('#' + loaderID).fadeOut(500, function () { $(this).remove(); }); });
+            });
+
+            box.attr('videoPreview', 'false');
+        } else {
+            // CLOSE ENTIRE CARD
+            var parent = elem.closest('.videoShortcutHolder');
+            parent.fadeOut(350, function () { $(this).remove(); });
+            $('#' + loaderID).fadeOut(500, function () { $(this).remove(); });
+        }
+    }
+
+    // -----------------------------------------------------------------------------------------------
+    // ADDING
+
+    this.animationDuration = 2;
+    this.Add = function (videoID, videoTitle) {
+        var id = this.parent.createID();
+        var html = $(this.getHtml(videoID, videoTitle)).attr('id', id);
+
+        $('body').append(html);
+        var shourtcut = $('#' + id).find('.videoShortcut');
+
+        // adjusting size
+        var top = ($(window).height() / 2) - (shourtcut.height() / 2);
+        shourtcut.css('top', top + 'px');
+        shourtcut.attr('top', top);
+        shourtcut.attr('height', shourtcut.height());
+
+        $('#' + id).css('opacity', '1');
+        shourtcut.css('transition', 'all ' + this.animationDuration + 's');
+    };
+
+    // -----------------------------------------------------------------------------------------------
+    // HTML
+
+    this.getHtml = function (videoID, videoTitle) {
+        return '<div class="videoShortcutHolder" style="opacity:0" videoDisplay="false" videoID="' + videoID + '">' +
+                    '<div class="videoShortcut" videoPreview="false">' +
+                        '<div class="videoShortcutBtnClose">Close</div>' +
+                        '<div class="videoShortcutIn">' +
+                            '<div class="videoShortcutHeader">' +
+                                '<div class="videoShortcutHeaderTitle">' + videoTitle + '</div>' +
+                            '</div>' +
+
+                            '<div class="videoShortcutBtn videoWatchBtn">Watch</div>' +
+                            '<a class="videoShortcutBtn" href="http://hotclips.me/download/v/33/' + videoID + '">Download</a>' +
+                            '<div class="videoShortcutBtn videoShortcutBtnPreview">Preview</div>' +
+                        '</div>' +
+                        '<div class="videoShortcutOver"></div>' +
+                         '<div class="videoShorcutBack" style="background-image:url(http://hotclips.me//thumbnail/v/6/' + videoID + ')"></div>' +
+                    '</div>' +
+                    '<div class="videoShortcutHolderBack"></div>>' +
+                '</div>';
+    }
+
+    this.getVideoHtml = function (videoID) {
+        return '<div class="videoPlayer">' +
+                  '<video id="video-class" class="video-js vjs-default-skin" controls preload="none" style="overflow: hidden; position: relative; width:100%;"' +
+                         'poster="/thumbnail/v/6/' + videoID + '"' +
+                         'data-setup="{}"' +
+                         'closeVideoDisplay="false"' +
+                         '>' +
+                      '<source src="/stream/v/33/' + videoID + '"  type="video/mp4"> />' +
+                  '</video>' +
+
+                  '<div class="videoPlayerClose">X</div>' +
+                '</div>';
+    }
+
+    this.getPreviewHtml = function (previewDivID) {
+        return '<div class="videoPreviewContainer">' +
+                    '<div id="' + previewDivID + '" class="videoPreviewContainerDiv"></div>' +
+                '</div>';
+    }
+
+
+    this.init();
+}

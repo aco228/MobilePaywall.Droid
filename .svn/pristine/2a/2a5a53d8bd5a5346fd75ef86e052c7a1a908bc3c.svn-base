@@ -1,0 +1,129 @@
+﻿using Microsoft.Win32;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Diagnostics;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
+
+using MobilePaywall.Data;
+using System.IO;
+
+namespace MobilePaywall.Importer
+{
+	/// <summary>
+	/// Interaction logic for ValidateWindow.xaml
+	/// </summary>
+	public partial class ValidateWindow : Window
+	{
+		private List<ImportRow> Rows = null;
+		public string CSVPath { get; set; }
+		
+		public ValidateWindow()
+		{
+			InitializeComponent();
+		}
+
+		public ValidateWindow(List<ImportRow> data) : this()
+		{
+			this.Rows = data;
+		}
+
+		private void Window_Loaded(object sender, RoutedEventArgs e)
+		{
+			DataRows.ItemsSource = this.Rows;
+			DataRows.Columns[16].Visibility = Visibility.Hidden;
+		}
+
+		private void DataRows_LoadingRow(object sender, DataGridRowEventArgs e)
+		{
+			ValidateRowItem(e.Row);
+		}
+
+		private void ValidateRowItem(DataGridRow dataRow)
+		{
+			try
+			{
+				ImportRow row = dataRow.Item as ImportRow;
+				if (row != null && !row.IsValid) dataRow.Background = Brushes.Red;
+				else if (row != null && row.IsValid) dataRow.Background = Brushes.Transparent;
+			}
+			catch (Exception exception)
+			{
+				Debug.WriteLine(exception.Message);
+			}
+		}
+
+		private void StartImportButton_Click(object sender, RoutedEventArgs e)
+		{
+			if (RevalidateInfo())
+			{
+				FileInfo fi = new FileInfo(CSVPath);
+				ImportLog importLog = new ImportLog(-1, Guid.NewGuid(), Environment.MachineName, fi.Name, fi.DirectoryName, DateTime.Now, DateTime.Now);
+				importLog.Insert();
+				new ImporterTask(Rows, importLog).Run();
+			}
+			else
+			{
+				MessageBox.Show("Not valid input");
+			}
+		}
+
+		private void DataRows_CellEditEnding(object sender, DataGridCellEditEndingEventArgs e)
+		{
+			ImportRow row = e.Row.Item as ImportRow;
+			if (row != null)
+			{
+				row.Revalidate();
+				if (!row.IsValid) e.Row.Background = Brushes.Red;
+				else e.Row.Background = Brushes.Transparent;
+			}
+		}
+
+		private void Revalidate_Click(object sender, RoutedEventArgs e)
+		{
+			RevalidateInfo();
+			DataRows.Items.Refresh();
+		}
+
+		private bool RevalidateInfo()
+		{
+			foreach (ImportRow row in this.Rows)
+			{
+				row.Revalidate();
+				if (!row.IsValid) return false;
+			}
+			return true;
+		}
+
+    private void SaveCsv_Click(object sender, RoutedEventArgs e)
+    {
+      OpenFileDialog openDialog = new OpenFileDialog();
+      openDialog.Filter = "CSV file (*.csv)|*.csv";
+      openDialog.Title = "Select master CSV file";
+
+      if (openDialog.ShowDialog() != true)
+        return;
+
+      string printData = MainWindow.CsvFirstLine + '\n';
+
+      foreach (ImportRow row in this.Rows)
+      {
+        printData += row.ToString() + '\n';
+      }
+
+      // ?? shoudl work, cant test it
+      System.IO.File.WriteAllText(openDialog.FileName, printData);
+    }
+
+	}
+}

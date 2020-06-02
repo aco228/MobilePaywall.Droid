@@ -1,0 +1,305 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Web.Helpers;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Models
+{
+  public class PaywallViewModelBase
+  {
+    private PaywallHttpContext _context;
+    private Customer _customer;
+    private UserSession _session;
+    private string _htmlTitle;
+    private string _metaDescription;
+    private string _metaKeywords;
+    private bool _templateMode = false;
+
+    public PaywallHttpContext Context { get { return _context; } set { _context = value; } }
+    public Customer Customer { get { return _customer; } set { _customer = value; } }
+    public UserSession Session { get { return _session; } set { _session = value; } }
+    public IService Service { get { return this._context != null ? this._context.Service : null; } }
+    public string HtmlTitle { get { return _htmlTitle; } set { _htmlTitle = value; } }
+    public string MetaDescription { get { return _metaDescription; } set { _metaDescription = value; } }
+    public string MetaKeywords { get { return _metaKeywords; } set { _metaKeywords = value; } }
+    public bool TemplateMode { get { return this._templateMode; } set { this._templateMode = value; } }
+
+    public PaywallViewModelBase(PaywallHttpContext context)
+    {
+      this._context = context;
+
+      if (context.Session != null && context.Session.SessionData != null)
+      {
+        this._session = context.Session.SessionData;
+        this._customer = context.Session.SessionData.Customer;
+      }
+    }
+
+    // SUMMARY: Check if partial view (in this case file with viewName) exists in this context
+    public bool PartialViewExists(string viewName)
+    {
+      if (string.IsNullOrEmpty(viewName))
+        return false;
+      if (viewName[0] != '_')
+        viewName = '_' + viewName;
+      if (!viewName.Contains(".cshtml"))
+        viewName += ".cshtml";
+
+      string template = this._context.Service.ServiceData.Template.Name;
+      int serviceID = this._context.Service.ServiceData.ID;
+      int mobileOperatorID = this._context.MobileOperatorID;
+
+      string pathBase = "~/Views/" + template;
+      string pathBaseSpecific = "~/Views/" + template + "/_Specific/" + this._context.Service.ServiceData.FallbackCountry.TwoLetterIsoCode;
+
+      List<string> searchPaths = new List<string>();
+      searchPaths.Insert(0, string.Format("{0}/_Partial/{1}", pathBase, viewName));
+      searchPaths.Insert(0, string.Format("{0}/_Partial/{1}", pathBaseSpecific, viewName));
+      searchPaths.Insert(0, string.Format("{0}/{1}/_Partial/{2}", pathBaseSpecific, this._context.Service.ServiceData.ID, viewName));
+      if (mobileOperatorID != -1)
+        searchPaths.Insert(0, string.Format("{0}/{1}/{2}/_Partial/{3}", pathBaseSpecific, serviceID, mobileOperatorID, viewName));
+
+      foreach (string path in searchPaths)
+        if (System.IO.File.Exists(_context.HttpContext.Server.MapPath(path)))
+          return true;
+
+      return false;
+    }
+
+    // SUMMARY: Rewrite content url on home page based on if it is on template mode or online 
+    public string AppendSessionID(IContent content)
+    {
+      if (this.TemplateMode)
+      {
+        string skipAttribute = (this.Context.HttpContext.Request["skip"] != null) ? "&skip=" : "";
+        return string.Format("/template/content?contentID=" + content.ContentData.ID) + skipAttribute;
+      }
+      else
+        return PaywallHttpContext.AppendSessionID(content.GetAccessUrl());
+    }
+
+    // SUMMARY: Rewrite url based on if it is on template mode (go to template page) or online (add session id)
+    public string AppendSessionID(string url)
+    {
+      url = url.ToLower();
+
+      if (string.IsNullOrEmpty(url) || url.Contains("/template"))
+        return url;
+      else if (this.TemplateMode && url[0] == '/')
+      {
+        string skipAttribute = (this.Context.HttpContext.Request["skip"] != null) ? "&skip=" : "";
+        return url.Equals("/") ? "/template/home" : "/template" + url + skipAttribute;
+      }
+      else if (url.Contains("http://") || url.Contains("https://") || url.Contains("www"))
+        return url;
+      else
+        return PaywallHttpContext.AppendSessionID(url);
+    }
+
+    // SUMMARY: Rewrite url for content proxy
+    public string AppendSessionProxyID(IContent content)
+    {
+      if (!this.TemplateMode)
+      {
+        string skipAttribute = (this.Context.HttpContext.Request["skip"] != null) ? "&skip=" : "";
+        return this.AppendSessionID(string.Format("/content/proxy/{0}", content.ContentData.ID)) + skipAttribute;
+      }
+      else
+        return string.Format("/template/contentproxy?id=" + content.ContentData.ID);
+    }
+
+    // SUMMARY: Rewrite steam link for content based on if it is on template mode or online
+    public string AppendSessionID(ContentStreamingOption streamOption)
+    {
+      if (this.TemplateMode)
+      {
+        string skipAttribute = (this.Context.HttpContext.Request["skip"] != null) ? "&skip=" : "";
+        return "/template/stream?id=" + streamOption.VideoContentDataID + skipAttribute;
+      }
+      else
+        return PaywallHttpContext.AppendSessionID(streamOption.Url);
+    }
+
+    // SUMMARY: Rewrite html5 content link for accessing games
+    public string AppendSessionID(Html5Content content, string type = "access")
+    {
+      string skipAttribute = (this.Context.HttpContext.Request["skip"] != null) ? "skip=" : "";
+
+      if (type.Equals("get"))
+        return "/Html51/get/?id=" + content.ID + ("&" + skipAttribute);
+
+      if (this.TemplateMode)
+        return string.Format("/template/Html5{0}/{1}", type, content.ID) + ("?" + skipAttribute);
+      else
+        return string.Format("/content/html5/{0}/{1}", type, content.ID) + ("?" + skipAttribute);
+    }
+
+    // SUMMARY: Rewrite download link for content based on if it is on template mode or online
+    public string AppendSessionID(ContentDownloadOption downloadOption)
+    {
+      if (this.TemplateMode)
+      {
+        string skipAttribute = (this.Context.HttpContext.Request["skip"] != null) ? "&skip=" : "";
+        return string.Format("/template/download?id={0}&type={1}", downloadOption.ID, downloadOption.Type.ToString()) + skipAttribute;
+      }
+      else
+        return PaywallHttpContext.AppendSessionID(downloadOption.Url);
+    }
+    
+    // SUMMARY: Create footer HTML based on FooterLink from database
+    public string PrintFooter(FooterLinkPaywallViewModel footerLink)
+    {
+      string data = "";
+      int item = 0;
+      footerLink.Row -= 1;
+
+      foreach (FooterLinkData fld in footerLink.Links)
+      {
+        if (!string.IsNullOrEmpty(data) && item != 0)
+          data += footerLink.Separator;
+        else if (!string.IsNullOrEmpty(data) && item == 0)
+          data += "<br/>";
+
+        //string url = !string.IsNullOrEmpty(fld.Url) || fld.Url.Equals(" ") ? string.Format("href=\"{0}\"", this.AppendSessionID(fld.Url)) : "";
+        // TODO: create dynamic session apend
+
+        if (string.IsNullOrEmpty(fld.Url) || fld.Url.Equals(" "))
+          continue;
+
+        //string url = !string.IsNullOrEmpty(fld.Url) || fld.Url.Equals(" ") ? string.Format("href=\"{0}\"", fld.Url) : "";
+        string url = string.Format("href=\"{0}\"", this.AppendSessionID(fld.Url));
+        data += string.Format(footerLink.Pattern, url, fld.Text);
+
+        item = (item < footerLink.Row) ? item + 1 : 0;
+      }
+
+      return data;
+    }
+
+    // SUMMARY: Filter footer entries based on having payment, payment provider and mobile oeprator specific
+    public List<FooterLinkData> FilterFooterLinks(bool HasPayment)
+    {
+      List<FooterLinkData> returnData = new List<FooterLinkData>();
+      if (this._context.Service.FooterLinks == null || this._context.Service.FooterLinks.Links.Count == 0)
+        return returnData;
+
+      List<FooterLinkData> flds = this._context.Service.FooterLinks.Clone();
+      if (flds == null)
+        return returnData;
+
+      foreach (FooterLinkData fld in flds)
+      {
+        if (fld == null)
+          continue;
+
+        // check payment filter
+        if ((HasPayment && fld.PaymentStatus == FooterLinkDataHasPayment.DoesNotHavePayment) ||
+          (!HasPayment && fld.PaymentStatus == FooterLinkDataHasPayment.HasPayment))
+          continue;
+
+        // check provider filter
+        if (fld.PaymentProviderID > 0 && fld.PaymentProviderID != this._context.Service.PaymentProvider.ID)
+          continue;
+
+        // check mobile operator filter
+        if (fld.MobileOperatorID != -1)
+        {
+          if (fld.MobileOperatorID == 0 && this._context.MobileOperatorID > 0)
+            continue;
+          if (fld.MobileOperatorID != this._context.MobileOperatorID)
+            continue;
+        }
+
+        // check does this url allready exists for some reason
+        if ((from tfld in returnData where tfld.Text.Equals(fld.Text) && tfld.Url.Equals(fld.Url) select tfld).FirstOrDefault() != null)
+          continue;
+
+        returnData.Add(fld);
+      }
+
+      return returnData;
+    }
+
+    // SUMMARY: Has Payment based on template mode
+    public bool HasPayment()
+    {
+      if (this._templateMode && this._context.HttpContext.Request.QueryString["p"] != null && this._context.HttpContext.Request.QueryString["p"].ToString().Equals("true"))
+        return true;
+      return PaymentHelper.HasPayment();
+    }
+
+    // SUMMARY: Helper method for getting content informations
+    public ContentInformations ContentInformations(IContent content)
+    {
+      if (content == null)
+        return new ContentInformations();
+      return content.GetInformations(this._context.Service.ServiceData, this._context.Service.ServiceData.FallbackLanguage);
+    }
+
+    public string Logo()
+    {
+      return PaywallHttpContext.AppendSessionID("/logo");
+    }
+
+    // SUMMAR: Print template modification for this template
+    public string TemplateModification()
+    {
+      List<TemplateModification> list = PaywallHttpContext.Current.Service.TemplateModifications;
+      if (list == null && list.Count == 0)
+        return string.Empty;
+
+      Service service = PaywallHttpContext.Current.Service.ServiceData;
+      Country country = service.FallbackCountry;
+      PaymentProvider paymentProvider = PaywallHttpContext.Current.Service.PaymentProvider;
+      MobileOperator mobileOperator = PaywallHttpContext.Current.Session.SessionData.MobileOperator;
+
+      Data.TemplateModification data = null;
+
+      // Service AND MobileOperator
+      data = (from t in list where (t.Service != null && t.Service.ID == service.ID) && (t.MobileOperator != null && mobileOperator != null && t.MobileOperator.ID == mobileOperator.ID) select t).FirstOrDefault();
+
+      // Service
+      if (data == null) data = (from t in list where (t.Service != null && t.Service.ID == service.ID) select t).FirstOrDefault();
+      //if (data == null) data = (from t in list where (t.MobileOperator != null && mobileOperator != null && t.MobileOperator.ID == mobileOperator.ID) select t).FirstOrDefault();
+
+      // Country AND PaymentProvider OR Country OR PaymentProvider
+      if (data == null) data = (from t in list where t.Service == null && ((t.Country != null && t.Country.ID == country.ID) && (t.PaymentProvider != null && t.PaymentProvider.ID == paymentProvider.ID)) select t).FirstOrDefault();
+      if (data == null) data = (from t in list where t.Service == null && (t.Country != null && t.Country.ID == country.ID) select t).FirstOrDefault();
+      if (data == null) data = (from t in list where t.Service == null && (t.PaymentProvider != null && t.PaymentProvider.ID == paymentProvider.ID) select t).FirstOrDefault();
+
+      if (data == null)
+        return string.Empty;
+
+      return data.Data;
+    }
+
+    public string GetViewName(IView view)
+    {
+      return (view as RazorView).ViewPath.Split('/').LastOrDefault();
+    }
+  }
+
+  // SUMMARY: Helper class for printing footer links
+  public class FooterLinkPaywallViewModel
+  {
+    private PaywallHttpContext _context = null;
+    private string _pattern = string.Empty;
+    private string _separator = string.Empty;
+    private int _row = 2;
+    private List<FooterLinkData> _footerLink = null;
+
+    public string Pattern { get { return this._pattern; } set { this._pattern = value; } }
+    public string Separator { get { return this._separator; } set { this._separator = value; } }
+    public int Row { get { return this._row; } set { this._row = value; } }
+    public List<FooterLinkData> Links { get { return this._footerLink != null ? this._footerLink : new List<FooterLinkData>(); } }
+
+    public FooterLinkPaywallViewModel(List<FooterLinkData> footerLink)
+    {
+      this._footerLink = footerLink;
+    }
+  }
+
+}

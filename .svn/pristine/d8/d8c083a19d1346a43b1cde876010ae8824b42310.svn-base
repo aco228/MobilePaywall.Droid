@@ -1,0 +1,45 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class KeywordManager : IKeywordManager
+  {
+    public Keyword Load(string keyword)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, keyword);
+    }
+
+    public Keyword Load(IConnectionInfo connection, string keyword)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, keyword);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, keyword);
+    }
+
+    public Keyword Load(ISqlConnectionInfo connection, string keyword)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[k].Name = @Name";
+      //parameters.OrderBy = "abbr.PrimaryKeyColumnID DESC";
+      parameters.Arguments.Add("Name", keyword);
+      return this.Load(connection, parameters);
+      //return this.LoadMany(connection, parameters);
+    }
+
+
+  }
+}
+

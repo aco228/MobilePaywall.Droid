@@ -1,0 +1,305 @@
+using MobilePaywall.Direct;
+using Senti.Data;
+using Senti.Security;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+
+
+namespace MobilePaywall.Data
+{
+	public partial interface ICustomerManager
+	{
+    //Customer Load(Service service, string msisdn, bool isMsisdnEncrypted);
+    //Customer Load(IConnectionInfo connection, Service service, string msisdn, bool isMsisdnEncrypted);
+    //Customer Load(Service service, string username, string password);
+    //Customer Load(IConnectionInfo connection, Service service, string username, string password);
+    //Customer Load(Service service, string username);
+    //Customer Load(IConnectionInfo connection, Service service, string username);    
+    //List<Customer> Load(string value, CustomerIdentifier identifier);
+    //List<Customer> Load(IConnectionInfo connection, string value, CustomerIdentifier identifier);
+
+    Customer Load(Guid value, GuidType type);
+		Customer Load(IConnectionInfo connection, Guid value, GuidType type);
+    Customer Load(Guid value, GuidType type, CustomerStatus status);
+    Customer Load(IConnectionInfo connection, Guid value, GuidType type, CustomerStatus status);
+    Customer Load(Service service, string value, CustomerIdentifier identifier, CustomerStatus status);
+    Customer Load(IConnectionInfo connection, Service service, string value, CustomerIdentifier identifier, CustomerStatus status);
+    Customer Load(Service service, string value, string password, CustomerIdentifier identifier);
+    Customer Load(IConnectionInfo connection, Service service, string value, string password, CustomerIdentifier identifier);
+    Customer Load(Country country, string msisdn, CustomerIdentifier identifier);
+    Customer Load(IConnectionInfo connection, Country country, string msisdn, CustomerIdentifier identifier);
+    Customer Load(Product product, string msisdn, CustomerIdentifier identifier);
+    Customer Load(IConnectionInfo connection, Product product, string msisdn, CustomerIdentifier identifier);
+
+
+    List<Customer> Load();
+    List<Customer> Load(IConnectionInfo connection);
+    List<Customer> Load(Service service);
+    List<Customer> Load(IConnectionInfo connection, Service service);
+    List<Customer> Load(string value, CustomerIdentifier identifier);
+		List<Customer> Load(IConnectionInfo connection, string value, CustomerIdentifier identifier);
+    List<Customer> Load(Service service, string value, CustomerIdentifier identifier);
+    List<Customer> Load(IConnectionInfo connection, Service service, string value, CustomerIdentifier identifier);
+	}
+
+	public partial class Customer
+	{
+    private Implementation.CustomerStorageManager _storage = null;
+    private UserSession _originalUserSession = null;
+
+    // SUMMARY: Original UserSession from customer
+    public UserSession OriginalUserSession
+    {
+      get
+      {
+        if (this._originalUserSession != null)
+          return this._originalUserSession;
+
+        int? _uisd = MobilePaywallDirect.Instance.LoadInt(string.Format(@"SELECT TOP 1 UserSessionID FROM MobilePaywall.core.UserSession WHERE CustomerID={0} ORDER BY UserSessionID ASC;", this.ID));
+        if (_uisd.HasValue)
+          this._originalUserSession = UserSession.CreateManager().Load(_uisd.Value);
+
+        return this._originalUserSession;
+      }
+      set { this._originalUserSession = value; }
+    }
+    
+    public Implementation.CustomerStorageManager Storage
+    {
+      get
+      {
+        if (this._storage != null)
+          return this._storage;
+        this._storage = new Implementation.CustomerStorageManager(this);
+        return this._storage;
+      }
+    }
+    
+    // SUMMARY: Global method for adding username and password with format ( MExxxx : xxxx )
+    public CustomerSetUserNameAndPasswordResult SetUsernameAndPassword()
+    {
+      Random rnd = new Random();
+      this._username = this._country.TwoLetterIsoCode.ToLower() + rnd.Next(1000, 9999).ToString();
+      string password = rnd.Next(1000, 9999).ToString();
+      this._encryptedPassword = PasswordEncryption.Create(password).EncryptedPasswordAndSalt;
+      this.Storage.PutString("password", password);
+
+      if(this.ID != -1)
+        this.Update();
+
+      return new CustomerSetUserNameAndPasswordResult()
+      {
+        Username = this._username,
+        Password = password
+      };
+    }
+
+    public static Customer LoadCustomerWithAccesPolicyByMsisdn(string msisdn)
+    {
+      int? customerID = MobilePaywallDirect.Instance.LoadInt(@"SELECT TOP 1 * FROM MobilePaywall.core.Customer c
+        JOIN MobilePaywall.core.Payment p on p.CustomerID = c.CustomerID
+        join MobilePaywall.core.PaymentContentAccessPolicyMap pm on pm.PaymentID = p.PaymentID
+        where c.Msisdn = '" + msisdn + "' and p.PaymentStatusID = 3");
+      if (!customerID.HasValue)
+        return null;
+
+      return Customer.CreateManager().Load(customerID.Value);
+    }
+
+    public static Customer LoadCustomerByServiceMsisdn(Service service, string msisdn)
+    {
+      int? customerID = MobilePaywallDirect.Instance.LoadInt(string.Format(@"SELECT TOP 1 * FROM MobilePaywall.core.Customer WHERE ServiceID={0} AND Msisdn='{1}' ORDER BY CustomerID DESC ;",
+        service.ID, msisdn));
+      if (!customerID.HasValue)
+        return null;
+      return Customer.CreateManager().Load(customerID.Value);
+    }
+
+    public static Customer LoadByStorageUserSessionID(UserSession us)
+    {
+      int? customerID = MobilePaywallDirect.Instance.LoadInt("SELECT TOP 1 CustomerID FROM MobilePaywall.core.CustomerStorage WHERE [Key]='USID_" + us.ID + "';");
+      if (!customerID.HasValue)
+        return null;
+      return Customer.CreateManager().Load(customerID.Value);
+    }
+
+    public bool HasAccess(Service service)
+    {
+      return ContentAccessPolicy.HasAccess(service, this, null);
+    }
+
+    public bool CheckPassword(string password)
+    {
+      int SALT_LENGTH = 8;
+      byte[] salt = new byte[SALT_LENGTH];
+      for (int i = 0; i < SALT_LENGTH;
+        salt[i] = this.EncryptedPassword[this.EncryptedPassword.Length - SALT_LENGTH + i++]) ;
+      byte[] encryptedUnckeckedPassword = PasswordEncryption.Create(password, salt).EncryptedPasswordAndSalt;
+
+      if (!encryptedUnckeckedPassword.SequenceEqual(this.EncryptedPassword))
+        return false;
+      return true;
+    }
+
+    public static List<Customer> Load()
+    {
+      List<Customer> custoomers = null;
+
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        try
+        {
+          connection.Transaction.Begin();
+          ICustomerManager cManager = Customer.CreateManager(0);
+          custoomers = cManager.Load(connection);
+          connection.Transaction.Commit();
+        }
+        catch (Exception ex)
+        {
+          connection.Transaction.Rollback();
+        }
+      }
+
+      return custoomers;
+    }
+    
+
+    /// SUMMARY: Load customer by ShorMessageID, used in flow of PSMS
+    // * i think this is not in use
+    public static Customer LoadCustomerByShortMessageID(string guid)
+    {
+      MobilePaywallDirect db = MobilePaywallDirect.Instance;
+      int? customerID = db.LoadInt(string.Format(@"SELECT CustomerID FROM MobilePaywall.core.CustomerStorage WHERE [Key]='{0}' AND [Value]='{1}';", "ShorMessageGuid", guid));
+      if (!customerID.HasValue)
+        return null;
+      return Customer.CreateManager().Load(customerID.Value);
+    }
+
+
+    /*
+      TRANSACTION LOAD
+    */
+
+    public static Customer TransactionLoad(Guid guid, GuidType guidType)
+    {
+      Customer customer = null;
+
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        try
+        {
+          connection.Transaction.Begin();
+          ICustomerManager cManager = Customer.CreateManager(0);
+          customer = cManager.Load(connection, guid, guidType);
+          connection.Transaction.Commit();
+        }
+        catch (Exception ex)
+        {
+          connection.Transaction.Rollback();
+        }
+      }
+
+      return customer;
+    }
+
+    public static Customer TransactionLoad(Service service, string value, CustomerIdentifier identifier, CustomerStatus status)
+    {
+      Customer customer = null;
+
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        try
+        {
+          connection.Transaction.Begin();
+          ICustomerManager cManager = Customer.CreateManager(0);
+          customer = cManager.Load(connection, service, value, identifier, status);
+          connection.Transaction.Commit();
+        }
+        catch (Exception ex)
+        {
+          connection.Transaction.Rollback();
+        }
+      }
+
+      return customer;
+    }
+
+    public static List<Customer> TransactionLoad(Service service, string value, CustomerIdentifier identifier)
+    {
+      List<Customer> customer = null;
+
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        try
+        {
+          connection.Transaction.Begin();
+          ICustomerManager cManager = Customer.CreateManager(0);
+          customer = cManager.Load(connection, service, value, identifier);
+          connection.Transaction.Commit();
+        }
+        catch (Exception ex)
+        {
+          connection.Transaction.Rollback();
+        }
+      }
+
+      if (customer == null)
+        customer = new List<Customer>();
+
+      return customer;
+    }
+
+    public static Customer TransactionLoad(Service service, string value, string password, CustomerIdentifier identifier)
+    {
+      Customer customer = null;
+
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        try
+        {
+          connection.Transaction.Begin();
+          ICustomerManager cManager = Customer.CreateManager(0);
+          customer = cManager.Load(connection, service, value, password, identifier);
+          connection.Transaction.Commit();
+        }
+        catch (Exception ex)
+        {
+          connection.Transaction.Rollback();
+        }
+      }
+
+      return customer;
+    }
+
+
+
+    public override bool Insert()
+    {
+      bool result = base.Insert();
+      new OLCacher().Synchronize(this);
+      return result;
+    }
+
+    public override bool Update()
+    {
+      bool result = base.Update();
+      new OLCacher().Synchronize(this);
+      return result;
+    }
+
+	}
+
+  public class CustomerSetUserNameAndPasswordResult
+  {
+    private string _username = string.Empty;
+    private string _password = string.Empty;
+
+    public string Username { get { return this._username; } set { this._username = value; } }
+    public string Password { get { return this._password; } set { this._password = value; } }
+  }
+}
+

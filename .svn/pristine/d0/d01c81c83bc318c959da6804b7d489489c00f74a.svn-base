@@ -1,0 +1,160 @@
+﻿<!DOCTYPE html>
+<!--[if IE 8]> <html lang="en" class="ie8 no-js"> <![endif]-->
+<!--[if IE 9]> <html lang="en" class="ie9 no-js"> <![endif]-->
+<!--[if !IE]><!-->
+<html lang="en" class="no-js">
+<!--<![endif]-->
+<!-- BEGIN HEAD -->
+<head>
+  <meta charset="utf-8" />
+  <title>@ViewBag.Title</title>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta content="width=device-width, initial-scale=1" name="viewport" />
+  <meta content="" name="description" />
+  <meta content="" name="author" />
+
+  <link href="http://fonts.googleapis.com/css?family=Open+Sans:400,300,600,700&subset=all" rel="stylesheet" type="text/css" />
+  @Styles.Render("~/Metronic/global/css")
+  @RenderSection("PageStyles", required: false)
+  @Styles.Render("~/Metronic/theme/css")
+  @RenderSection("HeadScripts", required: false)
+
+  <link rel="apple-touch-icon" sizes="57x57" href="~/Images/favicon/apple-icon-57x57.png">
+  <link rel="apple-touch-icon" sizes="60x60" href="~/Images/favicon/apple-icon-60x60.png">
+  <link rel="apple-touch-icon" sizes="72x72" href="~/Images/favicon/apple-icon-72x72.png">
+  <link rel="apple-touch-icon" sizes="76x76" href="~/Images/favicon/apple-icon-76x76.png">
+  <link rel="apple-touch-icon" sizes="114x114" href="~/Images/favicon/apple-icon-114x114.png">
+  <link rel="apple-touch-icon" sizes="120x120" href="~/Images/favicon/apple-icon-120x120.png">
+  <link rel="apple-touch-icon" sizes="144x144" href="~/Images/favicon/apple-icon-144x144.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="~/Images/favicon/apple-icon-152x152.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="~/Images/favicon/apple-icon-180x180.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="~/Images/favicon/android-icon-192x192.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="~/Images/favicon/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="96x96" href="~/Images/favicon/favicon-96x96.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="~/Images/favicon/favicon-16x16.png">
+  <link rel="manifest" href="~/Images/favicon/manifest.json">
+  <meta name="msapplication-TileColor" content="#ffffff">
+  <meta name="msapplication-TileImage" content="~/Images/favicon/ms-icon-144x144.png">
+  <meta name="theme-color" content="#ffffff">
+</head>
+<!-- END HEAD -->
+<body class="page-header-fixed page-quick-sidebar-over-content page-sidebar-closed-hide-logo page-container-bg-solid">
+  
+
+  @Html.Partial("Template/_Header")
+
+  <!-- BEGIN CONTAINER -->
+  <div class="page-container">
+    @Html.Partial("Template/_Menu")
+
+    <!-- BEGIN CONTENT -->
+    <div class="page-content-wrapper">
+      <div class="page-content">
+        @RenderBody()
+      </div>
+      
+    </div>
+    <!-- END CONTENT -->
+    @*@Html.Partial("Template/_QuickSidebar")*@
+
+  </div>
+  <!-- END CONTAINER -->
+  @Html.Partial("Template/_Footer")
+
+  <div class="modal fade" id="idle-timeout-dialog" data-backdrop="static">
+    <div class="modal-dialog modal-small">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h4 class="modal-title">Your session is about to expire.</h4>
+        </div>
+        <div class="modal-body">
+          <p>
+            <i class="fa fa-warning font-red"></i> You session will be locked in
+            <span id="idle-timeout-counter"></span> seconds.
+          </p>
+          <p> Do you want to continue your session? </p>
+        </div>
+        <div class="modal-footer">
+          <button id="idle-timeout-dialog-logout" type="button" class="btn dark btn-outline sbold uppercase">No, Logout</button>
+          <button id="idle-timeout-dialog-keepalive" type="button" class="btn green btn-outline sbold uppercase" data-dismiss="modal">Yes, Keep Working</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- BEGIN JAVASCRIPTS(Load javascripts at bottom, this will reduce page load time) -->
+  <!--[if lt IE 9]>
+  <script src="~/Scripts/metronic/global/plugins/respond.min.js"></script>
+  <script src="~/Scripts/metronic/global/plugins/excanvas.min.js"></script>
+  <![endif]-->
+  @Scripts.Render("~/Metronic/js")
+  @RenderSection("PageScripts", required: false)
+
+  <script>
+    jQuery(document).ready(function () {
+      Metronic.init(); // init metronic core componets
+      Layout.init(); // init layout
+      //QuickSidebar.init(); // init quick sidebar
+      loadTaskNotifications();
+      loadTasks();
+
+      $(document).idleTimeout({
+          redirectUrl: '/lock',
+          idleTimeLimit: 600,
+          idleCheckHeartBeat: 5,
+          activityEvents: 'click keypress scroll wheel mousewheel mousemove',
+          enableDialog: true,
+          dialogDisplayLimit: 60,
+          dialogTitle: 'Session Expiration Warning',
+          sessionKeepAliveUrl: '/keep-alive'
+      });
+    });
+
+    function loadTasks() {
+      $.ajax({
+        url: '/task/render/header',
+        cache: false,
+        method: 'POST',
+        success: function (response) {
+          $('#header_task_bar').html(response);
+          Metronic.initSlimScroll($('.scroller'));
+        },
+        error: function () {
+        }
+      });
+    }
+
+    function loadTaskNotifications() {
+      $.ajax({
+        url: '/task/render/header-new',
+        cache: false,
+        method: 'POST',
+        success: function (response) {
+          $('#header_notification_bar').html(response);
+        },
+        error: function () {
+        }
+      });
+    }
+  </script>
+
+  @RenderSection("CustomScripts", required: false)
+
+
+  <script>
+      (function (i, s, o, g, r, a, m) {
+        i['GoogleAnalyticsObject'] = r; i[r] = i[r] || function () {
+          (i[r].q = i[r].q || []).push(arguments)
+        }, i[r].l = 1 * new Date(); a = s.createElement(o),
+        m = s.getElementsByTagName(o)[0]; a.async = 1; a.src = g; m.parentNode.insertBefore(a, m)
+      })(window, document, 'script', 'https://www.google-analytics.com/analytics.js', 'ga');
+
+      ga('create', 'UA-82641216-1', 'auto');
+      ga('send', 'pageview');
+
+  </script>
+  <!-- END JAVASCRIPTS -->
+
+</body>
+<!-- END BODY -->
+</html>
+@*<link href="~/Scripts/metronic/global/plugins/bootstrap-modal/css/bootstrap-modal-bs3patch.css" rel="stylesheet" />*@

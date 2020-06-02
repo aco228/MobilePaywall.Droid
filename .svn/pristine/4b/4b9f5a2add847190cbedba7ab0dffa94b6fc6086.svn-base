@@ -1,0 +1,295 @@
+﻿using System;
+
+using MobilePaywall.Data;
+
+using Cashflow.Client;
+using Cashflow.Message;
+using Cashflow.Message.Mobile;
+
+using Senti.Security;
+using Senti.Diagnostics.Log;
+
+using System.Linq;
+
+using log4net;
+using System.Collections.Generic;
+using Senti.Data;
+
+namespace MobilePaywall
+{
+  public abstract class CustomerUtilBase : ICustomerUtil
+  {
+    #region #logging#
+
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (CustomerUtilBase._log == null)
+          CustomerUtilBase._log = LogManager.GetLogger(typeof(CustomerUtilBase));
+        return CustomerUtilBase._log;
+      }
+    }
+
+    #endregion #logging#
+
+    private Service _service = null;
+    private PaymentRequest _requestData = null;
+    private Customer _customerData = null;
+    private Customer _resolvedCustomerData = null;
+    private Country _countryData = null;
+    private Language _languageData = null;
+    private MobileOperator _mobileOperator = null;
+
+    public Service Service { get { return this._service; } }
+    public PaymentRequest RequestData { get { return this._requestData; } }
+    public Customer CustomerData { get { return this._customerData; } }
+    public Customer ResolvedCustomerData { get { return this._resolvedCustomerData; } }
+    public Country CountryData { get { return this._countryData; } }
+    public Language LanguageData { get { return this._languageData; } }
+    public MobileOperator MobileOperator { get { return this._mobileOperator; } }
+
+    public CustomerUtilBase()
+    {
+    }
+
+    public CustomerUtilBase(Customer customer)
+      : this()
+    {
+      this._customerData = customer;
+      if (this._service == null &&
+         this._customerData != null)
+        this._service = this._customerData.Service;
+    }
+
+    public CustomerUtilBase(Customer customer, PaymentRequest request)
+      : this(customer)
+    {
+      this._requestData = request;
+      if (this._service == null &&
+         this._requestData != null)
+        this._service = this.RequestData.ServiceOffer.Service;
+    }
+
+    public virtual Customer Create()
+    {
+      return null;
+    }
+
+    public virtual List<Customer> FindAll(Service service, string value, CustomerStatus status)
+    {
+      CustomerIdentifier identifier =
+        this.IsEncrypted(value) ? CustomerIdentifier.EncryptedMsisdn :
+          value.StartsWith("user") || value.StartsWith("mm") ? CustomerIdentifier.Username : CustomerIdentifier.Msisdn;
+
+      //ICustomerManager cManager = Data.Customer.CreateManager();
+      //return cManager.Load(service, value, identifier);
+      return Customer.TransactionLoad(service, value, identifier);
+    }
+
+    public virtual Customer Find(IService service, string value, CustomerStatus status)
+    {
+      if (string.IsNullOrEmpty(value))
+        return null;
+
+      CustomerIdentifier identifier =
+        this.IsEncrypted(value) ? CustomerIdentifier.EncryptedMsisdn :
+          value.StartsWith("user") ? CustomerIdentifier.Username : CustomerIdentifier.Msisdn;
+
+      //ICustomerManager cManager = Data.Customer.CreateManager();
+      //this._customerData = cManager.Load(service.ServiceData, value, identifier, status);
+
+      this._customerData = Customer.TransactionLoad(service.ServiceData, value, identifier, status);
+      return this._customerData;
+    }
+
+    public virtual Customer Find(IService service, string value, string password)
+    {
+      if (string.IsNullOrEmpty(value))
+        return null;
+
+      int tempMsisdn = 0;
+      CustomerIdentifier identifier = Int32.TryParse(value, out tempMsisdn) ? CustomerIdentifier.Msisdn : CustomerIdentifier.Username;
+
+      //CustomerIdentifier identifier =
+      //  this.IsEncrypted(value) ? CustomerIdentifier.EncryptedMsisdn :
+      //    value.StartsWith("user") ? CustomerIdentifier.Username : CustomerIdentifier.Msisdn;
+
+      //ICustomerManager cManager = Data.Customer.CreateManager();
+      //this._customerData = cManager.Load(service.ServiceData, value, password, identifier);
+      this._customerData = Customer.TransactionLoad(service.ServiceData, value, password, identifier);
+      return this._customerData;
+    }
+
+    public virtual bool Resolve()
+    {
+      if (this._customerData == null)
+      {
+        if (Log.IsWarnEnabled)
+          Log.Warn(new LogMessageBuilder(
+            new LogErrorCode("customerbase", "resolveencryptedmsisdn", "notprovided"), "",
+              this._customerData));
+        return false;
+      }
+
+      if (!string.IsNullOrEmpty(this._customerData.Msisdn))
+      {
+        this._resolvedCustomerData = this._customerData;
+        return true;
+      }
+
+      MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(this._requestData.ServiceOffer.Service);
+      mobileClient.AttachLogWriter(new CashflowLog(this.Service));
+      ResolveEncryptedMsisdnRequest resolveRequest =
+        new ResolveEncryptedMsisdnRequest(
+                                          RequestMode.Default,
+                                          Guid.NewGuid().ToString(),
+                                          this._requestData.ServiceOffer.PaymentConfiguration.PaymentCredentials.Username,
+                                          this._requestData.ServiceOffer.PaymentConfiguration.PaymentCredentials.Password,
+                                          this._customerData.EncryptedMsisdn,
+                                          this._requestData.ServiceOffer.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+                                          this._customerData.Country.TwoLetterIsoCode.ToLower(),
+                                          this._requestData.ServiceOffer.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+                                          null,
+                                          null);
+
+      ResolveEncryptedMsisdnResponse resolveResponse = mobileClient.ResolveEncryptedMsisdn(resolveRequest, null);
+      Log.Debug(new LogMessageBuilder(new LogErrorCode("cutil", "resolve", "log"), "", resolveResponse, resolveResponse.MobileSubscriber));
+
+      switch (resolveResponse.Status.Code)
+      {
+        case MessageStatusCode.Success:
+          bool isEncrypted = this.IsEncrypted(resolveResponse.MobileSubscriber.Msisdn);
+          CustomerIdentifier identifier = isEncrypted ? CustomerIdentifier.EncryptedMsisdn : CustomerIdentifier.Msisdn;
+
+          ICustomerManager cManager = Customer.CreateManager();
+          if (resolveResponse.CustomerID.HasValue)
+            //this._resolvedCustomerData = cManager.Load(resolveResponse.CustomerID.Value, GuidType.External);
+            this._resolvedCustomerData = Customer.TransactionLoad(resolveResponse.CustomerID.Value, GuidType.External);
+          else
+            //this._resolvedCustomerData = cManager.Load(this._customerData.Service, resolveResponse.MobileSubscriber.Msisdn, identifier, CustomerStatus.Unknown);
+            this._resolvedCustomerData = Customer.TransactionLoad(this._customerData.Service, resolveResponse.MobileSubscriber.Msisdn, identifier, CustomerStatus.Unknown);
+
+          IMobileOperatorManager imoManager = MobileOperator.CreateManager();
+          this._mobileOperator = imoManager.Load(resolveResponse.MobileSubscriber.MobileOperatorID.Value, IDType.External);
+
+          this._customerData = this.Update(this._customerData, this._mobileOperator, resolveResponse.MobileSubscriber.Msisdn);
+          if (this._resolvedCustomerData != null)
+            this._resolvedCustomerData = this.Update(this._resolvedCustomerData, this._mobileOperator, resolveResponse.MobileSubscriber.Msisdn);
+
+          if (this._resolvedCustomerData != null && this._customerData.ID != this._resolvedCustomerData.ID)
+          {
+            if (this._customerData.CustomerStatus != CustomerStatus.Obsolete)
+            {
+              this._customerData.CustomerStatus = CustomerStatus.Obsolete;
+              this._customerData.Update();
+            }
+            if (this._resolvedCustomerData.CustomerStatus != CustomerStatus.Active && this._resolvedCustomerData.CustomerStatus != CustomerStatus.Locked)
+            {
+              this._resolvedCustomerData.CustomerStatus = CustomerStatus.Active;
+              this._resolvedCustomerData.Update();
+            }
+            return true;
+          }
+
+          return false;
+
+        case MessageStatusCode.Pending:
+          if (Log.IsDebugEnabled)
+            Log.Debug(new LogMessageBuilder(
+            new LogErrorCode("customerbase", "resolveencryptedmsisdn", "pending"), "",
+              this._customerData));
+          return false;
+
+        case MessageStatusCode.Failure:
+          if (Log.IsErrorEnabled)
+            Log.Error(new LogMessageBuilder(
+            new LogErrorCode("customerbase", "resolveencryptedmsisdn", "error"), "",
+              this._customerData, resolveResponse));
+          return false;
+
+        default:
+          return false;
+      }
+    }
+
+    public Customer Update(Customer customer, MobileOperator mobileOperator, string value)
+    {
+      bool isEncrypted = this.IsEncrypted(value);
+      if (customer == null)
+        return null;
+
+      if (customer.MobileOperator == null || customer.MobileOperator.ID != mobileOperator.ID)
+        this._customerData.MobileOperator = mobileOperator;
+       
+      if (!string.IsNullOrEmpty(value) && (string.IsNullOrEmpty(customer.Msisdn) || !customer.Msisdn.Equals(value)) && !isEncrypted)
+        this._customerData.Msisdn = value;
+      this._customerData.Update();
+      return customer;
+    }
+
+    public virtual string ResetPassword()
+    {
+      if (this._customerData == null)
+        return null;
+
+      string newPassword = Guid.NewGuid().ToString().Split('-')[1];
+      this._customerData.EncryptedPassword = PasswordEncryption.Create(newPassword).EncryptedPasswordAndSalt;
+      this._customerData.Update();
+      return newPassword;
+    }
+
+    public bool IsEncrypted(string value)
+    {
+      if (string.IsNullOrEmpty(value))
+        return true;
+
+      return !value.All(Char.IsDigit);     
+    }
+
+    protected string CleanMsisdn(string tlis, string msisdn)
+    {
+      char[] formattingCharacters = { '+', ' ', '(', ')', '-' };
+
+      // remove formatting characters (if any)
+      msisdn = string.Concat(msisdn.Split(formattingCharacters, StringSplitOptions.RemoveEmptyEntries));
+
+      // remove leading zeros (if any)
+      while (msisdn.StartsWith("0") || msisdn.StartsWith("9"))
+        if (msisdn.StartsWith("0"))
+          msisdn = msisdn.TrimStart('0');
+        else if (msisdn.StartsWith("9"))
+          msisdn = msisdn.TrimStart('9');
+
+
+      //TODO: Move country prefix to Country table!
+      if (!msisdn.StartsWith("49") && tlis.Equals("de"))
+        msisdn = string.Format("{0}{1}", "49", msisdn);
+      if (!msisdn.StartsWith("34") && tlis.Equals("es"))
+        msisdn = string.Format("{0}{1}", "34", msisdn);
+      if (!msisdn.StartsWith("382") && tlis.Equals("me"))
+        msisdn = string.Format("{0}{1}", "382", msisdn);
+      if (!msisdn.StartsWith("381") && tlis.Equals("rs"))
+        msisdn = string.Format("{0}{1}", "381", msisdn);
+      if (!msisdn.StartsWith("387") && tlis.Equals("ba"))
+        msisdn = string.Format("{0}{1}", "387", msisdn);
+      if (!msisdn.StartsWith("43") && tlis.Equals("at"))
+        msisdn = string.Format("{0}{1}", "43", msisdn);
+      if (!msisdn.StartsWith("31") && tlis.Equals("nl"))
+        msisdn = string.Format("{0}{1}", "31", msisdn);
+      if (!msisdn.StartsWith("41") && tlis.Equals("ch"))
+        msisdn = string.Format("{0}{1}", "41", msisdn);
+
+      // check if all characters are numeric
+      foreach (char c in msisdn)
+      {
+        if (c < '0' || c > '9')
+          return null;
+      }
+
+      return msisdn;
+    }
+  }
+}

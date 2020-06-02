@@ -1,0 +1,65 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Merchant.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Merchant.Controllers
+{
+  public class TimelineController : PaywallController
+  {
+    // GET: Timeline
+    public ActionResult Index()
+    {
+      TimelineModel model = new TimelineModel();
+      return View("Index", model);
+    }
+
+    public PartialViewResult Refresh(TimelineModel model)
+    {
+      Dictionary<int, Service> allowedServices = PaywallHttpContext.Current.ClientSession.Client.AllowedServices;
+
+      ITimelineManager tManager = Timeline.CreateManager();
+      //List<Timeline> timelineEntries = tManager.Load();
+      //List<Timeline> finalTimeline = new List<Timeline>();
+
+      //foreach(Timeline timelineEntry in timelineEntries)
+      //{
+      //  if(allowedServices.ContainsKey(timelineEntry.Service.ID))
+      //  {
+      //    finalTimeline.Add(timelineEntry);
+      //  }
+      //}
+
+      List<Timeline> timelineEntries = (from te in tManager.Load() where allowedServices.Values.Contains(te.Service) select te).ToList();
+
+      if (model.ServiceID != -1)
+        timelineEntries = (from t in timelineEntries where t.Service != null && t.Service.ID == model.ServiceID select t).ToList();
+      if (model.TimelineType != TimelineType.Unknown)
+        timelineEntries = (from t in timelineEntries where t.TimelineType == model.TimelineType select t).ToList();
+
+      timelineEntries = timelineEntries.OrderByDescending(x => x.Created).ToList();
+      return PartialView("_Content", timelineEntries);
+    }
+
+    [HttpPost, ValidateInput(false)]
+    public JsonResult New(TimelineModel model)
+    {
+      if (model.Service == null)
+        return Json(new { status = "error", text = "Please select service." });
+
+      if (model.TimelineType == TimelineType.Unknown)
+        return Json(new { status = "error", text = "Please select type." });
+
+      //Client client = Client.CreateManager().Load(1);
+      Client client = PaywallHttpContext.Current.ClientSession.Client;
+      Timeline timeline = new Timeline(-1, model.TimelineType, model.Service.Application.Instance, model.Service.Application, model.Service.Merchant, model.Service, client, model.Text, DateTime.Now, DateTime.Now);
+      timeline.Insert();
+
+      return Json(new { status = "ok"}, JsonRequestBehavior.DenyGet);
+    }
+  }
+}

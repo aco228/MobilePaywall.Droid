@@ -1,0 +1,241 @@
+﻿using Cashflow.Client;
+using Cashflow.Message;
+using Cashflow.Message.Mobile;
+using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Direct;
+using MobilePaywall.Service.Callback.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+
+namespace MobilePaywall.Service.Callback.Handlers._Specific.MY
+{
+  public class AltrecoHandlers : NotificationHandlerBase
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (AltrecoHandlers._log == null)
+          AltrecoHandlers._log = log4net.LogManager.GetLogger(typeof(AltrecoHandlers));
+        return AltrecoHandlers._log;
+      }
+    }
+    #endregion
+
+    protected override void ProcessReceiveShortMessageNotification(ReceiveShortMessageNotification notification)
+    {
+      CallbackLog CLog = new CallbackLog(notification, Log);
+      try
+      {
+        MessageArgument typeArgument = (from a in notification.Arguments where a.Key.Equals("Type") select a).FirstOrDefault();
+
+        if (typeArgument == null || (typeArgument != null && !typeArgument.Value.Equals("MY_Allterco")))
+        { CLog.Debug("MYAltreco:: this is not MYAltreco"); return; }
+
+        MobilePaywallDirect db = MobilePaywallDirect.Instance;
+
+        Data.Service service = this.GetService(CLog, notification, db);
+        if(service == null)
+        {
+          Log.Error("MY_Allterco:: Service is null");
+          return;
+        }
+
+        Data.Customer customer = this.GetCustomer(CLog, service, notification, db);
+        if(customer == null)
+        {
+          Log.Error("MY_Allterco:: Customer is null");
+          return;
+        }
+
+        this.SetUpPaymentRequest(CLog, customer, notification, db);
+
+        MobileOriginatedArguments arguments = new MobileOriginatedArguments();
+        arguments.ExternalID = notification.ShortMessage.ShortMessageID.ToString();
+
+        Random rnd = new Random();
+        int usernameNumber = rnd.Next(1000, 9999), passwordNumber = rnd.Next(1000, 9999);
+        customer.Username = "my" + usernameNumber.ToString();
+        customer.EncryptedPassword = Senti.Security.PasswordEncryption.Create(passwordNumber.ToString()).EncryptedPasswordAndSalt;
+        customer.Update();
+        customer.Storage.PutString("password", passwordNumber.ToString());
+
+        ServiceOffer so = (from s in ServiceOffer.CreateManager().Load(customer.Service) where s.IsActive && s.IsDefault select s).FirstOrDefault();
+
+        SendSmsRequest sendSmsRequest = new SendSmsRequest(RequestMode.Synchronous,
+          CLog.UserSession.Guid.ToString(),
+          so.PaymentConfiguration.PaymentCredentials.Username,
+          so.PaymentConfiguration.PaymentCredentials.Password,
+          so.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+          so.Service.Product.ExternalProductGuid,
+          so.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+          so.Service.FallbackCountry.TwoLetterIsoCode,
+          so.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid.Value,
+          notification.ShortMessage.Operator.Value.ToString(),
+          notification.ShortMessage.Msisdn,
+          string.Format("You are successfully subscribed. Username: {1}, Password: {2}. You can access to service content on: http://{0}", so.Service.Name, customer.Username, passwordNumber.ToString()),
+          CLog.UserSession.Guid.ToString(), // sendSmsRequestReference
+          "", // notificationUrl
+          arguments.ToMessageArguments());
+        sendSmsRequest.ReferenceIntID = CLog.UserSession.ID;
+
+        MobileExtensionClient mobileClient = CashflowClientPaywallManager.GetMobileExtensionClient(CLog.UserSession.Service);
+        mobileClient.AttachLogWriter(new CashflowLog(so.Service));
+
+        SendSmsResponse sendSmsResponse = mobileClient.SendSms(sendSmsRequest);
+        if (sendSmsResponse.Status.Code != MessageStatusCode.Success)
+          CLog.Error("MYAltreco:: SendSmsResponse is not successful..");
+        else
+          CLog.Error("MYAltreco:: SendSmsResponse DONE");
+
+      }
+      catch (Exception e)
+      {
+        Log.Fatal("MYAltreco:: Fatal", e);
+      }
+    }
+
+    protected override void ProcessChargeSubscription(ChargeSubscriptionNotification notification)
+    {
+      CallbackLog CLog = new CallbackLog(notification, Log);
+
+      try
+      {
+        if (notification.Subscription.Country != "MY")
+          return;
+
+        if (notification.Subscription == null || notification.Transaction == null || notification.Transaction.Status != Cashflow.Message.Data.TransactionStatus.Executed)
+          return;
+
+        LookupSession ls = LookupSession.CreateManager().Load(CLog.UserSession);
+        ServiceOffer so = (from s in ServiceOffer.CreateManager().Load(CLog.UserSession.Service) where s.IsActive && s.IsDefault select s).FirstOrDefault();
+        UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), CLog.UserSession, null, "", DateTime.Now, DateTime.Now); uhr.Insert();
+
+        PaymentRequest paymentRequest = PaymentRequest.CreateManager().Load(notification.Subscription.SubscriptionRequestID, GuidType.External);
+        if(paymentRequest == null)
+        {
+          paymentRequest = new PaymentRequest(-1, Guid.NewGuid(), PaymentType.Subscription, PaymentRequestStatus.Complete,
+            ls, CLog.UserSession.Customer, CLog.UserSession, so, so.BusinessModelEntry, notification.Subscription.SubscriptionRequestID, uhr, "", DateTime.Now, DateTime.Now);
+          paymentRequest.Insert();
+        }
+        
+        Payment payment = Payment.CreateManager().Load(notification.Subscription.SubscriptionID, GuidType.External);
+        if(payment == null)
+        {
+          payment = new Payment(-1, Guid.NewGuid(), PaymentType.Subscription, notification.Subscription.SubscriptionID, PaymentStatus.Successful, paymentRequest, CLog.UserSession.Customer, so, so.BusinessModelEntry, DateTime.Now, DateTime.Now);
+          payment.Insert();
+        }
+
+        Transaction transaction = Transaction.CreateManager().Load(notification.Transaction.TransactionID, GuidType.External);
+        if(transaction == null)
+        {
+          transaction = new Transaction(-1, Guid.NewGuid(), payment, notification.Transaction.TransactionID, notification.Transaction.TransactionGroupID, TransactionStatus.Executed, TransactionType.Debit, DateTime.Now, DateTime.Now);
+          transaction.Insert();
+
+          ContentAccessPolicy policy = ContentAccessPolicy.CreateManager().Load(CLog.UserSession.Service);
+          PaymentContentAccessPolicyMap map = new PaymentContentAccessPolicyMap(-1, payment, null, policy, transaction, true, false, DateTime.Now, DateTime.Now.AddDays(7), DateTime.Now, DateTime.Now);
+          map.Insert();
+        }
+
+      }
+      catch(Exception e)
+      {
+        Log.Fatal("MYAltreco:: Fatal", e);
+      }
+    }
+
+    /*
+        FUNCTIONS
+    */
+
+    private Data.Service GetService(CallbackLog CLog, ReceiveShortMessageNotification notification, MobilePaywallDirect db)
+    {
+      MessageArgument behaviorModel = (from a in notification.Arguments where a.Key.Equals("BehaviorModelGuid") select a).FirstOrDefault();
+      if (behaviorModel == null)
+      { CLog.Error("MYAltreco:: There is not behavior model argument"); return null; }
+
+      int? _serviceID = db.LoadInt(string.Format(@"SELECT TOP 1 so.ServiceID FROM MobilePaywall.core.BehaviorModel AS bm
+          LEFT OUTER JOIN MobilePaywall.core.PaymentConfiguration AS pc ON pc.BehaviorModelID=bm.BehaviorModelID
+          LEFT OUTER JOIN MobilePaywall.core.ServiceOffer AS so ON so.PaymentConfigurationID=pc.PaymentConfigurationID
+          WHERE bm.ExternalBehaviorModelGuid='{0}'", behaviorModel.Value));
+
+      if (!_serviceID.HasValue)
+      { CLog.Error("MYAltreco:: Could not load ServiceID by BM: " + behaviorModel.Value); return null; }
+
+      Data.Service service = Data.Service.CreateManager().Load(_serviceID.Value);
+      if (service == null)
+      { CLog.Error("MYAltreco:: Service could not be loaded by ID: " + _serviceID.Value); return null; }
+
+      return service;
+    }
+
+    private Data.Customer GetCustomer(CallbackLog CLog, Data.Service service, ReceiveShortMessageNotification notification, MobilePaywallDirect db)
+    {
+      int? _customerID = db.LoadInt(string.Format(@"SELECT TOP 1 CustomerID FROM MobilePaywall.core.Customer WHERE ServiceID={0} AND Msisdn='{1}' ORDER BY CustomerID DESC", service.ID, notification.ShortMessage.Msisdn));
+      if (!_customerID.HasValue)
+      { CLog.Error("MYAltreco:: Could not load Customer by msisdn " + notification.ShortMessage.Msisdn); return null; }
+
+      Customer customer = Customer.CreateManager().Load(_customerID.Value);
+
+      MobileOperator mo = MobileOperator.CreateManager().Load(notification.ShortMessage.Operator.Value, IDType.External);
+      if (customer != null)
+      {
+        customer.MobileOperator = mo;
+        customer.Update();
+        return customer;
+      }
+
+      customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Active, service, service.FallbackCountry, mo, null, notification.ShortMessage.Msisdn, null, Guid.NewGuid().ToString(), null, DateTime.Now, DateTime.Now);
+      customer.Insert();
+      customer.SetUsernameAndPassword();
+
+      return customer;
+    }
+
+    private void SetUpPaymentRequest(CallbackLog CLog, Customer customer, ReceiveShortMessageNotification notification, MobilePaywallDirect db)
+    {
+      UserSession us = null;
+      int? _userSessionID = db.LoadInt(@"SELECT TOP 1 * FROM MobilePaywall.core.UserSession WHERE CustomerID=" + customer.ID + " AND ServiceID=" + customer.Service.ID + " ORDER BY UserSessionID DESC;");
+      if (_userSessionID.HasValue)
+        us = UserSession.CreateManager().Load(_userSessionID.Value);
+      
+      if(us == null)
+      {
+        string pxid = "";
+        string[] pxidSplit = notification.ShortMessage.Text.Split('/');
+        if (pxidSplit.Length > 0) pxid = "?pxid=" + pxid;
+
+        Data.Domain domain = Domain.CreateManager().Load(customer.Service).FirstOrDefault();
+        us = new UserSession(-1, Guid.NewGuid(), customer.Service.UserSessionType, customer.Service, domain, customer, customer.Service.FallbackCountry,  customer.Service.FallbackLanguage, customer.MobileOperator, 
+          null, null, false, false, "", IPAddressType.IPv4, "", string.Format("http://{0}{1}", customer.Service.Name, pxid), "", DateTime.Now.AddMinutes(20), DateTime.Now, DateTime.Now);
+        us.Insert();
+      }
+
+      CLog.UserSession = us;
+      ServiceOffer so = (from s in ServiceOffer.CreateManager().Load(customer.Service) where s.IsActive && s.IsDefault select s).FirstOrDefault();
+      
+      customer.CustomerStatus = CustomerStatus.Active;
+      customer.Update();
+
+      UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), CLog.UserSession, null, "", DateTime.Now, DateTime.Now); uhr.Insert();
+      LookupSession ls = new LookupSession(-1, Guid.NewGuid(), LookupSessionStatus.Complete, CLog.UserSession, uhr, null, "--nil--", DateTime.Now, DateTime.Now); ls.Insert();
+      LookupSessionResult lsr = new LookupSessionResult(-1, ls, true, true, null, customer.MobileOperator, notification.ShortMessage.Msisdn, "--nil--", DateTime.Now, DateTime.Now); lsr.Insert();
+
+      Guid _subscriptionRequestGuid = Guid.Empty;
+      MessageArgument subscriptionRequestGuid = (from a in notification.Arguments where a.Key.ToLower().Equals("subscriptionrequestguid") select a).FirstOrDefault();
+      if (subscriptionRequestGuid != null && !string.IsNullOrEmpty(subscriptionRequestGuid.Value) && Guid.TryParse(subscriptionRequestGuid.Value, out _subscriptionRequestGuid))
+      {
+        PaymentRequest pr = new PaymentRequest(-1, Guid.NewGuid(), PaymentType.Subscription, PaymentRequestStatus.Complete, ls, customer, CLog.UserSession, so, so.BusinessModelEntry, _subscriptionRequestGuid, uhr, "-nill-", DateTime.Now, DateTime.Now);
+        pr.Insert();
+      }
+    }
+
+  }
+}

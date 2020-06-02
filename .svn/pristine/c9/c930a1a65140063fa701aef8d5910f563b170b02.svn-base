@@ -1,0 +1,54 @@
+﻿using System.Web.Mvc;
+
+using Senti.Diagnostics.Log;
+
+using log4net;
+
+namespace MobilePaywall.Web.Filters
+{
+	public class PaywallErrorHandlerAttribute : HandleErrorAttribute
+	{
+		#region #logging#
+		private static ILog _log = null;
+
+		protected static ILog Log
+		{
+			get
+			{
+				if (PaywallErrorHandlerAttribute._log == null)
+					PaywallErrorHandlerAttribute._log = LogManager.GetLogger(typeof(PaywallErrorHandlerAttribute));
+				return PaywallErrorHandlerAttribute._log;
+			}
+		}
+		#endregion
+
+		public override void OnException(ExceptionContext filterContext)
+		{
+			// base.OnException(filterContext); ??
+			LogMessageBuilder builder = null;
+
+			if (filterContext.Exception != null)
+			{
+				builder = new LogMessageBuilder(new LogErrorCode("paywall", "error", "handler"), "New exception is thrown.", filterContext.Exception);
+				if (Log.IsFatalEnabled)
+					Log.Fatal(builder);
+			}
+
+			if (filterContext.Exception != null &&
+					filterContext.Exception is IPaywallException)
+			{
+				// generic view handling
+				PaywallException paywallException = filterContext.Exception as PaywallException;
+				
+				//paywallException.
+				filterContext.Result = new ViewResult();
+			}
+
+			if (!filterContext.ExceptionHandled)
+			{
+				// write count of this type of exceptions for one day to database: filterContext.Exception.GetType().FullName
+				// generic error handling AND special fatal logging for unhandled exception. create criteria per case for ignoring exceptions
+			}
+		}
+	}
+}

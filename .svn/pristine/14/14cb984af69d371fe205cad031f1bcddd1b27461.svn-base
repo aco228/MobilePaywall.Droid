@@ -1,0 +1,131 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Web.Models;
+using Senti.Diagnostics.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+using MobilePaywall.Web.Filters;
+using MobilePaywall.Web.Localization;
+using MobilePaywall.MobilePaywallDirectWebCore;
+
+namespace MobilePaywall.Web.Controllers
+{
+  [AuctionAttribute(Order = 1, Required = true)]
+  public class AuctionController : PaywallController
+  {
+
+    #region #logging#
+
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (AuctionController._log == null)
+          AuctionController._log = LogManager.GetLogger(typeof(AuctionController));
+        return AuctionController._log;
+      }
+    }
+
+    #endregion #logging#
+
+    // SUMMARY: Submit bid from HomeAuction
+    public ActionResult SubmitBid(string bidInputValue)
+    {
+      decimal bidValue;
+      if(!decimal.TryParse(bidInputValue, out bidValue))
+        return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal });
+      
+      AuctionService service = this.PaywallContext.Service as AuctionService;
+      if (service == null)
+      {
+        Log.Error(new LogMessageBuilder(new LogErrorCode(this.PaywallContext.Session.SessionData.Guid.ToString(), "controllers", "auction", "submitbid"),
+          string.Format("This service is not AuctionService type"), PaywallContext.Service.ServiceData));
+        return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal });
+      }
+
+      AuctionRound auctionRound = service.GetAuctionRound();
+      if (auctionRound == null)
+      {
+        Log.Error(new LogMessageBuilder(new LogErrorCode(this.PaywallContext.Session.SessionData.Guid.ToString(), "controllers", "auction", "submitbid"),
+          string.Format("This service has no AuctionRound setup"), PaywallContext.Service.ServiceData));
+        return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal });
+      }
+
+      AuctionCredit auctionCredit = AuctionCredit.CreateManager().Load(PaywallContext.Session.SessionData.Customer);
+      if (auctionCredit == null)
+      {
+        Log.Error(new LogMessageBuilder(new LogErrorCode(this.PaywallContext.Session.SessionData.Guid.ToString(), "controllers", "auction", "submitbid"),
+          string.Format("This customer has no AuctionCredit entries"), PaywallContext.Session.SessionData.Customer));
+        return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal });
+      }
+      else if(auctionCredit.Amount < 1)
+        return this.Json(new { status = false, message = Translations.Web.Auction.NotEnoughCredits });
+
+
+      AuctionBid auctionBid = new AuctionBid(-1, auctionRound, PaywallContext.Session.SessionData.Customer, bidValue, DateTime.Now, DateTime.Now);
+      auctionBid.Insert();
+
+      bool isUnique = DirectAuctionBidTable.IsUnique(auctionRound, bidValue);
+
+      AuctionCreditHistory auctionCreditHistory = new AuctionCreditHistory(-1, auctionCredit, null, PaywallContext.Session.SessionData.Customer, bidValue, DateTime.Now, DateTime.Now);
+      auctionCreditHistory.Insert();
+
+      AuctionCredit newAuctionCredit = new AuctionCredit(-1, AuctionCreditStatus.Out, PaywallContext.Session.SessionData.Customer, (--auctionCredit.Amount), DateTime.Now, DateTime.Now);
+      newAuctionCredit.Insert();
+
+      // TODO: add translations
+      if (isUnique)
+      {
+        auctionRound.AuctionBid = auctionBid;
+        auctionRound.Update();
+
+        return this.Json(new { status = true, message = Translations.Web.Auction.Congratuations });
+      }
+      else
+        return this.Json(new { status = true, message = Translations.Web.Auction.BidNotUnique });
+    }
+
+    // SUMMARY: Additional credits view
+    public ActionResult AdditinalCredits()
+    {
+      AuctionCreditsModel model = new AuctionCreditsModel(this.PaywallContext);
+
+      if(model.AuctionCreditPolicies.Count == 0)
+      {
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, Data.ErrorCode.Unknown);
+        Log.Error(new LogMessageBuilder(new LogErrorCode(this.PaywallContext.Session.SessionData.Guid.ToString(), "controllers", "auction", "additionalcredits"),
+          string.Format("AuctionCreditPolices are not set for service '{0}'", this.PaywallContext.Service.ServiceData.Name)));
+
+        // TODO: Move this to translations
+        errorModel.ErrorTitle = "Error";
+        errorModel.ErrorDescription = "Not supported";
+        return View("Error", errorModel);
+      }
+
+      return View("AuctionBuyCredits", model);
+    }
+
+    // SUMMARY: If customer want to buy additional credits, here he will be redirected to payment page
+    public ActionResult AdditionalCreditsRedirect(int serviceOfferID)
+    {
+      ServiceOffer serviceOffer = ServiceOffer.CreateManager().Load(serviceOfferID);
+      if(serviceOffer == null)
+      {
+        Log.Error(new LogMessageBuilder(new LogErrorCode(this.PaywallContext.Session.SessionData.Guid.ToString(), "controllers", "auction", "AdditionalCreditsRedirect"),
+          string.Format("ServiceOffer with id='{0}' could not be loaded", serviceOffer)));
+
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, Translations.Web.Error.ErrTitle, Translations.Web.Error.ErrInternal);
+        return View("Error", errorModel);
+      }
+
+      return this.Content("Proceed with payment...");
+    }
+
+  }
+
+}

@@ -1,0 +1,98 @@
+﻿function Login()
+{
+  this._errorBox = null;
+  this.OriginalRequestUrl = '';
+
+  this._init = function () {
+    this._errorBox = $('#errorBox');
+    this._button_login();
+    this._button_lockListener();
+  };
+
+  this._button_login = function () {
+    var self = this;
+    var originalText = $('#button_login').text();
+    var btn = $('#button_login');
+    btn.attr('inuse', 'false');
+    
+    $('#login_form').submit(function (event) {
+      event.preventDefault();
+      self._errorBox.css('opacity', '0');
+
+      if ($(this).attr('inuse') == 'true')
+        return;
+
+      var username = $('#input_username').val();
+      var password = $('#input_password').val();
+
+      if (username == '' || password == '') {
+        self._displayError("You did not entered username or password");
+        return;
+      }
+
+      btn.text('...');
+      btn.attr('inuse', 'true');
+      self._ajax(username, password, btn, originalText);
+
+    });
+
+  };
+
+  this._button_lockListener = function () {
+    var self = this;
+    var btn = $('.buttonLock');
+    var originalText = btn.html();
+    var username = btn.attr('username');
+    btn.attr('inuse', 'false');
+
+    $('#lock_form').submit(function (event) {
+      event.preventDefault();
+      if (btn.attr('inuse') == 'true')
+        return;
+
+      var password = $('#input_password').val();
+
+      if (password == null) {
+        self._displayError("You must enter password!");
+        return;
+      }
+
+      btn.text('...');
+      btn.attr('inuse', 'true');
+      self._ajax(username, password, btn, originalText);
+    });
+
+  };
+
+  this._ajax = function(username, password, btn, originalHtml)
+  {
+    var self = this;
+    $.ajax({
+      url: '/Client/Login',
+      data: '&username=' + username + '&password=' + password,
+      method: 'POST',
+      success: function (response) {
+        btn.html(originalHtml);
+        btn.attr('inuse', 'false');
+
+        if (!response.status)
+          self._displayError(response.message);
+        else
+        {
+          if (self.OriginalRequestUrl == '')
+            window.location = response.redirect;
+          else
+            window.location = self.OriginalRequestUrl;
+        }
+      }
+    });
+  }
+
+  this._displayError = function (text)
+  {
+    this._errorBox.find('#error_text').text(text);
+    this._errorBox.css('opacity', '1');
+  };
+
+  this._init();
+}

@@ -1,0 +1,82 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Merchant.Helpers;
+using MobilePaywall.Merchant.Models;
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Merchant.Controllers
+{
+  public class MerchantController : PaywallController
+  {
+    // GET: Merchant
+    public ActionResult Index()
+    {
+      return View();
+    }
+
+    [HttpPost]
+    public PartialViewResult Table()
+    {
+      List<Data.Merchant> merchants = new List<Data.Merchant>();
+      Dictionary<int, Data.Merchant> allowedMerchants = PaywallHttpContext.Current.ClientSession.Client.AllowedMerchants;
+      foreach (Data.Merchant m in allowedMerchants.Values)
+        merchants.Add(m);
+      return PartialView("_Table", merchants);
+    }
+
+    [HttpPost]
+    public JsonResult GenerateDropdowns(string instanceName, string templateName)
+    {
+
+      List<SelectListItem> instanceList = (from i in Data.Instance.CreateManager().Load() select new SelectListItem() { Text = i.Name, Value = i.ID.ToString(), Selected = (i.Name.Equals(instanceName, StringComparison.Ordinal) ? true : false) }).ToList();
+      List<SelectListItem> templateList = (from t in Template.CreateManager().Load() select new SelectListItem() { Text = t.Name, Value = t.ID.ToString(), Selected = (t.Name.Equals(templateName, StringComparison.Ordinal) ? true : false) }).ToList();
+
+      List<List<SelectListItem>> results = new List<List<SelectListItem>>();
+      results.Add(instanceList);
+      results.Add(templateList);
+      return Json(results);
+    }
+
+    [HttpPost]
+    public bool CheckMerchantName(string name, string id) 
+    {
+      Data.Merchant merchant = Data.Merchant.CreateManager().Load(name.Trim());
+      if (merchant != null && merchant.ID != Int32.Parse(id))
+        return false;
+      return true;
+    }
+
+    [HttpPost]
+    public int UpdateOrInsert(string id, string name, string instanceId, string templateId, string address, string phone, string email, string regNo, string vatNo)
+    {
+      ClientSession clientSession = PaywallHttpContext.Current.ClientSession;
+      Data.Merchant merchant = null;
+
+      if (string.IsNullOrEmpty(id))
+        merchant = new Data.Merchant(-1);     
+      else
+        merchant = Data.Merchant.CreateManager().Load(int.Parse(id));
+      
+      merchant.Name = name.Trim();
+      merchant.Instance = Instance.CreateManager().Load(int.Parse(instanceId));
+      merchant.Template = !string.IsNullOrEmpty(templateId) ? Template.CreateManager().Load(int.Parse(templateId)) : null;
+      merchant.Address = address.Trim();
+      merchant.Phone = phone.Trim();
+      merchant.Email = email.Trim();
+      merchant.RegistrationNo = regNo.Trim();
+      merchant.VatNo = vatNo.Trim();
+      merchant.Updated = DateTime.Now;
+
+      merchant.UpdateOrInsertWithHistory(clientSession);
+      MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+      runtime.RefreshMerchants();
+
+      return merchant.ID;
+    }
+  }
+}

@@ -1,0 +1,127 @@
+﻿@model MobilePaywall.Web.Models.CustomerModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+}
+
+@Styles.Render("~/Style/Black/Login")
+@Scripts.Render("~/Script/Login")
+
+@if(!Model.DisplayLogo)
+{
+  @section logo{}
+}
+
+<div id="login_section" class="login_class_section">
+  <div class="header">اشتراک</div> @* subscribe *@
+
+  <div class="section_body" id="loginForm">
+    <div class="form_section">
+      <div class="form_label">@Translations.Web.Login.Username<span class="login_asterix">*</span></div>
+      <input id="input_pinput" type="text" name="name" value="" placeholder="@Translations.Web.Login.PlcUsername" />
+    </div>
+    <div class="submitBtn" id="paymentSubmit">
+      @Translations.Web.Controls.Next
+      <div class="ajax_response"></div>
+    </div>
+  </div>
+</div>
+
+<div id="login_section" class="login_class_section">
+  <div class="header">آیا حساب کاربری دارید؟ لطفا وارد شوید</div> @*have account, please login*@ 
+
+  <div class="section_body" id="loginForm">
+    <div class="form_section">
+      <div class="form_label">@Translations.Web.Login.Username<span class="login_asterix">*</span></div>
+      <input id="input_username" type="text" name="name" value="" placeholder="@Translations.Web.Login.PlcUsername" />
+    </div>
+    <div class="form_section">
+      <div class="form_label">@Translations.Web.Login.Password <span class="login_asterix">*</span></div>
+      <input id="input_password" type="password" name="name" value="" placeholder="@Translations.Web.Login.PlcPassword" />
+    </div>
+    <div class="submitBtn" id="loginSubmit">
+      @Translations.Web.Login.Button
+      <div class="ajax_response"></div>
+    </div>
+  </div>
+</div>
+
+      
+<script>
+  $(document).ready(function () {
+
+    $('#paymentSubmit').click(function () {
+      if ($(this).attr('inuse') == 'true')
+        return;
+
+      var input = $('#input_pinput').val();
+      if (input == '') {
+        _visual.Alert('لطفا ابتدا شماره تلفن خود را وارد کنید'); // Please enter your phone number first
+        return;
+      }
+
+      var btn = $(this);
+      var originalText = btn.attr('value');
+      btn.text('لطفا صبر کنید');
+      btn.attr('inuse', 'true');
+
+      $.ajax({
+        type: 'POST',
+        url: '/IranPayment/Index',
+        data: { input: input },
+        success: function (response) {
+          if (response.status) {
+            _visual.Alert(response.message);
+            btn.closest('.login_class_section').fadeOut(500, function () { $(this).remove(); });
+          }
+          else
+            _visual.Alert(response.message);
+
+          btn.text(originalText);
+          btn.attr('inuse', 'false');
+        }
+      });
+    });
+
+    $('#loginSubmit').click(function () {
+      if ($(this).attr('inuse') == 'true')
+        return;
+
+      var username = $('#input_username').val();
+      if(username == '')
+      {
+        _visual.Alert('لطفا نام کاربری را وارد کنید!'); // please insert username
+        return;
+      }
+
+      var password = $('#input_password').val();
+      if(password == '')
+      {
+        _visual.Alert('لطفا رمز عبور را وارد کنید!'); // Please insert password!
+        return;
+      }
+
+      var btn = $(this);
+      var originalText = btn.attr('value');
+      btn.text('لطفا صبر کنید');
+      btn.attr('inuse', 'true');
+
+
+      $.ajax({
+        type: 'POST',
+        url: '/IranPayment/Login',
+        data: { username: username, password: password },
+        success: function (response) {
+          if (response.status)
+            window.location = '/';
+          else
+            _visual.Alert(response.message);
+
+          btn.text(originalText);
+          btn.attr('inuse', 'false');
+        }
+      });
+
+    });
+
+  });
+</script>

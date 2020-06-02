@@ -1,0 +1,187 @@
+﻿@model MobilePaywall.CustomerCare.Models.SearchResultModel
+
+<style>
+    .subscriptionPurchaseMessage{ margin: 15px 0px; color: #B30000; text-align: center; width: 100%!important; height: 20px; display: block; }
+</style>
+
+@{
+  if (PaywallHttpContext.Current.ClientSession.Client.HasAccess(Model.Customers.FirstOrDefault().Service))
+  {
+    <section class="col-lg-4 connectedSortable">
+      <div class="box box-success box-solid">
+        <div class="box-header with-border">
+          <h3 class="box-title">Customer informations</h3>
+          <div class="box-tools pull-right">
+            <button class="btn btn-danger btn-sm" data-widget="remove" data-toggle="tooltip" title="" data-original-title="Remove">
+              Reset password
+            </button>
+            <button class="btn btn-box-tool" data-widget="collapse"><i class="fa fa-minus"></i></button>
+          </div>
+        </div><!-- /.box-header -->
+        <div class="box-body">
+
+          <table id="__customer_searchInformationTable">
+            <tr>
+              <td><b>Username:</b></td>
+              <td>@Model.Username</td>
+            </tr>
+            <tr>
+              <td><b>Country:</b></td>
+              <td>@Model.Country</td>
+            </tr>
+            <tr>
+              <td><b>Mobile operator:</b></td>
+              <td>@Model.MobileOperator</td>
+            </tr>
+            <tr>
+              <td><b>Msisdn:</b></td>
+              <td>@Model.Msisdn</td>
+            </tr>
+            <tr>
+              <td><b>Active since:</b></td>
+              <td>@Model.Customers.FirstOrDefault().Created</td>
+            </tr>
+          </table>
+
+        </div><!-- /.box-body -->
+      </div>
+    </section>
+  }
+}
+
+<div style="clear:both"></div>
+
+<div class="box">
+  <div class="box-header">
+    <h3 class="box-title">Subscriptions</h3>
+    <div class="box-tools pull-right">
+      <button class="btn btn-box-tool" data-widget="collapse"><i class="fa fa-minus"></i></button>
+    </div>
+  </div>
+  <div class="box-body table-responsive no-padding" id="box1">
+    @if (Model.Subscriptions != null && Model.Subscriptions.Count > 0)
+    {
+      <table class="table table-hover">
+        <tbody>
+          <tr>
+            <th>Valid since</th>
+            <th>Service</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+
+          @foreach (Cashflow.Message.Data.Subscription subscription in Model.Subscriptions)
+          {
+            MobilePaywall.Data.Payment payment = Model.GetPayment(subscription);
+            <tr subscriptionGuid="@subscription.SubscriptionID">
+              @if (payment == null)
+              {
+                <th></th> <th></th> <th></th> <th></th>
+              }
+              else
+              {
+                <td>@subscription.Created</td>
+                <td>@payment.ServiceOffer.Service.Name</td>
+                <td><span class="label paymentLabel label-@Model.LabelStatus(subscription.Status)">@subscription.Status.ToString()</span></td>
+                <td>
+                  <a href="/Payment/Transactions?guid=@payment.Guid">
+                    @if (PaywallHttpContext.Current.ClientSession.Client.HasAccess("Transactions"))
+                    {
+                      <button class="btn btn-block btn-info btn-xs" style="width:140px; float:left; margin-right:15px;">More informations</button>
+                    }
+                  </a>
+                  @if (PaywallHttpContext.Current.ClientSession.Client.HasAccess("Cancel") && subscription.Status == Cashflow.Message.Data.SubscriptionStatus.Active)
+                  {
+                    <button id="button_subscription_cancel" guid="@payment.Guid" class="button_payment_cancel btn btn-block btn-danger btn-xs" style="width:140px; margin-top:0px;">Cancel</button>
+                  }
+                </td>
+              }
+            </tr>
+          }
+
+        </tbody>
+      </table>
+    }
+    else
+    {
+      <strong class="subscriptionPurchaseMessage">This customer does not have any subcription</strong>
+    }
+  </div>
+</div>
+
+
+<div class="box">
+  <div class="box-header">
+    <h3 class="box-title">Purchases</h3>
+    <div class="box-tools pull-right">
+      <button class="btn btn-box-tool" data-widget="collapse"><i class="fa fa-minus"></i></button>
+    </div>
+  </div>
+  <div class="box-body table-responsive no-padding" id="box2">
+    @if (Model.Purchases != null && Model.Purchases.Count > 0)
+    {
+      <table class="table table-hover">
+        <tbody>
+          <tr>
+            <th>Valid since</th>
+            <th>Service</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+
+          @foreach (Cashflow.Message.Data.Purchase purchase in Model.Purchases)
+          {
+            MobilePaywall.Data.Payment payment = Model.GetPayment(purchase);
+
+            <tr purchaseGuid="@purchase.PurchaseID">
+              @if (payment == null)
+              {
+                <th></th> <th></th> <th></th> <th></th>
+              }
+              else
+              {
+                <td>@purchase.Created</td>
+                <td>@payment.ServiceOffer.Service.Name</td>
+                <td><span class="label paymentLabel label-@Model.LabelStatus(purchase.Status)">@purchase.Status.ToString()</span></td>
+                <td>
+                  <a href="/Payment/Transactions?guid=@payment.Guid">
+                    @if (PaywallHttpContext.Current.ClientSession.Client.HasAccess("Transactions"))
+                    {
+                      <button class="btn btn-block btn-info btn-xs" style="width:140px; float:left; margin-right:15px;">More informations</button>
+                    }
+                  </a>
+                </td>
+              }
+            </tr>
+          }
+
+        </tbody>
+      </table>
+    }
+    else
+    {
+      <strong class="subscriptionPurchaseMessage">This customer does not have any purchases</strong>
+    }
+  </div>
+</div>
+
+
+
+
+
+@*
+  TABLE ROW TEMPLATE
+
+  <tr>
+    <td>219</td>
+    <td>Alexander Pierce</td>
+    <td><span class="label label-warning">Pending</span></td>
+    <td>
+      <a href="/subscriptions/transactions">
+        <button class="btn btn-block btn-info btn-xs" style="width:140px; float:left; margin-right:15px;">More informations</button>
+      </a>
+      <button class="btn btn-block btn-danger btn-xs" style="width:140px; margin-top:0px;">Cancel</button>
+    </td>
+  </tr>
+*@
+

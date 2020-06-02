@@ -1,0 +1,75 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+
+using MobilePaywall.Data;
+using MobilePaywall.MobilePaywallDirect;
+using MobilePaywall.MobilePaywallDirectWebCore;
+
+namespace MobilePaywall.Web.Models
+{
+  public class ContentListViewModel : PaywallViewModelBase
+  {
+    private Category _category = null;
+    List<IContent> _content = null;
+    private int _currentPage = -1;
+    private int _pageItems = -1; // number of contents on home page
+
+    public Category Category { get { return this._category; } }
+    public string CategoryID { get { return this.Context.HttpContext.Request["categoryId"] != null ? this.Context.HttpContext.Request["categoryId"].ToString() : ""; } }
+    public List<IContent> Content 
+    { 
+      get 
+      {
+        if (this._content == null)
+          this._content = new List<IContent>();
+        return this._content;
+      } 
+    }
+
+    public int CurrentPage { get { return this._currentPage; } }
+
+    // SUMMARY: This is count of content that will be displayed on home page
+    public int ContentCount { get { return this._content != null ? this._content.Count : 0; } }
+
+    // SUMMARY: Var we get from home page. Represents number of contents on home page
+    public int PageItemsCount { get { return this._pageItems; } }
+
+    // SUMMARY: This is count of all contents that this service has
+    public int AllContentCount
+    {
+      get
+      {
+        string categorySql = this.Category != null ? "INNER JOIN MobilePaywall.core.ContentCategoryMap AS ccm ON ccm.ContentID=c.ContentID AND ccm.CategoryID=" + this.Category.ID : "";
+        int ? result = PaywallDirect.Instance.LoadInt(string.Format(@"
+          SELECT COUNT(*) FROM MobilePaywall.core.Content AS c
+          LEFT OUTER JOIN MobilePaywall.core.ContentGroup AS cg ON c.ContentGroupID=cg.ContentGroupID
+          LEFT OUTER JOIN MobilePaywall.core.ServiceContentGroupMap AS scgm ON scgm.ContentGroupID=cg.ContentGroupID
+          {0}
+          WHERE c.IsEnabled=1 AND cg.IsEnabled=1 AND scgm.IsEnabled=1 AND scgm.ServiceID={1};", categorySql, PaywallHttpContext.Current.Service.ServiceData.ID));
+        
+        return result.HasValue ? result.Value : 0;
+      }
+    }
+
+    public ContentListViewModel(PaywallHttpContext context, Category category, List<IContent> content, int pageItems, int page) : base(context)
+    {
+      this._currentPage = page;
+      this._category = category;
+      this._pageItems = pageItems;
+      this._content = content;
+    }
+
+    // SUMMARY: Append session id link for pagination redirections
+    public string AppendSessionIDForPagination(int page, Category category)
+    {
+      if (this.TemplateMode)
+        return "/template/home?page=" + page + (category != null ? "&categoryId=" + category.ID : "");
+      else
+        return PaywallHttpContext.AppendSessionID("/?page=" + page + (category != null ? "&categoryId=" + category.ID : ""));
+    }
+
+  }
+  
+}

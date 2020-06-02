@@ -1,0 +1,326 @@
+﻿using System;
+using System.Web.Mvc;
+
+using MobilePaywall.Data;
+using MobilePaywall.Web.Models;
+
+using Senti.Diagnostics.Log;
+
+using log4net;
+using MobilePaywall.Web.Log;
+using System.Collections.Generic;
+using System.Web;
+using MobilePaywall.Web.Controllers;
+
+namespace MobilePaywall.Web.Filters
+{
+  [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, Inherited = true, AllowMultiple = false)]
+  public class AuthenticationAttribute : PaywallActionFilterAttributeBase
+	{
+    protected static ILog _log = null;
+
+    public static ILog Log
+    {
+      get
+      {
+        if (AuthenticationAttribute._log == null)
+          AuthenticationAttribute._log = LogManager.GetLogger(typeof(AuthenticationAttribute));
+        return AuthenticationAttribute._log;
+      }
+    }
+		public override void OnActionExecuting(ActionExecutingContext filterContext)
+		{
+      base.OnActionExecuting(filterContext);
+
+      if (!this.Required)
+        return;
+
+      #region # Custom page Override #
+      
+      if ((filterContext.Controller as CustomPageController) != null)
+      {
+        int _customPageID = -1;
+        string cpdID = filterContext.ActionParameters["id"] != null ? filterContext.ActionParameters["id"].ToString() : "";
+        if (Int32.TryParse(cpdID, out _customPageID))
+          return;
+
+        Data.CustomPage customPage = Data.CustomPage.CreateManager().Load(_customPageID);
+        if (customPage == null)
+          return;
+
+        if (!customPage.AuthenticationFilter.HasValue || !customPage.AuthenticationFilter.Value)
+          return;
+
+      }
+
+      #region # iran #
+
+      if (PaywallContext.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("IR"))
+        if (PaywallContext.Session.SessionData.Customer != null)
+          return;
+        else
+        {
+          UserHttpRequest iranRequest = new UserHttpRequest(-1, Guid.NewGuid(), this.PaywallContext.Session.SessionData, null, "fckof", DateTime.Now, DateTime.Now);
+          iranRequest.Insert();
+          filterContext.Result = this.Login(iranRequest);
+          return;
+        }
+
+      #endregion
+      #region # (CY && GR) Amaze #
+
+
+      if ((PaywallContext.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("CY") || PaywallContext.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("GR")) &&
+        this.PaywallContext.Service.PaymentProvider.ID == 16 )
+      {
+        if (this.PaywallContext.HttpContext.Request.RawUrl.Contains(string.Format("&{0}=true", Constants.TemplateBypass)))
+          return;
+
+        if (PaywallContext.Session.SessionData.Customer != null)
+          return;
+        else
+        {
+          UserHttpRequest iranRequest = new UserHttpRequest(-1, Guid.NewGuid(), this.PaywallContext.Session.SessionData, null, "fckof", DateTime.Now, DateTime.Now);
+          iranRequest.Insert();
+          filterContext.Result = this.Login(iranRequest);
+          return;
+        }
+      }
+
+      #endregion
+      #region # FilterBypass #
+      
+      FilterBypass filterBypass = FilterBypass.GetFilterBypass(PaywallHttpContext.Current.Service, FilterBypassType.AuthenticationAttribute);
+      if(filterBypass != null && filterBypass.Enabled)
+      {
+        // Display login page
+        if (filterBypass.DisplayLoginPage && PaywallContext.Session.SessionData.Customer != null)
+        {
+          UserHttpRequest userHttpRequestLogin = new UserHttpRequest(-1, Guid.NewGuid(), this.PaywallContext.Session.SessionData, null, "fckof", DateTime.Now, DateTime.Now);
+          userHttpRequestLogin.Insert();
+          filterContext.Result = this.Login(userHttpRequestLogin);
+          return;
+        }
+
+        return;
+      }
+
+      #endregion
+      
+      #endregion
+
+      string sessionID = this.PaywallContext.Session.SessionData.Guid.ToString();
+
+      switch (this.PaywallContext.Service.ServiceData.ServiceStatus)
+      {
+        case ServiceStatus.Offline:
+          #region # /Template/ServiceError.cshtml #
+          ViewResult offlineView = new ViewResult();
+          offlineView.ViewName = "~/Views/Template/ServiceError.cshtml";
+          offlineView.ViewBag.Message = "Service is offline";
+          filterContext.Result = offlineView;
+          return;
+          #endregion
+        case ServiceStatus.Updating:
+          #region # /Template/ServiceError.cshtml #
+          ViewResult updateView = new ViewResult();
+          updateView.ViewName = "~/Views/Template/ServiceError.cshtml";
+          updateView.ViewBag.Message = "Service is updating...";
+          filterContext.Result = updateView;
+          return;
+          #endregion
+        case ServiceStatus.Free:
+          //INFO: Free mode is for testing. If service is in free mode that means that you will have access to all pages.
+          Log.Debug(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "authentication", "onactionexecuting"), "Service is in free mode."));
+          return;
+        default:
+          break;
+      }
+
+      #region # Custom implementations #
+
+      //#region # thailand #
+
+      //if (PaywallContext.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("TH") && 
+      //  PaywallContext.Service.PaymentProvider.ID == 10)
+      //  return;
+
+      //#endregion
+      //#region # iran #
+
+      //if (PaywallContext.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("IR"))
+      //  if (PaywallContext.Session.SessionData.Customer != null)
+      //    return;
+      //  else
+      //  {
+      //    UserHttpRequest iranRequest = new UserHttpRequest(-1, Guid.NewGuid(), this.PaywallContext.Session.SessionData, null, "fckof", DateTime.Now, DateTime.Now);
+      //    iranRequest.Insert();
+      //    filterContext.Result = this.Login(iranRequest);
+      //    return;
+      //  }
+
+      //#endregion
+      //#region # TPay #
+
+      //// there is no need for lookup for tpay services
+      //if (PaywallHttpContext.Current.Service.PaymentProvider.ID == 21)
+      //  return;
+
+      //#endregion
+
+      #endregion
+
+      if (MobilePaywall.Constants.Confirmed.Equals(filterContext.HttpContext.Request.QueryString[MobilePaywall.Constants.AgeVerification]))
+      {
+        this.PaywallContext.Session.SessionData.HasVerifiedAge = true;
+        this.PaywallContext.Session.SessionData.Update();
+        Log.Debug(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "ageverificationattribute", "onactionexecuting"), "AVS confirmed."));
+        return;
+      }
+      
+      if (this.Configuration.LookupMode != LookupMode.OnSessionCreated &&
+          !(filterContext.Controller is IPaywallRestrictedAccessController))
+        return;
+
+      if (filterContext.Controller is IAuthenticationController)
+      {
+        this.PaywallContext.Session.ReloadSession();
+        if (this.PaywallContext.Session.SessionData.Customer != null)
+          return;
+      }
+
+      string requestRawUrl = MobilePaywall.Web.Helpers.UrlHelper.AppendSessionID(filterContext.RequestContext, filterContext.RequestContext.HttpContext.Request.RawUrl);
+      if (requestRawUrl.Equals("/"))
+      {
+        filterContext.Result = new RedirectResult(requestRawUrl);
+        return;
+      }
+
+      if (!requestRawUrl.StartsWith("/"))
+        requestRawUrl = string.Format("/{0}", requestRawUrl);
+
+      IUserSession session = this.PaywallContext.Session;
+      IContent content = this.GetRequestedContentInternal(filterContext);
+
+      UserHttpRequest originalRequest = new UserHttpRequest(-1, Guid.NewGuid(), this.PaywallContext.Session.SessionData, content != null ? content.ContentData : null, requestRawUrl, DateTime.Now, DateTime.Now);
+      originalRequest.Insert();
+      
+      LookupSession lookupSession = null;
+
+      // TEST:::
+      //if ((new OLCacher()).IsLookupSuccess(this.PaywallContext.Session.SessionData))
+      //{
+      //  Log.Debug("AuthentificationSession:: OLCache returned true!");
+      //  return;
+      //}
+
+      try
+      {
+        if ( session.TryGetLookupResult(string.Format("http://{0}{1}", this.PaywallContext.Domain.DomainName, requestRawUrl.StartsWith("/") ? requestRawUrl : "/" + requestRawUrl)) &&
+           ( session.LastLookupResult == null || (session.LastLookupResult.IsFinalResult && session.LastLookupResult.IsSuccessful)))
+        {
+          #region # Centili Russia #
+
+          if(session.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("RU"))
+          {
+            /// Specific situation for Russia Centili services where we need to display first Payment landing page, 
+            /// after that, customer goes to payment page, and after he will be returned to home page...
+
+            if (ContentAccessPolicy.HasAccess(this.PaywallContext.Service.ServiceData, this.PaywallContext.Session.SessionData.Customer, content))
+              return;
+          }
+
+          #endregion
+          return;
+        }
+        else if (session.LastLookupResult == null)
+        {
+          requestRawUrl = "http://" + this.PaywallContext.Domain.DomainName + requestRawUrl;
+          lookupSession = this.PaywallContext.Session.LookupManager.InitiateLookupSession(requestRawUrl, originalRequest);
+
+          // continue with flow
+          if (this.PaywallContext.Session.LookupManager.SkipLookup)
+            return;
+
+          if (lookupSession == null || string.IsNullOrEmpty(lookupSession.LookupUrl) || lookupSession.LookupUrl.Contains("-nil-"))
+          {
+            //if (this.Configuration.HasSmsPayment)
+            //  return;
+
+            #region # displaying login view #
+            Log.Debug(new LogMessageBuilder(new PaywallLogErrorCode("authenticate", "lookup", "notsuccess"),
+              string.Format("Lookup is not successfull.. Displaying login page...")));
+
+            filterContext.Result = this.Login(originalRequest);
+            return;
+            #endregion
+          }
+
+          Log.Debug(new LogMessageBuilder(new PaywallLogErrorCode("authenticate", "lookup", "success"), 
+            string.Format("Redirect (URL: {0})", lookupSession.LookupUrl)));
+          filterContext.Result = new RedirectResult(lookupSession.LookupUrl);
+          return;
+        }
+        else if (!session.LastLookupResult.IsFinalResult)
+        {
+          #region return pending view #
+
+          Log.Debug(new LogMessageBuilder(new PaywallLogErrorCode("authenticate", "lookup", "notsuccess"),
+            string.Format("Lookup is not successfull.. Displaying pending page...")));
+
+          CallbackViewModel callbackViewModel = new CallbackViewModel(this.PaywallContext) { Type = CallbackType.Query, CallbackGuid = session.LastLookupResult.LookupSession.IdentificationSessionGuid.Value };
+          ViewResult viewResult = new ViewResult();
+          viewResult.ViewName = "Pending";
+          viewResult.ViewData.Model = callbackViewModel;
+          filterContext.Result = viewResult;
+          return;
+          #endregion
+        }
+        else
+        {
+          //if (this.Configuration.HasSmsPayment)
+          //  return;
+
+          filterContext.Result = this.Login(originalRequest);
+          return;
+        }
+      }
+      catch (Exception ex)
+      {
+        Log.Fatal(new LogMessageBuilder(new PaywallLogErrorCode("authenticate", "lookup", "exception"), 
+          "Identification failed. Please check what is going on!", lookupSession), ex);
+
+        //if (this.Configuration.HasSmsPayment)
+        //  return;
+
+        filterContext.Result = this.Login(originalRequest);
+        return;
+      }
+    }
+
+    private ViewResult Login(UserHttpRequest request)
+    {
+      CustomerModel cModel = new CustomerModel(this.PaywallContext, request.RequestedUrl, "Error", "Sorry but we could not identify you.");
+      ViewResult viewResult = new ViewResult();
+      viewResult.ViewName = "Login";
+      viewResult.ViewData.Model = cModel;
+      return viewResult;
+    }
+
+    private IContent GetRequestedContentInternal(ActionExecutingContext filterContext)
+    {
+      object contentID = null;
+      if (!filterContext.RouteData.Values.TryGetValue("id", out contentID) ||
+          contentID == null)
+      {
+        // problem here...
+        //throw new ArgumentException("Invalid argument supplied for contentID parameter.", "contentID");
+        return null;
+      }
+
+      int contentIDValue = Int32.Parse(contentID.ToString());
+      IContent content = this.PaywallContext.Runtime.Cache.GetContent(contentIDValue);
+      return content;
+    }
+  }
+}

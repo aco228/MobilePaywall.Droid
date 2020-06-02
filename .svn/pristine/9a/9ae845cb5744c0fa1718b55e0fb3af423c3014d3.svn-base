@@ -1,0 +1,231 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Direct;
+using MobilePaywall.Web.Filters;
+using MobilePaywall.Web.Models;
+using MobilePaywall.Web.Models.Specific._Template;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers
+{
+  public partial class TemplateController : PaywallTemplateController
+  {
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateAddCategoryAdd(string name, string description)
+    {
+      Instance i = Instance.CreateManager().Load(1);
+      Category category = new Category(-1, i, name, description, DateTime.Now, DateTime.Now);
+      category.InsertWithHistory(PaywallHttpContext.Current.Session);
+      return this.Json(new { status = true, message = "Successfully inserted!", id = category.ID });
+    }
+
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateAddCategoryDelete(string categoryID)
+    {
+      int _categoryID = -1;
+      if (!Int32.TryParse(categoryID, out _categoryID))
+        return this.Json(new { status = false, message = "ID could not be parsed"});
+
+      Category category = Category.CreateManager().Load(_categoryID);
+
+      if(category==null)
+        return this.Json(new { status = false, message = "Category not found"});
+
+      category.DeleteWithHistory(PaywallHttpContext.Current.Session);
+      return this.Json(new { status = true, message = "Successfully Deleted!"});
+    }
+
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateAddCategoryUpdateCategoryInformation(string categoryID, string name, string description)
+    {
+      int _categoryID = -1;
+      if (!Int32.TryParse(categoryID, out _categoryID))
+        return this.Json(new { status = false, message = "ID could not be parsed" });
+
+      Category category = Category.CreateManager().Load(_categoryID);
+
+      if (category == null)
+        return this.Json(new { status = false, message = "Category not found" });
+
+      category.Name = name;
+      category.Description = description;
+      category.UpdateWithHistory(PaywallHttpContext.Current.Session);
+
+
+      return this.Json(new { status = true, message = "Successfully Updated!" });
+    }
+
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateAddCategoryUseCurrentCategory(string categoryID, string usecategory)
+    {
+      int _categoryID = -1;
+      if (!Int32.TryParse(categoryID, out _categoryID))
+        return this.Json(new { status = false, message = "Category ID could not be parsed" });
+
+     Category category = Category.CreateManager().Load(_categoryID);
+
+      if (category == null)
+        return this.Json(new { status = false, message = "Category not found" });
+
+      CategoryServiceMap categoryServiceMap = null;
+
+      bool _useCategory = usecategory.Equals("1") ? true : false;
+      string status = "";
+
+      categoryServiceMap = CategoryServiceMap.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData, category);
+
+      if (categoryServiceMap==null)
+      {
+        if (_useCategory)
+        {
+          categoryServiceMap = new CategoryServiceMap(-1, category, PaywallHttpContext.Current.Service.ServiceData, _useCategory, DateTime.Now, DateTime.Now);
+          categoryServiceMap.InsertWithHistory(PaywallHttpContext.Current.Session);
+          status = "Inserted!";
+        }
+        else
+        {
+          return this.Json(new { status = true, message = "You didn't select" });
+        }
+      }
+      else
+      {
+        categoryServiceMap.IsEnabled = _useCategory;
+        categoryServiceMap.UpdateWithHistory(PaywallHttpContext.Current.Session);
+        status = "Updated!";
+      }
+
+      return this.Json(new { status = true, message = "Successfully " + status });
+    }
+
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateAddCategoryRenderContents(string contentGroupID, string categoryID)
+    {
+      TemplateContentModel model = new TemplateContentModel(PaywallHttpContext.Current, contentGroupID, categoryID);
+      if(model.HasError)
+      {
+        return this.Json(new { status = false, message = model.ErrorMessage });
+      }
+      //Template\_PartialSpecific\TemplateCategoryEditor\_Content.cshtml
+      return PartialView("~/Views/Template/_PartialSpecific/TemplateCategoryEditor/_Content.cshtml", model);
+    }
+    
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateAddCategoryContentUsedByCategory(string categoryID, string useContents, string contentGroupID)
+    {
+      int _categoryID = -1;
+      if (!Int32.TryParse(categoryID, out _categoryID))
+      {
+        return this.Json(new { status = false, message = "Category ID could not be parsed" });
+      }
+
+      int _contentGroupID = -1;
+      if (!Int32.TryParse(contentGroupID, out _contentGroupID))
+      {
+        return this.Json(new { status = false, message = "ContentGroupID could not be parsed" });
+      }
+
+      ContentGroup contentGroup = ContentGroup.CreateManager().Load(_contentGroupID);
+
+      if (contentGroup == null)
+      {
+        return this.Json(new { status = false, message = "ContentGroup not found!" });
+      }
+
+      Category category = Category.CreateManager().Load(_categoryID);
+      if (category == null)
+      {
+        return this.Json(new { status = false, message = "Category not found!" });
+      }
+
+      List<ContentCategoryMap> _contentCategoryMap = ContentCategoryMap.CreateManager().Load(category, contentGroup);
+      
+      foreach(ContentCategoryMap ccm in _contentCategoryMap)
+      {
+        ccm.IsEnabled = false;
+        ccm.Update();
+      }
+
+      string[] numbers = useContents.Split(',');
+      foreach (string n in numbers)
+      {
+        int contentID;
+        if (!Int32.TryParse(n, out contentID))
+          continue;
+
+        /// 1. provjeriti da li content postoji sa ovim ID, i Content
+        Content content = Data.Content.CreateManager().Load(contentID);
+        if (content == null)
+          continue;
+
+        ContentCategoryMap ccm = (from c in _contentCategoryMap where c.Content.ID == contentID select c).FirstOrDefault();
+        if(ccm != null)
+        {
+          ccm.IsEnabled = true;
+          ccm.Update();
+          continue;
+        }
+
+        ccm = new ContentCategoryMap(-1, content, category, true, DateTime.Now, DateTime.Now);
+        ccm.Insert();
+      }
+
+      return this.Json(new { status = true, message = "Successfully Updated!" });
+    }
+    
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateAddCategoryNewCategoryDetail(string categoryID, string languageID, string title, string description)
+    {
+      int _categoryID = -1;
+      if (!Int32.TryParse(categoryID, out _categoryID))
+        return this.Json(new { status = false, message = "Category ID could not be parsed", id = -1 });
+      Category category = Category.CreateManager().Load(_categoryID);
+      if (category == null)
+      {
+        return this.Json(new { status = false, message = "Category not found!" });
+      }
+
+      int _languageID = -1;
+      if (!Int32.TryParse(languageID, out _languageID))
+        return this.Json(new { status = false, message = "Language ID could not be parsed", id = -1 });
+
+      Language language = Language.CreateManager().Load(_languageID);
+      if (language == null)
+        return this.Json(new { status = false, message = "Language not found", id = -1 });
+
+      CategoryDetail categoryDetail = CategoryDetail.CreateManager().Load(category, language);
+      if(categoryDetail==null)
+      {
+        categoryDetail = new CategoryDetail(-1, category, language, title, description, DateTime.Now, DateTime.Now);
+        categoryDetail.Insert();
+        return this.Json(new { status = true, message = "Successfully Inserted!" });
+      }
+      categoryDetail.Title = title;
+      categoryDetail.Description = description;
+      categoryDetail.Update();
+
+      return this.Json(new { status = true, message = "Successfully Edited!" });
+    }
+    
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateAddCategoryDeleteCategoryDetail(string categoryDetailID)
+    {
+      int _categoryDetailID = -1;
+      if (!Int32.TryParse(categoryDetailID, out _categoryDetailID))
+        return this.Json(new { status = false, message = "CategoryDetail ID could not be parsed", id = -1 });
+
+      CategoryDetail categoryDetail = CategoryDetail.CreateManager().Load(_categoryDetailID);
+      if (categoryDetail == null)
+      {
+        return this.Json(new { status = false, message = "CategoryDetail not found!" });
+      }
+
+      categoryDetail.Delete();
+
+      return this.Json(new { status = true, message = "Successfully deleted!" });
+    }
+    
+  }
+}

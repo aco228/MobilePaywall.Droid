@@ -1,0 +1,49 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Data.Direct;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Globalization;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Merchant.Controllers
+{
+  public class DashboardController : PaywallController
+  {
+    // GET: Home
+    public ActionResult Index()
+    {
+      //return View(this.Statistics(Split.None, new List<Group>() { Group.Country, Group.Service }, new Filter()));
+      Dictionary<int, Service> allowedServices = PaywallHttpContext.Current.ClientSession.Client.AllowedServices;
+      return View(this.Statistics(Split.None, new List<Group>(), new QueryBuilder(allowedServices, true), "dashboard"));
+    }
+
+    public PartialViewResult Map()
+    {
+      Dictionary<int, Service> allowedServices = PaywallHttpContext.Current.ClientSession.Client.AllowedServices;
+      Statistics data = new Statistics(Split.None, new List<Group>(), new QueryBuilder(allowedServices, true), "dashboardMap");
+      return PartialView("~/Views/Dashboard/_Map.cshtml", data);
+    }
+
+    public ActionResult Chart()
+    {
+      StatisticDirectManager sdManager = new StatisticDirectManager();
+      DataTable result = sdManager.DashboardChartSelect();
+      List<StatisticEntry> entries =
+         (from DataRow dt in result.Rows
+          select new StatisticEntry()
+          {
+
+            DateForDashboard = dt.Table.Columns.Contains("Date") ? DateTime.Parse(dt["Date"].ToString()).ToString("dd/MM") : "",
+            NewSessions = dt.Table.Columns.Contains("New") ? Int32.Parse(dt["New"].ToString()) : 0,
+            ReturningSessions = dt.Table.Columns.Contains("Returning") ? Int32.Parse(dt["Returning"].ToString()) : 0
+          }).ToList();
+
+
+      return Json(entries, JsonRequestBehavior.AllowGet);
+    }
+
+  }
+}

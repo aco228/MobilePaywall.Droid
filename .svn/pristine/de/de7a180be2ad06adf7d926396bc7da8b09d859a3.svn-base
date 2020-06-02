@@ -1,0 +1,106 @@
+using log4net;
+using Senti.Data;
+using Senti.Diagnostics.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IContentAccessPolicyManager
+  {
+    ContentAccessPolicy Load(BusinessModel businessModel, BusinessModelEntry businessModelEntry, Service service, ContentGroup contentGroup, Content content);
+    ContentAccessPolicy Load(IConnectionInfo connection, BusinessModel businessModel, BusinessModelEntry businessModelEntry, Service service, ContentGroup contentGroup, Content content);
+    ContentAccessPolicy Load(Service service);
+    ContentAccessPolicy Load(IConnectionInfo connection, Service service);
+    
+  }
+
+  public partial class ContentAccessPolicy
+  {
+    public void InsertWithHistory(ConnectionInfo connection, ClientSession cs, Service service)
+    {
+      EditHistory.Track(EditHistoryAction.Insert, cs, this, connection, service);
+    }
+    public void UpdateWithHistory(ConnectionInfo connection, ClientSession cs, Service service)
+    {
+      EditHistory.Track(EditHistoryAction.Update, cs, this, connection, service);
+    }
+
+    //  Find better name. DoesApply / HasAccess
+    public bool DoesApply(Content content)
+		{
+			if (content == null)
+				throw new ArgumentNullException("content", "content must not be null.");
+			if (this.ContentGroup == null)
+			{
+				if (this.Content != null &&
+						!content.ID.Equals(this.Content.ID))
+					return false;
+				return true;
+			}
+			else if (this.ContentGroup.ID.Equals(content.ContentGroup.ID))
+			{
+				if (this.Content != null &&
+						!this.Content.ID.Equals(content.ID))
+					return false;
+				return true;
+			}
+			return false;
+		}
+    
+    // SUMMARY: For given msisdn (from customer) check does he have any active access policy under diferent customer ID or payment ID
+    public static bool HasAccess(Service service, Customer customer, IContent content)
+    {
+      if (service == null || customer == null)
+        return false;
+
+      List<Customer> customers = new List<Customer>();
+      IPaymentContentAccessPolicyMapManager pcapmManager = PaymentContentAccessPolicyMap.CreateManager();
+      Data.IPaymentManager pManager = Data.Payment.CreateManager();
+
+      if(string.IsNullOrEmpty(customer.Msisdn))
+        customers.Add(customer);
+      else
+        customers = Customer.CreateManager().Load(customer.Msisdn, CustomerIdentifier.Msisdn);
+
+      foreach (Customer c in customers)
+      {
+        if (c.CustomerStatus != CustomerStatus.Active || c.Service.ID != service.ID)
+          continue;
+
+        List<Payment> payments = (from p in pManager.Load<List<Payment>>(c) where 
+                                    (p.PaymentStatus == PaymentStatus.Cancelled || p.PaymentStatus == PaymentStatus.Successful) && p.ServiceOffer.Service.ID == service.ID 
+                                  select p).ToList();
+
+        foreach (Payment payment in payments)
+        {
+          List<PaymentContentAccessPolicyMap> paymentAccessPolicies = pcapmManager.Load(payment);
+          foreach (PaymentContentAccessPolicyMap pcapm in paymentAccessPolicies)
+          {            
+            if ( !pcapm.IsValid ) continue;
+            if ( pcapm.ValidTo > DateTime.Now )
+            {
+              if ( content != null )
+              {
+                if (pcapm.ContentAccessPolicy.DoesApply(content.ContentData)) return true;
+                else continue;
+              }
+              return true;
+            }
+
+            /*if(pcapm.ContentAccessPolicy.DoesApply(content.ContentData))
+              return true;*/
+          }
+        }
+      }
+
+      return false;
+    }
+
+  }
+}
+

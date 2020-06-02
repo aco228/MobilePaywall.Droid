@@ -1,0 +1,208 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using MobilePaywall.Data;
+using System.Collections.Specialized;
+using log4net;
+using Senti.Diagnostics.Log;
+
+namespace MobilePaywall
+{
+	public class Application : ContentBase
+	{
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (Application._log == null)
+          Application._log = LogManager.GetLogger(typeof(Application));
+        return Application._log;
+      }
+    }
+    #endregion
+
+    private ApplicationContent _applicationContentData = null;
+
+    public ApplicationContent ApplicationContentData { get { return this._applicationContentData; } }
+    public override string ContentIconClass { get { return "__contentIcon_application"; } }
+    public override string DefaultTitle { get { return this._applicationContentData.Title; } }
+    public override string DefaultDescription { get { return this._applicationContentData.Description; } }
+
+		public Application(Content content)
+			: base(content)
+		{
+      this.LoadApplication();
+		}
+
+    public Application(ICache cache, Content content, ApplicationContent applicationContentData)
+      :base(cache, content)
+    {
+      this._applicationContentData = applicationContentData;
+    }
+
+    private void LoadApplication()
+    {
+      IApplicationContentManager applicationContentManager = ApplicationContent.CreateManager();
+      this._applicationContentData = applicationContentManager.Load(this.ContentData);
+    }
+
+    public override ContentData GetContentData(string userAgent)
+    {
+      Data.ApplicationContentData applicationContentData = Data.ApplicationContentData.LoadByApplicationContent(this.ApplicationContentData);
+      if(applicationContentData == null && Log.IsErrorEnabled)
+      {
+        LogMessageBuilder builder = new LogMessageBuilder(new LogErrorCode("paywall.core", "application", "getcontentdata"), "Application Content Data is null!", this.ApplicationContentData);
+        Log.Error(builder);
+        return null;
+      }
+
+      // Title is in format {{ID}}.{{Extension}}
+      return new ContentData(this.ApplicationContentData.ID + applicationContentData.MimeType.Extension,
+                             applicationContentData.MimeType.Name,
+                             applicationContentData.Data);
+    }
+
+    public override ContentData GetContentData(int id)
+    {
+      Data.ApplicationContentData applicationContentData = Data.ApplicationContentData.LoadByID(id);
+      if (applicationContentData == null && Log.IsErrorEnabled)
+      {
+        LogMessageBuilder builder = new LogMessageBuilder(new LogErrorCode("paywall.core", "application", "getcontentdata"), "Application Content Data is null!", this.ApplicationContentData);
+        Log.Error(builder);
+        return null;
+      }
+
+      // Title is in format {{ID}}.{{Extension}}
+      return new ContentData(this.ApplicationContentData.ID + applicationContentData.MimeType.Extension,
+                             applicationContentData.MimeType.Name,
+                             applicationContentData.Data);
+    }
+
+		public override NameValueCollection GetMetaInformation(Service service, Language language)
+		{
+      ApplicationContentDetail applicationContentDetail = null;
+      applicationContentDetail = ApplicationContentDetail.LoadByApplicationContentServiceAndLanguage(this.ApplicationContentData, service, language);
+
+      if (applicationContentDetail == null)
+        return null;
+
+      NameValueCollection nvc = new NameValueCollection();
+      nvc.Add("Title", applicationContentDetail == null ? "" : applicationContentDetail.Title);
+      nvc.Add("Description", applicationContentDetail == null ? "" : applicationContentDetail.Description);
+      nvc.Add("HTMLTitle", applicationContentDetail == null ? "" : applicationContentDetail.HtmlTitle);
+      nvc.Add("MetaDescription", applicationContentDetail == null ? "" : applicationContentDetail.MetaDescription);
+      nvc.Add("MetaKeywords", applicationContentDetail == null ? "" : applicationContentDetail.MetaKeywords);
+      nvc.Add("Rating", applicationContentDetail == null ? "" : applicationContentDetail.Rating.ToString());
+
+      return nvc;
+		}
+
+    public override List<ContentDownloadOption> GetDownloadOptions(string userAgent)
+    {
+      if (!this.IsDownloadable)
+        return new List<ContentDownloadOption>();
+
+      List<ContentDownloadOption> downloadOptions = new List<ContentDownloadOption>();
+      ApplicationContentData data = Data.ApplicationContentData.LoadWithoutDataByApplicationContent(this.ApplicationContentData);
+
+      downloadOptions.Add(new ContentDownloadOption()
+      {
+        Label = data.ApplicationContent.Title,
+        Url = string.Format("content/application/download/{0}", data.ID),
+        MimeType = data.MimeType.Name,
+        Extension = data.MimeType.Extension
+      });
+
+      return downloadOptions;
+    }
+
+    public override string GetThumbnailUrl(string userAgent)
+    {
+      return base.GetThumbnailUrl(userAgent);
+    }
+
+    public override void UpdateTitle(string title, IUserSession us)
+    {
+      this._applicationContentData.Title = title;
+      this._applicationContentData.UpdateWithHistory(us);
+    }
+
+    public override void UpdateDescription(string description, IUserSession us)
+    {
+      this._applicationContentData.Description = description;
+      this._applicationContentData.UpdateWithHistory(us);
+    }
+
+    public override List<ContentInformations> GetAllContentDetail()
+    {
+      List<ApplicationContentDetail> acd = ApplicationContentDetail.CreateManager().Load(this._applicationContentData);
+      List<ContentInformations> result = new List<ContentInformations>();
+
+      foreach (ApplicationContentDetail a in acd)
+        result.Add(new ContentInformations()
+        {
+          ID = a.ID,
+          Title = a.Title,
+          Description = a.Description,
+          HtmlTitle = a.HtmlTitle,
+          MetaDescription = a.MetaDescription,
+          MetaKeywords = a.MetaKeywords,
+          Language = a.Language,
+          Service = a.Service,
+          Rating = a.Rating.ToString(),
+        });
+
+      return result;
+    }
+
+    public override void UpdateContentDetails(ContentInformations info, IUserSession us)
+    {
+      if (info.Language == null)
+        return;
+
+      ApplicationContentDetail dt = null;
+      if (info.Service != null)
+        dt = ApplicationContentDetail.CreateManager().Load<ApplicationContentDetail>(this._applicationContentData, info.Service, info.Language);
+      else
+        dt = ApplicationContentDetail.CreateManager().Load(this._applicationContentData, info.Language);
+
+      if (dt == null)
+      {
+        dt = new ApplicationContentDetail(-1, this._applicationContentData, null, info.Language, info.Title, info.Description, info.RatingDecimal, info.HtmlTitle, info.MetaDescription, info.MetaKeywords, DateTime.Now, DateTime.Now);
+        dt.InsertWithHistory(us);
+        return;
+      }
+
+      dt.Title = info.Title;
+      dt.Service = info.Service;
+      dt.Language = info.Language;
+      dt.Description = info.Description;
+      dt.Rating = info.RatingDecimal;
+      dt.MetaKeywords = info.MetaKeywords;
+      dt.MetaDescription = info.MetaDescription;
+
+      dt.UpdateWithHistory(us);
+    }
+
+    public override void DeleteContentDetails(ContentInformations info, IUserSession us)
+    {
+      if (info.Language == null)
+        return;
+
+      ApplicationContentDetail dt = null;
+      if (info.Service != null)
+        dt = ApplicationContentDetail.CreateManager().Load<ApplicationContentDetail>(this._applicationContentData, info.Service, info.Language);
+      else
+        dt = ApplicationContentDetail.CreateManager().Load(this._applicationContentData, info.Language);
+
+      if (dt != null)
+        dt.DeleteWithHistory(us);
+    }
+  }
+}

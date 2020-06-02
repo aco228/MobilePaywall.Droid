@@ -1,0 +1,91 @@
+﻿@model MobilePaywall.Web.Models.ContentListViewModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+}
+@Scripts.Render("~/Script/Home")
+
+@section belgium{
+    <div class="__checkbox" id="belgiumCheck" ischecked="false">
+      <table> <tr>
+        <td>
+          <div class="custom_checkbox"></div>
+        </td>
+        <td>
+          Bij inschrijving bevestig ik dat ik ouder ben dan 18 jaar en ik bevestig de voorwaarden te hebben gelezen en te accepteren en hierbij geef ik mijn herroepingsrecht op de aankoop van dit product op.
+        </td>
+      </tr></table>
+    </div>
+}
+
+@if (PaymentHelper.HasPayment())
+{
+  <script>
+    $(document).ready(function () {
+      $('#belgiumCheck').hide();
+    });
+  </script>
+}
+else
+{
+  <style> .videoItem { pointer-events:none; }</style>
+  <script>
+    $(document).ready(function () {
+      if ($('#belgiumCheck').length > 0) {
+        $('#belgiumCheck').click(function () {
+          if ($(this).attr('ischecked') == 'true')
+          {
+            $('.videoItem').css('pointer-events', 'none');
+            $(this).attr('ischecked', 'false');
+            $(this).find('.custom_checkbox').removeClass('custom_checkbox_checked');
+          }
+          else
+          {
+            $('.videoItem').css('pointer-events', 'initial');
+            $(this).attr('ischecked', 'true');
+            $(this).find('.custom_checkbox').addClass('custom_checkbox_checked');
+          }
+        });
+      }
+    });
+  </script>
+
+}
+
+
+<ul class="gallery square-thumb" id="contentVideoContainer">
+
+  @foreach (MobilePaywall.IContent content in Model.Content)
+  {
+    MobilePaywall.Video video = content as MobilePaywall.Video;
+
+    <li class="videoItem">
+      <div class="video_title">Koop nu</div>
+      <div class="content_video_playIcon @content.ContentIconClass"></div>
+        <a class="swipebox ___clink" href="@MobilePaywall.Web.Helpers.UrlHelper.AppendSessionID(PaywallHttpContext.Current.HttpContext.Request.RequestContext, content.GetAccessUrl(this.Request.UserAgent))" title="@video.VideoContentData.Title" data-ajax="false">
+            <img src="@content.GetThumbnailUrl(this.Request.UserAgent)" alt="img" />
+        </a>
+    </li>
+  }
+
+</ul>
+<div class="decoration"></div>
+
+<input type="button" class="buttonWrap button button-tea contactSubmitButton" id="controlLoadMore" value="@Translations.Web.Controls.More">
+
+<script>
+  var _videoController = null;
+
+
+  $(document).ready(function () {
+    _videoController = new VideoController();
+    _videoController.TextPending = '@Translations.Web.Pending.PleaseWait';
+
+    @{
+      if(Model.Category != null)
+      {
+        @Html.Raw(Server.HtmlDecode("_homeVideoControler.CategoryID = '" + Model.Category.ID + "';"));
+      }
+    }
+
+  });
+</script>

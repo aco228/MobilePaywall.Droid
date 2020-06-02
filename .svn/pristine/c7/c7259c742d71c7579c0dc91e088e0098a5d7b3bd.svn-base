@@ -1,0 +1,38 @@
+﻿using MobilePaywall.Direct;
+using MobilePaywall.GeoLocation;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers._External
+{
+  public class UfcController : Controller
+  {
+
+    public ActionResult GetInformations()
+    {
+      string ip = HttpContext.Request.UserHostAddress;
+      if (Request["ip"] != null && !string.IsNullOrEmpty(Request["ip"].ToString()))
+        ip = Request["ip"].ToString();
+
+      var geoResult = GeoClient.Get(ip, Request.UserAgent);
+      if(geoResult == null)
+        return this.Json(new { status = false }, JsonRequestBehavior.AllowGet);
+      
+      DirectContainer dc = MobilePaywallDirect.Instance.LoadContainer(
+        string.Format(@"SELECT TOP 1 s.Name FROM MobilePaywall.core.Service AS s 
+          LEFT OUTER JOIN MobilePaywall.core.TemplateServiceInfo AS tsi ON tsi.ServiceID=s.ServiceID
+          LEFT OUTER JOIN MobilePaywall.core.Country AS c ON s.FallbackCountryID=c.CountryID
+          WHERE tsi.Progress=5 AND c.TwoLetterIsoCode='AT' AND tsi.Color IN (1,2)
+          ORDER BY Newid();", geoResult.Country));
+
+      if (!dc.HasValue)
+        return this.Json(new { status = false }, JsonRequestBehavior.AllowGet);
+
+      return this.Json(new { status = true, url = string.Format("http://{0}/landingpage/content", dc.GetString("Name")) }, JsonRequestBehavior.AllowGet);
+    }
+
+  }
+}

@@ -1,0 +1,416 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.DCBEgypt.Sql
+{
+  [DataManager(typeof(PaymentRequestPinMap))] 
+  public partial class PaymentRequestPinMapManager : MobilePaywall.Data.Sql.SqlManagerBase<PaymentRequestPinMap>, IPaymentRequestPinMapManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override PaymentRequestPinMap LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							PaymentRequestPinMapTable.GetColumnNames("[prpm]") + 
+							(this.Depth > 0 ? "," + PaymentRequestTable.GetColumnNames("[prpm_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LookupSessionTable.GetColumnNames("[prpm_pr_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[prpm_pr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTable.GetColumnNames("[prpm_pr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[prpm_pr_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[prpm_pr_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserHttpRequestTable.GetColumnNames("[prpm_pr_uhr]") : string.Empty) + 
+					" FROM [dcbegypt].[PaymentRequestPinMap] AS [prpm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [prpm_pr] ON [prpm].[PaymentRequestID] = [prpm_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[LookupSession] AS [prpm_pr_ls] ON [prpm_pr].[LookupSessionID] = [prpm_pr_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [prpm_pr_c] ON [prpm_pr].[CustomerID] = [prpm_pr_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [prpm_pr_us] ON [prpm_pr].[UserSessionID] = [prpm_pr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [prpm_pr_so] ON [prpm_pr].[ServiceOfferID] = [prpm_pr_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [prpm_pr_bme] ON [prpm_pr].[BusinessModelEntryID] = [prpm_pr_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [prpm_pr_uhr] ON [prpm_pr].[UserHttpRequestID] = [prpm_pr_uhr].[UserHttpRequestID] ";
+				sqlCmdText += "WHERE [prpm].[PaymentRequestPinMapID] = @PaymentRequestPinMapID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@PaymentRequestPinMapID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("prpm", "loadinternal", "notfound"), "PaymentRequestPinMap could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				PaymentRequestPinMapTable prpmTable = new PaymentRequestPinMapTable(query);
+				PaymentRequestTable prpm_prTable = (this.Depth > 0) ? new PaymentRequestTable(query) : null;
+				LookupSessionTable prpm_pr_lsTable = (this.Depth > 1) ? new LookupSessionTable(query) : null;
+				CustomerTable prpm_pr_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				UserSessionTable prpm_pr_usTable = (this.Depth > 1) ? new UserSessionTable(query) : null;
+				ServiceOfferTable prpm_pr_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable prpm_pr_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				UserHttpRequestTable prpm_pr_uhrTable = (this.Depth > 1) ? new UserHttpRequestTable(query) : null;
+
+        
+				LookupSession prpm_pr_lsObject = (this.Depth > 1) ? prpm_pr_lsTable.CreateInstance() : null;
+				Customer prpm_pr_cObject = (this.Depth > 1) ? prpm_pr_cTable.CreateInstance() : null;
+				UserSession prpm_pr_usObject = (this.Depth > 1) ? prpm_pr_usTable.CreateInstance() : null;
+				ServiceOffer prpm_pr_soObject = (this.Depth > 1) ? prpm_pr_soTable.CreateInstance() : null;
+				BusinessModelEntry prpm_pr_bmeObject = (this.Depth > 1) ? prpm_pr_bmeTable.CreateInstance() : null;
+				UserHttpRequest prpm_pr_uhrObject = (this.Depth > 1) ? prpm_pr_uhrTable.CreateInstance() : null;
+				PaymentRequest prpm_prObject = (this.Depth > 0) ? prpm_prTable.CreateInstance(prpm_pr_lsObject, prpm_pr_cObject, prpm_pr_usObject, prpm_pr_soObject, prpm_pr_bmeObject, prpm_pr_uhrObject) : null;
+				PaymentRequestPinMap prpmObject = prpmTable.CreateInstance(prpm_prObject);
+				sqlReader.Close();
+
+				return prpmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("prpm", "loadinternal", "exception"), "PaymentRequestPinMap could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "PaymentRequestPinMap", "Exception while loading PaymentRequestPinMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public PaymentRequestPinMap Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							PaymentRequestPinMapTable.GetColumnNames("[prpm]") + 
+							(this.Depth > 0 ? "," + PaymentRequestTable.GetColumnNames("[prpm_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LookupSessionTable.GetColumnNames("[prpm_pr_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[prpm_pr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTable.GetColumnNames("[prpm_pr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[prpm_pr_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[prpm_pr_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserHttpRequestTable.GetColumnNames("[prpm_pr_uhr]") : string.Empty) +  
+					" FROM [dcbegypt].[PaymentRequestPinMap] AS [prpm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [prpm_pr] ON [prpm].[PaymentRequestID] = [prpm_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[LookupSession] AS [prpm_pr_ls] ON [prpm_pr].[LookupSessionID] = [prpm_pr_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [prpm_pr_c] ON [prpm_pr].[CustomerID] = [prpm_pr_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [prpm_pr_us] ON [prpm_pr].[UserSessionID] = [prpm_pr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [prpm_pr_so] ON [prpm_pr].[ServiceOfferID] = [prpm_pr_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [prpm_pr_bme] ON [prpm_pr].[BusinessModelEntryID] = [prpm_pr_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [prpm_pr_uhr] ON [prpm_pr].[UserHttpRequestID] = [prpm_pr_uhr].[UserHttpRequestID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("prpm", "customload", "notfound"), "PaymentRequestPinMap could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				PaymentRequestPinMapTable prpmTable = new PaymentRequestPinMapTable(query);
+				PaymentRequestTable prpm_prTable = (this.Depth > 0) ? new PaymentRequestTable(query) : null;
+				LookupSessionTable prpm_pr_lsTable = (this.Depth > 1) ? new LookupSessionTable(query) : null;
+				CustomerTable prpm_pr_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				UserSessionTable prpm_pr_usTable = (this.Depth > 1) ? new UserSessionTable(query) : null;
+				ServiceOfferTable prpm_pr_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable prpm_pr_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				UserHttpRequestTable prpm_pr_uhrTable = (this.Depth > 1) ? new UserHttpRequestTable(query) : null;
+
+        
+				LookupSession prpm_pr_lsObject = (this.Depth > 1) ? prpm_pr_lsTable.CreateInstance() : null;
+				Customer prpm_pr_cObject = (this.Depth > 1) ? prpm_pr_cTable.CreateInstance() : null;
+				UserSession prpm_pr_usObject = (this.Depth > 1) ? prpm_pr_usTable.CreateInstance() : null;
+				ServiceOffer prpm_pr_soObject = (this.Depth > 1) ? prpm_pr_soTable.CreateInstance() : null;
+				BusinessModelEntry prpm_pr_bmeObject = (this.Depth > 1) ? prpm_pr_bmeTable.CreateInstance() : null;
+				UserHttpRequest prpm_pr_uhrObject = (this.Depth > 1) ? prpm_pr_uhrTable.CreateInstance() : null;
+				PaymentRequest prpm_prObject = (this.Depth > 0) ? prpm_prTable.CreateInstance(prpm_pr_lsObject, prpm_pr_cObject, prpm_pr_usObject, prpm_pr_soObject, prpm_pr_bmeObject, prpm_pr_uhrObject) : null;
+				PaymentRequestPinMap prpmObject = prpmTable.CreateInstance(prpm_prObject);
+				sqlReader.Close();
+
+				return prpmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("prpm", "customload", "exception"), "PaymentRequestPinMap could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "PaymentRequestPinMap", "Exception while loading (custom/single) PaymentRequestPinMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<PaymentRequestPinMap> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							PaymentRequestPinMapTable.GetColumnNames("[prpm]") + 
+							(this.Depth > 0 ? "," + PaymentRequestTable.GetColumnNames("[prpm_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LookupSessionTable.GetColumnNames("[prpm_pr_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[prpm_pr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTable.GetColumnNames("[prpm_pr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[prpm_pr_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[prpm_pr_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserHttpRequestTable.GetColumnNames("[prpm_pr_uhr]") : string.Empty) +  
+					" FROM [dcbegypt].[PaymentRequestPinMap] AS [prpm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [prpm_pr] ON [prpm].[PaymentRequestID] = [prpm_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[LookupSession] AS [prpm_pr_ls] ON [prpm_pr].[LookupSessionID] = [prpm_pr_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [prpm_pr_c] ON [prpm_pr].[CustomerID] = [prpm_pr_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [prpm_pr_us] ON [prpm_pr].[UserSessionID] = [prpm_pr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [prpm_pr_so] ON [prpm_pr].[ServiceOfferID] = [prpm_pr_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [prpm_pr_bme] ON [prpm_pr].[BusinessModelEntryID] = [prpm_pr_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [prpm_pr_uhr] ON [prpm_pr].[UserHttpRequestID] = [prpm_pr_uhr].[UserHttpRequestID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("prpm", "customloadmany", "notfound"), "PaymentRequestPinMap list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<PaymentRequestPinMap>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				PaymentRequestPinMapTable prpmTable = new PaymentRequestPinMapTable(query);
+				PaymentRequestTable prpm_prTable = (this.Depth > 0) ? new PaymentRequestTable(query) : null;
+				LookupSessionTable prpm_pr_lsTable = (this.Depth > 1) ? new LookupSessionTable(query) : null;
+				CustomerTable prpm_pr_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				UserSessionTable prpm_pr_usTable = (this.Depth > 1) ? new UserSessionTable(query) : null;
+				ServiceOfferTable prpm_pr_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable prpm_pr_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				UserHttpRequestTable prpm_pr_uhrTable = (this.Depth > 1) ? new UserHttpRequestTable(query) : null;
+
+        List<PaymentRequestPinMap> result = new List<PaymentRequestPinMap>();
+        do
+        {
+          
+					LookupSession prpm_pr_lsObject = (this.Depth > 1) ? prpm_pr_lsTable.CreateInstance() : null;
+					Customer prpm_pr_cObject = (this.Depth > 1) ? prpm_pr_cTable.CreateInstance() : null;
+					UserSession prpm_pr_usObject = (this.Depth > 1) ? prpm_pr_usTable.CreateInstance() : null;
+					ServiceOffer prpm_pr_soObject = (this.Depth > 1) ? prpm_pr_soTable.CreateInstance() : null;
+					BusinessModelEntry prpm_pr_bmeObject = (this.Depth > 1) ? prpm_pr_bmeTable.CreateInstance() : null;
+					UserHttpRequest prpm_pr_uhrObject = (this.Depth > 1) ? prpm_pr_uhrTable.CreateInstance() : null;
+					PaymentRequest prpm_prObject = (this.Depth > 0) ? prpm_prTable.CreateInstance(prpm_pr_lsObject, prpm_pr_cObject, prpm_pr_usObject, prpm_pr_soObject, prpm_pr_bmeObject, prpm_pr_uhrObject) : null;
+					PaymentRequestPinMap prpmObject = (this.Depth > -1) ? prpmTable.CreateInstance(prpm_prObject) : null;
+					result.Add(prpmObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("prpm", "customloadmany", "exception"), "PaymentRequestPinMap list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "PaymentRequestPinMap", "Exception while loading (custom/many) PaymentRequestPinMap object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, PaymentRequestPinMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [dcbegypt].[PaymentRequestPinMap] ([PaymentRequestID],[Pin],[IsVerified]) VALUES(@PaymentRequestID,@Pin,@IsVerified); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@PaymentRequestID", data.PaymentRequest.ID);
+				sqlCmd.Parameters.AddWithValue("@Pin", data.Pin).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@IsVerified", data.IsVerified).SqlDbType = SqlDbType.Bit;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("prpm", "insert", "noprimarykey"), "PaymentRequestPinMap could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "PaymentRequestPinMap", "Exception while inserting PaymentRequestPinMap object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("prpm", "insert", "exception"), "PaymentRequestPinMap could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "PaymentRequestPinMap", "Exception while inserting PaymentRequestPinMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, PaymentRequestPinMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [dcbegypt].[PaymentRequestPinMap] SET " +
+												"[PaymentRequestID] = @PaymentRequestID, " + 
+												"[Pin] = @Pin, " + 
+												"[IsVerified] = @IsVerified, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [PaymentRequestPinMapID] = @PaymentRequestPinMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@PaymentRequestID", data.PaymentRequest.ID);
+				sqlCmd.Parameters.AddWithValue("@Pin", data.Pin).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@IsVerified", data.IsVerified).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@PaymentRequestPinMapID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("prpm", "update", "norecord"), "PaymentRequestPinMap could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "PaymentRequestPinMap", "Exception while updating PaymentRequestPinMap object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("prpm", "update", "morerecords"), "PaymentRequestPinMap was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "PaymentRequestPinMap", "Exception while updating PaymentRequestPinMap object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("prpm", "update", "exception"), "PaymentRequestPinMap could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "PaymentRequestPinMap", "Exception while updating PaymentRequestPinMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, PaymentRequestPinMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [dcbegypt].[PaymentRequestPinMap] WHERE PaymentRequestPinMapID = @PaymentRequestPinMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@PaymentRequestPinMapID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("prpm", "delete", "norecord"), "PaymentRequestPinMap could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "PaymentRequestPinMap", "Exception while deleting PaymentRequestPinMap object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("prpm", "delete", "exception"), "PaymentRequestPinMap could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "PaymentRequestPinMap", "Exception while deleting PaymentRequestPinMap object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

@@ -1,0 +1,100 @@
+﻿@model MobilePaywall.Web.Models.CustomerModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+
+  List<MobileOperator> mnos = (from m in MobileOperator.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData.FallbackCountry) where m.ExternalMobileOperatorID.HasValue select m).ToList();
+}
+
+@Styles.Render("~/Style/Red/Login")
+@Scripts.Render("~/Script/Login")
+
+
+<div id="login_section">
+
+  <div id="newCustomer_section">
+
+    <div class="header">Prosím, zadejte své telefonní číslo</div>
+    <div class="section_body" id="passwordForm">
+      <div class="form_section">
+      </div>
+      <div class="form_section" id="selectMno_box" style="display:none">
+        <div class="form_label">Please select your mobile operator</div>
+        <select id="mnoSelect" style="width: 100%; color: white; padding: 5px; background-color: #2a2a2a;">
+          <option id="-1">None</option>
+          @foreach (MobileOperator mno in mnos)
+          { <option id="@mno.ID">@mno.Name</option> }
+        </select>
+      </div>
+      <div class="form_section">
+        <div class="form_label">Telefonní číslo<span class="login_asterix">*</span></div>
+        <input id="inputPhoneNumberr" type="text" name="name" value="" />
+      </div>
+      <div class="submitBtn" inuse="false" id="btnSetup">Předložit</div>
+      <div class="ajax_response"></div>
+    </div>
+  </div>
+
+  <div class="header">@Translations.Web.Login.Header</div>
+  <div class="section_body" id="loginForm">
+    <div class="form_section">
+      <div class="form_label">@Translations.Web.Login.Username<span class="login_asterix">*</span></div>
+      <input id="input_username" type="text" name="name" value="" placeholder="@Translations.Web.Login.PlcUsername" />
+    </div>
+    <div class="form_section">
+      <div class="form_label">@Translations.Web.Login.Password <span class="login_asterix">*</span></div>
+      <input id="input_password" type="password" name="name" value="" placeholder="@Translations.Web.Login.PlcPassword" />
+    </div>
+    <div class="submitBtn" id="loginSubmit">
+      @Translations.Web.Login.Button
+      <div class="ajax_response"></div>
+    </div>
+
+  </div>
+
+  <script>
+    var _login = new Login();
+    _login.RedirectUrl = '@Model.RedirectUrl';
+    _login.Message_login_input = '@Translations.Web.Login.Error';
+    _login.Message_login_success = '@Translations.Web.Login.Success';
+    _login.Message_login_error = '@Translations.Web.Login.Error';
+    _login.Message_reset_input = '@Translations.Web.Reset.ErrGeneral';
+    _login.Message_reset_error = '@Translations.Web.Reset.ErrNotFound';
+    _login.Message_reset_success = '@Translations.Web.Reset.Success';
+    _login.messageHandler();
+
+    $(document).ready(function () {
+
+      $('#btnSetup').on('click', function () {
+        var btn = $(this);
+        if (btn.attr('insue') == 'true')
+          return;
+
+        var originalValue = btn.text();;
+        btn.attr('inuse', 'true');
+        btn.text('...');
+        var mno = $('#mnoSelect option:selected').attr('id');
+
+        var phoneNumber = $('#inputPhoneNumberr').val();
+        $.ajax({
+          url: '/CZDimoco/Setup',
+          type: 'POST',
+          data: { msisdn: phoneNumber, mno:mno },
+          success: function (response) {
+            console.log(response);
+
+            btn.attr('inuse', 'false');
+            btn.text(originalValue);
+
+            _visual.Alert(response.message);
+            btn.attr('inuse', false);
+            btn.attr('value', originalValue);
+
+            if (typeof response.select_mno !== 'undefined')
+              $('#selectMno_box').css('display', 'block');
+
+          }
+        });
+      });
+
+    });
+  </script>

@@ -1,0 +1,141 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using MobilePaywall.Data;
+using log4net;
+using Cashflow.Message;
+using Cashflow.Message.Mobile;
+
+namespace MobilePaywall.Implementation.Payment.Specific.AU
+{
+  public class DigitalTurbineAUPaymentManager : PaymentManagerBase
+  {
+
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (DigitalTurbineAUPaymentManager._log == null)
+          DigitalTurbineAUPaymentManager._log = LogManager.GetLogger(typeof(DigitalTurbineAUPaymentManager));
+        return DigitalTurbineAUPaymentManager._log;
+      }
+    }
+    #endregion
+
+    public DigitalTurbineAUPaymentManager(IUserSession session) : base(session) { }
+
+    public override PaymentRequest InitiatePayment(LookupSession lookupSession, ServiceOffer serviceOffer, IContent content, string requestRawUrl)
+    {
+      LookupSessionResult lookupResult = null;
+      if (lookupSession == null)
+      {
+        ILookupManager lookupManager = this.Session.CreateLookupManager();
+        lookupResult = lookupManager.TryGetLookupSessionResult();
+        if (lookupResult == null)
+        {
+          this.Session.InitiateLookup(requestRawUrl);
+          Log.Error("DigitalTurbineAUPaymentManager.Initiate:: A lookup session result must exist before invoking InitiatePayment for " + this.Session.Service.ServiceData.Name);
+          return null;
+        }
+        lookupSession = lookupResult.LookupSession;
+      }
+
+      IPaymentRequestManager prManager = PaymentRequest.CreateManager();
+      PaymentRequest request = prManager.Load(this.Session.SessionData);
+
+      Customer customer = null;
+      if (this.Session.SessionData.Customer != null)
+        customer = this.Session.SessionData.Customer;
+      else
+      {
+        string password = "";
+        customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Active, this.Session.Service.ServiceData, this.Session.Service.ServiceData.FallbackCountry,
+          lookupResult.MobileOperator, null, lookupResult.Msisdn, string.Empty, string.Empty, null, DateTime.Now, DateTime.Now);
+        customer.Insert();
+        customer.SetUsernameAndPassword();
+        this.Session.SessionData.Customer = customer;
+        this.Session.SessionData.Update();
+      }
+
+      UserHttpRequest userHttpRequest = new UserHttpRequest(-1, Guid.NewGuid(), this.Session.SessionData, content.ContentData, requestRawUrl, DateTime.Now, DateTime.Now);
+      userHttpRequest.Insert();
+
+      ServiceOffer so = this.Session.Service.DefaultServiceOffer;
+      PaymentRequest paymentRequest = new PaymentRequest(-1, Guid.NewGuid(), PaymentType.Subscription, PaymentRequestStatus.Initialized, lookupSession, customer, this.Session.SessionData,
+        so, so.BusinessModelEntry, null, userHttpRequest, string.Empty, DateTime.Now, DateTime.Now);
+      paymentRequest.Insert();
+
+      PaymentResult paymentResult = new PaymentResult(-1, paymentRequest, null, null, DateTime.Now.AddMinutes(2), DateTime.Now, DateTime.Now);
+      paymentResult.Insert();
+
+      string paymentRequestPath = MobilePaywall.Constants.PaymentID + "/" + paymentRequest.Guid.ToString().Replace("-", "");
+      requestRawUrl = UrlManager.PrepareRedirectUrl(requestRawUrl, paymentRequestPath, true);
+
+      InitiateCallback initiateCallback = new InitiateCallback(-1, Guid.NewGuid(), paymentRequest, false, DateTime.Now.AddMinutes(5), DateTime.Now, DateTime.Now);
+      initiateCallback.Insert();
+      paymentRequest.Callback = initiateCallback;
+
+      MobileSubscriberArguments mobileSubscriberArguments = new MobileSubscriberArguments();
+      //mobileSubscriberArguments.Msisdn = customer.Msisdn;
+      //mobileSubscriberArguments.Language = this.Session.SessionData.Language.TwoLetterIsoCode;
+      mobileSubscriberArguments.OperatorCode = (this.Session.SessionData.MobileOperator != null ? this.Session.SessionData.MobileOperator.ExternalMobileOperatorID.Value.ToString() : null);
+
+      IdentificationResultArguments identificationResultArguments = new IdentificationResultArguments();
+      identificationResultArguments.IdentificationResultID = (lookupResult.IdentificationResultGuid.HasValue ? lookupResult.IdentificationResultGuid.Value : Guid.Empty);
+
+      InitiateSubscriptionResponse initiateSubscriptionResponse = CashflowClientPaywallManager.GetInitiateSubscriptionResponse(this.Session, requestRawUrl, mobileSubscriberArguments, identificationResultArguments);
+
+      #region Check MobileOperator from InitiateSubscriptionResponse (example Mobicom DE NTH)
+
+      MobileOperator notificationOperator = null;
+      if (initiateSubscriptionResponse.Arguments != null && initiateSubscriptionResponse.Arguments.Length > 0)
+        foreach (MessageArgument ms in initiateSubscriptionResponse.Arguments)
+          if (ms.Key.Equals("MobileOperator"))
+          {
+            Log.Debug("DigitalTurbineAUPaymentManager.Initiate.OVERRIDE_MOBILEOPERATOR - We received mobileOperator from cashflow.");
+
+            notificationOperator = MobileOperator.CreateManager().Load(Int32.Parse(ms.Value), IDType.External);
+
+            if(notificationOperator != null)
+            {
+              this.Session.SessionData.MobileOperator = notificationOperator;
+              this.Session.SessionData.Update();
+              customer.MobileOperator = notificationOperator;
+              customer.Update();
+            }
+
+            break;
+          }
+      #endregion
+
+      paymentRequest.ExternalPaymentRequestGuid = initiateSubscriptionResponse.SubscriptionRequestID;
+      if(initiateSubscriptionResponse.CustomerID.HasValue)
+      {
+        customer.ExternalCustomerGuid = initiateSubscriptionResponse.CustomerID.Value;
+        customer.Update();
+      }
+
+      
+      if (initiateSubscriptionResponse.Status.Code == MessageStatusCode.Success || initiateSubscriptionResponse.Status.Code == MessageStatusCode.Redirect)
+      {
+        paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Complete;
+        paymentRequest.PaymentRedirectUrl = initiateSubscriptionResponse.RedirectUrl;
+        paymentRequest.Update();
+      }
+      else if (initiateSubscriptionResponse.Status.Code == MessageStatusCode.Pending)
+        paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Pending;
+      else
+        paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Failure;
+
+      paymentRequest.Update();
+      return paymentRequest;
+    }
+
+  }
+}

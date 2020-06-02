@@ -1,0 +1,177 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+using System.Web.Routing;
+
+using MobilePaywall.Data;
+using MobilePaywall.Web.Routing;
+using System.Text.RegularExpressions;
+
+using Senti.Diagnostics;
+using Senti.Diagnostics.Log;
+using log4net;
+
+namespace MobilePaywall.Web
+{
+  public class RouteConfig
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (RouteConfig._log == null)
+          RouteConfig._log = LogManager.GetLogger(typeof(RouteConfig));
+        return RouteConfig._log;
+      }
+    }
+    #endregion
+
+    //public static void RegisterRoutes(RouteCollection routes)
+    public static void RegisterRoutes(HttpApplication httpApplication)
+    {
+      #region Old
+
+      //routes.IgnoreRoute("{resource}.axd/{*pathInfo}");
+      ////routes.IgnoreRoute("sid/{*sessionGuid}");
+
+      ////routes.MapRoute(
+      ////		name: "Default",
+      ////		url: "{controller}/{action}/{id}",
+      ////		defaults: new { controller = "Home", action = "Index", id = UrlParameter.Optional }
+      ////);
+
+      //// 
+
+      //// REVIEW: ...
+
+      #endregion
+
+			RouteTable.Routes.Clear();
+
+      RouteTable.Routes.IgnoreRoute("{*pathInfo}", new { pathInfo = @".*\.(css|js|gif|jpg|woff|woff2|svg|png|ttf)" });
+
+      MobilePaywall.Data.Application application = PaywallHttpApplication.GetRuntime(httpApplication).ApplicationData;
+      List<ApplicationRouteSetMap> applicationRouteSetMap = ApplicationRouteSetMap.CreateManager().Load(application);
+
+      List<RouteSet> routeSets = new List<RouteSet>();
+
+      foreach (ApplicationRouteSetMap applicationMap in applicationRouteSetMap)
+        routeSets.Add(applicationMap.RouteSet);
+
+      foreach (RouteSet routeSet in routeSets)
+      {
+        IRouteManager rManager = Data.Route.CreateManager();
+        List<Data.Route> routes = rManager.Load(routeSet);
+
+        foreach (Data.Route route in routes)
+        {
+
+          if (route.Pattern.StartsWith("/"))
+            route.Pattern = route.Pattern.Substring(1);
+
+          #region # CustomRoute FIX #
+          if (route.Name.StartsWith("CustomRoute_"))
+          {
+            CustomPage page = CustomPage.CreateManager().Load(route);
+            if (page == null)
+              continue;
+            
+            RouteTable.Routes.Add(Guid.NewGuid().ToString().Replace("-", string.Empty), 
+              new SessionRoute( route.Pattern + "/{*dynamicParameters}",
+                new RouteValueDictionary(new { controller = "CustomPage", action = "Page", id = page.ID }),
+                new RouteValueDictionary(new { dynamicParameters = string.Format(@"((/?{0}/{3})|(/?{1}/{3})|(/?{2}/{3}))*", MobilePaywall.Constants.SessionID, MobilePaywall.Constants.LookupID, MobilePaywall.Constants.PaymentID, MobilePaywall.Constants.RegexGuid) }),
+              new MvcRouteHandler()));
+
+            continue;
+          }
+          #endregion
+
+          if (!route.IsEnabled.Value)
+            continue;
+
+          if (route.IsIgnore.Value)
+            RouteTable.Routes.IgnoreRoute(route.Pattern);
+          else
+          {
+            if (!route.Pattern.Contains("{") && !route.Pattern.Contains("}"))
+            {
+              MapRoute(route, null);
+              continue;
+            }
+
+            IRouteParameterManager rpManager = Data.RouteParameter.CreateManager();
+            List<Data.RouteParameter> routeParameters = rpManager.Load(route);
+            MapRoute(route, routeParameters);
+          }
+        }
+      }
+
+      RouteTable.Routes.Add("SessionRootRoute",
+      new SessionRoute("{*dynamicParameters}",
+        new RouteValueDictionary(new { controller = "Home", action = "Index" }),
+        new RouteValueDictionary(new { dynamicParameters = string.Format(@"((/?{0}/{3})|(/?{1}/{3})|(/?{2}/{3}))*", MobilePaywall.Constants.SessionID, MobilePaywall.Constants.LookupID, MobilePaywall.Constants.PaymentID, MobilePaywall.Constants.RegexGuid) }),
+        new MvcRouteHandler()));
+
+      RouteTable.Routes.Add("Default",
+        new SessionRoute("{controller}/{action}/{id}/{*dynamicParameters}",
+          new RouteValueDictionary(new { controller = "Home", action = "Index", id = UrlParameter.Optional }),
+          new RouteValueDictionary(new { dynamicParameters = string.Format(@"((/?{0}/{3})|(/?{1}/{3})|(/?{2}/{3}))*", MobilePaywall.Constants.SessionID, MobilePaywall.Constants.LookupID, MobilePaywall.Constants.PaymentID, MobilePaywall.Constants.RegexGuid) }),
+          new MvcRouteHandler()));
+    }
+
+    private static void MapRoute(Data.Route route, List<RouteParameter> parameters)
+    {
+      RouteValueDictionary defaults = new RouteValueDictionary();
+      RouteValueDictionary constraints = new RouteValueDictionary();
+     
+      if (!defaults.ContainsKey("controller"))
+        defaults.Add("controller", route.Controller);
+      if (!defaults.ContainsKey("action"))
+        defaults.Add("action", route.Action);
+
+      if (parameters != null)
+      {
+        foreach (RouteParameter parameter in parameters)
+        {
+          if (!defaults.ContainsKey(parameter.Key))
+          {
+            if (parameter.IsOptional)
+              defaults.Add(parameter.Key, UrlParameter.Optional);
+            else
+              defaults.Add(parameter.Key, !string.IsNullOrEmpty(parameter.Value) ? parameter.Value : (object)UrlParameter.Optional);
+          }
+          if (parameter.Constraint != null)
+            constraints.Add(parameter.Key, parameter.Constraint);
+        }
+      }
+
+      string pattern = route.Pattern;
+      System.Web.Routing.Route routeTemp = null;
+      if (route.IsSessionRoute)
+      {
+        constraints.Add("dynamicParameters", string.Format(@"((/?{0}/{3})|(/?{1}/{3})|(/?{2}/{3}))*", MobilePaywall.Constants.SessionID, MobilePaywall.Constants.LookupID, MobilePaywall.Constants.PaymentID, MobilePaywall.Constants.RegexGuid));
+        pattern += "/{*dynamicParameters}";
+        RouteTable.Routes.Add(route.Name, new SessionRoute(pattern, defaults, constraints, new MvcRouteHandler()));
+      }
+      else
+        RouteTable.Routes.Add(route.Name, new System.Web.Routing.Route(pattern, defaults, constraints, new MvcRouteHandler()));
+      //new { dynamicParameters = string.Format(@"((/?{0}/{3})|(/?{1}/{3})|(/?{2}/{3}))*", MobilePaywall.Constants.SessionID, MobilePaywall.Constants.LookupID, MobilePaywall.Constants.PaymentID, MobilePaywall.Constants.RegexGuid) }
+      
+
+      ////////routeTemp = new SessionRoute(pattern, defaults, constraints, new MvcRouteHandler());
+
+      //if (RouteTable.Routes.Contains(routeTemp))
+      //  return;
+
+      //if (RouteTable.Routes[route.Name] != null)
+      //  return;
+
+      //RouteTable.Routes.Add(route.Name, routeTemp);
+    }
+  }
+}

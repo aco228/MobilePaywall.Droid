@@ -1,0 +1,379 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+using System.Web;
+using Senti.Data;
+using System.Data;
+
+namespace MobilePaywall.Merchant.Models
+{
+  public class QualityAssuranceModel
+  {
+    private ServiceModel _serviceModel = null;
+    private MobileOperatorModel _operatorModel = null;
+    private List<QualityAssuranceReportScreenshotMap> _qualityAssuranceReportScreenshotMaps = null;
+
+    public ServiceModel ServiceModel { get { return this._serviceModel; } set { this._serviceModel = value; } }
+    public MobileOperatorModel MobileOperator { get { return this._operatorModel; } set { this._operatorModel = value; } }   
+    public List<QualityAssuranceReportScreenshotMap> QualityAssuranceReportScreenshotMaps { get { return this._qualityAssuranceReportScreenshotMaps; } set { this._qualityAssuranceReportScreenshotMaps = value; } }
+
+
+    public QualityAssuranceModel()
+    {
+      this._qualityAssuranceReportScreenshotMaps = new List<QualityAssuranceReportScreenshotMap>();
+    }
+
+    public QualityAssuranceModel(QualityAssuranceReport report)
+    {
+      IQualityAssuranceReportScreenshotManager qarsManager = QualityAssuranceReportScreenshot.CreateManager();
+      //List<QualityAssuranceReportScreenshot> screenshots = (from qars in qarsManager.Load(report) select qars).ToList();
+      List<QualityAssuranceReportScreenshot> screenshots = qarsManager.Load(report);
+      List<QualityAssuranceReportScreenshotModel> screenshotModels = new List<QualityAssuranceReportScreenshotModel>();
+
+      foreach (QualityAssuranceReportScreenshot screenshot in screenshots)
+      {
+        QualityAssuranceReportScreenshotModel scrModel = new QualityAssuranceReportScreenshotModel();
+        scrModel.QualityAssuranceReportScreenshotID = screenshot.ID;
+        scrModel.QualityAssuranceReportModel = new QualityAssuranceReportModel();
+        scrModel.QualityAssuranceReportModel.QualityAssuranceReportID = screenshot.QualityAssuranceReport.ID; //is it required?
+        scrModel.Title = screenshot.Title;
+        scrModel.Remark = screenshot.Remark;
+        scrModel.Url = screenshot.Url;
+        scrModel.HasError = screenshot.HasError;
+        scrModel.Data = screenshot.Data;
+
+        screenshotModels.Add(scrModel);
+      }
+
+      QualityAssuranceReportScreenshotMap qaMap = new QualityAssuranceReportScreenshotMap();
+      qaMap.QualityAssuranceReportModel = new QualityAssuranceReportModel();
+      qaMap.QualityAssuranceReportModel.QualityAssuranceReportID = report.ID;
+      qaMap.QualityAssuranceReportModel.Tested = report.Tested;
+      qaMap.QualityAssuranceReportModel.Remark = report.Remark;
+
+      qaMap.QualityAssuranceReportScreenshotModels = screenshotModels;
+      
+      List<QualityAssuranceReportScreenshotMap> maps = new List<QualityAssuranceReportScreenshotMap>();
+      maps.Add(qaMap);
+      this._qualityAssuranceReportScreenshotMaps = maps;
+    }
+    
+    public QualityAssuranceModel(Service service, List<MobileOperator> mobileOperators, string date)
+    {
+      List<QualityAssuranceReportScreenshotMap> maps = new List<QualityAssuranceReportScreenshotMap>();
+
+      IQualityAssuranceReportManager qarManager = QualityAssuranceReport.CreateManager();
+      List<QualityAssuranceReport> reports = new List<QualityAssuranceReport>();
+
+      if (mobileOperators.Count != 0 && !string.IsNullOrEmpty(date))
+      {
+        reports = (from qar in qarManager.Load(service)
+                   where mobileOperators.Contains(qar.MobileOperator) && qar.Tested.Date == DateTime.ParseExact(date, "MMMM dd, yyyy", null).Date
+                   orderby qar.Tested descending
+                   select qar).ToList();
+      }
+      else if (mobileOperators.Count != 0 && string.IsNullOrEmpty(date))
+      {
+        reports = (from qar in qarManager.Load(service)
+                   where mobileOperators.Contains(qar.MobileOperator)
+                   orderby qar.Tested descending
+                   select qar).ToList();
+      }
+      else if (mobileOperators.Count == 0 && !string.IsNullOrEmpty(date))
+      {
+        reports = (from qar in qarManager.Load(service)
+                   where qar.Tested.Date == DateTime.ParseExact(date, "MMMM dd, yyyy", null).Date
+                   orderby qar.Tested descending
+                   select qar).ToList();
+      }
+      else
+      {
+        reports = (from qar in qarManager.Load(service)
+                   orderby qar.Tested descending
+                   select qar).ToList();
+      }
+ 
+      //TODO: Ispraviti ovo
+      foreach (QualityAssuranceReport report in reports)
+      {
+        IQualityAssuranceReportScreenshotManager qarsManager = QualityAssuranceReportScreenshot.CreateManager();
+        List<QualityAssuranceReportScreenshot> screenshots = qarsManager.Load(report);
+        List<QualityAssuranceReportScreenshotModel> screenshotModels = new List<QualityAssuranceReportScreenshotModel>();
+
+        foreach (QualityAssuranceReportScreenshot screenshot in screenshots)
+        {
+          QualityAssuranceReportScreenshotModel scrModel = new QualityAssuranceReportScreenshotModel();
+          scrModel.QualityAssuranceReportScreenshotID = screenshot.ID;
+
+          screenshotModels.Add(scrModel);
+        }
+
+        QualityAssuranceReportScreenshotMap qaMap = new QualityAssuranceReportScreenshotMap();
+
+        qaMap.QualityAssuranceReportModel = new QualityAssuranceReportModel();
+        qaMap.QualityAssuranceReportModel.QualityAssuranceReportID = report.ID;
+
+        qaMap.QualityAssuranceReportScreenshotModels = screenshotModels;
+
+        maps.Add(qaMap);
+      }
+
+      this._qualityAssuranceReportScreenshotMaps = maps;
+    }
+
+    public bool Insert()
+    {
+      ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted);
+      connection.Transaction.Begin();
+
+      ServiceOffer so = ServiceOffer.CreateManager().Load(this.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.ServiceModel.Service).FirstOrDefault();
+      PaymentProvider pProvider = so.PaymentConfiguration.PaymentProvider;
+      
+      QualityAssuranceReport report = new QualityAssuranceReport(-1, 
+                                                                  this.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.ServiceModel.Service,
+                                                                  pProvider,
+                                                                  this.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.MobileOperatorModel.MobileOperator,
+                                                                  PaywallHttpContext.Current.ClientSession.Client, 
+                                                                  this.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.Remark,
+                                                                  this.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.ReportUrl,
+                                                                  this.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.Tested,
+                                                                  false,
+                                                                  DateTime.Now, 
+                                                                  DateTime.Now);
+      report.Insert(connection);
+
+      foreach (QualityAssuranceReportScreenshotModel scrModel in this.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportScreenshotModels)
+      {
+        byte[] uploadFile = new byte[scrModel.File.InputStream.Length];
+        scrModel.File.InputStream.Read(uploadFile, 0, uploadFile.Length);
+
+        if (scrModel.HasError == true)
+        {
+          report.HasError = true;
+          report.Update(connection);
+        }
+
+        QualityAssuranceReportScreenshot screenshot = new QualityAssuranceReportScreenshot(-1,
+                                                                                            report, 
+                                                                                            scrModel.Title, 
+                                                                                            scrModel.Url, 
+                                                                                            scrModel.Remark, 
+                                                                                            scrModel.HasError, 
+                                                                                            uploadFile, 
+                                                                                            DateTime.Now, 
+                                                                                            DateTime.Now);
+        screenshot.Insert(connection);
+      }
+
+      connection.Transaction.Commit();
+      //connection.Transaction.Rollback();
+      return false;
+    }
+
+    public bool Update()
+    {      
+      ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted);
+      connection.Transaction.Begin();
+
+      IQualityAssuranceReportManager qarManager = QualityAssuranceReport.CreateManager();
+      QualityAssuranceReport report = qarManager.Load(connection, this.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.QualityAssuranceReport.ID);
+
+      ServiceOffer so = ServiceOffer.CreateManager().Load(this.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.ServiceModel.Service).FirstOrDefault();
+      PaymentProvider pProvider = so.PaymentConfiguration.PaymentProvider;
+
+      report.Service = this.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.ServiceModel.Service;
+      report.PaymentProvider = pProvider;
+      report.MobileOperator = this.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.MobileOperatorModel.MobileOperator;
+      report.Creator = PaywallHttpContext.Current.ClientSession.Client;
+      report.Remark = this.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.Remark;
+      report.ReportUrl = this.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.ReportUrl;
+      report.Tested = this.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.Tested;
+      report.HasError = false;
+      report.Updated = DateTime.Now;
+
+      report.Update(connection);
+
+      List<int> screenshotIds = new List<int>();
+
+      foreach (QualityAssuranceReportScreenshotModel scrModel in this.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportScreenshotModels)
+      {
+        if (scrModel.HasError == true)
+        {
+          report.HasError = true;
+          report.Update(connection);
+        }
+
+        screenshotIds.Add(scrModel.QualityAssuranceReportScreenshotID.Value);
+        
+        byte[] uploadFile = null;
+        if (scrModel.File != null)
+        {
+          uploadFile = new byte[scrModel.File.InputStream.Length];
+          scrModel.File.InputStream.Read(uploadFile, 0, uploadFile.Length);
+        }
+
+        if (scrModel.QualityAssuranceReportScreenshotID != null && scrModel.QualityAssuranceReportScreenshotID != -1)
+        {
+          QualityAssuranceReportScreenshot screenshot = scrModel.Load(connection);
+          
+          screenshot.Title = scrModel.Title;
+          screenshot.Url = scrModel.Url;
+          screenshot.Remark = scrModel.Remark;
+          screenshot.HasError = scrModel.HasError;
+          screenshot.Data = uploadFile != null ? uploadFile : screenshot.Data;
+          screenshot.Updated = DateTime.Now;
+
+          screenshot.Update(connection);
+        }
+        else
+        {
+          QualityAssuranceReportScreenshot screenshot = new QualityAssuranceReportScreenshot(-1,
+                                                                                            report,
+                                                                                            scrModel.Title,
+                                                                                            scrModel.Url,
+                                                                                            scrModel.Remark,
+                                                                                            scrModel.HasError,
+                                                                                            uploadFile,
+                                                                                            DateTime.Now,
+                                                                                            DateTime.Now);
+          screenshot.Insert(connection);
+        }
+      }
+
+      foreach (QualityAssuranceReportScreenshot scr in QualityAssuranceReportScreenshot.CreateManager().Load(connection, report))
+      {
+        if (!screenshotIds.Contains(scr.ID))
+        {
+          scr.Delete(connection);
+        }
+      }
+
+      connection.Transaction.Commit();
+      //connection.Transaction.Rollback();
+      return false;
+    }
+  }
+
+  
+  //public class FileUploadModel 
+  //{
+  //  private string _title = string.Empty;
+  //  private string _remark = string.Empty;
+  //  private string _url = string.Empty;
+  //  private HttpPostedFileBase _content = null;
+  //  private bool _hasError = false;
+
+  //  public string Title { get { return this._title; } set { this._title = value; } }
+  //  public string Remark { get { return this._remark; } set { this._remark = value; } }
+  //  public string Url { get { return this._url; } set { this._url = value; } }
+  //  public HttpPostedFileBase Content { get { return this._content; } set { this._content = value; } }
+  //  public bool HasError { get { return this._hasError; } set { this._hasError = value; } }
+  //}
+
+  public class QualityAssuranceReportScreenshotMap
+  {
+    private QualityAssuranceReportModel _qualityAssuranceReportModel = null;
+    private List<QualityAssuranceReportScreenshotModel> _qualityAssuranceReportScreenshotModels = null;
+
+    public QualityAssuranceReportModel QualityAssuranceReportModel { get { return this._qualityAssuranceReportModel; } set { this._qualityAssuranceReportModel = value; } }
+    public List<QualityAssuranceReportScreenshotModel> QualityAssuranceReportScreenshotModels { get { return this._qualityAssuranceReportScreenshotModels; } set { this._qualityAssuranceReportScreenshotModels = value; } }
+  }
+
+  public class QualityAssuranceReportScreenshotModel
+  {
+    private int? _qualityAssuranceReportScreenshotID = null;
+    private QualityAssuranceReportModel _qualityAssuranceReportModel = null;
+    private string _title = String.Empty;
+    private string _url = String.Empty;
+    private string _remark = String.Empty;
+    private bool _hasError = false;
+    private byte[] _data = null;
+    private HttpPostedFileBase _file = null;
+
+    public int? QualityAssuranceReportScreenshotID { get { return this._qualityAssuranceReportScreenshotID; } set { this._qualityAssuranceReportScreenshotID = value; } }
+    public QualityAssuranceReportModel QualityAssuranceReportModel { get { return this._qualityAssuranceReportModel; } set { this._qualityAssuranceReportModel = value; } }
+    public string Title { get { return this._title; } set { this._title = value; } }
+    public string Url { get { return this._url; } set { this._url = value; } }
+    public string Remark { get { return this._remark; } set { this._remark = value; } }
+    public bool HasError { get { return this._hasError; } set { this._hasError = value; } }
+    public byte[] Data { get { return this._data; } set { this._data = value; } }
+    public HttpPostedFileBase File { get { return this._file; } set { this._file = value; } }
+
+    public QualityAssuranceReportScreenshot QualityAssuranceReportScreenshot { get {     
+      return this._qualityAssuranceReportScreenshotID.HasValue ? QualityAssuranceReportScreenshot.CreateManager().Load(this._qualityAssuranceReportScreenshotID.Value) : null; } 
+    }
+
+    public QualityAssuranceReportScreenshot Load(ConnectionInfo connection)
+    {
+      return this._qualityAssuranceReportScreenshotID.HasValue ? QualityAssuranceReportScreenshot.CreateManager().Load(connection, this._qualityAssuranceReportScreenshotID.Value) : null;  
+    }
+
+  }
+
+  public class QualityAssuranceReportModel
+  {
+    private int? _qualityAssuranceReportID = null;
+    private ServiceModel _serviceModel = null;
+    private PaymentProviderModel _paymentProviderModel = null;
+    private MobileOperatorModel _mobileOperatorModel = null;
+    private Client _creator = null;
+    private string _remark = String.Empty;
+    private string _reportUrl = String.Empty;
+    private DateTime _tested;
+    private bool _hasError = false;
+
+    public int? QualityAssuranceReportID { get { return this._qualityAssuranceReportID; } set { this._qualityAssuranceReportID = value; } }
+    public ServiceModel ServiceModel { get { return this._serviceModel; } set { this._serviceModel = value; } }
+    public PaymentProviderModel PaymentProviderModel { get { return this._paymentProviderModel; } set { this._paymentProviderModel = value; } }
+    public MobileOperatorModel MobileOperatorModel { get { return this._mobileOperatorModel; } set { this._mobileOperatorModel = value; } }
+    public Client Creator { get { return this._creator; } set { this._creator = value; } }
+    public string Remark { get { return this._remark; } set { this._remark = value; } }
+    public string ReportUrl { get { return this._reportUrl; } set { this._reportUrl = value; } }
+    public DateTime Tested { get { return this._tested; } set { this._tested = value; } }
+    public bool HasError { get { return this._hasError; } set { this._hasError = value; } }
+
+    public QualityAssuranceReport QualityAssuranceReport { get { return this._qualityAssuranceReportID.HasValue ? Data.QualityAssuranceReport.CreateManager().Load(this._qualityAssuranceReportID.Value) : null; } }
+  }
+
+  //public class ClientModel
+  //{
+  //  private int? _clientID = null;
+  //  private string _guid = string.Empty;
+  //  private ClientTypeModel _clientType = null;
+  //  private ClientStatus _clientStatus = ClientStatus.Unknown;
+  //  private string _username = String.Empty;
+  //  private byte[] _password = null;
+  //  private string _mailAddress = String.Empty;
+
+  //  public int? ClientID { get { return this._clientID; } set { this._clientID = value; } }
+  //  public string Guid { get { return this._guid; } set { this._guid = value; } }
+  //  public ClientTypeModel ClientType { get { return this._clientType; } set { this._clientType = value; } }
+  //  public ClientStatus ClientStatus { get { return this._clientStatus; } set { this._clientStatus = value; } }
+  //  public string Username { get { return this._username; } set { this._username = value; } }
+  //  public byte[] Password { get { return this._password; } set { this._password = value; } }
+  //  public string MailAddress { get { return this._mailAddress; } set { this._mailAddress = value; } }
+
+  //  public Client Client { get { return this._clientID.HasValue ? Data.Client.CreateManager().Load(this._clientID.Value) : null; } }
+  //}
+
+  //public class ClientTypeModel
+  //{
+  //  private int? _clientTypeID = null;
+  //  private string _name = String.Empty;
+  //  private string _typeName = String.Empty;
+  //  private string _description = String.Empty;
+
+  //  public int? ClientTypeID { get { return this._clientTypeID; } set { this._clientTypeID = value; } }
+  //  public string Name { get { return this._name; } set { this._name = value; } }
+  //  public string TypeName { get { return this._typeName; } set { this._typeName = value; } }
+  //  public string Description { get { return this._description; } set { this._description = value; } }
+
+  //  public ClientType ClientType { get { return this._clientTypeID.HasValue ? Data.ClientType.CreateManager().Load(this._clientTypeID.Value) : null; } }
+  //}
+
+}

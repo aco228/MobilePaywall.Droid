@@ -1,0 +1,48 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Implementation.Log.LogDatabase
+{
+  public class PaymentLogDatabaseSync : LogDatabaseManager
+  {
+    private Data.Payment _payment = null;
+
+    public PaymentLogDatabaseSync(Data.Payment payment)
+      :base(payment, "Payment")
+    {
+      this._payment = payment;
+      this.Init();
+    }
+
+    public static void Call(Data.Payment data)
+    {
+      PaymentLogDatabaseSync a = new PaymentLogDatabaseSync(data);
+    }
+
+    protected override void Collect()
+    {
+      this.AddEntry("PaymentGuid", this._payment.Guid.ToString(), LogDatabaseManagerUpdateEntry.LogDatabaseManagerUpdateEntryType.String);
+      this.AddEntry("PaymentTypeID", ((int)this._payment.PaymentType).ToString(), LogDatabaseManagerUpdateEntry.LogDatabaseManagerUpdateEntryType.Int);
+
+      if(this._payment.ExternalPaymentGuid.HasValue)
+        this.AddEntry("ExternalPaymentGuid", this._payment.ExternalPaymentGuid.ToString(), LogDatabaseManagerUpdateEntry.LogDatabaseManagerUpdateEntryType.String);
+
+      this.AddEntry("PaymentStatusID", ((int)this._payment.PaymentStatus).ToString(), LogDatabaseManagerUpdateEntry.LogDatabaseManagerUpdateEntryType.Int);
+
+      if(this._payment.PaymentRequest != null)
+        this.AddEntry("PaymentRequestID", this._payment.PaymentRequest.ID.ToString(), LogDatabaseManagerUpdateEntry.LogDatabaseManagerUpdateEntryType.Int);
+
+      if(this._payment.Customer != null)
+        this.AddEntry("CustomerID", this._payment.Customer.ID.ToString(), LogDatabaseManagerUpdateEntry.LogDatabaseManagerUpdateEntryType.Int);
+
+      if(this._payment.ServiceOffer != null)
+        this.AddEntry("ServiceOfferID", this._payment.ServiceOffer.ID.ToString(), LogDatabaseManagerUpdateEntry.LogDatabaseManagerUpdateEntryType.Int);
+
+      if(this._payment.BusinessModelEntry != null)
+        this.AddEntry("BusinessModelEntryID", this._payment.BusinessModelEntry.ID.ToString(), LogDatabaseManagerUpdateEntry.LogDatabaseManagerUpdateEntryType.Int);
+    }
+  }
+}

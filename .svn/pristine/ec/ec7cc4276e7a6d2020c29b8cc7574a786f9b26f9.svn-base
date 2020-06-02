@@ -1,0 +1,386 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ImageContent))] 
+  public partial class ImageContentManager : MobilePaywall.Data.Sql.SqlManagerBase<ImageContent>, IImageContentManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ImageContent LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ImageContentTable.GetColumnNames("[ic]") + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[ic_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[ic_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[ic_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[ic_c_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[ic_c_ar]") : string.Empty) + 
+					" FROM [core].[ImageContent] AS [ic] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [ic_c] ON [ic].[ContentID] = [ic_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroup] AS [ic_c_cg] ON [ic_c].[ContentGroupID] = [ic_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentType] AS [ic_c_ct] ON [ic_c].[ContentTypeID] = [ic_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorage] AS [ic_c_cs] ON [ic_c].[ContentStorageID] = [ic_c_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [ic_c_ar] ON [ic_c].[AgeRatingID] = [ic_c_ar].[AgeRatingID] ";
+				sqlCmdText += "WHERE [ic].[ImageContentID] = @ImageContentID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ImageContentID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "loadinternal", "notfound"), "ImageContent could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ImageContentTable icTable = new ImageContentTable(query);
+				ContentTable ic_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable ic_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable ic_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable ic_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+				AgeRatingTable ic_c_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+
+        
+				ContentGroup ic_c_cgObject = (this.Depth > 1) ? ic_c_cgTable.CreateInstance() : null;
+				ContentType ic_c_ctObject = (this.Depth > 1) ? ic_c_ctTable.CreateInstance() : null;
+				ContentStorage ic_c_csObject = (this.Depth > 1) ? ic_c_csTable.CreateInstance() : null;
+				AgeRating ic_c_arObject = (this.Depth > 1) ? ic_c_arTable.CreateInstance() : null;
+				Content ic_cObject = (this.Depth > 0) ? ic_cTable.CreateInstance(ic_c_cgObject, ic_c_ctObject, ic_c_csObject, ic_c_arObject) : null;
+				ImageContent icObject = icTable.CreateInstance(ic_cObject);
+				sqlReader.Close();
+
+				return icObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "loadinternal", "exception"), "ImageContent could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ImageContent", "Exception while loading ImageContent object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ImageContent Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ImageContentTable.GetColumnNames("[ic]") + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[ic_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[ic_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[ic_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[ic_c_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[ic_c_ar]") : string.Empty) +  
+					" FROM [core].[ImageContent] AS [ic] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [ic_c] ON [ic].[ContentID] = [ic_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroup] AS [ic_c_cg] ON [ic_c].[ContentGroupID] = [ic_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentType] AS [ic_c_ct] ON [ic_c].[ContentTypeID] = [ic_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorage] AS [ic_c_cs] ON [ic_c].[ContentStorageID] = [ic_c_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [ic_c_ar] ON [ic_c].[AgeRatingID] = [ic_c_ar].[AgeRatingID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "customload", "notfound"), "ImageContent could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ImageContentTable icTable = new ImageContentTable(query);
+				ContentTable ic_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable ic_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable ic_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable ic_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+				AgeRatingTable ic_c_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+
+        
+				ContentGroup ic_c_cgObject = (this.Depth > 1) ? ic_c_cgTable.CreateInstance() : null;
+				ContentType ic_c_ctObject = (this.Depth > 1) ? ic_c_ctTable.CreateInstance() : null;
+				ContentStorage ic_c_csObject = (this.Depth > 1) ? ic_c_csTable.CreateInstance() : null;
+				AgeRating ic_c_arObject = (this.Depth > 1) ? ic_c_arTable.CreateInstance() : null;
+				Content ic_cObject = (this.Depth > 0) ? ic_cTable.CreateInstance(ic_c_cgObject, ic_c_ctObject, ic_c_csObject, ic_c_arObject) : null;
+				ImageContent icObject = icTable.CreateInstance(ic_cObject);
+				sqlReader.Close();
+
+				return icObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "customload", "exception"), "ImageContent could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ImageContent", "Exception while loading (custom/single) ImageContent object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ImageContent> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ImageContentTable.GetColumnNames("[ic]") + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[ic_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[ic_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[ic_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[ic_c_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[ic_c_ar]") : string.Empty) +  
+					" FROM [core].[ImageContent] AS [ic] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [ic_c] ON [ic].[ContentID] = [ic_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentGroup] AS [ic_c_cg] ON [ic_c].[ContentGroupID] = [ic_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentType] AS [ic_c_ct] ON [ic_c].[ContentTypeID] = [ic_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ContentStorage] AS [ic_c_cs] ON [ic_c].[ContentStorageID] = [ic_c_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [ic_c_ar] ON [ic_c].[AgeRatingID] = [ic_c_ar].[AgeRatingID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "customloadmany", "notfound"), "ImageContent list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ImageContent>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ImageContentTable icTable = new ImageContentTable(query);
+				ContentTable ic_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable ic_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable ic_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable ic_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+				AgeRatingTable ic_c_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+
+        List<ImageContent> result = new List<ImageContent>();
+        do
+        {
+          
+					ContentGroup ic_c_cgObject = (this.Depth > 1) ? ic_c_cgTable.CreateInstance() : null;
+					ContentType ic_c_ctObject = (this.Depth > 1) ? ic_c_ctTable.CreateInstance() : null;
+					ContentStorage ic_c_csObject = (this.Depth > 1) ? ic_c_csTable.CreateInstance() : null;
+					AgeRating ic_c_arObject = (this.Depth > 1) ? ic_c_arTable.CreateInstance() : null;
+					Content ic_cObject = (this.Depth > 0) ? ic_cTable.CreateInstance(ic_c_cgObject, ic_c_ctObject, ic_c_csObject, ic_c_arObject) : null;
+					ImageContent icObject = (this.Depth > -1) ? icTable.CreateInstance(ic_cObject) : null;
+					result.Add(icObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "customloadmany", "exception"), "ImageContent list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ImageContent", "Exception while loading (custom/many) ImageContent object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ImageContent data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ImageContent] ([ContentID],[Title],[Description]) VALUES(@ContentID,@Title,@Description); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ContentID", data.Content.ID);
+				sqlCmd.Parameters.AddWithValue("@Title", data.Title).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "insert", "noprimarykey"), "ImageContent could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ImageContent", "Exception while inserting ImageContent object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "insert", "exception"), "ImageContent could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ImageContent", "Exception while inserting ImageContent object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ImageContent data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ImageContent] SET " +
+												"[ContentID] = @ContentID, " + 
+												"[Title] = @Title, " + 
+												"[Description] = @Description, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ImageContentID] = @ImageContentID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ContentID", data.Content.ID);
+				sqlCmd.Parameters.AddWithValue("@Title", data.Title).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ImageContentID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "update", "norecord"), "ImageContent could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ImageContent", "Exception while updating ImageContent object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "update", "morerecords"), "ImageContent was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ImageContent", "Exception while updating ImageContent object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "update", "exception"), "ImageContent could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ImageContent", "Exception while updating ImageContent object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ImageContent data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ImageContent] WHERE ImageContentID = @ImageContentID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ImageContentID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "delete", "norecord"), "ImageContent could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ImageContent", "Exception while deleting ImageContent object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("ic", "delete", "exception"), "ImageContent could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ImageContent", "Exception while deleting ImageContent object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

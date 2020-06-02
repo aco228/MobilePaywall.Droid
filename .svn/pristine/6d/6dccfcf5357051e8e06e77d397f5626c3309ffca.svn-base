@@ -1,0 +1,49 @@
+﻿using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Implementation.Payment.UK
+{
+  public class UKLookupManager : LookupManagerBase
+  {
+    public UKLookupManager(IUserSession session)
+      : base(session)
+    { }
+
+    public override bool SkipLookup { get { return true; } }
+
+    public override Data.LookupSession InitiateLookupSession(string requestRawUrl, Data.UserHttpRequest originalRequest)
+    {
+      LookupSession lookupSession = new LookupSession(-1,
+                                                      Guid.NewGuid(),
+                                                      LookupSessionStatus.Initialized,
+                                                      this.Session.SessionData,
+                                                      originalRequest,
+                                                      Guid.Empty, //This GUID is Cashflow!
+                                                      null,
+                                                      DateTime.Now,
+                                                      DateTime.Now);
+
+      lookupSession.Insert();
+
+      LookupSessionResult lsr = new LookupSessionResult(
+        -1,
+        lookupSession,
+        true,
+        true,
+        Guid.Empty,
+        this.Session.SessionData.MobileOperator,
+        this.Session.SessionData.Customer != null ? this.Session.SessionData.Customer.Msisdn : null,
+        string.Empty,
+        DateTime.Now, DateTime.Now);
+      lsr.Insert();
+
+      return lookupSession;
+    }
+
+
+  }
+}

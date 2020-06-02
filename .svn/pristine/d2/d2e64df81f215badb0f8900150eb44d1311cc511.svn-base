@@ -1,0 +1,355 @@
+﻿@model MobilePaywall.CustomerCare.Models.TransactionsModel
+@{
+  Layout = "~/Views/Shared/_Layout.cshtml";
+  
+}
+
+@Scripts.Render("~/Script/Payments")
+
+<div class="content-wrapper">
+    <!-- Content Header (Page header) -->
+
+    <a class="btn btn-app" style="margin-top:15px" href="/payment/print?guid=@Model.Payment.Guid.ToString()">
+      <i class="fa fa-save"></i> Save PDF 
+    </a>
+
+    <section class="content-header">
+      <h1>
+        @Model.Title
+        <small>Control panel</small>
+      </h1>
+      <ol class="breadcrumb">
+        <li><a href="#"><i class="fa fa-dashboard"></i> Subscriptions</a></li>
+        <li class="active">Transactions</li>
+      </ol>
+    </section>
+
+    <section class="content">
+
+      @* 
+        SUBSCRIPTION INFORMATIONS
+      *@
+      
+      <section class="col-lg-12 connectedSortable">
+        <div class="box">
+          <div class="box-header with-border">
+            <i class="fa fa-text-width"></i>
+            <h3 class="box-title">Subscription informations:</h3>
+          </div><!-- /.box-header -->
+          <div class="box-body">
+            <table id="__customer_searchInformationTable">
+              <tr>
+                <td><b>Created:</b></td>
+                <td>@Model.Payment.Created</td>
+              </tr>
+              <tr>
+                <td><b>Status:</b></td>
+                <td>@Model.PaymentStatus</td>
+              </tr>
+              <tr>
+                <td><b>Country:</b></td>
+                <td>@Model.Customer.Country.GlobalName</td>
+              </tr>
+              @{
+                if (Model.Customer.MobileOperator != null)
+                {
+                  <tr>
+                    <td><b>Mobile operator:</b></td>
+                    <td>@Model.Customer.MobileOperator.Name</td>
+                  </tr>
+
+                }
+              }
+              @{
+                if (Model.Customer.Msisdn != null)
+                {
+                  <tr>
+                    <td><b>Msisdn:</b></td>
+                    <td>@Model.Customer.Msisdn</td>
+                  </tr>
+
+                }
+              }
+              <tr>
+                <td><b>Number of transactions:</b></td>
+                <td>@Model.Transactions.Count</td>
+              </tr>
+              <tr>
+                <td><b>Number of streamed videos:</b></td>
+                <td>@Model.NumberOfStreamedVideos</td>
+              </tr>
+              <tr>
+                <td><b>Number of downloaded videos:</b></td>
+                <td>@Model.NumberOfDownloadedVideos</td>
+              </tr>
+            </table>
+
+
+          </div><!-- /.box-body -->
+        </div>
+      </section>
+
+      @* 
+        TRANSACTION LIST
+      *@
+
+     
+      @if(Model.Transactions.Count > 0)
+      {    
+        <section class="col-lg-12 connectedSortable">  
+        <div class="box">
+          <div class="box-header">
+            <h3 class="box-title">Transactions:</h3>
+            <div class="box-tools">
+              <div class="input-group">
+                @*<input type="text" name="table_search" class="form-control input-sm pull-right" style="width: 150px;" placeholder="Search">
+                <div class="input-group-btn">
+                  <button class="btn btn-sm btn-default"><i class="fa fa-search"></i></button>
+                </div>*@
+              </div>
+            </div>
+          </div><!-- /.box-header -->
+          <div class="box-body table-responsive no-padding">
+            <table class="table table-hover">
+              <tbody>
+                <tr>
+                  <th>Created</th>
+                  <th>Ammount</th>
+                  <th>Refunded</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+                
+                @{
+                  foreach (MobilePaywall.CustomerCare.Helper.CashflowTransaction transaction in Model.Transactions)
+                  {
+                    <tr cashflowTransactionGuid="@transaction.Transaction.TransactionID">
+                      <td>@transaction.Transaction.Created</td>
+                      <td>@string.Format("{0:0.00} {1}", transaction.Transaction.Amount.Value, transaction.Transaction.Amount.Currency).Replace(".", ",")</td>
+                      <td>@transaction.RefundedDate</td>
+                      <td><span class="transactionLabel label label-@Model.LabelStatus(transaction.Status)">@transaction.Status</span></td>
+                      <td>
+                        @if ((transaction.Status.Equals("Executed") || transaction.Status.Equals("Charged")) && PaywallHttpContext.Current.ClientSession.Client.HasAccess("Refund"))
+                        {
+                          <button class="btn btn-block btn-danger btn-xs button_transaction_refund" style="width:140px; margin-top:0px;" transactionguid="@transaction.Transaction.TransactionID" transactiongroupguid="@transaction.Transaction.TransactionGroupID" paymentguid="@Model.Payment.Guid">Refund</button>
+                        }
+                      </td>
+                    </tr>
+                  }
+                }
+
+
+
+                @*<tr>
+                    <td>183</td>
+                    <td>John Doe</td>
+                    <td>5 eura</td>
+                    <td><span class="label label-success">Approved</span></td>
+                    <td>
+                      <button class="btn btn-block btn-danger btn-xs" style="width:140px; margin-top:0px;">Refund</button>
+                    </td>
+                  </tr>*@
+
+              </tbody>
+            </table>
+          </div><!-- /.box-body -->
+        </div>
+        </section>
+      }
+      
+      @* 
+        Payment Content Access Policy Map
+      *@
+
+      @if (Model.AccessPolicyMap.Count > 0 && PaywallHttpContext.Current.ClientSession.Client.ClientType.Name.Equals("Administrator"))
+      {    
+        <section class="col-lg-12 connectedSortable">  
+        <div class="box">
+          <div class="box-header">
+            <h3 class="box-title">Content Policy:</h3>
+            <div class="box-tools">
+              <div class="input-group">
+                @*<input type="text" name="table_search" class="form-control input-sm pull-right" style="width: 150px;" placeholder="Search">
+                <div class="input-group-btn">
+                  <button class="btn btn-sm btn-default"><i class="fa fa-search"></i></button>
+                </div>*@
+              </div>
+            </div>
+          </div><!-- /.box-header -->
+          <div class="box-body table-responsive no-padding">
+            <table class="table table-hover">
+              <tbody>
+                <tr>
+                  <th>Created</th>
+                  <th>Active</th>
+                  <th>Temporary</th>
+                  <th>Valid to</th>
+                  <th>Action</th>
+                </tr>
+                
+                @{
+                  foreach (MobilePaywall.Data.PaymentContentAccessPolicyMap pcapm in Model.AccessPolicyMap)
+                  {
+                    string pcapmValidStatus = pcapm.IsValid ? "True" : "False";
+                    if (DateTime.Now > pcapm.ValidTo) { pcapmValidStatus = "Expired"; }
+                    
+                    <tr>
+                      <td>@pcapm.Created.ToString()</td>
+                      <td><span class="transactionLabel pcapmLabel label label-@Model.LabelPcapmStatus(pcapmValidStatus)">@pcapmValidStatus</span></td>
+                      <td><span class="transactionLabel label label-@Model.LabelPcapmStatus(pcapm.IsTemporary.ToString())">@pcapm.IsTemporary.ToString()</span></td>
+                      <td>@pcapm.ValidTo.ToString()</td>
+                      <td>
+                        @if (pcapmValidStatus.Equals("True"))
+                        {
+                          <button class="btn btn-block btn-danger btn-xs button_pcapm_remove" style="width:140px; margin-top:0px;" pcapm="@pcapm.ID">Remove</button>
+                        }
+                      </td>
+                    </tr>
+                  }
+                }
+
+
+
+                @*<tr>
+                    <td>183</td>
+                    <td>John Doe</td>
+                    <td>5 eura</td>
+                    <td><span class="label label-success">Approved</span></td>
+                    <td>
+                      <button class="btn btn-block btn-danger btn-xs" style="width:140px; margin-top:0px;">Refund</button>
+                    </td>
+                  </tr>*@
+
+              </tbody>
+            </table>
+          </div><!-- /.box-body -->
+        </div>
+        </section>
+      }
+
+      @* 
+        WATCHED VIDEOS LIST 
+      *@
+
+      @if (Model.Content.Count > 0)
+      {
+        <section class="col-lg-4 connectedSortable">
+          <div class="box">
+            <div class="box-header with-border">
+              <h3 class="box-title">Recently Watched videos:</h3>
+              @*<div class="box-tools pull-right"> </div>*@
+            </div><!-- /.box-header -->
+            <div class="box-body">
+              <ul class="products-list product-list-in-box">
+
+                @{
+                  foreach (MobilePaywall.IContent content in Model.Content)
+                  {
+
+                    string title = (content as MobilePaywall.Video) != null ? (content as MobilePaywall.Video).VideoContentData.Title : "";
+
+                    <li class="item">
+                      <div class="product-img">
+                        <img src="http://www.myer.com.au/wcsstore/MyerStorefrontAssetStore/images/NoImageIcon.jpg" alt="Product Image">
+                      </div>
+                      <div class="product-info">
+                        <a href="javascript::;" class="product-title"> @string.Format("{0}{1}", Model.Domain.DomainName, content.GetAccessUrl(this.Request.UserAgent)) @*<span class="label label-warning pull-right">$1800</span>*@</a>
+                        <span class="product-description">
+                          @title
+                        </span>
+                      </div>
+                    </li>
+                  }
+                }
+
+                @*<li class="item">
+                    <div class="product-img">
+                      <img src="https://cdn.photographylife.com/wp-content/uploads/2014/06/Nikon-D810-Image-Sample-6.jpg" alt="Product Image">
+                    </div>
+                    <div class="product-info">
+                      <a href="javascript::;" class="product-title">Samsung TV </a>
+                      <span class="product-description">
+                        Samsung 32" 1080p 60Hz LED Smart HDTV.
+                      </span>
+                    </div>
+                  </li>*@<!-- /.item -->
+
+              </ul>
+            </div><!-- /.box-body -->
+            @*<div class="box-footer text-center">
+                <a href="javascript::;" class="uppercase">View All Products</a>
+              </div><!-- /.box-footer -->*@
+          </div>
+        </section>
+      }
+
+
+      @* 
+        VISITED PAGES
+      *@
+
+      @{
+        if (Model.Requests.Count > 0)
+        {
+          
+        <section class="col-lg-12 connectedSortable">
+          <div class="box">
+            <div class="box-header">
+              <h3 class="box-title">Visited pages</h3>
+            </div><!-- /.box-header -->
+            <div class="box-body">
+              <div id="example2_wrapper" class="dataTables_wrapper form-inline dt-bootstrap">
+                <div class="row"><div class="col-sm-6"></div><div class="col-sm-6"></div></div><div class="row">
+                  <div class="col-sm-12">
+                    <table id="example2" class="table table-bordered table-hover dataTable" role="grid" aria-describedby="example2_info">
+                      <thead>
+                        <tr>
+                        <tr role="row">
+                          <th class="sorting_asc" tabindex="0" aria-controls="example2" rowspan="1" colspan="1" aria-sort="ascending" aria-label="Rendering engine: activate to sort column descending">Date</th>
+                          <th class="sorting" tabindex="0" aria-controls="example2" rowspan="1" colspan="1" aria-label="Browser: activate to sort column ascending">Requested URL</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+
+                       @{
+                          for (int i = 0; i < Model.Requests.Count; i++ )
+                          {
+                            MobilePaywall.Data.UserHttpRequest httpRequest = Model.Requests.ElementAt(i);
+                            string className = (i % 2 == 0) ? "even" : "odd"; 
+                              <tr role="row" class="@className">
+                                <td class="sorting_1">@httpRequest.Created</td>
+                                <td>@Model.GetRequestUrlWithDomain(i)</td>
+                              </tr>
+                          }
+                        }
+
+                        @*<tr role="row" class="odd">
+                          <td class="sorting_1">2015-05-21 19:27:38.2470000</td>
+                          <td>/thumbnail/getsid/e202ee72a7fd40229ab2a58287cb719e?contentID=1</td>
+                        </tr>*@
+
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                @*<div class="row"><div class="col-sm-5"><div class="dataTables_info" id="example2_info" role="status" aria-live="polite">Showing 1 to 10 of 57 entries</div></div><div class="col-sm-7"><div class="dataTables_paginate paging_simple_numbers" id="example2_paginate"><ul class="pagination"><li class="paginate_button previous disabled" id="example2_previous"><a href="#" aria-controls="example2" data-dt-idx="0" tabindex="0">Previous</a></li><li class="paginate_button active"><a href="#" aria-controls="example2" data-dt-idx="1" tabindex="0">1</a></li><li class="paginate_button "><a href="#" aria-controls="example2" data-dt-idx="2" tabindex="0">2</a></li><li class="paginate_button "><a href="#" aria-controls="example2" data-dt-idx="3" tabindex="0">3</a></li><li class="paginate_button "><a href="#" aria-controls="example2" data-dt-idx="4" tabindex="0">4</a></li><li class="paginate_button "><a href="#" aria-controls="example2" data-dt-idx="5" tabindex="0">5</a></li><li class="paginate_button "><a href="#" aria-controls="example2" data-dt-idx="6" tabindex="0">6</a></li><li class="paginate_button next" id="example2_next"><a href="#" aria-controls="example2" data-dt-idx="7" tabindex="0">Next</a></li></ul></div></div></div>*@
+              </div>
+            </div><!-- /.box-body -->
+          </div>
+          </section>
+
+        }
+      }
+
+      <div style="clear:both"></div>
+      
+    </section>
+  </div>
+
+
+<script>
+  var _payments = null;
+  $(document).ready(function () {
+    _payments = new Payments();
+  });
+</script>

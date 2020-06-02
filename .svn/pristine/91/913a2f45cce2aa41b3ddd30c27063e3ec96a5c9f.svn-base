@@ -1,0 +1,336 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using MobilePaywall.Data.Direct.MobilePaywall;
+using MobilePaywall.Data;
+
+namespace MobilePaywall.Merchant
+{
+  public class Statistics
+  {
+    //private Filter _filter = null;
+    private QueryBuilder _queryBuilder = null;
+    private Split _split = Split.None;
+    private List<Group> _group = null;
+    private List<StatisticEntry> _entries = null;
+
+    //public Filter Filter { get { return this._filter; } }
+    public QueryBuilder QueryBuilder { get { return this._queryBuilder; } }
+    public Split Split { get { return this._split; } }
+    public List<Group> Group { get { return this._group; } }
+    public List<StatisticEntry> Entries { get { return this._entries; } }
+
+    public Statistics()
+    {
+      this._entries = new List<StatisticEntry>();
+    }
+
+    //public Statistics(Split split, List<Group> group, Filter filter)
+    public Statistics(Split split, List<Group> group, QueryBuilder queryBuilder, string component)
+    {
+      this._split = split;
+      this._group = group;
+      //this._filter = filter;
+      this._queryBuilder = queryBuilder;
+      //this._entries = StatisticEntry.Load(split, group, filter);
+      this._entries = StatisticEntry.Load(queryBuilder, component, group);
+      //this._entries = Idea.Load(split, group, filter);
+    }
+
+    public static bool IsGroupColumnIncluded(List<StatisticEntry> entries, Group group)
+    {
+      switch (group)
+      {
+        case Merchant.Group.Unknown:
+          return true;
+        case Merchant.Group.Instance:
+          return (from m in entries where !string.IsNullOrEmpty(m.InstanceName) select m).FirstOrDefault() != null;
+        case Merchant.Group.Merchant:
+          return (from m in entries where !string.IsNullOrEmpty(m.MerchantName) select m).FirstOrDefault() != null;
+        case Merchant.Group.Service:
+          return (from m in entries where !string.IsNullOrEmpty(m.ServiceName) select m).FirstOrDefault() != null;
+        case Merchant.Group.Provider:
+          return (from m in entries where !string.IsNullOrEmpty(m.ProviderName) select m).FirstOrDefault() != null;
+        case Merchant.Group.Country:
+          return (from m in entries where !string.IsNullOrEmpty(m.CountryName) select m).FirstOrDefault() != null;
+        case Merchant.Group.Operator:
+          return (from m in entries where !string.IsNullOrEmpty(m.OperatorName) select m).FirstOrDefault() != null;
+        default:
+          return true;
+      }
+    }
+
+    public static bool IsSplitColumnIncluded(List<StatisticEntry> entries, Split show)
+    {
+      switch (show)
+      {
+        case Split.None:
+          return false;
+        case Split.Year:
+          return (from m in entries where m.Year != null select m).FirstOrDefault() != null;
+        case Split.Month:
+          return (from m in entries where m.Month != null select m).FirstOrDefault() != null;
+        case Split.Day:
+          return (from m in entries where m.Day != null select m).FirstOrDefault() != null;
+        case Split.Hour:
+          return (from m in entries where m.Hour != null select m).FirstOrDefault() != null;
+        default:
+          return false;
+      }
+    }
+    
+    public string GetVMAPData()
+    {
+
+      // List<DirectCountryTransactionTable> result = DirectCountryTransactionTable.Load();
+      IEnumerable<IGrouping<string, StatisticEntry>> temporary = this._entries.GroupBy(x => x.TwoLetterIsoCode);
+      string data = "sample_data = {";
+      string data1 = "sample_sub_data = {";
+      string content = string.Empty;
+      string content1 = string.Empty;
+      string subContent = string.Empty;
+      int sum = 0;
+
+      if (temporary == null || !temporary.Any())
+        return "sample_data = {};";
+
+      foreach (IGrouping<string, StatisticEntry> entryGroup in temporary)
+      {
+        //sum = (from v in entryGroup select v.Transactions).Sum();
+        if (content != "") content += ",";
+        content += string.Format("'{0}' : {1}", entryGroup.Key.ToLower(), (from v in entryGroup select v.Transactions).Sum());
+
+        subContent = string.Empty;
+        foreach (StatisticEntry entry in entryGroup)
+        {
+          if (subContent != "") subContent += ",";
+          subContent += string.Format("'{0}' : {1}", entry.ServiceName, entry.Transactions);
+        }
+
+        if (content1 != "") content1 += ",";
+        content1 += string.Format("'{0}' : {{{1}}}", entryGroup.Key.ToLower(), subContent);
+      }
+      data += content + "};";
+      data1 += content1 + "};";
+
+
+
+      //string data1 = "sample_sub_data = {";
+      //string delimiter = string.Empty;
+      //foreach (StatisticEntry entry in temporary)
+      //{
+      // string subData = "{";
+      // string delimiter1 = string.Empty;
+      // foreach (StatisticEntry entry1 in temporary)
+      // {
+      //  subData += string.Format("{0}'{1}':{2}", delimiter1, entry1.ServiceName.ToLower(), entry1.Transactions);
+      //  delimiter1 = ",";
+      // }
+      // subData += "}";
+      // data1 += string.Format("{0}'{1}':{2}", delimiter, entry.TwoLetterIsoCode.ToLower(), subData);
+      // delimiter = ",";
+      //}
+      //data1 += "};";
+
+
+      return data + data1;
+    }
+
+    //public string GetVMAPData2()
+    //{
+    // SortedDictionary<string, SortedDictionary<string, int>> countryTransactionsMap = new SortedDictionary<string, SortedDictionary<string, int>>();
+    // foreach (StatisticEntry entry in this._entries)
+    //  if (entry.TwoLetterIsoCode != null && entry.Transactions > 0)
+    //  {
+    //   if (countryTransactionsMap.ContainsKey(entry.CountryData.TwoLetterIsoCode.ToLower()))
+    //    if (countryTransactionsMap[entry.CountryData.TwoLetterIsoCode.ToLower()].ContainsKey(entry.ServiceData.Name))
+    //     countryTransactionsMap[entry.CountryData.TwoLetterIsoCode.ToLower()][entry.ServiceData.Name] = countryTransactionsMap[entry.CountryData.TwoLetterIsoCode.ToLower()][entry.ServiceData.Name] + entry.Transactions;
+    //    else
+    //     countryTransactionsMap[entry.CountryData.TwoLetterIsoCode.ToLower()].Add(entry.ServiceData.Name, entry.Transactions);
+    //   else
+    //   {
+    //    countryTransactionsMap.Add(entry.CountryData.TwoLetterIsoCode.ToLower(), new SortedDictionary<string, int>() { });
+    //    countryTransactionsMap[entry.CountryData.TwoLetterIsoCode.ToLower()].Add(entry.ServiceData.Name, entry.Transactions);
+    //    //SortedDictionary<string, int>
+    //   }
+
+    //   //    countryTransactionsMap[entry.CountryData.TwoLetterIsoCode.ToLower()] = countryTransactionsMap[entry.CountryData.TwoLetterIsoCode.ToLower()] + entry.Transactions;
+    //   //else
+    //   //  countryTransactionsMap.Add(entry.CountryData.TwoLetterIsoCode.ToLower(), entry.Transactions);
+    //  }
+
+    // string data = "sample_data = {";
+    // string delimiter = string.Empty;
+    // foreach (KeyValuePair<string, SortedDictionary<string, int>> kv in countryTransactionsMap)
+    // {
+    //  data += string.Format("{0}'{1}':{2}", delimiter, kv.Key.ToLower(), (from v in kv.Value select v.Value).Sum());
+    //  delimiter = ",";
+    // }
+    // data += "};";
+
+    // string data1 = "sample_sub_data = {";
+    // delimiter = string.Empty;
+    // foreach (KeyValuePair<string, SortedDictionary<string, int>> kv in countryTransactionsMap)
+    // {
+    //  string subData = "{";
+    //  string delimiter1 = string.Empty;
+    //  foreach (KeyValuePair<string, int> kv1 in kv.Value)
+    //  {
+    //   subData += string.Format("{0}'{1}':{2}", delimiter1, kv1.Key.ToLower(), kv1.Value);
+    //   delimiter1 = ",";
+    //  }
+    //  subData += "}";
+
+    //  data1 += string.Format("{0}'{1}':{2}", delimiter, kv.Key.ToLower(), subData);
+    //  delimiter = ",";
+    // }
+    // data1 += "};";
+
+
+    // return data + data1;
+    //}
+
+    public string GetCR(int sessions, int transactions)
+    {
+      if (sessions == 0)
+        return "(0.00%)";
+
+      decimal cr = Decimal.Round(((((decimal)transactions / 100) / ((decimal)sessions / 100)) * 100), 2, MidpointRounding.AwayFromZero);
+      return string.Format("({0}%)", cr);
+    }
+
+    //vraca default
+    public string GetChartData()
+    {
+      string data = "var chartData = [";
+      string content = string.Empty;
+      List<StatisticEntry> temporary = this._entries.OrderBy(x => x.Date).OrderBy(x => x.Date.Value.TimeOfDay).ToList();
+      StatisticEntry previous = null;
+
+
+      if (temporary.Count == 0)
+        return "var chartData = [];";
+
+      foreach (StatisticEntry entry in temporary)
+      {
+        if (!string.IsNullOrEmpty(content))
+          content += ",";
+
+        string volumeIndex = previous == null ? "0%" : previous.Sessions == 0 && entry.Sessions == 0 ? "0%" : previous.Sessions == 0 && entry.Sessions > 0 ? "100%" : previous.Sessions > 0 && entry.Sessions == 0 ? "-100%" : previous.Sessions > 0 && entry.Sessions > 0 ? (Math.Round(((Convert.ToDouble(entry.Sessions - previous.Sessions) / previous.Sessions) * 100), 2).ToString() + "%") : "0%";
+        string valueIndex = previous == null ? "0%" : previous.SuccessfullIdentifications == 0 && entry.SuccessfullIdentifications == 0 ? "0%" : previous.SuccessfullIdentifications == 0 && entry.SuccessfullIdentifications > 0 ? "100%" : previous.SuccessfullIdentifications > 0 && entry.SuccessfullIdentifications == 0 ? "-100%" : previous.SuccessfullIdentifications > 0 && entry.SuccessfullIdentifications > 0 ? (Math.Round(((Convert.ToDouble(entry.SuccessfullIdentifications - previous.SuccessfullIdentifications) / previous.SuccessfullIdentifications) * 100), 2).ToString() + "%") : "0%";
+        string valueIndex1 = previous == null ? "0%" : previous.SuccessfullPayments == 0 && entry.SuccessfullPayments == 0 ? "0%" : previous.SuccessfullPayments == 0 && entry.SuccessfullPayments > 0 ? "100%" : previous.SuccessfullPayments > 0 && entry.SuccessfullPayments == 0 ? "-100%" : previous.SuccessfullPayments > 0 && entry.SuccessfullPayments > 0 ? (Math.Round(((Convert.ToDouble(entry.SuccessfullPayments - previous.SuccessfullPayments) / previous.SuccessfullPayments) * 100), 2).ToString() + "%") : "0%";
+        string valueIndex2 = previous == null ? "0%" : previous.Transactions == 0 && entry.Transactions == 0 ? "0%" : previous.Transactions == 0 && entry.Transactions > 0 ? "100%" : previous.Transactions > 0 && entry.Transactions == 0 ? "-100%" : previous.Transactions > 0 && entry.Transactions > 0 ? (Math.Round(((Convert.ToDouble(entry.Transactions - previous.Transactions) / previous.Transactions) * 100), 2).ToString() + "%") : "0%";
+        string valueIndex3 = previous == null ? "0%" : previous.Subsequents == 0 && entry.Subsequents == 0 ? "0%" : previous.Subsequents == 0 && entry.Subsequents > 0 ? "100%" : previous.Subsequents > 0 && entry.Subsequents == 0 ? "-100%" : previous.Subsequents > 0 && entry.Subsequents > 0 ? (Math.Round(((Convert.ToDouble(entry.Subsequents - previous.Subsequents) / previous.Subsequents) * 100), 2).ToString() + "%") : "0%";
+        string valueIndex4 = previous == null ? "0%" : previous.TCancellations == 0 && entry.TCancellations == 0 ? "0%" : previous.TCancellations == 0 && entry.TCancellations > 0 ? "100%" : previous.TCancellations > 0 && entry.TCancellations == 0 ? "-100%" : previous.TCancellations > 0 && entry.TCancellations > 0 ? (Math.Round(((Convert.ToDouble(entry.TCancellations - previous.TCancellations) / previous.TCancellations) * 100), 2).ToString() + "%") : "0%";
+        
+        content += "{" +
+                   string.Format("date:'{0}', volume:{1}, volumeIndex: '{2}', value:{3}, valueIndex:'{4}', value1:{5}, valueIndex1:'{6}', value2:{7}, valueIndex2:'{8}', value3:{9}, valueIndex3:'{10}', value4:{11}, valueIndex4:'{12}'", entry.Date, entry.Sessions, volumeIndex, entry.SuccessfullIdentifications, valueIndex, entry.SuccessfullPayments, valueIndex1, entry.Transactions, valueIndex2, entry.Subsequents, valueIndex3, entry.TCancellations, valueIndex4) + "}";
+
+        previous = entry;
+      }
+
+      data += content + "];";
+
+      string split = "var split = \"hh\";";
+      if (temporary.First().Date.Value.Year == temporary.Last().Date.Value.Year &&
+         temporary.First().Date.Value.Month == temporary.Last().Date.Value.Month &&
+         temporary.First().Date.Value.Day == temporary.Last().Date.Value.Day)
+        split = "var split = \"mm\";";
+      if (temporary.First().Date.Value.Year == temporary.Last().Date.Value.Year &&
+         temporary.First().Date.Value.Month == temporary.Last().Date.Value.Month &&
+         temporary.First().Date.Value.Day < temporary.Last().Date.Value.Day)
+        split = "var split = \"DD\";";
+      if (temporary.First().Date.Value.Year == temporary.Last().Date.Value.Year &&
+         temporary.First().Date.Value.Month < temporary.Last().Date.Value.Month)
+        split = "var split = \"MM\";";
+      if (temporary.First().Date.Value.Year < temporary.Last().Date.Value.Year)
+        split = "var split = \"YYYY\";";
+
+      return data + split;
+    }
+
+    //protected void Initialize()
+    //{
+
+    //}
+
+    //protected static List<StatisticEntry> Filter(List<Data.Merchant> merchants, List<Service> services, List<Country> countries, List<MobileOperator> operators,
+    //	Split show, List<Group> group, List<StatisticEntry> entries)
+    //{
+    //	try
+    //	{
+    //		List<StatisticEntry> temporary = null;
+    //		if (merchants != null && merchants.Count > 0)
+    //			temporary = (from sm in entries where merchants.Contains(sm.MerchantData) select sm).ToList();
+
+    //		if (services != null && services.Count > 0)
+    //			if (temporary == null)
+    //				temporary = (from sm in entries where services.Contains(sm.ServiceData) select sm).ToList();
+    //			else
+    //				temporary = (from sm in temporary where services.Contains(sm.ServiceData) select sm).ToList();
+
+    //		if (countries != null && countries.Count > 0)
+    //			if (temporary == null)
+    //				temporary = (from sm in entries where countries.Contains(sm.CountryData) select sm).ToList();
+    //			else
+    //				temporary = (from sm in temporary where countries.Contains(sm.CountryData) select sm).ToList();
+
+    //		if (operators != null && operators.Count > 0)
+    //			if (temporary == null)
+    //				temporary = (from sm in entries where operators.Contains(sm.OperatorData) select sm).ToList();
+    //			else
+    //				temporary = (from sm in temporary where operators.Contains(sm.OperatorData) select sm).ToList();
+
+    //		if (temporary == null)
+    //			temporary = entries;
+
+    //		temporary = (from t in temporary
+    //								 group t by new
+    //								 {
+    //									 TempYear = show != Split.Unknown && show == Merchant.Split.Year ? t.Year : null,
+    //									 TempMonth = show != Split.Unknown && show == Merchant.Split.Month ? t.Month : null,
+    //									 TempDay = show != Split.Unknown && show == Merchant.Split.Day ? t.Day : null,
+    //									 TempHour = show != Split.Unknown && show == Merchant.Split.Hour ? t.Hour : null,
+    //									 TempMerchant = @group.Contains(Group.Merchant) ? t.MerchantData : null,
+    //									 TempService = @group.Contains(Group.Service) ? t.ServiceData : null,
+    //									 TempCountry = @group.Contains(Group.Country) ? t.CountryData : null,
+    //									 TempOperator = @group.Contains(Group.Operator) ? t.OperatorData : null
+    //								 } into t1
+    //								 where (services != null && services.Count > 0 && services.Contains(t1.Key.TempService)) &&
+    //											 (countries != null && countries.Count > 0 && countries.Contains(t1.Key.TempCountry)) &&
+    //											 (operators != null && operators.Count > 0 && operators.Contains(t1.Key.TempOperator))
+    //								 select new StatisticEntry()
+    //								 {
+    //									 Year = t1.Key.TempYear,
+    //									 Month = t1.Key.TempMonth,
+    //									 Day = t1.Key.TempDay,
+    //									 Hour = t1.Key.TempHour,
+    //									 MerchantData = t1.Key.TempMerchant != null ? (from m in merchants where m.ID == t1.Key.TempMerchant.ID select m).FirstOrDefault() : null,
+    //									 ServiceData = t1.Key.TempService != null ? (from s in services where s.ID == t1.Key.TempService.ID select s).FirstOrDefault() : null,
+    //									 CountryData = t1.Key.TempCountry != null ? (from c in countries where c.ID == t1.Key.TempCountry.ID select c).FirstOrDefault() : null,
+    //									 OperatorData = t1.Key.TempOperator != null ? (from o in operators where o.ID == t1.Key.TempOperator.ID select o).FirstOrDefault() : null,
+    //									 Sessions = t1.Select(x => x.Sessions).Sum(),
+    //									 Identifications = t1.Select(x => x.Identifications).Sum(),
+    //									 SuccessfullIdentifications = t1.Select(x => x.SuccessfullIdentifications).Sum(),
+    //									 Payments = t1.Select(x => x.Payments).Sum(),
+    //									 SuccessfullPayments = t1.Select(x => x.SuccessfullPayments).Sum(),
+    //									 Transactions = t1.Select(x => x.Transactions).Sum()
+    //								 }).ToList();
+
+    //		if (temporary == null)
+    //			return entries;
+
+    //		return temporary;
+    //	}
+    //	catch (Exception ex)
+    //	{
+    //		return new List<StatisticEntry>();
+    //	}
+    //}
+
+
+  }
+}

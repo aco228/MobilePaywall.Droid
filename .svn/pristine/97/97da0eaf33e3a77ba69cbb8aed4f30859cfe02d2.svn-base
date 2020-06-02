@@ -1,0 +1,122 @@
+﻿@model MobilePaywall.Web.Models.ContentListViewModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+}
+
+@Scripts.Render("~/Script/Home")
+
+<div class="top"></div>
+<div class="bottom"></div>
+
+<div class="separator">
+  <strong>@Translations.Web.Home.Header1</strong>
+</div>
+
+<div class="top"></div>
+<div class="slider-component border-top">
+  <div class="flexslider">
+    <ul class="slides">
+      @{
+        
+        /*
+          =====================================================================================
+          random videos
+        */
+        
+        List<int> random = new List<int>();
+        Random rnd = new Random();
+        int max = 4,
+            index = 0;
+
+        for (int i = 0; i < max; i++)
+        {
+          index = rnd.Next(0, Model.Content.Count - 1);
+          if (random.Contains(index))
+          {
+            i--;
+            continue;
+          }
+
+          random.Add(index);
+          MobilePaywall.IContent content = Model.Content.ElementAt(index);
+          
+          <li>
+              <a href='@Model.AppendSessionID(content)' class="___clink">
+                  <div style='background-image:url( @content.GetThumbnailUrl(this.Request.UserAgent)); background-repeat: no-repeat; background-size: 100% auto; height:250px'>
+                      <div class="playBtn @content.ContentIconClass"></div>
+                  </div>
+                  <div class='flex-caption'>
+                      @Model.ContentInformations(content).Title
+                  </div>
+              </a>
+          </li>
+        }
+      }
+    </ul>
+    <div class="clear"></div>
+  </div>
+</div>
+
+<div class="separator">
+  <strong>@Translations.Web.Home.Header2</strong>
+</div>
+<div id="content">
+  @{
+    foreach (MobilePaywall.IContent content in Model.Content)
+    {      
+      <div class="videoitem">
+        <div class="thumbnail">
+            <a href="@Model.AppendSessionID(content)" class="thumbnailimg left ___clink">
+                <div class="playBtn @content.ContentIconClass"></div>
+                <img src="@content.GetThumbnailUrl(this.Request.UserAgent)" />
+            </a>
+          <div class="description left">
+            <div style="overflow:hidden; width:90%;">
+                <a class="titlelink ___clink" href="@MobilePaywall.Web.Helpers.UrlHelper.AppendSessionID(PaywallHttpContext.Current.HttpContext.Request.RequestContext, content.GetAccessUrl(this.Request.UserAgent))">
+                    <strong class="duration">@Model.ContentInformations(content).Title</strong>
+                </a>
+            </div>
+            <div class="clear"></div>
+            @*<div class="rating">
+              <img src="/Images/base/stars/fsyn.png" style="clip:rect(0, 5, 16px, 0);" />
+            </div>*@
+            <div class="clear"></div>
+            @*<strong class="duration">@duration Min</strong>*@
+            <div class="clear"></div>
+            <div class="watch">
+                <a class="watchnow ___clink" href="@MobilePaywall.Web.Helpers.UrlHelper.AppendSessionID(PaywallHttpContext.Current.HttpContext.Request.RequestContext, content.GetAccessUrl(this.Request.UserAgent))">
+                    <span>@Translations.Web.Controls.Play</span>
+                </a>
+            </div>
+          </div>
+        </div>
+        <div class="clear"></div>
+      </div>
+    }
+  }
+</div>
+<div class="loading" style="display:none;"></div>
+<div class="paging">
+  <button type="submit" id="controlLoadMore">@Translations.Web.Controls.More</button>
+  <div class="clear"></div>
+</div>
+
+<script>
+  var _videoController = null;
+  var _contentHome = null;
+
+  $(document).ready(function () {
+    _videoController = new VideoController();
+    _videoController.DefaultContainer = 'content';
+    _videoController.TextPending = '@Translations.Web.Pending.PleaseWait';
+
+    @{
+      if(Model.Category != null)
+      {
+        @Html.Raw(Server.HtmlDecode("_homeVideoControler.CategoryID = '" + Model.Category.ID + "';"));
+      }
+    }
+
+    //_contentHome = new ContentHome();
+  });
+</script>

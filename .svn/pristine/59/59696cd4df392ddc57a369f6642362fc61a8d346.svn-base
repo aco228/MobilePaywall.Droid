@@ -1,0 +1,542 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.TrckdPaywall.Data.Sql
+{
+  [DataManager(typeof(Action))] 
+  public partial class ActionManager : MobilePaywall.Data.Sql.SqlManagerBase<Action>, IActionManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override Action LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ActionTable.GetColumnNames("[a]") + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[a_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[a_us_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[a_us_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + DomainTable.GetColumnNames("[a_us_d]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[a_us_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[a_us_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[a_us_mo]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentTable.GetColumnNames("[a_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentRequestTable.GetColumnNames("[a_p_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[a_p_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[a_p_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[a_p_bme]") : string.Empty) + 
+							(this.Depth > 0 ? "," + TransactionTable.GetColumnNames("[a_t]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentTable.GetColumnNames("[a_t_p]") : string.Empty) + 
+					" FROM [trckd].[Action] AS [a] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [a_us] ON [a].[UserSessionID] = [a_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [a_us_ust] ON [a_us].[UserSessionTypeID] = [a_us_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [a_us_s] ON [a_us].[ServiceID] = [a_us_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Domain] AS [a_us_d] ON [a_us].[DomainID] = [a_us_d].[DomainID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [a_us_c] ON [a_us].[CustomerID] = [a_us_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c1] ON [a_us].[CountryID] = [c1].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [a_us_l] ON [a_us].[LanguageID] = [a_us_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [a_us_mo] ON [a_us].[MobileOperatorID] = [a_us_mo].[MobileOperatorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Payment] AS [a_p] ON [a].[PaymentID] = [a_p].[PaymentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [a_p_pr] ON [a_p].[PaymentRequestID] = [a_p_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [a_p_c] ON [a_p].[CustomerID] = [a_p_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [a_p_so] ON [a_p].[ServiceOfferID] = [a_p_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [a_p_bme] ON [a_p].[BusinessModelEntryID] = [a_p_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Transaction] AS [a_t] ON [a].[TransactionID] = [a_t].[TransactionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Payment] AS [a_t_p] ON [a_t].[PaymentID] = [a_t_p].[PaymentID] ";
+				sqlCmdText += "WHERE [a].[ActionID] = @ActionID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ActionID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "loadinternal", "notfound"), "Action could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ActionTable aTable = new ActionTable(query);
+				UserSessionTable a_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+				UserSessionTypeTable a_us_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				ServiceTable a_us_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				DomainTable a_us_dTable = (this.Depth > 1) ? new DomainTable(query) : null;
+				CustomerTable a_us_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				CountryTable c1Table = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable a_us_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				MobileOperatorTable a_us_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				PaymentTable a_pTable = (this.Depth > 0) ? new PaymentTable(query) : null;
+				PaymentRequestTable a_p_prTable = (this.Depth > 1) ? new PaymentRequestTable(query) : null;
+				CustomerTable a_p_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				ServiceOfferTable a_p_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable a_p_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				TransactionTable a_tTable = (this.Depth > 0) ? new TransactionTable(query) : null;
+				PaymentTable a_t_pTable = (this.Depth > 1) ? new PaymentTable(query) : null;
+
+        
+				UserSessionType a_us_ustObject = (this.Depth > 1) ? a_us_ustTable.CreateInstance() : null;
+				Service a_us_sObject = (this.Depth > 1) ? a_us_sTable.CreateInstance() : null;
+				Domain a_us_dObject = (this.Depth > 1) ? a_us_dTable.CreateInstance() : null;
+				Customer a_us_cObject = (this.Depth > 1) ? a_us_cTable.CreateInstance() : null;
+				Country c1Object = (this.Depth > 1) ? c1Table.CreateInstance() : null;
+				Language a_us_lObject = (this.Depth > 1) ? a_us_lTable.CreateInstance() : null;
+				MobileOperator a_us_moObject = (this.Depth > 1) ? a_us_moTable.CreateInstance() : null;
+				UserSession a_usObject = (this.Depth > 0) ? a_usTable.CreateInstance(a_us_ustObject, a_us_sObject, a_us_dObject, a_us_cObject, c1Object, a_us_lObject, a_us_moObject) : null;
+				PaymentRequest a_p_prObject = (this.Depth > 1) ? a_p_prTable.CreateInstance() : null;
+				Customer a_p_cObject = (this.Depth > 1) ? a_p_cTable.CreateInstance() : null;
+				ServiceOffer a_p_soObject = (this.Depth > 1) ? a_p_soTable.CreateInstance() : null;
+				BusinessModelEntry a_p_bmeObject = (this.Depth > 1) ? a_p_bmeTable.CreateInstance() : null;
+				Payment a_pObject = (this.Depth > 0) ? a_pTable.CreateInstance(a_p_prObject, a_p_cObject, a_p_soObject, a_p_bmeObject) : null;
+				Payment a_t_pObject = (this.Depth > 1) ? a_t_pTable.CreateInstance() : null;
+				Transaction a_tObject = (this.Depth > 0) ? a_tTable.CreateInstance(a_t_pObject) : null;
+				Action aObject = aTable.CreateInstance(a_usObject, a_pObject, a_tObject);
+				sqlReader.Close();
+
+				return aObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "loadinternal", "exception"), "Action could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Action", "Exception while loading Action object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public Action Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ActionTable.GetColumnNames("[a]") + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[a_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[a_us_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[a_us_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + DomainTable.GetColumnNames("[a_us_d]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[a_us_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[a_us_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[a_us_mo]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentTable.GetColumnNames("[a_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentRequestTable.GetColumnNames("[a_p_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[a_p_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[a_p_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[a_p_bme]") : string.Empty) + 
+							(this.Depth > 0 ? "," + TransactionTable.GetColumnNames("[a_t]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentTable.GetColumnNames("[a_t_p]") : string.Empty) +  
+					" FROM [trckd].[Action] AS [a] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [a_us] ON [a].[UserSessionID] = [a_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [a_us_ust] ON [a_us].[UserSessionTypeID] = [a_us_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [a_us_s] ON [a_us].[ServiceID] = [a_us_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Domain] AS [a_us_d] ON [a_us].[DomainID] = [a_us_d].[DomainID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [a_us_c] ON [a_us].[CustomerID] = [a_us_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c1] ON [a_us].[CountryID] = [c1].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [a_us_l] ON [a_us].[LanguageID] = [a_us_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [a_us_mo] ON [a_us].[MobileOperatorID] = [a_us_mo].[MobileOperatorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Payment] AS [a_p] ON [a].[PaymentID] = [a_p].[PaymentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [a_p_pr] ON [a_p].[PaymentRequestID] = [a_p_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [a_p_c] ON [a_p].[CustomerID] = [a_p_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [a_p_so] ON [a_p].[ServiceOfferID] = [a_p_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [a_p_bme] ON [a_p].[BusinessModelEntryID] = [a_p_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Transaction] AS [a_t] ON [a].[TransactionID] = [a_t].[TransactionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Payment] AS [a_t_p] ON [a_t].[PaymentID] = [a_t_p].[PaymentID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "customload", "notfound"), "Action could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ActionTable aTable = new ActionTable(query);
+				UserSessionTable a_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+				UserSessionTypeTable a_us_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				ServiceTable a_us_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				DomainTable a_us_dTable = (this.Depth > 1) ? new DomainTable(query) : null;
+				CustomerTable a_us_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				CountryTable c1Table = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable a_us_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				MobileOperatorTable a_us_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				PaymentTable a_pTable = (this.Depth > 0) ? new PaymentTable(query) : null;
+				PaymentRequestTable a_p_prTable = (this.Depth > 1) ? new PaymentRequestTable(query) : null;
+				CustomerTable a_p_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				ServiceOfferTable a_p_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable a_p_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				TransactionTable a_tTable = (this.Depth > 0) ? new TransactionTable(query) : null;
+				PaymentTable a_t_pTable = (this.Depth > 1) ? new PaymentTable(query) : null;
+
+        
+				UserSessionType a_us_ustObject = (this.Depth > 1) ? a_us_ustTable.CreateInstance() : null;
+				Service a_us_sObject = (this.Depth > 1) ? a_us_sTable.CreateInstance() : null;
+				Domain a_us_dObject = (this.Depth > 1) ? a_us_dTable.CreateInstance() : null;
+				Customer a_us_cObject = (this.Depth > 1) ? a_us_cTable.CreateInstance() : null;
+				Country c1Object = (this.Depth > 1) ? c1Table.CreateInstance() : null;
+				Language a_us_lObject = (this.Depth > 1) ? a_us_lTable.CreateInstance() : null;
+				MobileOperator a_us_moObject = (this.Depth > 1) ? a_us_moTable.CreateInstance() : null;
+				UserSession a_usObject = (this.Depth > 0) ? a_usTable.CreateInstance(a_us_ustObject, a_us_sObject, a_us_dObject, a_us_cObject, c1Object, a_us_lObject, a_us_moObject) : null;
+				PaymentRequest a_p_prObject = (this.Depth > 1) ? a_p_prTable.CreateInstance() : null;
+				Customer a_p_cObject = (this.Depth > 1) ? a_p_cTable.CreateInstance() : null;
+				ServiceOffer a_p_soObject = (this.Depth > 1) ? a_p_soTable.CreateInstance() : null;
+				BusinessModelEntry a_p_bmeObject = (this.Depth > 1) ? a_p_bmeTable.CreateInstance() : null;
+				Payment a_pObject = (this.Depth > 0) ? a_pTable.CreateInstance(a_p_prObject, a_p_cObject, a_p_soObject, a_p_bmeObject) : null;
+				Payment a_t_pObject = (this.Depth > 1) ? a_t_pTable.CreateInstance() : null;
+				Transaction a_tObject = (this.Depth > 0) ? a_tTable.CreateInstance(a_t_pObject) : null;
+				Action aObject = aTable.CreateInstance(a_usObject, a_pObject, a_tObject);
+				sqlReader.Close();
+
+				return aObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "customload", "exception"), "Action could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Action", "Exception while loading (custom/single) Action object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<Action> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ActionTable.GetColumnNames("[a]") + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[a_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[a_us_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[a_us_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + DomainTable.GetColumnNames("[a_us_d]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[a_us_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[a_us_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[a_us_mo]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentTable.GetColumnNames("[a_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentRequestTable.GetColumnNames("[a_p_pr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[a_p_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceOfferTable.GetColumnNames("[a_p_so]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelEntryTable.GetColumnNames("[a_p_bme]") : string.Empty) + 
+							(this.Depth > 0 ? "," + TransactionTable.GetColumnNames("[a_t]") : string.Empty) + 
+							(this.Depth > 1 ? "," + PaymentTable.GetColumnNames("[a_t_p]") : string.Empty) +  
+					" FROM [trckd].[Action] AS [a] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [a_us] ON [a].[UserSessionID] = [a_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [a_us_ust] ON [a_us].[UserSessionTypeID] = [a_us_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [a_us_s] ON [a_us].[ServiceID] = [a_us_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Domain] AS [a_us_d] ON [a_us].[DomainID] = [a_us_d].[DomainID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [a_us_c] ON [a_us].[CustomerID] = [a_us_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c1] ON [a_us].[CountryID] = [c1].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [a_us_l] ON [a_us].[LanguageID] = [a_us_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [a_us_mo] ON [a_us].[MobileOperatorID] = [a_us_mo].[MobileOperatorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Payment] AS [a_p] ON [a].[PaymentID] = [a_p].[PaymentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentRequest] AS [a_p_pr] ON [a_p].[PaymentRequestID] = [a_p_pr].[PaymentRequestID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Customer] AS [a_p_c] ON [a_p].[CustomerID] = [a_p_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceOffer] AS [a_p_so] ON [a_p].[ServiceOfferID] = [a_p_so].[ServiceOfferID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModelEntry] AS [a_p_bme] ON [a_p].[BusinessModelEntryID] = [a_p_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Transaction] AS [a_t] ON [a].[TransactionID] = [a_t].[TransactionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Payment] AS [a_t_p] ON [a_t].[PaymentID] = [a_t_p].[PaymentID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "customloadmany", "notfound"), "Action list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<Action>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ActionTable aTable = new ActionTable(query);
+				UserSessionTable a_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+				UserSessionTypeTable a_us_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				ServiceTable a_us_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				DomainTable a_us_dTable = (this.Depth > 1) ? new DomainTable(query) : null;
+				CustomerTable a_us_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				CountryTable c1Table = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable a_us_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				MobileOperatorTable a_us_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				PaymentTable a_pTable = (this.Depth > 0) ? new PaymentTable(query) : null;
+				PaymentRequestTable a_p_prTable = (this.Depth > 1) ? new PaymentRequestTable(query) : null;
+				CustomerTable a_p_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				ServiceOfferTable a_p_soTable = (this.Depth > 1) ? new ServiceOfferTable(query) : null;
+				BusinessModelEntryTable a_p_bmeTable = (this.Depth > 1) ? new BusinessModelEntryTable(query) : null;
+				TransactionTable a_tTable = (this.Depth > 0) ? new TransactionTable(query) : null;
+				PaymentTable a_t_pTable = (this.Depth > 1) ? new PaymentTable(query) : null;
+
+        List<Action> result = new List<Action>();
+        do
+        {
+          
+					UserSessionType a_us_ustObject = (this.Depth > 1) ? a_us_ustTable.CreateInstance() : null;
+					Service a_us_sObject = (this.Depth > 1) ? a_us_sTable.CreateInstance() : null;
+					Domain a_us_dObject = (this.Depth > 1) ? a_us_dTable.CreateInstance() : null;
+					Customer a_us_cObject = (this.Depth > 1) ? a_us_cTable.CreateInstance() : null;
+					Country c1Object = (this.Depth > 1) ? c1Table.CreateInstance() : null;
+					Language a_us_lObject = (this.Depth > 1) ? a_us_lTable.CreateInstance() : null;
+					MobileOperator a_us_moObject = (this.Depth > 1) ? a_us_moTable.CreateInstance() : null;
+					UserSession a_usObject = (this.Depth > 0) ? a_usTable.CreateInstance(a_us_ustObject, a_us_sObject, a_us_dObject, a_us_cObject, c1Object, a_us_lObject, a_us_moObject) : null;
+					PaymentRequest a_p_prObject = (this.Depth > 1) ? a_p_prTable.CreateInstance() : null;
+					Customer a_p_cObject = (this.Depth > 1) ? a_p_cTable.CreateInstance() : null;
+					ServiceOffer a_p_soObject = (this.Depth > 1) ? a_p_soTable.CreateInstance() : null;
+					BusinessModelEntry a_p_bmeObject = (this.Depth > 1) ? a_p_bmeTable.CreateInstance() : null;
+					Payment a_pObject = (this.Depth > 0) ? a_pTable.CreateInstance(a_p_prObject, a_p_cObject, a_p_soObject, a_p_bmeObject) : null;
+					Payment a_t_pObject = (this.Depth > 1) ? a_t_pTable.CreateInstance() : null;
+					Transaction a_tObject = (this.Depth > 0) ? a_tTable.CreateInstance(a_t_pObject) : null;
+					Action aObject = (this.Depth > -1) ? aTable.CreateInstance(a_usObject, a_pObject, a_tObject) : null;
+					result.Add(aObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "customloadmany", "exception"), "Action list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Action", "Exception while loading (custom/many) Action object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, Action data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [trckd].[Action] ([UserSessionID],[PaymentID],[TransactionID],[ActionTypeID],[ActionStatusID]) VALUES(@UserSessionID,@PaymentID,@TransactionID,@ActionTypeID,@ActionStatusID); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@UserSessionID", data.UserSession.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentID", data.Payment.ID);
+				sqlCmd.Parameters.AddWithValue("@TransactionID", data.Transaction.ID);
+				sqlCmd.Parameters.AddWithValue("@ActionTypeID", (int)data.ActionType);
+				sqlCmd.Parameters.AddWithValue("@ActionStatusID", (int)data.ActionStatus);
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "insert", "noprimarykey"), "Action could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "Action", "Exception while inserting Action object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "insert", "exception"), "Action could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "Action", "Exception while inserting Action object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, Action data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [trckd].[Action] SET " +
+												"[UserSessionID] = @UserSessionID, " + 
+												"[PaymentID] = @PaymentID, " + 
+												"[TransactionID] = @TransactionID, " + 
+												"[ActionTypeID] = @ActionTypeID, " + 
+												"[ActionStatusID] = @ActionStatusID, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ActionID] = @ActionID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@UserSessionID", data.UserSession.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentID", data.Payment.ID);
+				sqlCmd.Parameters.AddWithValue("@TransactionID", data.Transaction.ID);
+				sqlCmd.Parameters.AddWithValue("@ActionTypeID", (int)data.ActionType);
+				sqlCmd.Parameters.AddWithValue("@ActionStatusID", (int)data.ActionStatus);
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ActionID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "update", "norecord"), "Action could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "Action", "Exception while updating Action object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "update", "morerecords"), "Action was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "Action", "Exception while updating Action object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "update", "exception"), "Action could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "Action", "Exception while updating Action object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, Action data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [trckd].[Action] WHERE ActionID = @ActionID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ActionID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "delete", "norecord"), "Action could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "Action", "Exception while deleting Action object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("a", "delete", "exception"), "Action could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "Action", "Exception while deleting Action object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

@@ -1,0 +1,110 @@
+﻿@model MobilePaywall.Web.Models.Specific.PL.PolandPaymentViewModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+}
+
+<style>
+  .contactField{  width: 100%!important; padding: 20px!important; }
+</style>
+
+@Styles.Render("~/Style/Darkley/Login")
+@Scripts.Render("~/Script/Login")
+
+
+<div style="padding:10px 20px;" id="insertMsisdn">
+  <h2 style="text-align:center;">Numer telefonu</h2>
+  <label for="username" class="ui-hidden-accessible">Proszę podać swój numer telefonu:</label>
+  <input type="text" class="contactField requiredField" name="username" id="input_msisdn" value="" placeholder="">
+
+  <div style="text-align: center; margin: 12px 0px;" id="loginForm">
+    <input type="button" id="loginSubmit" class="buttonWrapper contactSubmitButton submitMsisnd" value="Zatwierdź">
+    <div class="ajax_response"></div>
+  </div>
+</div>
+
+<div style="padding:10px 20px; display:none" id="insertPin">
+  <h2 style="text-align:center;">PIN</h2>
+
+  <label for="username" class="ui-hidden-accessible">Proszę podać kod PIN, który otrzymał na sms:</label>
+  <input type="text" class="contactField requiredField" name="username" id="input_pin" value="" placeholder="XXXX">
+
+  <div style="text-align: center; margin: 12px 0px;" id="loginForm">
+    <input type="button" id="loginSubmit" class="buttonWrapper contactSubmitButton submitPin" value="Zatwierdź">
+    <div class="ajax_response"></div>
+  </div>
+</div>
+
+<div style="clear:both;"></div>
+
+
+<script>
+
+  $(document).ready(function () {
+    var waitText = 'Proszę czekać..';
+
+    $('.submitMsisnd').click(function () {
+      if ($(this).attr('inuse') == 'true')
+        return;
+
+      var msisdn = $('#input_msisdn').val();
+      if (msisdn == '/')
+      {
+        _visual.Alert('Proszę podać swój numer MSISDN');
+        return;
+      }
+
+      var btn = $(this);
+      var originalText = btn.attr('value');
+      btn.attr('value', waitText);
+      btn.attr('inuse', 'true');
+
+      $.ajax({
+        type: 'POST', url: '/PolandPayment/PostMsisdn', data: { input: msisdn },
+        success: function (response) {
+          btn.attr('value', originalText);
+          btn.attr('inuse', 'false');
+          if (response.status)
+          {
+            $('#insertMsisdn').css('display', 'none');
+            $('#insertPin').css('display', '');
+          }
+          else
+            _visual.Alert(response.message);
+        }
+      });
+
+    });
+
+    $('.submitPin').click(function () {
+      if ($(this).attr('inuse') == 'true')
+        return;
+
+      var pin = $('#input_pin').val();
+      if (pin == '') {
+        _visual.Alert('Proszę podać kod PIN, który otrzymał z SMS');
+        return;
+      }
+
+      var btn = $(this);
+      var originalText = btn.attr('value');
+      btn.attr('value', waitText);
+      btn.attr('inuse', 'true');
+
+      $.ajax({
+        type: 'POST', url: '/PolandPayment/PostPin', data: { input: pin },
+        success: function (response) {
+          btn.attr('value', originalText);
+          btn.attr('inuse', 'false');
+          if (response.status) {
+            _visual.Alert(response.message);
+            setTimeout(function () { window.location = "/content/@Model.Content.ID"; }, 5000);
+          }
+          else
+            _visual.Alert(response.message);
+        }
+      });
+    });
+
+  });
+
+</script>

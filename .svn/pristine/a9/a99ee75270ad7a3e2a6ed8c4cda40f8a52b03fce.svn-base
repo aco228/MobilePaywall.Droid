@@ -1,0 +1,112 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.MobilePaywallDirect;
+using MobilePaywall.MobilePaywallDirect.Databases;
+using MobilePaywall.GeoLocation;
+using MobilePaywall.Implementation.PaywallLog;
+using MobilePaywall.Web;
+using Senti.Security;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Text.RegularExpressions;
+using Direct.Core;
+
+namespace MobilePaywall.Tests
+{
+  class Program
+  {
+    static void Main(string[] args)
+    {
+			MobilePaywall.Data.Sql.Database dummy = null;
+			Senti.Data.DataLayerRuntime r = new Senti.Data.DataLayerRuntime();
+
+      TrafficManagement.Core.CCSubmitDirect i = TrafficManagement.Core.CCSubmitDirect.Instance;
+
+
+      int affid = -1;
+      string pubid = "";
+      string subtracking = "offfer_112_221";
+      if (!string.IsNullOrEmpty(subtracking))
+      {
+        string[] subtracking_info = subtracking.Split('_');
+        if (subtracking.Length == 3)
+        {
+          int.TryParse(subtracking_info[1], out affid);
+          pubid = subtracking_info[2];
+        }
+      }
+
+      string clickid = "test921379132912";
+      string firstname = "firstname";
+      string lastname = "lastname";
+      string country = "country";
+      string address = "address";
+      string city = "city";
+      string zip = "zip";
+
+      CCSubmitDirect db = CCSubmitDirect.Instance;
+      int? ccid = db.LoadInt($"SELECT clientid FROM livesports.cc_client WHERE clickid='{clickid}'");
+      int PAYMENT_PROVIDER_ID = 4;
+      if (!ccid.HasValue)
+        ccid = db.Execute("INSERT INTO livesports.cc_client (payment_provider, country, firstname, lastname, address, zip, city, clickid, affid, pubid)", PAYMENT_PROVIDER_ID, country, firstname, lastname, address, zip, city, clickid, affid, pubid);
+
+
+      Console.ReadKey();
+
+    }
+
+    public static void Configure(string _link)
+    {
+      string AffID = GetParamByName(_link, "affiliate_id");
+      string PubID = GetParamByName(_link, "utm_campaign");
+
+      CCSubmitDirect db = CCSubmitDirect.Instance;
+      DirectContainer _directContainer;
+      int _transactions = 0;
+      int _undercoverTransactions;
+
+      if (!string.IsNullOrEmpty(PubID))
+        _directContainer = db.LoadContainer("SELECT * FROM [].cc_undercover WHERE (aff_id={0} AND pub_id={1}) OR (aff_id={0} AND pub_id IS NULL) ORDER BY pub_id DESC LIMIT 1;", int.Parse(AffID), PubID);
+      else
+        _directContainer = db.LoadContainer("SELECT * FROM [].cc_undercover WHERE (aff_id={0} AND pub_id IS NULL) ORDER BY pub_id DESC LIMIT 1;", int.Parse(AffID));
+
+      if (_directContainer == null || !_directContainer.HasValue)
+      {
+        return;
+      }
+
+      DateTime CurrentDay = _directContainer.GetDate("currentDay").Value;
+
+      _transactions = _directContainer.GetInt("transactions").Value;
+      _undercoverTransactions = _directContainer.GetInt("undercoverTransactions").Value;
+
+      if ((DateTime.Now - CurrentDay).TotalDays >= 1)
+      {
+        _undercoverTransactions = 0;
+        _transactions = 0;
+      }
+
+      _transactions++;
+    }
+
+    public static string GetParamByName(string input, string parameterName)
+    {
+      Match match = new Regex(string.Format(@"(\?{0}=([A-Za-z0-9]+))|(\&{0}=([A-Za-z0-9]+))", parameterName)).Match(input);
+      string result = string.Empty;
+      if (!string.IsNullOrEmpty(match.Groups[2].Value.ToString()))
+        result = match.Groups[2].Value.ToString();
+      else if (string.IsNullOrEmpty(result) && !string.IsNullOrEmpty(match.Groups[4].Value.ToString()))
+        result = match.Groups[4].Value.ToString();
+      return result;
+    }
+
+    public static void UpdateValues()
+    {
+      CCSubmitDirect.Instance.Execute("UPDATE [].cc_undercover SET transactions={0}, undercoverTransactions={1}, currentDay={2} WHERE id={3}",
+        1, 1, DateTime.Today, 4);
+    }
+
+  }
+}

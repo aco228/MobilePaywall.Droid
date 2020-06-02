@@ -1,0 +1,276 @@
+﻿@model GreecePaymentPageViewModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+}
+
+@Styles.Render("~/Style/Black/Login")
+@Scripts.Render("~/Script/Login")
+<style>
+  .submitBtn {
+    background: linear-gradient(to right, #86c540, #3db649);
+    border: 1px solid #3db649;
+    text-shadow: 1px 1px 1px rgba(0,0,0,.5);
+  }
+
+  .submitPin {
+   background: #4e7b64;
+    border: 1px solid #3db649;
+    text-shadow: 1px 1px 1px rgba(0,0,0,.5);
+    font: inherit;
+    text-align: center;
+    color: #FFF;
+    width: 100%;
+    margin-top: 15px;
+    padding: 13px 0px;
+    border-radius: 5px;
+    text-transform: uppercase;
+    font-weight: bold;
+    cursor: pointer;
+  }
+
+  .checkboxError {
+    color: red;
+    display: none;
+  }
+</style>
+
+<div id="login_section">
+  <div class="step1" style="display:initial">
+    <div class="header">ΠΑΡΑΚΑΛΟYME EIΣHΓΑΓΕ ΤΟΝ ΑΡΙΘΜO TOY KINHTOY ΣOY THΛEΦΩΝΟΥ:</div>
+    <div class="section_body" id="loginForm">
+      <div class="form_section">
+        <div class="form_label">Αριθμός Κινητού Τηλεφώνου:<span class="login_asterix">*</span></div>
+        <input id="input_number" type="text" name="name" value="" placeholder="69xxxxxxxx" />
+      </div>
+      <div class="submitBtn">ΕΠΙBEBAIΩΣΗ</div>
+    </div>
+  </div>
+  <div class="usePassword" style="display:none">
+    <div class="header">ΠΑΡΑΚΑΛOYME EIΣHΓAΓΕ ΤΟΝ ΚΩΔΙΚO PIN:</div>
+    <div class="section_body" id="loginForm">
+      <div class="form_section">
+        <div class="form_label">Eισήγαγε τον κωδικό σου:<span class="login_asterix">*</span></div>
+        <input id="pinCode" type="text" name="name" value="" placeholder="" />
+      </div>
+      <div class="submitPin">ΕΠΙΒΕΒΑIΩΣΗ</div> 
+    </div>
+  </div>
+
+  <div class="step2" style="display:none">
+    <div class="header">Please insert your PIN number</div>
+    <div class="section_body" id="loginForm">
+      <div class="form_section">
+        <div class="form_label">PIN:<span class="login_asterix">*</span></div>
+        <input id="input_pin" type="text" name="name" value="" placeholder="xxxx" maxlength="4" />
+      </div>
+      <div>
+        <table>
+          <tr>
+            <td style="width:5%;"><input id="checker" type="checkbox" /></tdstyle>
+            <td style="width:95%;color:#656565">Έχω λάβει γνώση των <a href="/terms">όρων χρήσης</a> και αποδέχομαι να ενεργοποιήσω την συνδρομητική υπηρεσία @PaywallHttpContext.Current.Service.ServiceData.Name με χρέωση δύο ευρώ και οκτώ λεπτά ανά sms, τρία sms ανά εβδομάδα. <a href="http://dimoco.eu/dimoco-services-greece/">Τελική τιμή μηνύματος</a>  </td>
+          </tr>
+        </table>
+      </div>
+      <div class="checkboxError">Παρακαλούμε αποδεχτείτε τους όρους χρήσης για να προχωρήσετε</div>
+      <div class="submitBtn">ΕΠΙΒΕΒΑIΩΣΗ</div>
+    </div>
+  </div>
+  <div class="step3" style="display:none">
+    <div class="header">Please insert your password</div>
+    <div class="section_body" id="loginForm">
+      <div class="form_section">
+        <div class="form_label">Password:<span class="login_asterix">*</span></div>
+        <input id="input_pin" type="text" name="name" value="" placeholder="xxxx" maxlength="4" />
+      </div>
+      <div class="submitBtn">ΕΠΙΒΕΒΑIΩΣΗ</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  $(document).ready(function () {
+    var step = 1;
+    var customerLoginID = ''; // in case of login
+
+    @if(Model.HasPinCode)
+    {
+      Html.Raw("displayPin();");
+    }
+
+    $('.submitPin').click(function () {
+      var btn = $('.submitPin');
+      if (btn.attr('inuse') == 'true')
+        return;
+
+      var pass = $('#pinCode').val();
+      console.log(pass);
+      if (pass == '') {
+        _visual.Alert("You must enter password first", 'Eπιβεβαίωση');
+        return;
+      }
+
+      var btnOriginalText = btn.text();
+      btn.text('Παρακαλούμε περιμένε...');
+      btn.attr('inuse', 'true');
+
+      $.ajax({
+        url: '/GreecePayment/SendPassword',
+        type: 'POST',
+        data: { input: pass, cid: customerLoginID },
+        success: function (response) {
+          console.log(response);
+          if (response.status) {
+            window.location.replace('http://greekwinners.mobi');
+          }
+          else
+            _visual.Alert(response.message, 'Eπιβεβαίωση');
+
+          btn.attr('inuse', 'false');
+          btn.text(btnOriginalText);
+        }
+      });
+    });
+
+    $('.submitBtn').click(function () {
+      if (step == 1)
+        processInsertPhoneNumber();
+      else if (step == 2)
+        processInsertPinNumber();
+      else if (step == 3)
+        processLogin();
+    });
+
+    // SUMMARY: Function for insert number
+    function processInsertPhoneNumber() {
+      var btn = $('.step1').find('.submitBtn');
+      if (btn.attr('inuse') == 'true')
+        return;
+
+      var number = $('.step1').find('#input_number').val();
+      if (number == '') {
+        _visual.Alert("You must enter number first.", 'Eπιβεβαίωση');
+        return;
+      }
+
+      var btnOriginalText = btn.text();
+      btn.text('Παρακαλούμε περιμένε...');
+      btn.attr('inuse', 'true');
+
+      $.ajax({
+        url: '/GreecePayment/SendNumber',
+        type: 'POST',
+        data: { input: number },
+        success: function (response) {
+          console.log(response);
+          if (typeof response.usePassword !== 'undefined' && response.usePassword) {
+            customerLoginID = response.cusID;
+            $('.step1').css('display', 'none');
+            $('.usePassword').css('display', 'initial');
+          }
+
+          else if (typeof response.login !== 'undefined' && response.login) {
+            customerLoginID = response.message;
+            openStep(3);
+          }
+          else if (response.status)
+            openStep(2);
+          else
+            _visual.Alert(response.message, 'Eπιβεβαίωση');
+
+          btn.attr('inuse', 'false');
+          btn.text(btnOriginalText);
+        }
+      });
+
+    }
+
+    // SUMMARY: Function for insert PIN number
+    function processInsertPinNumber() {
+      var btn = $('.step2').find('.submitBtn');
+      if (btn.attr('inuse') == 'true')
+        return;
+
+      var checked = $('#checker').is(':checked');
+      $('.checkboxError').css('display', 'none');
+      if (!checked) {
+        $('.checkboxError').css('display', 'initial');
+        return;
+      }
+
+      var number = $('.step2').find('#input_pin').val();
+      if (number == '') {
+        _visual.Alert("You must enter number first.", 'Eπιβεβαίωση');
+        return;
+      }
+
+      var btnOriginalText = btn.text();
+      btn.text('Παρακαλούμε περιμένε...');
+      btn.attr('inuse', 'true');
+
+      $.ajax({
+        url: '/GreecePayment/ConfirmPin',
+        type: 'POST',
+        data: { input: number, cid: customerLoginID },
+        success: function (response) {
+          console.log(response);
+          if (response.status)
+            window.location = '/GreeceWelcome';
+          else
+            _visual.Alert(response.message, 'Eπιβεβαίωση');
+
+          btn.attr('inuse', 'false');
+          btn.text(btnOriginalText);
+        }
+      });
+    }
+
+    //function submitPin() {
+     
+
+    //}
+
+    function processLogin() {
+      var btn = $('.step3').find('.submitBtn');
+      if (btn.attr('inuse') == 'true')
+        return;
+
+      var password = $('.step3').find('#input_pin').val();
+      if (password == '') {
+        _visual.Alert("You must enter password first.", 'Eπιβεβαίωση');
+        return;
+      }
+
+      var btnOriginalText = btn.text();
+      btn.text('Παρακαλούμε περιμένε..');
+      btn.attr('inuse', 'true');
+
+      $.ajax({
+        url: '/GreecePayment/ConfirmPassword',
+        type: 'POST',
+        data: { input: password },
+        success: function (response) {
+          console.log(response);
+          if (response.status)
+            window.location = '/';
+          else
+            _visual.Alert(response.message, 'Eπιβεβαίωση');
+
+          btn.attr('inuse', 'false');
+          btn.text(btnOriginalText);
+        }
+      });
+    }
+
+    function openStep(openStep) {
+      $('.step1').css('display', 'none');
+      $('.step' + openStep).css('display', 'initial');
+      step = openStep;
+    }
+
+  });
+</script>
+
+<div> @{ Html.RenderPartial("_Dislaimer"); } </div>
+
+
+@section footer{}

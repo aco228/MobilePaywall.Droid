@@ -1,0 +1,73 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using MobilePaywall.Data;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IImportLogEntryManager : IDataManager<ImportLogEntry> 
+  {
+	
+
+  }
+
+  public partial class ImportLogEntry : MobilePaywallObject<IImportLogEntryManager> 
+  {
+		private ImportLog _importLog;
+		private string _contentKey = String.Empty;
+		private bool? _isSuccessful = false;
+		
+
+		public ImportLog ImportLog 
+		{
+			get
+			{
+				if (this._importLog != null &&
+						this._importLog.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._importLog = ImportLog.CreateManager().LazyLoad(this.ConnectionContext, this._importLog.ID) as ImportLog;
+					else
+						this._importLog = ImportLog.CreateManager().LazyLoad(this._importLog.ID) as ImportLog;
+				return this._importLog;
+			}
+			set { _importLog = value; }
+		}
+
+		public string ContentKey{ get {return this._contentKey; } set { this._contentKey = value;} }
+		public bool? IsSuccessful {get {return this._isSuccessful; } set { this._isSuccessful = value;} }
+		
+
+    public override bool IsInsertable { get { return true;} }
+
+    public override bool IsDeletable { get { return false;} }
+
+    public override bool IsUpdatable { get { return true;} }
+
+    public ImportLogEntry()
+    { 
+    }
+
+    public ImportLogEntry(int id): base(id, DateTime.Now, DateTime.Now, true)
+    {
+    }
+
+    public ImportLogEntry(int id,  ImportLog importLog, string contentKey, bool? isSuccessful, DateTime updated, DateTime created): base(id, updated, created, false)
+    {
+			this._importLog = importLog;
+			this._contentKey = contentKey;
+			this._isSuccessful = isSuccessful;
+			
+    }
+
+    public override object Clone(bool deepClone)
+    {
+      return new ImportLogEntry(-1,  this.ImportLog,this.ContentKey,this.IsSuccessful, DateTime.Now, DateTime.Now);
+    }
+  }
+}
+

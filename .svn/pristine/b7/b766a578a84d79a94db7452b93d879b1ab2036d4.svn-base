@@ -1,0 +1,43 @@
+﻿using Cashflow.Message;
+using MobilePaywall.Service.Callback.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+
+namespace MobilePaywall.Service.Callback
+{
+  public abstract class SpecificHandlerMethodBase
+  {
+    private string _name = string.Empty;
+    private Notification _notification = null;
+    private CallbackLog _clog = null;
+
+    protected Notification Notification { get { return this._notification; } }
+    protected CallbackLog CLog { get { return this._clog; } }
+
+    public virtual bool StopOriginalExecution { get { return true; } }
+
+    public SpecificHandlerMethodBase(string implementationName)
+    {
+      this._name = implementationName;
+    }
+
+    public bool TryExecute(CallbackLog log, Notification notification)
+    {
+      if(!this.TryConvert(notification))
+        return false;
+
+      this._notification = notification;
+      this._clog = log;
+
+      CLog.PDebug("::CUSTOM METHOD IMPLEMENTATION FOR + " + this._name);
+      this.Execute();
+      return true;
+    }
+
+    protected abstract bool TryConvert(Notification notification);
+    protected abstract void Execute();
+
+  }
+}

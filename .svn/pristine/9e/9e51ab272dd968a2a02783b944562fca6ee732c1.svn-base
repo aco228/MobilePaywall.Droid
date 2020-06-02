@@ -1,0 +1,84 @@
+﻿// Class used in Home.cshtml
+
+function VideoController()
+{
+
+  this.DefaultContainer = 'contentVideoContainer';            // default container for storing ajax results
+  this.DefaultButtonName = 'controlLoadMore';                 // default id of button used for appending videos list
+  this.DefaultUrl = '/home/videos';                           // default url to get new set of videos (change in case of template testing)
+  this.TextPending = '...';                                   // text which will apear on button while waiting for ajax response
+  this.CategoryID = null;                                     // category name for receiving new video results
+  this.OnReadyFunc = null;                                    // function which will be executed before ajax request is send
+  this.OnAppendFunc = null;                                   // function which will be executed when ajax result is appended (for example: case of Darkley template)
+  this.OnAppendFuncTemplate = null;                           // function whick will be executed when ajax result is appended ( this function is dedicated only for template testing use)
+  this.Page = 0;                                              // current page. updated after appending ajax result
+
+
+  this.init = function()
+  {
+    if (this.TextPending == '')
+      this.TextPending = '...';
+
+    if (_system.Template())
+      this.DefaultUrl = '/template/videos';
+
+    this.LoadMoreBtn();
+  }
+
+  // Ajax call to load more content in homepage
+  this.LoadMoreBtn = function ()
+  {
+    var self = this;
+    var button = $('#' + this.DefaultButtonName);
+
+    button.attr('inuse', 'true');
+    var originalText = button.text();
+    
+    button.click(function ()
+    {
+      if (!button.attr('inuse') == 'false')
+        return;
+
+      button.attr('inuse', 'false');
+      button.text(self.TextPending);
+
+      _system.Log("DEBUG (before) video append: params: " + '&page=' + self.Page + self.GetCategoryParam(), 'debug');
+      self.Page++;
+
+      // Event before sending ajax request
+      if (self.OnReadyFunc != null) 
+        self.OnReadyFunc();
+
+      $.ajax({  
+        url: self.DefaultUrl,
+        data: '&page=' + self.Page + self.GetCategoryParam(),
+        method: 'POST',
+        success: function (response)
+        {
+          button.attr('isActive', 'true');
+          button.text(originalText);
+
+          //_system.Log('DEBUG (after) video append: ' + response, 'debug');
+          $("#" + self.DefaultContainer).append(response);
+
+          // Events after receiveing ajax response
+          if (self.OnAppendFunc != null)
+            self.OnAppendFunc();
+
+          if (self.OnAppendFuncTemplate != null) 
+            self.OnAppendFuncTemplate();          
+        }
+      });
+    });
+  }
+
+  // Get &categoryName for appening in ajax call
+  this.GetCategoryParam = function()
+  {
+    if (this.CategoryID != null && this.CategoryID != '')
+      return "&categoryID=" + this.CategoryID;
+    return "";
+  }
+
+  this.init();
+}

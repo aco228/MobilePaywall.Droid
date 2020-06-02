@@ -1,0 +1,45 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class QualityAssuranceReportScreenshotManager : IQualityAssuranceReportScreenshotManager
+  {    
+    public List<QualityAssuranceReportScreenshot> Load(QualityAssuranceReport report)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, report);
+    }
+
+    public List<QualityAssuranceReportScreenshot> Load(IConnectionInfo connection, QualityAssuranceReport report)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, report);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, report);
+    }
+
+    public List<QualityAssuranceReportScreenshot> Load(ISqlConnectionInfo connection, QualityAssuranceReport report)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[qars].QualityAssuranceReportID = @ReportID";
+      parameters.Arguments.Add("ReportID", report.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+
+
+
+  }
+}
+

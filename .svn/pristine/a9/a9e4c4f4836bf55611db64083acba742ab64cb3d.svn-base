@@ -1,0 +1,51 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Data.Direct.MobilePaywall;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web.Models
+{
+  public class TemplateModificationsModel : PaywallViewModelBase
+  {
+    private List<PaymentProvider> _paymentProviders = null;
+    private PaymentProvider _paymentProvider = null;
+    private List<MobileOperator> _mobileOperators = null;
+    private ServiceContentGroupMap _serviceContentGroupMap = null;
+    private List<ContentGroup> _contentGroup = null;
+    private List<ContentGroupType> _contentGroupType = null;
+    private List<TemplateModification> _templateModifications = null;
+
+    public List<MobileOperator> MobileOperators { get { return this._mobileOperators; } }
+    public List<PaymentProvider> PaymentProviders { get { return this._paymentProviders; } }
+    public PaymentProvider PaymentProvider { get { return this._paymentProvider; } }
+    public List<TemplateModification> TemplateModifications { get { return this._templateModifications; } }
+
+    public int ServiceContentGroupID { get { return this._serviceContentGroupMap == null ? -1 : this._serviceContentGroupMap.ID; } }
+    public int ContentGroupID { get { return this._serviceContentGroupMap != null && this._serviceContentGroupMap.ContentGroup != null ? this._serviceContentGroupMap.ContentGroup.ID : -1; } }
+    public int ContentGroupTypeID { get { return this._serviceContentGroupMap != null ? this._serviceContentGroupMap.ContentGroup.ContentGroupType.ID : -1; } }
+
+
+    public TemplateModificationsModel(PaywallHttpContext context)
+      : base(context)
+    {
+      this._templateModifications = MobilePaywall.Data.TemplateModification.CreateManager().Load(context.Service.ServiceData.Template);
+
+      this._templateModifications = (from t in this._templateModifications
+                                     where
+                                         (t.Service == null || (t.Service != null && t.Service.ID == this.Context.Service.ServiceData.ID)) &&
+                                         (t.Country == null || (t.Country != null && t.Country.ID == this.Context.Service.ServiceData.FallbackCountry.ID)) &&
+                                         (t.PaymentProvider == null || (t.PaymentProvider != null && t.PaymentProvider.ID == this.Context.Service.PaymentProvider.ID))
+                                     select t).ToList();
+
+      this._mobileOperators = MobileOperator.CreateManager().Load(context.Service.ServiceData.FallbackCountry);
+      this._paymentProviders = PaymentProvider.CreateManager().Load();
+      this._contentGroup = ContentGroup.CreateManager().Load();
+      this._contentGroupType = Data.ContentGroupType.CreateManager().Load();
+      this._serviceContentGroupMap = ServiceContentGroupMap.CreateManager().Load(context.Service.ServiceData).FirstOrDefault();
+    }
+  }
+}

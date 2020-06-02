@@ -1,0 +1,648 @@
+﻿jQuery(document).ready(function () {
+  loadPrices();
+
+  var pricesIdIndex = 1;
+
+  $('.form-control.select2').not('.select2-container').select2({
+    placeholder: "Select",
+    allowClear: true,
+    escapeMarkup: function (m) {
+      return m;
+    }
+  });
+
+  $('.date-picker').datepicker({
+    autoclose: true
+  });
+
+  $('.reload').click(function () {
+    loadPrices();
+  });
+
+  $('#add_new_sp').click(function () {
+    addNew($(this), pricesIdIndex);
+    pricesIdIndex++;
+  });
+
+  $('#new_service_prices').on('click', '.copy', function () {
+    addNew($(this), pricesIdIndex);
+    pricesIdIndex++;
+  });
+
+  $('#new_service_prices').on('change', '.service-select', function () {
+    if ($(this).select2('val') != null && $(this).select2('val') != '') {
+      updateDropdown('service', 'insert', $(this), $(this).select2('val'));
+      console.log('update');
+    } else {
+      $(this).parents('.new-service-price').find('.select2').not($(this)).attr('disabled', 'disabled').select2('val', '');
+      console.log('insert');
+    }
+  });
+
+  $('#new_service_prices').on('change', '.country-select', function () {
+    updateDropdown('country', 'insert', $(this), $(this).select2('val'));
+  });
+
+  //remove price
+  $('#new_service_prices').on('click', '.remove-price-btn', function (event) {
+    event.preventDefault();
+    console.log($(this));
+
+    if ($('.new-service-price').length == 1) {
+      bootbox.alert('At least one price must exist', function () { });
+      return;
+    }
+    $row = $(this).parents('.new-service-price');
+    $row.remove();
+
+    var index = 0;
+    $('.new-service-price').each(function () {
+      $(this).find('*[name]').each(function () {
+        $(this).attr('name', replaceIndex($(this).attr('name'), index));
+      });
+      index++;
+    });
+  });
+
+
+  jQuery.validator.addMethod("fourDecimalPlaces", function (value, element) {
+    return this.optional(element) || /^\d{0,4}(\.\d{0,4})?$/i.test(value);
+  }, "Round to four decimal places");
+
+  jQuery.validator.addMethod("validTo", function (value, element) {
+    return this.optional(element) || ($.datepicker.parseDate("dd/mm/yy", value) > $.datepicker.parseDate("dd/mm/yy", $(element).parents('.new-service-price').find('.valid-from-input').val()));
+  }, "Pick later date");
+
+  var form = $('#service_price_form');
+
+  form.validate({
+    errorElement: 'span',
+    errorClass: 'help-block help-block-error',
+    rules: {
+      '[0].ServiceID': {
+        required: true
+      },
+      '[0].ServiceOfferID': {
+        required: true
+      },
+      '[0].MobileOperatorID': {
+        required: true
+      },
+      '[0].Gross': {
+        required: true,
+        number: true,
+        fourDecimalPlaces: true
+      },
+      '[0].Payout': {
+        number: true,
+        fourDecimalPlaces: true
+      },
+      '[0].CurrencyID': {
+        required: true
+      },
+      '[0].ValidFrom': {
+        required: true
+      },
+      '[0].ValidTo': {
+        validTo: true
+      }
+    },
+
+    errorPlacement: function (error, element) { // render error placement for each input type
+      error.insertAfter(element);
+    },
+
+    highlight: function (element) { // hightlight error inputs
+      $(element)
+          .closest('.form-group').removeClass('has-success').addClass('has-error'); // set error class to the control group
+    },
+
+    unhighlight: function (element) { // revert the change done by hightlight
+      $(element)
+          .closest('.form-group').removeClass('has-error'); // set error class to the control group
+    },
+
+    success: function (label) {
+      label.addClass('valid') // mark the current input as valid and display OK icon
+      .closest('.form-group').removeClass('has-error').addClass('has-success'); // set success class to the control group
+    },
+
+    submitHandler: function (form) {
+      success.show();
+      error.hide();
+      //add here some ajax code to submit your form or just call form.submit() if you want to submit the form without ajax
+      form.submit();
+    }
+  });
+});
+
+function loadPrices() {
+  Metronic.blockUI({
+    target: '.page-content',
+    animate: true
+  });
+
+  $.ajax({
+    url: '/service-prices/table',
+    cache: false,
+    method: 'POST',
+    success: function (response) {
+      $('#service_price_table_container').html(response);
+      TableEditable.init();
+      Metronic.unblockUI('.page-content');
+    },
+    error: function () {
+      $('.portlet-body').html('Some error occurred. Please refresh page.');
+      Metronic.unblockUI('.page-content');
+    }
+  });
+}
+
+function generateDropdowns(serviceTd, serviceID, offerTd, offerID, countryTd, countryID, operatorTd, operatorID, currencyTD, currencyID) {
+  $.ajax({
+    url: '/service-prices/generate-dropdowns',
+    cache: false,
+    method: 'POST',
+    data: {
+      serviceID: serviceID,
+      serviceOfferID: offerID,
+      countryID: countryID,
+      mobileOperatorID: operatorID,
+      currencyID: currencyID
+    },
+    success: function (response) {
+      updateSelect(response[0], serviceTd, 'service', 'Service', 'edit');
+      updateSelect(response[1], offerTd, 'service_offer', 'Service Offer', 'edit');
+      updateSelect(response[2], countryTd, 'country', 'Country', 'edit');
+      updateSelect(response[3], operatorTd, 'operator', 'Mobile Operator', 'edit');
+      updateSelect(response[4], currencyTD, 'currency', 'Currency', 'edit');
+
+      $('#service_price_table').on('change', '#service, #country', function () {
+        console.log($(this).select2('val'));
+        updateDropdown($(this).attr('id'), $(this).select2('val'));
+      });
+    },
+    error: function () {
+      errorNotification('Error while generating dropdowns')
+    }
+  });
+}
+
+function updateSelect(response, element, id, placeholder, action) {
+  var classes;
+  var name;
+  if (action == 'insert') {
+    classes = $('#' + id).attr('class');
+    name = $('#' + id).attr('name');
+  }
+  else {
+    classes = 'column form-control select2';
+    name = '';
+  }
+
+  $(element).html('');
+  var $select = $('<select />').prop('id', id).addClass(classes).attr('name', name).appendTo(element);
+  $('<option />').val('').text('').appendTo($select);
+
+  $.each(response, function (index, data) {
+    $('<option />').val(data.Value).text(data.Text).attr('selected', data.Selected).appendTo($select);
+  });
+
+  $('#' + id).select2({
+    placeholder: placeholder
+  });
+}
+
+function updateDropdown(dropdown, action, element, selectedValue) {
+  $.ajax({
+    url: '/service-prices/update-dropdown',
+    cache: false,
+    method: 'POST',
+    data: {
+      dropdown: dropdown,
+      action: action,
+      value: selectedValue
+    },
+    success: function (response) {
+      if (dropdown == 'service' && action == 'edit') {
+        $("#service_offer").select2('destroy');
+        updateSelect(response[0], $('#service_offer').parent(), 'service_offer', 'Service Offer', action);
+      }
+      else if (dropdown == 'country' && action == 'edit') {
+        $("#operator").select2('destroy');
+        updateSelect(response[0], $('#operator').parent(), 'operator', 'Mobile Operator', action);
+        $("#currency").select2('destroy');
+        updateSelect(response[1], $('#currency').parent(), 'currency', 'Currency', action);
+      }
+      else if (dropdown == 'service' && action == 'insert') {
+        var $parent = $(element).parents('.new-service-price');
+
+        var $serviceOfferSelect = $parent.find('select.service-offer-select');
+        $serviceOfferSelect.select2('destroy');
+        updateSelect(response[0], $serviceOfferSelect.parent(), $serviceOfferSelect.attr('id'), 'Select', action);
+
+        var $countrySelect = $parent.find('select.country-select');
+        var countrySelectID = $countrySelect.attr('id');
+        $countrySelect.select2('destroy');
+        updateSelect(response[1], $countrySelect.parent(), $countrySelect.attr('id'), 'Select', action);
+
+        $('#' + countrySelectID).trigger('change');
+      }
+      else if (dropdown == 'country' && action == 'insert') {
+        var parent = $(element).parents('.new-service-price');
+
+        var operatorSelect = parent.find('select.operator-select');
+        $(operatorSelect).select2('destroy');
+        updateSelect(response[0], $(operatorSelect).parent(), $(operatorSelect).attr('id'), 'Select', action);
+
+        var currencySelect = parent.find('select.currency-select');
+        $(currencySelect).select2('destroy');
+        updateSelect(response[1], $(currencySelect).parent(), $(currencySelect).attr('id'), 'Select', action);
+      }
+    },
+    error: function () {
+      errorNotification('Error while generating dropdowns')
+    }
+  });
+}
+
+function addNew(element, pricesIdIndex) {
+  var nameIndex = $('.new-service-price').length;
+  var clone;
+  var serviceID;
+  var offerID;
+  var countryID;
+  var gross;
+  var payout;
+  var currencyID;
+  var validFrom;
+  var validTo;
+
+  if (element.attr('id') == 'add_new_sp') {
+    clone = $('#price_0').clone().insertAfter('.new-service-price:last');
+    clone.find('input:hidden').val('').end()
+          .find('input:text').val('').end()
+          .find('div.select2-container').remove().end();
+
+    clone.find('.select2').not('.service-select').attr('disabled', 'disabled').select2('val', '');
+  }
+  else {
+    var parent = $(element).parents('.new-service-price');
+
+    serviceID = parent.find('.service-select').select2('val');
+    offerID = parent.find('.service-offer-select').select2('val');
+    countryID = parent.find('.country-select').select2('val');
+    gross = parent.find('.gross-input').val();
+    payout = parent.find('.payout-input').val();
+    currencyID = parent.find('.currency-select').select2('val');
+    validFrom = parent.find('.valid-from-input').val();
+    validTo = parent.find('.valid-to-input').val();
+
+    clone = parent.clone().insertAfter(parent);
+    clone.find('div.select2-container').remove().end()
+          .find('.copy').remove().end();
+  }
+  
+  clone.find('*[id]').andSelf().each(function () {
+    //$(this).attr('id', $(this).attr('id').slice(0, -1) + index);
+          $(this).attr('id', $(this).attr('id').substring(0, $(this).attr('id').lastIndexOf('_') + 1) + pricesIdIndex);
+          if ($(this).attr('name') && $(this).attr('name').search('].') != -1)
+            $(this).attr('name', '[' + nameIndex + '].' + $(this).attr('name').substring($(this).attr('name').indexOf('].') + 2));
+          $(this).removeAttr('aria-describedby aria-required aria-invalid');
+        })
+        .find('.help-block').remove().end()
+        .find('.has-error, .has-success').removeClass('has-error has-success').end();
+
+  $('.form-control.select2').not('.select2-container').select2({
+    placeholder: "Select",
+    allowClear: true,
+    escapeMarkup: function (m) {
+      return m;
+    }
+  });
+
+  $('.date-picker').datepicker({
+    autoclose: true
+  });
+
+  $('#service_' + pricesIdIndex).select2('val', serviceID);
+  $('#service_' + pricesIdIndex).rules('add', 'required');
+
+  $('#service_offer_' + pricesIdIndex).select2('val', offerID);
+  $('#service_offer_' + pricesIdIndex).rules('add', 'required');
+
+  $('#gross_' + pricesIdIndex).val(gross);
+  $('#gross_' + pricesIdIndex).rules('add', { required: true, number: true, fourDecimalPlaces: true });
+
+  $('#payout_' + pricesIdIndex).val(payout);
+  $('#payout_' + pricesIdIndex).rules('add', { number: true, fourDecimalPlaces: true });
+
+  $('#currency_' + pricesIdIndex).select2('val', currencyID);
+  $('#currency_' + pricesIdIndex).rules('add', 'required');
+
+  $('#valid_from_' + pricesIdIndex).val(validFrom);
+  $('#valid_to_' + pricesIdIndex).val(validTo);
+  $('#valid_to_' + pricesIdIndex).rules('add', 'validTo');
+}
+
+//replace indexes in names of form inputs
+function replaceIndex(name, index) {
+  var split = name.split('.');
+  var data = '';
+  for (var i = 0; i < split.length; i++) {
+    if (data != '') data += '.';
+    if (split[i].indexOf('[') > -1) {
+      data += '[' + index + ']';
+      continue;
+    }
+    data += split[i];
+  }
+  return data;
+}
+
+
+
+var TableEditable = function () {
+
+  var handleTable = function () {
+
+    function restoreRow(oTable, nRow) {
+      var aData = oTable.fnGetData(nRow);
+      var jqTds = $('>td', nRow);
+
+      for (var i = 0, iLen = jqTds.length; i < iLen; i++) {
+        oTable.fnUpdate(aData[i], nRow, i, false);
+      }
+
+      oTable.fnDraw();
+    }
+
+    function editRow(oTable, nRow) {
+      var aData = oTable.fnGetData(nRow);
+      var jqTds = $('>td', nRow);
+
+      //console.log('jq');
+      //console.log(jqTds);
+      //console.log('po indexu ');
+      //console.log(jqTds[1].attributes['data-id'].value);
+      //console.log(aData[1]);
+
+      generateDropdowns(jqTds[1], jqTds[1].attributes['data-id'].value, jqTds[2], jqTds[2].attributes['data-id'].value, jqTds[3], jqTds[3].attributes['data-id'].value, jqTds[4], jqTds[4].attributes['data-id'].value, jqTds[7], jqTds[7].attributes['data-id'].value);
+
+      jqTds[5].innerHTML = '<input type="text" class="form-control column" value="' + aData[5] + '">'; //gross
+      jqTds[6].innerHTML = '<input type="text" class="form-control column" value="' + aData[6] + '">'; //payout
+      jqTds[8].innerHTML = '<input type="text" class="form-control column" value="' + aData[8] + '">'; //validFrom
+      jqTds[9].innerHTML = '<input type="text" class="form-control column" value="' + aData[9] + '">'; //validTo
+      jqTds[10].innerHTML = '<span style="white-space: nowrap;"><a class="edit btn default btn-sm green" href="">Save</a> <a class="cancel btn default btn-sm" href="">Cancel</a></span>';
+    }
+
+    function saveRow(oTable, nRow) {
+      console.log(nRow);
+      var tds = $('td', nRow);
+      var jqColumns = $('td.price-id, input.column, select.column', nRow);
+
+      //console.log($(jqColumns[0]).html());
+
+      //var validName = validate(jqColumns[1].value, jqColumns[1]) && validateName(jqColumns[1].value, jqColumns[1], $(jqColumns[0]).html());
+      //var validInstance = validate($(jqColumns[2]).select2('data'), '#select_instance');
+
+      //console.log(validName);
+
+      //if (!validName || !validInstance)
+      //  return false;
+
+      var id = jqColumns[0].innerHTML;
+      var serviceID = jqColumns[1].value;
+      var serviceName = $(jqColumns[1]).select2('data').text;
+      var serviceOfferID = jqColumns[2].value;
+      var serviceOfferName = $(jqColumns[2]).select2('data').text;
+      var countryID = jqColumns[3].value;
+      var countryName = $(jqColumns[3]).select2('data').text;
+      var mobileOperatorID = jqColumns[4].value;
+      var operatorName = $(jqColumns[4]).select2('data').text;
+
+      //if ($(jqColumns[3]).select2('data') != null) {
+      //  var templateId = jqColumns[3].value;
+      //  var templateName = $(jqColumns[3]).select2('data').text;
+      //} else {
+      //  var templateId = '';
+      //  var templateName = '';
+      //}
+      //console.log(jqColumns[6]);
+
+      var gross = jqColumns[5].value;
+      var payout = jqColumns[6].value;
+
+      var currencyID = jqColumns[7].value;
+      var currencyAbbr = $(jqColumns[7]).select2('data').text;
+
+      var validFrom = jqColumns[8].value;
+      var validTo = jqColumns[9].value;
+
+      $.ajax({
+        url: "/service-prices/update",
+        type: 'POST',
+        data: {
+          id: id,
+          serviceID: serviceID,
+          serviceOfferID: serviceOfferID,
+          mobileOperatorID: mobileOperatorID,
+          gross: gross,
+          payout: payout,
+          currencyID: currencyID,
+          validFrom: validFrom,
+          validTo: validTo
+        },
+        success: function (data) {
+          console.log('uspjelo');
+
+          if (data == -1)
+            alert('Service and Service Offer do not match');
+          else {
+            oTable.fnUpdate(data, nRow, 0, false);
+            oTable.fnUpdate(serviceName, nRow, 1, false);
+            tds[1].dataset['id'] = serviceID;
+
+            oTable.fnUpdate(serviceOfferName, nRow, 2, false);
+            tds[2].dataset['id'] = serviceOfferID;
+
+            oTable.fnUpdate(countryName, nRow, 3, false);
+            tds[3].dataset['id'] = countryID;
+
+            oTable.fnUpdate(operatorName, nRow, 4, false);
+            tds[4].dataset['id'] = mobileOperatorID;
+
+            oTable.fnUpdate(gross, nRow, 5, false);
+            oTable.fnUpdate(payout, nRow, 6, false);
+
+            oTable.fnUpdate(currencyAbbr, nRow, 7, false);
+            tds[7].dataset['id'] = currencyID;
+
+            oTable.fnUpdate(validFrom, nRow, 8, false);
+            oTable.fnUpdate(validTo, nRow, 9, false);
+            oTable.fnUpdate('<a class="edit btn default btn-sm purple" href=""><i class="fa fa-edit"></i>Edit</a>', nRow, 10, false);
+            oTable.fnDraw();
+          }
+
+        }
+      })
+
+      return true;
+    }
+
+    function cancelEditRow(oTable, nRow) {
+
+      var jqColumns = $('td.column, input.column, select.column', nRow);
+      oTable.fnUpdate(jqColumns[0].innerHTML, nRow, 0, false);
+      oTable.fnUpdate(jqColumns[1].value, nRow, 1, false);
+      oTable.fnUpdate(jqColumns[2].value, nRow, 2, false);
+      oTable.fnUpdate(jqColumns[3].value, nRow, 3, false);
+      oTable.fnUpdate(jqColumns[4].value, nRow, 4, false);
+      oTable.fnUpdate(jqColumns[5].value, nRow, 5, false);
+      oTable.fnUpdate(jqColumns[6].value, nRow, 6, false);
+      oTable.fnUpdate(jqColumns[7].value, nRow, 7, false);
+      oTable.fnUpdate(jqColumns[8].value, nRow, 8, false);
+      oTable.fnUpdate(jqColumns[9].value, nRow, 9, false);
+      oTable.fnUpdate('<a class="edit btn default btn-sm purple" href=""><i class="fa fa-edit"></i>Edit</a>', nRow, 10, false);
+      oTable.fnDraw();
+    }
+
+
+    function addNewRow(oTable) {
+      var aiNew = oTable.fnAddData(['', '', '', '', '', '', '', '', '', '', '']);
+      var nRow = oTable.fnGetNodes(aiNew[0]);
+      $($('>td', nRow)[0]).addClass('column');
+      $($('>td', nRow)[10]).addClass('actions');
+      editRow(oTable, nRow);
+      nEditing = nRow;
+      nNew = true;
+    }
+
+    var table = $('#service_price_table');
+
+    var oTable = table.dataTable({
+
+      // Uncomment below line("dom" parameter) to fix the dropdown overflow issue in the datatable cells. The default datatable layout
+      // setup uses scrollable div(table-scrollable) with overflow:auto to enable vertical scroll(see: assets/global/plugins/datatables/plugins/bootstrap/dataTables.bootstrap.js).
+      "dom": "<'row' <'col-md-12'T>><'row'<'col-md-6 col-sm-12'l><'col-md-6 col-sm-12'f>r><'table-scrollable't><'row'<'col-md-5 col-sm-12'i><'col-md-7 col-sm-12'p>>", // horizontal scrollable datatable
+      //"dom": "<'row'<'col-md-6 col-sm-6'><'#service_price_table_filters.col-md-6 col-sm-6'fl>r><'table-scrollable't><'row'<'col-md-5 col-sm-5'i><'col-md-7 col-sm-7'p>>",
+
+      "lengthMenu": [
+          [5, 10, 15, 20, -1],
+          [5, 10, 15, 20, "All"] // change per page values here
+      ],
+      // set the initial value
+      "pageLength": 15,
+      "columnDefs": [
+        { "orderable": true, "targets": [0] },
+        { "searchable": true, "targets": [0] }
+      ],
+      "order": [
+          [0, "asc"]
+      ]
+    });
+
+    var tableWrapper = $("#service_price_table_wrapper");
+
+    tableWrapper.find(".dataTables_length select").select2({
+      showSearchInput: true, //hide search box with special css class
+      placeholder: 'Show'
+    }); // initialize select2 dropdown
+
+
+
+    var nEditing = null;
+    var nNew = false;
+
+    //$('#merchants_table_new').click(function (e) {
+    //  e.preventDefault();
+    //  oTable.fnSort([[0, 'asc']]);
+
+    //  var confirmed = true;
+
+    //  if (nNew && nEditing) {
+    //    bootbox.confirm("Previous row not saved. Do you want to save it ?", function (result) {
+    //      if (result) {
+    //        var saveSuccessful = saveRow(oTable, nEditing); // save
+    //        if (!saveSuccessful)
+    //          return;
+
+    //        $(nEditing).find("td:first").html("Untitled");
+    //        nEditing = null;
+    //        nNew = false;
+    //        addNewRow(oTable);
+    //      } else {
+    //        oTable.fnDeleteRow(nEditing); // cancel
+    //        nEditing = null;
+    //        nNew = false;
+
+    //        return;
+    //      }
+    //    });
+    //  } else {
+    //    addNewRow(oTable);
+    //  }
+
+    //  //console.log('izaslo vec');
+    //  //if (!confirmed)
+    //  //  return;
+
+    //  //console.log('izaslo skroz');
+    //  //oTable.fnSort([[0, 'asc']]);
+
+    //  //var aiNew = oTable.fnAddData(['', '', '', '', '', '', '', '', '', '']);
+    //  //var nRow = oTable.fnGetNodes(aiNew[0]);
+    //  //$($('>td', nRow)[0]).addClass('column');
+    //  //$($('>td', nRow)[9]).addClass('actions');
+    //  //editRow(oTable, nRow);
+    //  //nEditing = nRow;
+    //  //nNew = true;
+    //});
+
+    table.on('click', '.cancel', function (e) {
+      e.preventDefault();
+
+      //console.log('cancelKlik ' + nNew + ' ' + nEditing)
+
+      if (nNew) {
+        oTable.fnDeleteRow(nEditing);
+        nEditing = null;
+        nNew = false;
+      } else {
+        restoreRow(oTable, nEditing);
+        nEditing = null;
+      }
+    });
+
+    table.on('click', '.edit', function (e) {
+      e.preventDefault();
+
+      /* Get the row as a parent of the link that was clicked on */
+      var nRow = $(this).parents('tr')[0];
+
+      if (nEditing !== null && nEditing != nRow) {
+        /* Currently editing - but not this row - restore the old before continuing to edit mode */
+        restoreRow(oTable, nEditing);
+        editRow(oTable, nRow);
+        nEditing = nRow;
+      } else if (nEditing == nRow && this.innerHTML == "Save") {
+        /* Editing this row and want to save it */
+        //saveRow(oTable, nEditing);
+        nEditing = saveRow(oTable, nEditing) ? null : nEditing; //if save is unsuccessful don't change nEditing 
+      } else {
+        /* No edit in progress - let's start one */
+        editRow(oTable, nRow);
+        nEditing = nRow;
+      }
+    });
+  }
+
+  return {
+
+    //main function to initiate the module
+    init: function () {
+      handleTable();
+    }
+
+  };
+}();

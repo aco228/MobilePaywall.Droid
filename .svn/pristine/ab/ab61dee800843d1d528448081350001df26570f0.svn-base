@@ -1,0 +1,165 @@
+﻿using Cashflow.Client;
+using Cashflow.Message;
+using Cashflow.Message.Data;
+using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.CustomerCare.Models
+{
+  public class SearchResultModel
+  {
+
+    private string _searchBy = string.Empty;
+    private CustomerClient _customerClient = null;
+    private SubscriptionStatus? _subscriptionStatus;
+    private Data.IPaymentManager _pManager = null;
+
+    private List<MobilePaywall.Data.Customer> _customers = null;
+    private List<Payment> _payments = null;
+    private List<Subscription> _subscriptions = null;
+    private List<Purchase> _purchases = null;
+
+    public List<MobilePaywall.Data.Customer> Customers { get { return this._customers; } set { this._customers = value; } }
+    public List<Payment> Payments { get { return this._payments; } set { this._payments = value; } }
+    public List<Subscription> Subscriptions { get { return this._subscriptions; } set { this._subscriptions = value; } }
+    public List<Purchase> Purchases { get { return this._purchases; } set { this._purchases = value; } }
+
+    public string Username { get { return (Customers.FirstOrDefault().Username != null) ? Customers.FirstOrDefault().Username : ""; } }
+    public string Msisdn { get { return (Customers.FirstOrDefault().Msisdn != null) ? Customers.FirstOrDefault().Msisdn : ""; } }
+    public string MobileOperator { get { return (Customers.FirstOrDefault().MobileOperator != null) ? Customers.FirstOrDefault().MobileOperator.Name : ""; } }
+    public string Country { get { return (Customers.FirstOrDefault().Country != null) ? Customers.FirstOrDefault().Country.GlobalName : ""; } }
+
+    public SearchResultModel(List<MobilePaywall.Data.Customer> customers, string searchBy)
+    {
+      this._pManager = Data.Payment.CreateManager();
+      this._payments = new List<Payment>();
+      this._subscriptions = new List<Subscription>();
+      this._purchases = new List<Purchase>();
+
+      this._customers = customers;
+      this._searchBy = searchBy;
+
+      this._customerClient = new CustomerClient();
+      this._customerClient.AttachLogWriter(new Cashflow.Client.Diagnostics.Log.CashflowClientLogWriter());
+
+      this.SetSubscriptionStatus();
+      this.GetSubscription();
+
+    }
+    
+    private void SetSubscriptionStatus()
+    {
+      switch (this._searchBy)
+      {
+        case "canceled": this._subscriptionStatus = SubscriptionStatus.Cancelled; break;
+        case "active": this._subscriptionStatus = SubscriptionStatus.Active; break;
+        default: this._subscriptionStatus = null; break;
+      }
+    }
+
+    private void GetSubscription()
+    {
+      if (this._customers == null)
+        this._customers = new List<Data.Customer>();
+
+      foreach (MobilePaywall.Data.Customer customer in this._customers)
+      {
+        ServiceOffer so = (from s in ServiceOffer.CreateManager().Load(customer.Service) where s.IsDefault && s.IsActive select s).FirstOrDefault();
+        if(so == null)
+        {
+          // TODO: Log
+          continue;
+        }
+
+        GetSubscriptionsRequest getSubscriptionsRequest = new GetSubscriptionsRequest(RequestMode.Synchronous,
+          customer.ExternalCustomerGuid.Value.ToString(),
+          so.PaymentConfiguration.PaymentCredentials.Username,
+          so.PaymentConfiguration.PaymentCredentials.Password,
+          null,
+          customer.ExternalCustomerGuid.Value);
+
+        GetSubscriptionsResponse getSubscriptionResponse = this._customerClient.GetSubscriptions(getSubscriptionsRequest, null);
+
+        GetPurchasesRequest getPurchaseRequest = new GetPurchasesRequest(RequestMode.Default,
+          customer.ExternalCustomerGuid.Value.ToString(),
+          so.PaymentConfiguration.PaymentCredentials.Username,
+          so.PaymentConfiguration.PaymentCredentials.Password,
+          null,
+          customer.ExternalCustomerGuid.Value);
+        GetPurchasesResponse getPurchaseResponse = this._customerClient.GetPurchases(getPurchaseRequest, null);
+
+        if (getPurchaseResponse.Status.Code == MessageStatusCode.Success)
+          foreach (Purchase p in getPurchaseResponse.Purchases)
+            ProccessPayment(null, p);
+
+        if (getSubscriptionResponse.Status.Code == MessageStatusCode.Success)
+          foreach (Subscription s in getSubscriptionResponse.Subscriptions)
+            ProccessPayment(s, null);
+      }
+    }
+
+    private void ProccessPayment(Subscription subscription, Purchase purchase)
+    {
+      Data.Payment payment = null;
+      if (subscription != null)
+      {
+        payment = this._pManager.Load(subscription.SubscriptionID, GuidType.External);
+        this._subscriptions.Add(subscription);
+      }
+      else if (purchase != null)
+      {
+        payment = this._pManager.Load(purchase.PurchaseID, GuidType.External);
+        this._purchases.Add(purchase);
+      }
+      else
+        return;
+
+      if(payment != null)
+        this._payments.Add(payment);
+    }
+
+
+    // QUICKFIX: Returns payment based on subscription (because on _SerachResult.cshtml:75, list of payments and subscriptions had diferent number of elements)
+    public Payment GetPayment(Subscription subscription)
+    {
+      return (from p in this.Payments where p.ExternalPaymentGuid.HasValue && subscription.SubscriptionID == p.ExternalPaymentGuid.Value select p).FirstOrDefault();
+    }
+
+    public Payment GetPayment(Purchase purchase)
+    {
+      return (from p in this.Payments where p.ExternalPaymentGuid.HasValue && purchase.PurchaseID == p.ExternalPaymentGuid.Value select p).FirstOrDefault();
+    }
+
+    // SUMMARY: Gets proper class for <span>status in html
+    public string LabelStatus(SubscriptionStatus status)
+    {
+      switch (status)
+      {
+        case SubscriptionStatus.Active: return "success";
+        case SubscriptionStatus.Cancelled:
+        case SubscriptionStatus.Failed: return "danger";
+        case SubscriptionStatus.Initialized: return "warning";
+        default: return "primary";
+      }
+    }
+    
+    public string LabelStatus(PurchaseStatus status)
+    {
+      switch (status)
+      {
+        case PurchaseStatus.Executed: return "success";
+        case PurchaseStatus.Cancelled:
+        case PurchaseStatus.Failed: return "danger";
+        case PurchaseStatus.Initialized:
+        case PurchaseStatus.Pending: return "warning";
+        case PurchaseStatus.Uninitialized:
+        case PurchaseStatus.Unknown: return "info";
+        default: return "primary";
+      }
+    }
+  }
+}

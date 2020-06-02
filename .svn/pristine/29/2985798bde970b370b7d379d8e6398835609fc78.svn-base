@@ -1,0 +1,219 @@
+﻿using Cashflow.Message;
+using Cashflow.Message.Mobile;
+using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Web.Localization;
+using MobilePaywall.Web.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers._Specific._ProviderSpecific.Paychimp
+{
+  public class GRPaychimpController : Controller
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (GRPaychimpController._log == null)
+          GRPaychimpController._log = LogManager.GetLogger(typeof(GRPaychimpController));
+        return GRPaychimpController._log;
+      }
+    }
+    #endregion
+
+
+    public ActionResult Index()
+    {
+      GRPaychimpViewModel model = new GRPaychimpViewModel(PaywallHttpContext.Current);
+      return this.View("~/Views/Black/_Specific/gr/465/PaychimpPayment.cshtml", model);
+    }
+
+    // SUMMARY: javascript entrance point for sending msisdn
+    public ActionResult SetupMsisdn()
+    {
+      string msisdn = Request["msisdn"] != null ? Request["msisdn"].ToString() : string.Empty;
+      msisdn = this.FixNumber(msisdn);
+      if (string.IsNullOrEmpty(msisdn))
+        return this.Json(new { status = false, message = "There is no msisdn" });
+
+      if (PaywallHttpContext.Current.Session.SessionData.Customer == null)
+      {
+        PaywallHttpContext.Current.Session.SessionData.Customer = new Data.Customer(-1, Guid.NewGuid(), Data.CustomerStatus.Active,
+          PaywallHttpContext.Current.Service.ServiceData, PaywallHttpContext.Current.Session.SessionData.Country, null, null,
+          msisdn, string.Empty, string.Empty, null, DateTime.Now, DateTime.Now);
+        PaywallHttpContext.Current.Session.SessionData.Customer.Insert();
+        PaywallHttpContext.Current.Session.SessionData.Customer.SetUsernameAndPassword();
+      }
+      else
+      {
+        PaywallHttpContext.Current.Session.SessionData.Customer.Msisdn = msisdn;
+        PaywallHttpContext.Current.Session.SessionData.Customer.Update();
+      }
+
+      SmsArguments smsArguments = new SmsArguments();
+      smsArguments.Msisdn = msisdn;
+
+      ServiceOffer so = PaywallHttpContext.Current.Service.DefaultServiceOffer;
+      LookupOperatorRequest lookupOperatorRequest = new LookupOperatorRequest(Cashflow.Message.RequestMode.Synchronous,
+        PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+        so.PaymentConfiguration.PaymentCredentials.Username,
+        so.PaymentConfiguration.PaymentCredentials.Password,
+        so.Service.Product.ExternalProductGuid,
+        so.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+        so.Service.FallbackCountry.TwoLetterIsoCode,
+        so.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+        so.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+        PaywallHttpContext.Current.Session.SessionData.IPAddress,
+        "", // notification url
+        null);
+      
+      LookupOperatorResponse lookupOperatorResponse = CashflowClientPaywallManager.GetMobileExtensionClient(PaywallHttpContext.Current.Service).LookupOperator(lookupOperatorRequest, smsArguments);
+      if(lookupOperatorResponse.Status.Code != MessageStatusCode.Success && lookupOperatorResponse.Status.Code != MessageStatusCode.Redirect)
+      {
+        Log.Error("GRPaychimp::SetupMsisdn. LookupOperatorResponse status is not successfull");
+        return this.Json(new { status = false, message = "Λάθος Αριθμός Κινητού. Παρακαλούμε ελέγξτε τον αριθμό του τηλεφώνου σας" });
+      }
+
+      if(!lookupOperatorResponse.OperatorID.HasValue)
+      {
+        Log.Error("GRPaychimp::SetupMsisdn. lookupOperatorResponse.OperatorID is null");
+        return this.Json(new { status = false, message = "Λάθος Αριθμός Κινητού. Παρακαλούμε ελέγξτε τον αριθμό του τηλεφώνου σας" });
+      }
+
+      MobileOperator mobileOperator = MobileOperator.CreateManager().Load(lookupOperatorResponse.OperatorID.Value, IDType.External);
+      if(mobileOperator == null)
+      {
+        Log.Error("GRPaychimp::SetupMsisdn. Mobile operator is null");
+        return this.Json(new { status = false, message = "Λάθος Αριθμός Κινητού. Παρακαλούμε ελέγξτε τον αριθμό του τηλεφώνου σας" });
+      }
+
+      PaywallHttpContext.Current.Session.SessionData.Customer.MobileOperator = mobileOperator;
+      PaywallHttpContext.Current.Session.SessionData.Customer.Update();
+      PaywallHttpContext.Current.Session.SessionData.MobileOperator = mobileOperator;
+      PaywallHttpContext.Current.Session.SessionData.Update();
+
+      SmsArguments initiateSmsArguments = new SmsArguments();
+      initiateSmsArguments.Msisdn = msisdn;
+      initiateSmsArguments.Operator = mobileOperator.ExternalMobileOperatorID.ToString();
+      initiateSmsArguments.Username = PaywallHttpContext.Current.Session.SessionData.Customer.Username;
+      initiateSmsArguments.Password = PaywallHttpContext.Current.Session.SessionData.Customer.Storage.GetString("password");
+      initiateSmsArguments.IsTanFlow = "true";
+
+      InitiateSubscriptionRequest initiateSubscriptionRequest = new InitiateSubscriptionRequest(RequestMode.Synchronous,
+        PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+        so.PaymentConfiguration.PaymentCredentials.Username,
+        so.PaymentConfiguration.PaymentCredentials.Password,
+        so.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+        so.Service.FallbackCountry.TwoLetterIsoCode,
+        so.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+        so.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+        null,
+        string.Empty, // customer ref id
+        string.Empty, // sub ref id
+        null,
+        PaywallHttpContext.Current.Session.SessionData.IPAddress,
+        string.Format("http://{0}", PaywallHttpContext.Current.Service.ServiceData.Name), // redirectUrl
+        string.Format("http://{0}/error", PaywallHttpContext.Current.Service.ServiceData.Name), //error 
+        "", // notification url
+        null);
+
+      UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), PaywallHttpContext.Current.Session.SessionData, null, this.Request.RawUrl, DateTime.Now, DateTime.Now); uhr.Insert();
+      LookupSession lookupSession = LookupSession.CreateManager().Load(PaywallHttpContext.Current.Session.SessionData);
+      if(lookupSession == null)
+      {
+        lookupSession = new LookupSession(-1, Guid.NewGuid(), LookupSessionStatus.Complete, PaywallHttpContext.Current.Session.SessionData, uhr, null, "-nil-", DateTime.Now, DateTime.Now);
+        lookupSession.Insert();
+
+        LookupSessionResult lsr = new LookupSessionResult(-1, lookupSession, true, true, null, null, string.Empty, string.Empty, DateTime.Now, DateTime.Now);
+        lsr.Insert();
+      }
+
+      PaymentRequest paymentRequest = new PaymentRequest(-1, Guid.NewGuid(), PaymentType.Subscription, PaymentRequestStatus.Initialized,
+        lookupSession, PaywallHttpContext.Current.Session.SessionData.Customer, PaywallHttpContext.Current.Session.SessionData,
+        so, so.BusinessModelEntry, null, uhr, string.Empty, DateTime.Now, DateTime.Now);
+      paymentRequest.Insert();
+
+      InitiateSubscriptionResponse initiateSubscriptionResponse = CashflowClientPaywallManager.GetSubscriptionClient(PaywallHttpContext.Current.Service).InitiateSubscription(initiateSubscriptionRequest, initiateSmsArguments);
+      if (initiateSubscriptionResponse.Status.Code != MessageStatusCode.Success && initiateSubscriptionResponse.Status.Code != MessageStatusCode.Redirect)
+      {
+        Log.Error("GRPaychimp::SetupMsisdn. InitiateSubscriptionResponse. Initiate is not success");
+        paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Failure;
+        paymentRequest.Update();
+        return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal });
+      }
+
+      paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Complete;
+      paymentRequest.ExternalPaymentRequestGuid = initiateSubscriptionResponse.SubscriptionRequestID;
+      paymentRequest.Update();
+
+      return this.Json(new { status = true, message = "ok" });
+    }
+
+    public ActionResult SetupPin()
+    {
+      string pin = Request["pin"] != null ? Request["pin"].ToString() : string.Empty;
+
+      MobileTanArguments mobileTanArguments = new MobileTanArguments();
+      mobileTanArguments.Msisdn = PaywallHttpContext.Current.Session.SessionData.Customer.Msisdn;
+      mobileTanArguments.Tan = pin;
+
+      ServiceOffer so = PaywallHttpContext.Current.Service.DefaultServiceOffer;
+      PaymentRequest paymentRequest = PaymentRequest.CreateManager().Load(PaywallHttpContext.Current.Session.SessionData);
+
+      SetupSubscriptionRequest setupSubscriptionRequest = new SetupSubscriptionRequest(RequestMode.Synchronous,
+        PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+        so.PaymentConfiguration.PaymentCredentials.Username,
+        so.PaymentConfiguration.PaymentCredentials.Password,
+        paymentRequest.ExternalPaymentRequestGuid.Value,
+        paymentRequest.ExternalPaymentRequestGuid.ToString(),
+        null);
+
+      Payment payment = new Payment(-1, Guid.NewGuid(), PaymentType.Subscription, null, PaymentStatus.Initialized, paymentRequest, PaywallHttpContext.Current.Session.SessionData.Customer,
+        so, so.BusinessModelEntry, DateTime.Now, DateTime.Now);
+      payment.Insert();
+
+      SetupSubscriptionResponse setupSubscriptionResponse = CashflowClientPaywallManager.GetSubscriptionClient(PaywallHttpContext.Current.Service).SetupSubscription(setupSubscriptionRequest, mobileTanArguments);
+      if (setupSubscriptionResponse.Status.Code != MessageStatusCode.Success && setupSubscriptionResponse.Status.Code != MessageStatusCode.Redirect)
+      {
+        Log.Error("GRPaychimp::SetupMsisdn. SetupSubscriptionResponse. Setup is not successfull");
+        payment.PaymentStatus = PaymentStatus.Failed;
+        payment.Update();
+        return this.Json(new { status = false, message = "Παρακαλούμε ελέγξτε το PIN που έχετε εισάγει" }); // Error occurred. Please check PIN you entered
+      }
+
+      payment.PaymentStatus = PaymentStatus.Successful;
+      payment.ExternalPaymentGuid = setupSubscriptionResponse.SubscriptionID;
+      payment.Update();
+
+      PaymentContentAccessPolicyMap pcapm = new PaymentContentAccessPolicyMap(-1, payment, null, so.ContentAccessPolicy, null, true, true, DateTime.Now, DateTime.Now.AddMinutes(15), DateTime.Now, DateTime.Now);
+      pcapm.Insert();
+
+      return this.Json(new { status = true, message = "ok" });
+    }
+    
+    public string FixNumber(string inputMsisdn)
+    {
+      string msisdn = Regex.Replace(inputMsisdn, "[^0-9]", "");
+      if (string.IsNullOrEmpty(msisdn))
+        return msisdn;
+
+      if (msisdn.StartsWith("00"))
+        msisdn = msisdn.Substring(2);
+      if (msisdn[0] == '0')
+        msisdn = msisdn.Substring(1);
+      if (!msisdn.StartsWith("30"))
+        msisdn = "30" + msisdn;
+      return msisdn;
+    }
+
+  }
+}

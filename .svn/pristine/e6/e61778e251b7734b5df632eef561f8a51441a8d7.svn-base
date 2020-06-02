@@ -1,0 +1,68 @@
+﻿using MobilePaywall.Data;
+using Senti.Security;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Implementation.Payment.Specific.PT
+{
+  public class PTGoForMobilityLookupManager : LookupManagerBase
+  {
+
+    public PTGoForMobilityLookupManager(IUserSession us)
+      :base(us)
+    { }
+
+    public override bool SkipLookup { get { return true; } }
+
+    public override Data.LookupSession InitiateLookupSession(string requestRawUrl, Data.UserHttpRequest originalRequest)
+    {
+      LookupSession ls = LookupSession.CreateManager().Load(originalRequest.UserSession);
+      if (ls != null)
+        return ls;
+
+      ls = new LookupSession(-1, Guid.NewGuid(), LookupSessionStatus.Complete, originalRequest.UserSession, originalRequest, null, string.Empty, DateTime.Now, DateTime.Now);
+      ls.Insert();
+
+      return ls;
+    }
+
+    public override MobilePaywall.Data.LookupSessionResult TryGetLookupSessionResult()
+    {
+      LookupSession ls = LookupSession.CreateManager().Load(this.Session.SessionData);
+
+      if(ls == null)
+      {
+        UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), this.Session.SessionData, null, "", DateTime.Now, DateTime.Now);
+        uhr.Insert();
+
+        ls = new LookupSession(-1, Guid.NewGuid(), LookupSessionStatus.Complete, this.Session.SessionData, uhr, null, string.Empty, DateTime.Now, DateTime.Now);
+        ls.Insert();
+      }
+
+      MobileOperator portugalUnknownOperator = MobileOperator.CreateManager().Load(389);
+      LookupSessionResult lsr = new LookupSessionResult(-1, ls, true, true, Guid.Empty, portugalUnknownOperator, string.Empty, string.Empty, DateTime.Now, DateTime.Now);
+      lsr.Insert();
+
+      if(this.Session.SessionData.Customer == null)
+      {
+        this.Session.SessionData.Customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Active, this.Session.SessionData.Service,
+          this.Session.SessionData.Service.FallbackCountry, portugalUnknownOperator, null, string.Empty, string.Empty, "",
+          null, DateTime.Now, DateTime.Now);
+        this.Session.SessionData.Customer.Insert();
+        this.Session.SessionData.Customer.SetUsernameAndPassword();
+      }
+
+      this.Session.SessionData.MobileOperator = portugalUnknownOperator;
+      this.Session.SessionData.Update();
+
+      this.Session.SessionData.Customer.MobileOperator = portugalUnknownOperator;
+      this.Session.SessionData.Customer.Update();
+
+      return lsr;
+    }
+
+  }
+}

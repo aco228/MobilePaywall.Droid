@@ -1,0 +1,217 @@
+﻿@{
+  MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+  Client client = PaywallHttpContext.Current.ClientSession.Client;
+  bool isMerchant = client.ClientType.Name.Equals("Merchant") || client.ClientType.Name.Equals("MerchantUser");
+}
+
+<!-- BEGIN PAGE HEADER-->
+<div class="page-bar">
+  <ul class="page-breadcrumb">
+    <li>
+      <i class="icon-bar-chart"></i>
+      <a href="javascript:;">Statistics</a>
+      <i class="fa fa-angle-right"></i>
+    </li>
+    <li>
+      <a href="#">@ViewBag.Title</a>
+    </li>
+  </ul>
+  <div class="page-toolbar">
+    <div id="dashboard-report-range" class="tooltips btn btn-sm btn-default" data-container="body" data-placement="bottom" data-original-title="Change statistics date range">
+      <i class="icon-calendar"></i>&nbsp; <span class="thin uppercase visible-lg-inline-block"></span>&nbsp; <i class="fa fa-angle-down"></i>
+    </div>
+  </div>
+</div>
+@*<div class="row statistics-header">
+    <div class="col-xs-offset-6 col-xs-6 calendar">
+      <div id="dashboard-report-range" class="tooltips btn btn-sm btn-default" data-container="body" data-placement="bottom" data-original-title="Change statistics date range">
+        <i class="icon-calendar"></i>&nbsp; <span class="thin uppercase visible-lg-inline-block"></span>&nbsp; <i class="fa fa-angle-down"></i>
+      </div>
+    </div>
+  </div>*@
+
+<!-- END PAGE HEADER-->
+<div class="statistics-wrapper">
+  <div class="row filters">
+    <div class="col-md-10">
+      <div class="row">
+        @if (!isMerchant)
+        {
+          <div class="col-sm-6 col-md-4 col-lg-4 filter">
+            @Html.DropDownList("Instance", MerchantHelper.SupportedInstances, new { id = "select_instance", @class = "form-control select2", placeholder = "Instance", multiple = "multiple" })
+          </div>
+        }
+        <div class="col-sm-6 col-md-4 col-lg-4 filter">
+          <select id="select_merchant" class="form-control select2" placeholder="Merchant" multiple>
+            @foreach (KeyValuePair<int, List<Merchant>> kv in runtime.InstanceMerchantMap)
+            {
+              Instance instance = runtime.GetInstanceByID(kv.Key);
+              if (client.SupportedInstances().Contains(instance))
+              {
+                <optgroup value="@kv.Key" label="@instance.Name">
+                  @foreach (Merchant merchant in kv.Value)
+                  {
+                    if (client.SupportedMerchants().Contains(merchant))
+                    {
+                      <option value="@merchant.ID">@merchant.Name</option>
+                    }
+                  }
+                </optgroup>
+              }
+            }
+          </select>
+        </div>
+        <div class="col-sm-6 col-md-4 col-lg-4 filter">
+          @*@Html.DropDownList("Service", MerchantHelper.AllowedServicesGroupedByMerchant, new { id = "select_service", @class = "form-control select2", multiple = "multiple"})*@
+          <select id="select_service" class="form-control select2" multiple>
+            @foreach (KeyValuePair<int, List<IService>> kv in runtime.MerchantServiceMap)
+            {
+              Merchant merchant = runtime.GetMerchantByID(kv.Key);
+              if (client.SupportedMerchants().Contains(merchant))
+              {
+                <optgroup value="@kv.Key" label="@merchant.Name">
+                  @foreach (IService service in kv.Value)
+                  {
+                    if (client.AllowedServices.Values.Contains(service.ServiceData))
+                    {
+                      <option value="@service.ServiceData.ID">@service.ServiceData.Name</option>
+                    }
+                  }
+                </optgroup>
+              }
+            }
+          </select>
+        </div>
+        <div class="col-sm-6 col-md-4 col-lg-4 filter">
+          <select id="select_provider" class="form-control select2" multiple>
+            @foreach (PaymentProvider provider in runtime.Providers)
+            {
+              <option value="@provider.ID">@provider.Name</option>
+            }
+          </select>
+        </div>
+        <div class="col-sm-6 col-md-4 col-lg-4 filter">
+          <select id="select_country" class="form-control select2" multiple>
+            @foreach (Country country in runtime.Countries)
+            {
+              <option value="@country.ID" data-ccode="@country.CountryCode">@country.GlobalName</option>
+            }
+          </select>
+        </div>
+        <div class="col-sm-6 col-md-4 col-lg-4 filter">
+          <select id="select_operator" class="form-control select2" multiple>
+            @foreach (KeyValuePair<int, List<MobileOperator>> kv in runtime.CountryOperatorMap)
+            {
+              <optgroup value="@kv.Key" label="@runtime.GetCountryByID(kv.Key).GlobalName">
+
+                @foreach (MobileOperator mobileOperator in kv.Value)
+                {
+                  <option value="@mobileOperator.ID">@mobileOperator.Name</option>
+                }
+              </optgroup>
+            }
+          </select>
+        </div>
+        @if (isMerchant)
+        {
+          <div class="col-sm-6 col-md-4 col-lg-4 filter" id="search_by">
+            <input id="search" class="form-control col-lg-6" placeholder="Referrer" />
+          </div>
+        }
+      </div>
+    </div>
+    <div class="col-md-2">
+      <div class="row">
+        @{string colClass = !isMerchant ? "col-sm-6 col-md-6 col-lg-6 " : "col-sm-6 col-md-12 col-lg-12 ";}
+        <div class="@colClass group-by" id="group-by">
+          <select class="bs-select form-control" id="bs-select-group" data-none-selected-text="Group" multiple>
+            @foreach (string group in Enum.GetNames(typeof(Group)))
+            {
+              int groupID = (int)(Group)Enum.Parse(typeof(Group), group);
+              if (groupID != 0)
+              {
+                <option value="@groupID" @(ViewBag.Page.Equals("revenue") && (group.Equals("Service") || group.Equals("Operator")) ? "selected = true" : "")>@group</option>
+              }
+            }
+          </select>
+        </div>
+        <div class="@colClass show-by" id="bs-select-showby">
+          <select class="bs-select form-control" id="bs-select-show" data-none-selected-text="Split">
+            @foreach (string split in Enum.GetNames(typeof(Split)))
+            {
+              int splitID = (int)(Split)Enum.Parse(typeof(Split), split);
+              <option value="@splitID">@split</option>
+            }
+          </select>
+        </div>
+        @if (!isMerchant)
+        {
+          <div class="col-sm-12 filter" id="search_by">
+            <input id="search" class="form-control col-lg-6" placeholder="Referrer" />
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+  <div id="mptable">
+    <div class="col-md-12">
+      <div class="row">
+        <div class="portlet box blue-steel statistics-table">
+          <div class="portlet-title" id="mptable-portlet-title">
+            @*<div class="caption">
+                  <i class="fa fa-globe"></i>Table Title
+              </div>*@
+            <div id="statistics_table_controls" class="actions">
+              <div id="table_export" class="btn-group">
+                <button class="btn btn-default dropdown-toggle" data-toggle="dropdown">Tools <i class="fa fa-angle-down"></i></button>
+                <div id="table_export_btns" class="dropdown-menu">
+                </div>
+              </div>
+              <div id="column_picker" class="btn-group">
+                <a class="btn btn-default" href="javascript:;" data-toggle="dropdown">
+                  Columns <i class="fa fa-angle-down"></i>
+                </a>
+                <div id="statistics_table_column_toggler" class="dropdown-menu hold-on-click dropdown-checkboxes pull-right">
+                </div>
+              </div>
+              @*<button id="save_filters_btn" class="btn btn-default" style="cursor: pointer;" data-toggle="popover" data-placement="auto">Save</button>*@
+              <div id="popover_content_wrapper">
+                <input id="save_filters_name" placeholder="Name" />
+                <button id="filters_save">Save</button>
+                <button id="filters_cancel">Cancel</button>
+              </div>
+
+              <button id="reset_btn" class="btn btn-default" style="cursor: pointer;">Reset</button>
+              <button id="refresh_btn" class="btn btn-default" data-page="@ViewBag.Page" style="cursor: pointer;">Refresh</button>
+            </div>
+          </div>
+          <div class="portlet-body" id="mptable-portlet-body">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="clearfix">
+  </div>
+</div>
+
+@section PageStyles{
+  @Styles.Render("~/pages/statistic/css")
+}
+
+
+@section PageScripts{
+  @Scripts.Render("~/pages/statistic/js")
+}
+
+
+@section CustomScripts {
+  <script>
+    var page = '@ViewBag.Page';
+  </script>
+  <script src="~/Scripts/metronic/global/plugins/money/money.js"></script>
+  <script src="~/Scripts/metronic/pages/custom/statistic.js"></script>
+}
+
+
+

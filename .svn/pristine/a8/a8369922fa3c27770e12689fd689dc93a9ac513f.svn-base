@@ -1,0 +1,1000 @@
+﻿var ServiceTask = function () {
+
+  return {
+    //main function to initiate the module
+    init: function (clientType, configureAccess, taskAction) {
+
+      var componentAccess = configureAccess == "True" ? true : false;
+
+      hideInputs(clientType);
+      updateContentGroupsDropdown($('#content_group_type').select2('val'));
+
+      $('.readonly').attr('readonly', 'readonly');
+
+      $('.delete-last').last().remove();
+
+      $('#btnCancelEdit').click(function () {
+        window.location.href = '/tasks';
+      });
+
+      //if ($('#content_group_type').select2('val') == null || $('#content_group_type').select2('val') == "")
+      //  $('#content_groups optgroup').addClass('hidden');
+
+      $('#content_group_type').change(function () {
+        $('#content_groups').select2('val', '');
+        var selectedType = $(this).select2('val');
+        updateContentGroupsDropdown(selectedType);
+      });
+
+      function updateContentGroupsDropdown(selectedType) {
+        $('#content_groups optgroup').addClass('hidden');
+        if (selectedType != null && selectedType != "") {
+          $.ajax({
+            url: '/task/content-group-type',
+            method: 'POST',
+            cache: false,
+            data: {
+              typeID: selectedType
+            },
+            success: function (response) {
+              $('#content_groups optgroup[label="' + response + '"]').removeClass('hidden');
+            },
+            error: function (ex) {
+              alert('Failed to load Content Group Type name.');
+            }
+          });
+        }
+      }
+
+      if (taskAction == 'Edit') {
+        $('#tab3 .configuration-body').each(function () {
+          var element = $(this).find('.payment-name');
+          var paymentInterface = $(this).find('.payment-interface').select2('data') != null ? $(this).find('.payment-interface').select2('data').text : '';
+          var paymentProvider = $(this).find('.payment-provider').select2('data') != null ? $(this).find('.payment-provider').select2('data').text : '';
+          var product = $(this).find('.pc-product').select2('data') != null ? $(this).find('.pc-product').select2('data').text : '';
+
+          paymentConfigName(element, paymentInterface, paymentProvider, product);
+        });
+      }
+
+      //select template based on selected merchant
+      $('#merchant_template').change(function () {
+        if ($('#template').select2('val') == '' || $('#template').select2('val') == null)
+          $('#template').select2('val', $('#merchant_template').select2('val'));
+      });
+      //$('#merchant').change(function () {
+      //  if ($('#template').select2('val') == '' || $('#template').select2('val') == null) {
+      //    updateFormFields($('#merchant'), $('#template'), 'merchant');
+      //  }
+      //});
+
+      //adding new merchant
+      $('#add_new_merchant_btn').click(function (event) {
+        event.preventDefault();
+        $('#merchant_choose, #merchant_add, .merchant-section-header').toggleClass('hidden');
+        $('#merchant').rules('remove', 'required');
+        $('#merchant').val('').change();
+
+        $('#merchant_name').rules('add', 'required');
+        $('#merchant_address').rules('add', 'required');
+        $('#merchant_email').rules('add', 'required');
+        $('#merchant_instance').rules('add', 'required');
+        $('#merchant_template').val('').change();
+        $('#merchant_instance').val('1').change(); //set to default instance
+      });
+
+      $('#choose_merchant_btn').click(function (event) {
+        event.preventDefault();
+        $('#merchant_choose, #merchant_add, .merchant-section-header').toggleClass('hidden');
+        $('#merchant_add input').val('');
+
+        $('#merchant').rules('add', 'required');
+        $('#merchant').val('').change();
+
+        $('#merchant_name').rules('remove', 'required');
+        $('#merchant_address').rules('remove', 'required');
+        $('#merchant_email').rules('remove', 'required');
+        $('#merchant_instance').rules('remove', 'required');
+        $('#merchant_template, #merchant_instance').val('').change();
+      });
+
+      //change service offer name
+      $('#name').change(function () {
+        $('.offer-name').val('VOD Unlimited - ' + $(this).val());
+      });
+
+
+      //select language based on selected country
+      $('#fallback_country').change(function () {
+        //if ($('#fallback_language').select2('val') == '' || $('#fallback_language').select2('val') == null) {
+        updateFormFields($('#fallback_country'), $('#fallback_language'), 'country');
+        //}
+      });
+
+      //select language based on selected country
+      //$('#tab2').on('change', '.sce-country', function () {
+      //  updateFormFields($(this), $(this).parents('.country-block').find('.sce-language'), 'country');
+      //});
+
+      //Add domain
+      var domainIdIndex = $('div.domains .form-group').length;
+      $('#add_domain_btn').on('click', function (event) {
+        event.preventDefault();
+        var index = $('div.domains .form-group').length;
+
+        $('div.domains .form-group:first').clone().removeClass('has-error has-success')
+          .find('input:text').val('').end()
+          .find('input:hidden').val('').end()
+          .insertAfter('div.domains .form-group:last')
+          .find('input.domain').each(function () {
+            $(this).attr('id', 'domain' + domainIdIndex);
+            $(this).attr('name', 'TemporaryData.Domains[' + index + '].DomainName');
+            $(this).removeAttr('aria-describedby aria-required aria-invalid');
+          }).end()
+          .find('input.domain-id').each(function () {
+            $(this).attr('id', 'domainID' + domainIdIndex);
+            $(this).attr('name', 'TemporaryData.Domains[' + index + '].DomainID');
+          }).end()
+          .find('label.control-label').each(function () { $(this).text('Domain Name ' + domainIdIndex) }).end()
+          .find('span.required, span.help-block-error').remove().end();
+
+        var domainId = '#domain' + domainIdIndex;
+
+        //adding validation rules
+        addValidationRulesToDomain(domainId);
+
+        domainIdIndex++;
+      });
+
+      $('#tab1 .domain').each(function () {
+        addValidationRulesToDomain($(this));
+      });
+
+      function addValidationRulesToDomain(domainId) {
+        $(domainId).rules('add', {
+          required: true,
+          remote: {
+            url: '/task/domaincheck',
+            method: 'POST',
+            data: {
+              domainName: function () {
+                return $(domainId).val();
+              },
+              serviceID: function () {
+                return $('#service_id').val();
+              }
+            }
+          },
+          checkDomain: true,
+          messages: {
+            required: 'Enter domain name or remove this field',
+            remote: 'This domain already exists in database'
+          }
+        });
+      }
+
+      //remove domain
+      $('.domains').on('click', '.remove-domain-btn', function (event) {
+        event.preventDefault();
+        domain = $(this);
+        if ($('.domains .domain').length == 1) {
+          bootbox.alert('One domain must always exist', function () { });
+          return;
+        }
+
+        if (taskAction == 'Edit')
+          bootbox.confirm("Are you sure you want to delete this domain?", function (result) {
+            if (result == true) {
+              $(domain).parent().parent().remove();
+            }
+          });
+        else
+          $(domain).parent().parent().remove();
+
+        var index = 0;
+        $('.domain-container').each(function () {
+          $(this).find('.domain-id').attr('name', replaceIndex($(this).find('.domain-id').attr('name'), 'Domains', index));
+          $(this).find('.domain').attr('name', replaceIndex($(this).find('.domain').attr('name'), 'Domains', index));
+          index++;
+        });
+      });
+
+
+      //update payment configuration name when service name or fallback country is changed
+      $('#tab1').on('change', '.update-pc-name', function () {
+        $('#tab3 .configuration-body').each(function () {
+          var element = $(this).find('.payment-name');
+          var paymentInterface = $(this).find('.payment-interface').select2('data') != null ? $(this).find('.payment-interface').select2('data').text : '';
+          var paymentProvider = $(this).find('.payment-provider').select2('data') != null ? $(this).find('.payment-provider').select2('data').text : '';
+          var product = $(this).find('.pc-product').select2('data') != null ? $(this).find('.pc-product').select2('data').text : '';
+
+          paymentConfigName(element, paymentInterface, paymentProvider, product);
+        });
+      });
+
+      //Add mobile operator specific service configuration entry
+      var specificIdIndexes = []; //array to keep track of counters for every individual country block
+      var j = 0;
+      $('.country-block').each(function () {
+        specificIdIndexes[j] = $('#country_block' + j + ' .service-configuration-entry').length;
+        addSpecificConfigEntry(j);
+        j++;
+      });
+
+      //Add country block (service configuration entry)
+      var countryBlockIdIndex = $('.country-block').length;
+      $('#add_country_block').click(function (event) {
+        event.preventDefault();
+        var index = $('.country-block').length;
+
+        $.uniform.restore('.service-configuration-entry .radio-btn');
+        var original = $('.service-configuration-entry').find('input:checked');
+
+        $('#country_block0').clone()
+          .insertBefore('#add_country_block')
+          .find('input:text').val('').end()
+          .find('.country-block-header').addClass('no-country').end()
+          .find('.country-block-header .country-name').html('').end()
+          .find('#sce_country0 option').removeAttr('selected').end()
+          .find('div.specific-service-config-entry, div.select2-container, span.help-block-error').remove().end()
+          //.find('.remove-country-block').show().end()
+          .find('#sce_id0').val('').end()
+          .find('*[id]').andSelf().each(function () {
+            $(this).attr('id', $(this).attr('id').slice(0, -1) + countryBlockIdIndex);
+            if ($(this).attr('name') && $(this).attr('name').search('TemporaryData.ServiceConfigurationEntryMaps') != -1)
+              $(this).attr('name', $(this).attr('name').replace('ServiceConfigurationEntryMaps[0]', 'ServiceConfigurationEntryMaps[' + index + ']'));
+            $(this).removeAttr('aria-describedby aria-required aria-invalid');
+          })
+          .find('div.offer:first').each(function () {
+            $(this).find('*[id]').each(function () { $(this).attr('id', $(this).attr('id').replace('0_' + index, index + '_0')); });
+          }).end()
+          .find('.has-error, .has-success').removeClass('has-error has-success').end();
+
+        //adding validation rules
+        addValidationRulesToCountryBlock(clientType, countryBlockIdIndex);
+
+        $('.form-control.select2').not('.select2-container').select2({
+          placeholder: "Select",
+          allowClear: true,
+          escapeMarkup: function (m) {
+            return m;
+          }
+        });
+
+        if (original.length > 0) {
+          $.each(original, function (key, value) {
+            $(value).prop('checked', true);
+          });
+        }
+        $('.service-configuration-entry .radio-btn').uniform();
+        addSpecificConfigEntry(countryBlockIdIndex);
+        specificIdIndexes[countryBlockIdIndex] = 1;
+        countryBlockIdIndex++;
+      });
+
+      //add validation rules to all country blocks
+      $('#tab2 .country-block').each(function () {
+        var countryBlockIdIndex = $(this).data('index');
+        addValidationRulesToCountryBlock(clientType, countryBlockIdIndex);
+
+        $(this).find('.specific-service-config-entry').each(function () {
+          sceIndex = $(this).data('index');
+          addValidationRulesToServiceConfigurationEntry(clientType, countryBlockIdIndex, sceIndex);
+        });
+      });
+
+
+      function addValidationRulesToCountryBlock(userType, countryBlockIdIndex) {
+        $('#sce_country' + countryBlockIdIndex).rules('add', {
+          required: (userType == 'Administrator') ? true : false,
+          checkCountryBlock: true
+        });
+        $('#lookup_mode' + countryBlockIdIndex).rules('add', {
+          required: (userType == 'Administrator') ? true : false,
+          notEqual: "Unknown"
+        });
+        $('#short_message_provider' + countryBlockIdIndex).rules('add', { required: (userType == 'Administrator') ? true : false });
+        $('#age_verification_mode' + countryBlockIdIndex).rules('add', {
+          required: (userType == 'Administrator') ? true : false,
+          notEqual: "Unknown"
+        });
+
+        $('#iavr' + countryBlockIdIndex).rules('add', { required: (userType == 'Administrator') ? true : false });
+        $('#sce_age_rating' + countryBlockIdIndex).rules('add', { required: (userType == 'Administrator') ? true : false });
+        $('#sce_age_rating_selection_mode' + countryBlockIdIndex).rules('add', {
+          required: (userType == 'Administrator') ? true : false
+          //,notEqual: "Unknown"
+        });
+        $('#iwpr' + countryBlockIdIndex).rules('add', { required: (userType == 'Administrator') ? true : false });
+        $('#ipe' + countryBlockIdIndex).rules('add', { required: (userType == 'Administrator') ? true : false });
+      }
+
+      //remove service configuration entry
+      $('#tab2').on('click', '.remove-service-config-entry', function (event) {
+        event.preventDefault();
+        var entry = $(this);
+
+        if (taskAction == 'Edit')
+          bootbox.confirm("Are you sure you want to delete this service configuration entry?", function (result) {
+            if (result == true) {
+              removeServiceConfigEntry(entry);
+            }
+          });
+        else
+          removeServiceConfigEntry(entry);
+      });
+
+      //remove country block
+      $('#tab2').on('click', '.remove-country-block', function (event) {
+        event.preventDefault();
+        var countryBlock = $(this);
+
+        if ($('#tab2 .country-block').length == 1) {
+          bootbox.alert('At least one country block must exist', function () { });
+          return;
+        }
+
+        bootbox.confirm("Are you sure you want to delete this?", function (result) {
+          if (result == true)
+            removeCountryBlock(countryBlock);
+        });
+      });
+
+      $('#tab2').on('change', '.sce-country', function () {
+        var label = $(this).find('option[value="' + $(this).val() + '"]').text();
+        $(this).parents('.country-block-body').find('.specific-entry-container').each(function () {
+          $(this).find('.sce-operator').each(function () {
+            $(this).select2('val', '');
+            change(label, '#' + $(this).attr('id'));
+          })
+        });
+
+        $(this).parents('.country-block').find('.country-block-header').each(function () {
+          if (label != null && label != '') {
+            $(this).removeClass('no-country');
+            $(this).find('.country-name').html(label);
+          } else {
+            $(this).addClass('no-country');
+            $(this).find('.country-name').html('');
+          }
+        });
+      });
+
+      //Add new service offer
+      var offerIdIndexes = []; //array to keep track of counters for every individual payment configuration
+      var i = 0;
+      $('.configuration').each(function () {
+        offerIdIndexes[i] = $('#payment_config' + i + ' .offer').length;
+        addOffer(i);
+        i++;
+      });
+
+      //remove service offer
+      $('#tab3').on('click', '.remove-service-offer', function (event) {
+        event.preventDefault();
+        var offer = $(this);
+
+        if (offer.parents('.configuration').find('.offer').length == 1) {
+          bootbox.alert('At least one service offer must exist', function () { });
+          return;
+        }
+
+        bootbox.confirm("Are you sure you want to delete this offer?", function (result) {
+          if (result == true)
+            removeServiceOffer(offer);
+        });
+      });
+
+      //Add new payment configuration
+      var paymentConfigIdIndex = $('.configuration').length;
+      $('#add_payment_config').click(function (event) {
+        event.preventDefault();
+        var index = $('.configuration').length;
+
+        $.uniform.restore('.configuration-body .radio-btn');
+        var original = $('.configuration-body').find('input:checked');
+
+        $('#payment_config0').clone()
+          //.prepend('<a href="" class="remove-payment-config tooltips" data-container="body" data-placement="top" data-original-title="Remove"></a>')
+          .insertBefore('#add_payment_config')
+          .find('input:hidden').val('').end()
+          .find('input:text').val('').end()
+          .find('#external_behavior_model0').val('00000000-0000-0000-0000-000000000000').end()
+          .find('div.offer:not(:first), div.select2-container, span.help-block-error').remove().end()
+          .find('*[id]').andSelf().each(function () {
+            $(this).attr('id', $(this).attr('id').slice(0, -1) + paymentConfigIdIndex);
+            if ($(this).attr('name') && $(this).attr('name').search('TemporaryData.PaymentConfigurationServiceOffersMaps') != -1)
+              $(this).attr('name', $(this).attr('name').replace('PaymentConfigurationServiceOffersMaps[0]', 'PaymentConfigurationServiceOffersMaps[' + index + ']'));
+            $(this).removeAttr('aria-describedby aria-required aria-invalid');
+          })
+          .find('div.offer:first').each(function () {
+            $(this).find('*[id]').each(function () { $(this).attr('id', $(this).attr('id').replace('0_' + paymentConfigIdIndex, paymentConfigIdIndex + '_0')); });
+          }).end()
+          .find('.has-error, .has-success').removeClass('has-error has-success').end();
+
+        //adding validation rules
+        var userType = clientType;
+        addValidationRulersToPaymentConfiguration(userType, paymentConfigIdIndex)
+
+
+        $('.form-control.select2').not('.select2-container').select2({
+          placeholder: "Select",
+          allowClear: true,
+          escapeMarkup: function (m) {
+            return m;
+          }
+        });
+
+        if (original.length > 0) {
+          $.each(original, function (key, value) {
+            $(value).prop('checked', true);
+          });
+        }
+        $('.configuration-body .radio-btn').uniform();
+
+        ComponentsPickers.init();
+        addOffer(paymentConfigIdIndex, clientType);
+        offerIdIndexes[paymentConfigIdIndex] = 1;
+        paymentConfigIdIndex++;
+      });
+
+      function addValidationRulersToPaymentConfiguration(userType, paymentConfigIdIndex) {
+        $('#payment_provider' + paymentConfigIdIndex).rules('add', { required: true });
+        $('#payment_credentials' + paymentConfigIdIndex).rules('add', { required: (userType == 'Administrator') ? true : false });
+        $('#payment_interface' + paymentConfigIdIndex).rules('add', { required: true });
+        $('#payment_type' + paymentConfigIdIndex).rules('add', {
+          required: (userType == 'Administrator') ? true : false,
+          notEqual: "Unknown"
+        });
+        $('#pc_product' + paymentConfigIdIndex).rules('add', { required: (userType == 'Administrator') ? true : false });
+        $('#behavior_model_name' + paymentConfigIdIndex).rules('add', { required: (userType == 'Administrator') ? true : false });
+        $('#external_behavior_model' + paymentConfigIdIndex).rules('add', { required: (userType == 'Administrator') ? true : false });
+        $('#temporary_setup_access_mode' + paymentConfigIdIndex + '_0').rules('add', { required: (userType == 'Administrator') ? true : false });
+        $('#temp_acc_in_sec' + paymentConfigIdIndex + '_0').rules('add', { required: (userType == 'Administrator') ? true : false });
+        $('#is_default' + paymentConfigIdIndex + '_0').rules('add', { required: true });
+        $('#is_active' + paymentConfigIdIndex + '_0').rules('add', { required: true });
+        $('#business_model' + paymentConfigIdIndex + '_0').rules('add', { required: true });
+        $('#business_model_entry' + paymentConfigIdIndex + '_0').rules('add', { required: true });
+      }
+
+      //add validation rules to all payment configurations
+      $('#tab3 .configuration').each(function () {
+        var paymentConfigIdIndex = $(this).data('index');
+        addValidationRulersToPaymentConfiguration(clientType, paymentConfigIdIndex);
+
+        $(this).find('.offer').each(function () {
+          offerIdIndex = $(this).data('index');
+          addValidationRulesToServiceOffer(clientType, paymentConfigIdIndex, offerIdIndex);
+        });
+      });
+
+
+      //remove payment configuration
+      $('#tab3').on('click', '.remove-payment-config', function (event) {
+        event.preventDefault();
+        var paymentConfigRemove = $(this);
+
+        if ($('#tab3 .configuration').length == 1) {
+          bootbox.alert('At least one payment configuration must exist', function () { });
+          return;
+        }
+
+        bootbox.confirm("Are you sure you want to delete this payment configuration?", function (result) {
+          if (result == true)
+            removePaymentConfig(paymentConfigRemove);
+        });
+      });
+
+      //Update payment configuration name
+      $('#tab3').on('change', '.update-pc-name', function () {
+        var parent = $(this).parents('.configuration-body');
+        var paymentConfigNameElem = parent.find('.payment-name');
+        var paymentInterface = parent.find('.payment-interface').select2('data') != null ? parent.find('.payment-interface').select2('data').text : '';
+        var paymentProvider = parent.find('.payment-provider').select2('data') != null ? parent.find('.payment-provider').select2('data').text : '';
+        var product = parent.find('.pc-product').select2('data') != null ? parent.find('.pc-product').select2('data').text : '';
+
+        paymentConfigName(paymentConfigNameElem, paymentInterface, paymentProvider, product);
+      });
+
+      //validate service offer on business model or business model entry change
+      $('#tab3').on('change', '.checkOffer', function () {
+        $(this).parents('.offer').find('select.checkOffer').valid();
+        $(this).valid();
+      });
+
+      //only one service offer can be active at a time
+      $('#tab3').on('change', '.radio-is-active', function () {
+        if ($(this).attr('data-title') == 'Yes') {
+          var bme = $(this).parents('.offer').find('.business-model-entry').select2('val');
+
+          $('#tab3').find('.offer .radio-is-active').not('#' + $(this).attr('id')).each(function () {
+            if ($(this).parents('.offer').find('.business-model-entry').select2('val') == bme) {
+              $.uniform.restore($(this));
+
+              if ($(this).attr('data-title') == 'No')
+                $(this).prop('checked', true);
+              else if ($(this).attr('data-title') == 'Yes')
+                $(this).prop('checked', false);
+
+              $(this).uniform();
+            }
+          });
+        }
+      });
+
+      //only one service offer can be default for one country
+      $('#tab3').on('change', '.radio-is-default', function () {
+        if ($(this).attr('data-title') == 'Yes') {
+          var bme = $(this).parents('.offer').find('.business-model-entry').select2('val');
+
+          $('#tab3').find('.offer .radio-is-default').not('#' + $(this).attr('id')).each(function () {
+            if ($(this).parents('.offer').find('.business-model-entry').select2('val') == bme) {
+              $.uniform.restore($(this));
+
+              if ($(this).attr('data-title') == 'No')
+                $(this).prop('checked', true);
+              else if ($(this).attr('data-title') == 'Yes')
+                $(this).prop('checked', false);
+
+              $(this).uniform();
+            }
+          });
+        }
+      });
+
+      //Add service lookup method map
+      var lookupIdIndex = $('div.lookup-method-map').length;
+      $('#add_lookup_method_map').on('click', function (event) {
+        event.preventDefault();
+        var index = $('div.lookup-method-map').length;
+
+        $('div.lookup-method-map:first').clone()
+          .insertAfter('div.lookup-method-map:last')
+          .find('div.select2-container, span.help-block-error').remove().end()
+          .find('input:hidden').val('').end()
+          .find('select.select2 option').removeAttr('selected').end()
+          .find('*[id]').each(function () {
+            $(this).attr('id', $(this).attr('id').slice(0, -1) + lookupIdIndex);
+            if ($(this).attr('name') && $(this).attr('name').search('TemporaryData.ServiceLookupMethodMaps') != -1)
+              $(this).attr('name', $(this).attr('name').replace('ServiceLookupMethodMaps[0]', 'ServiceLookupMethodMaps[' + index + ']'));
+            $(this).removeAttr('aria-describedby aria-required aria-invalid');
+          }).end()
+          .find('.has-error, .has-success').removeClass('has-error has-success').end();
+        //.find('div.lookup-method-map').andSelf().prepend('<a href="" class="remove-lookup-method-map tooltips" data-container="body" data-placement="top" data-original-title="Remove"></a>');
+
+        //adding validation rules     
+        addValidationRulesToServiceLookupMethodMap(lookupIdIndex);
+        lookupIdIndex++;
+
+        $('.form-control.select2').not('.select2-container').select2({
+          placeholder: "Select",
+          allowClear: true,
+          escapeMarkup: function (m) {
+            return m;
+          }
+        });
+      });
+
+      $('#tab4 .lookup-method-map').each(function () {
+        var lookupIdIndex = $(this).data('index');
+        addValidationRulesToServiceLookupMethodMap(lookupIdIndex);
+      });
+
+      function addValidationRulesToServiceLookupMethodMap(lookupIdIndex) {
+        $('#lookup_payment_config' + lookupIdIndex).rules('add', { required: true });
+        $('#lookup_country' + lookupIdIndex).rules('add', { required: true });
+        $('#lookup_method' + lookupIdIndex).rules('add', {
+          required: true,
+          notEqual: "Unknown"
+        });
+      }
+
+
+      $('#tab4').on('click', '.remove-lookup-method-map', function (event) {
+        event.preventDefault();
+        var lookupMethodMap = $(this);
+
+        if ($('.lookup-method-map').length == 1) {
+          bootbox.alert('At least one service lookup method map must exist', function () { });
+          return;
+        }
+
+        if (taskAction == 'Edit')
+          bootbox.confirm("Are you sure you want to delete this service lookup method map?", function (result) {
+            if (result == true) {
+              removeLookupMethodMap(lookupMethodMap);
+            }
+          });
+        else
+          removeLookupMethodMap(lookupMethodMap);
+      });
+
+      //every service lookup method map on #tab4 must be different
+      $('#tab4').on('change', '.check-slmm', function (event) {
+        checkServiceLookupMethodMap($(this));
+      });
+
+      //update template|language based od selected merchant|fallbackCountry
+      function updateFormFields(selectedEl, toUpdateElement, dropdown) {
+        $.ajax({
+          url: '/task/update-fields',
+          cache: false,
+          method: 'POST',
+          data: {
+            selectedValue: selectedEl.select2('val'),
+            dropdown: dropdown
+            //merchantId: $('#merchant').select2('val'),
+            //templateId: $('#template').select2('val'),
+            //fallbackCountryId: $('#fallback_country').select2('val'),
+            //fallbackLanguageId: $('#fallback_language').select2('val')
+          },
+          success: function (response, msg) {
+            toUpdateElement.select2('val', response);
+
+            //if (($('#template').select2('val') == '' || $('#template').select2('val') == null) && response[0] != null && response[0] != -1)
+            //  $('#template').select2('val', response[0]);
+            //if (($('#fallback_language').select2('val') == '' || $('#fallback_language').select2('val') == null) && response[1] != null && response[1] != -1)
+            //  $('#fallback_language').select2('val', response[1]);
+          },
+          error: function (ex) {
+            alert('Failed to update form fields.');
+          }
+        });
+      }
+
+      function removeCountryBlock(countryBlock) {
+        countryBlock.parents('.country-block').remove();
+
+        var index = 0;
+        $('.country-block').each(function () {
+          $(this).find('*[name]').each(function () {
+            $(this).attr('name', replaceIndex($(this).attr('name'), 'ServiceConfigurationEntryMaps', index));
+
+            //if ($(this).attr('name').search('TemporaryData.ServiceConfigurationEntryMaps') != -1)
+            //  var name = $(this).attr('name');
+            //  var part1 = name.substr(0, name.indexOf('['));
+            //  var part2 = name.substr(name.indexOf(']'));
+
+            //  $(this).attr('name', part1 + '[' + index + part2);
+          });
+          index++;
+        });
+      }
+
+      function removeServiceConfigEntry(entry) {
+        var parent = entry.parents('.specific-entry-container');
+        entry.parents('.service-configuration-entry').remove();
+
+        var index = 1;
+        parent.find('.specific-service-config-entry').each(function () {
+          $(this).find('*[name]').each(function () {
+            $(this).attr('name', replaceIndex($(this).attr('name'), 'ServiceConfigurationEntryModels', index));
+          });
+          index++;
+        });
+      }
+
+      function addSpecificConfigEntry(countryBlockId) {
+        $('#add_service_config_entry' + countryBlockId).click(function (event) {
+          event.preventDefault();
+          var index = $('#country_block' + countryBlockId + ' .service-configuration-entry').length;
+
+          $.uniform.restore('.country-block .radio-btn');
+          var original = $('#country_block' + countryBlockId + ' .default-config-entry:first').find('input:checked');
+
+          $('#country_block' + countryBlockId + ' .default-config-entry:first').clone().removeClass('default-config-entry').addClass('specific-service-config-entry')
+            .prepend('<a href="" class="remove-service-config-entry tooltips" data-container="body" data-placement="top" data-original-title="Remove"></a>')
+            .insertBefore('#add_service_config_entry' + countryBlockId)
+            .find('div.select2-container, .form-section, span.help-block-error').remove().end()
+            .find('.operator-hidden').show().end()
+            .find('input:hidden').val('').end()
+            .find('select').removeAttr('disabled').end()
+            .find('.has-error, .has-success').removeClass('has-error has-success').end()
+            .find('#sce_id' + countryBlockId).val('').end()
+            .find('*[id]').andSelf().each(function () {
+              $(this).attr('id', $(this).attr('id') + '_' + specificIdIndexes[countryBlockId]);
+              if ($(this).attr('name') && $(this).attr('name').search('TemporaryData.ServiceConfigurationEntryMaps') != -1)
+                $(this).attr('name', $(this).attr('name').replace('ServiceConfigurationEntryModels[0]', 'ServiceConfigurationEntryModels[' + index + ']'));
+              if ($(this).attr('type') == 'radio')
+                $(this).prop('checked', false);
+              $(this).removeAttr('aria-describedby aria-required aria-invalid');
+            }).end();
+
+          //adding validation rules
+          var userType = clientType;
+          addValidationRulesToServiceConfigurationEntry(userType, countryBlockId, specificIdIndexes[countryBlockId]);
+
+
+          $('.form-control.select2').not('.select2-container').select2({
+            placeholder: "Select",
+            allowClear: true,
+            escapeMarkup: function (m) {
+              return m;
+            }
+          });
+
+          if (original.length > 0) {
+            $.each(original, function (key, value) {
+              $(value).prop('checked', true);
+            });
+          }
+          $('.country-block .radio-btn').uniform();
+
+          var label = $('#sce_country' + countryBlockId).find('option[value="' + $('#sce_country' + countryBlockId).val() + '"]').text();
+          change(label, '#sce_operator' + countryBlockId + '_' + specificIdIndexes[countryBlockId]);
+
+          specificIdIndexes[countryBlockId]++;
+        });
+      }
+
+      function addValidationRulesToServiceConfigurationEntry(userType, countryBlockId, sceIndex) {
+        $('#sce_operator' + countryBlockId + '_' + sceIndex).rules('add', {
+          required: (userType == 'Administrator') ? true : false,
+          checkMobileOperatorSpecific: true
+        });
+        $('#iavr' + countryBlockId + '_' + sceIndex).rules('add', { required: (userType == 'Administrator') ? true : false });
+        $('#sce_age_rating' + countryBlockId + '_' + sceIndex).rules('add', { required: (userType == 'Administrator') ? true : false });
+        $('#sce_age_rating_selection_mode' + countryBlockId + '_' + sceIndex).rules('add', {
+          required: (userType == 'Administrator') ? true : false,
+          notEqual: "Unknown"
+        });
+        $('#iwpr' + countryBlockId + '_' + sceIndex).rules('add', { required: (userType == 'Administrator') ? true : false });
+        $('#ipe' + countryBlockId + '_' + sceIndex).rules('add', { required: (userType == 'Administrator') ? true : false });
+      }
+
+      function addOffer(configNo, clientType) {
+        $('#add_service_offer' + configNo).click(function (event) {
+          event.preventDefault();
+          var index = $('#payment_config' + configNo + ' .offer').length;
+
+          $.uniform.restore('.configuration-body .radio-btn');
+          var original = $('.configuration-body').find('input:checked');
+
+          $('#payment_config' + configNo + ' .offer:first').clone().insertBefore(this)
+            .find('.radio-is-active[value="False"]').prop('checked', 'checked').end()
+            .find('.radio-is-default[value="False"]').prop('checked', 'checked').end()
+            .find('div.select2-container, span.help-block-error').remove().end()
+            .find('input:hidden').val('').end()
+            .find('*[id]').each(function () {
+              $(this).attr('id', $(this).attr('id').slice(0, -1) + offerIdIndexes[configNo]).val('');
+              if ($(this).attr('name') && $(this).attr('name').search('TemporaryData') != -1)
+                $(this).attr('name', $(this).attr('name').replace('ServiceOffers[0]', 'ServiceOffers[' + index + ']'));
+              $(this).removeAttr('aria-describedby aria-required aria-invalid');
+            }).end()
+            .find('.has-error, .has-success').removeClass('has-error has-success').end()
+            .find('div.offer').andSelf().prepend('<a href="" class="remove-service-offer tooltips" data-container="body" data-placement="top" data-original-title="Remove"></a>');
+
+          //adding validation rules
+          var userType = clientType;
+          addValidationRulesToServiceOffer(userType, configNo, offerIdIndexes[configNo])
+
+
+          $('.form-control.select2').not('.select2-container').select2({
+            placeholder: "Select",
+            allowClear: true,
+            escapeMarkup: function (m) {
+              return m;
+            }
+          });
+
+          if (original.length > 0) {
+            $.each(original, function (key, value) {
+              $(value).prop('checked', true);
+            });
+          }
+
+          $('#offer_name' + configNo + '_' + offerIdIndexes[configNo]).val('VOD Unlimited - ' + $('#name').val());
+
+          $('.configuration-body .radio-btn').uniform();
+          ComponentsPickers.init();
+          offerIdIndexes[configNo]++;
+        });
+      }
+
+      function addValidationRulesToServiceOffer(userType, configNo, offerIdIndex) {
+        $('#temporary_setup_access_mode' + configNo + '_' + offerIdIndex).rules('add', {
+          required: (userType == 'Administrator') ? true : false,
+          notEqual: "Unknown"
+        });
+        $('#temp_acc_in_sec' + configNo + '_' + offerIdIndex).rules('add', { required: (userType == 'Administrator') ? true : false });
+        $('#offer_name' + configNo + '_' + offerIdIndex).rules('add', { required: true });
+        $('#is_default' + configNo + '_' + offerIdIndex).rules('add', { required: true });
+        $('#business_model' + configNo + '_' + offerIdIndex).rules('add', {
+          required: true,
+          checkOffer: true
+        });
+        $('#business_model_entry' + configNo + '_' + offerIdIndex).rules('add', {
+          required: true,
+          checkOffer: true
+        });
+      }
+
+
+      function removePaymentConfig(paymentConfigRemove) {
+        pcName = paymentConfigRemove.parents('.configuration').find('.payment-name').val();
+        paymentConfigRemove.parents('.configuration').remove();
+
+        var index = 0;
+        $('.configuration').each(function () {
+          $(this).find('*[name]').each(function () {
+            $(this).attr('name', replaceIndex($(this).attr('name'), 'PaymentConfigurationServiceOffersMaps', index));
+          });
+          index++;
+        });
+
+        removePConfigDropdownOption(pcName); //remove option from Service Lookup Method Map page - Payment Configuration Dropdown
+      }
+
+      function removeServiceOffer(offer) {
+        var parent = offer.parents('.configuration');
+        offer.parents('.offer').remove();
+
+        var index = 0;
+        parent.find('.offer').each(function () {
+          $(this).find('*[name]').each(function () {
+            $(this).attr('name', replaceIndex($(this).attr('name'), 'ServiceOffers', index));
+          });
+          index++;
+        });
+      }
+
+      //on change of service name, fallback country, pay.interface, pay.provider or product, update payment configuration name 
+      function paymentConfigName(element, paymentInterface, paymentProvider, product) {
+        var fallbackCountryId = $('#fallback_country').select2('val');
+        var serviceName = $('#name').val();
+        var oldName = $(element).val();
+
+        $.ajax({
+          url: '/task/update-pconfig-name',
+          cache: false,
+          method: 'POST',
+          data: {
+            paymentInterface: paymentInterface,
+            paymentProvider: paymentProvider,
+            product: product,
+            fallbackCountryId: fallbackCountryId,
+            serviceName: serviceName
+          },
+          success: function (response) {
+            var nameExists = 0;
+            $('#tab3 .configuration-body .payment-name').not(element).each(function () {
+              nameExists = $(this).val() == response ? (nameExists + 1) : nameExists;
+            });
+
+            if (nameExists > 0)
+              response = response + '_' + nameExists;
+
+            $(element).val(response);
+            updateServiceLookupMethodMapDropdown(oldName, response);
+          },
+          error: function (ex) {
+            alert('Failed to update payment configuration name.');
+          }
+        });
+      }
+
+      //when payment configuration is deleted on #tab3 remove it from options in PaymentConfiguration Dropdown on #tab4
+      function removePConfigDropdownOption(pcName) {
+        $('#tab4 .lookup-method-map select.lookup-payment-config').each(function () {
+          var select = $(this);
+
+          if (select.select2('val') == pcName)
+            select.select2('val', '');
+
+          select.find('option[value="' + pcName + '"]').remove();
+        });
+      }
+
+      //update "Previous Tab Payment Configurations" optgroup in PaymentConfiguration Dropdown on #tab4
+      function updateServiceLookupMethodMapDropdown(oldName, newName) {
+        $('#tab4 .lookup-method-map select.lookup-payment-config').each(function () {
+          var select = $(this);
+          var selected = select.select2('val'); //save selected value      
+          var optgroup = select.find('optgroup[label="Previous Tab Payment Configurations"]');
+
+          //if optgroup already exists just update option that has changed
+          if (optgroup.length > 0) {
+            var option = optgroup.find('option[value="' + oldName + '"]'); //find option with old name. if it exists update it, else add new
+
+            if (option.length > 0) {
+              option.attr('value', newName);
+              option.html(newName);
+            }
+            else
+              optgroup.append('<option value="' + newName + '">' + newName + '</option>')
+
+            if (selected == oldName && oldName != null && oldName != '')
+              select.select2('val', newName); //update selected value if the name has changed
+          }
+            // else add new optgroup to dropdown
+          else {
+            var options = '';
+            $('#tab3 .configuration-body .payment-name').each(function () {
+              options = options.concat('<option value="' + $(this).val() + '">' + $(this).val() + '</option>');
+              select.prepend('<optgroup label = "Previous Tab Payment Configurations">' + options + '</optgroup>')
+            });
+          }
+        });
+      }
+
+      function checkServiceLookupMethodMap(element) {
+        var map = $(element).parents('.lookup-method-map');
+        var paymentConfig = map.find('select.lookup-payment-config').select2('val');
+        var country = map.find('select.lookup-country').select2('val');
+        var method = map.find('select.lookup-method').select2('val');
+
+        $(element).parents('#tab4').find('.lookup-method-map').not(map).each(function () {
+          if ($(this).find('select.lookup-payment-config').select2('val') == paymentConfig && $(this).find('select.lookup-country').select2('val') == country && $(this).find('select.lookup-method').select2('val') == method) {
+            map.find('.exists').removeClass('hidden');
+            map.addClass('map-has-error');
+          }
+          else {
+            map.find('.exists').addClass('hidden');
+            map.removeClass('map-has-error');
+          }
+        });
+      }
+
+      function removeLookupMethodMap(lookupMethodMap) {
+        lookupMethodMap.parent().remove();
+
+        var index = 0;
+        $('.lookup-method-map').each(function () {
+          $(this).find('*[name]').each(function () {
+            $(this).attr('name', replaceIndex($(this).attr('name'), 'ServiceLookupMethodMaps', index));
+          });
+          index++;
+        });
+      }
+
+      //replace indexes in names of form inputs
+      function replaceIndex(name, klass, index) {
+        var split = name.split('.');
+        var data = '';
+        for (var i = 0; i < split.length; i++) {
+          if (data != '') data += '.';
+          if (split[i].indexOf(klass + '[') > -1) {
+            data += klass + '[' + index + ']';
+            continue;
+          }
+          data += split[i];
+        }
+        return data;
+      }
+
+      //hide parts of form based on clientType
+      function hideInputs(clientType) {
+        if (!componentAccess)
+          $('.form-group, .form-section, .tab-pane, .tab-header').each(function () {
+            if (typeof $(this).attr('administrator') !== 'undefined' && $(this).attr('administrator') == 'true')
+              $(this).hide();
+          });
+      }
+
+      function change(label, id) {
+        if (typeof label != 'undefined' && label.length > 0) {
+          //Set all to hidden up front
+          $(id + " optgroup").each(function () {
+            if (!$(this).hasClass('hidden')) {
+              $(this).addClass('hidden');
+            }
+          });
+
+          //Remove hidden if match
+          $(id + " optgroup").each(function () {
+            if (label == $(this).attr('label') && $(this).hasClass('hidden')) {
+              $(this).removeClass('hidden');
+            }
+          });
+        } else {
+          $(id + " optgroup").each(function () {
+            if ($(this).hasClass('hidden')) {
+              $(this).removeClass('hidden');
+            }
+          });
+        }
+      }
+
+    }
+  };
+}();

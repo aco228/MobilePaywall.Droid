@@ -1,0 +1,184 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Direct;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Merchant.Controllers.ako
+{
+  public class GlmDataPullController : PaywallController
+  {
+    // GET: DataPull
+    public ActionResult Index()
+    {
+      return View();
+    }
+
+    public ActionResult Download()
+    {
+      string from = Request["from"] != null ? Request["from"].ToString() : string.Empty;
+      string to = Request["to"] != null ? Request["to"].ToString() : string.Empty;
+      string limit = Request["limit"] != null ? Request["limit"].ToString() : string.Empty;
+      string service = Request["service"] != null ? Request["service"].ToString() : string.Empty;
+      string withTransaction = Request["withTransaction"] != null ? Request["withTransaction"].ToString() : string.Empty;
+      string withOutTransaction = Request["withOutTransaction"] != null ? Request["withOutTransaction"].ToString() : string.Empty;
+      int totalLimit = 0;
+      
+      #region # check necceseary data #
+
+      if (string.IsNullOrEmpty(from))
+        return this.Content("Param 'From' is empty");
+      if (string.IsNullOrEmpty(to))
+        return this.Content("Param 'To' is empty");
+      if (string.IsNullOrEmpty(limit))
+        limit = "1000";
+
+      #endregion
+
+      #region # construct date time query param #
+
+      DateTime fromDate, toDate;
+      if (!DateTime.TryParse(from, out fromDate))
+        return this.Content("Param 'From' could not be parsed to dateTime");
+      if (!DateTime.TryParse(to, out toDate))
+        return this.Content("Param 'From' could not be parsed to dateTime");
+
+      #endregion
+
+      #region # construct limit query param #
+
+      if(!Int32.TryParse(limit, out totalLimit))
+        return this.Content("Param 'Limit' could not be parsed to INT");
+
+      #endregion
+
+      string serviceQueryParam = "";
+
+      #region # construct serviceQueryParam #
+      
+      if (!string.IsNullOrEmpty(service))
+      {
+        int _serviceID;
+        if (!Int32.TryParse(service, out _serviceID))
+          return this.Content("Param 'Service' could not be parsed to INT");
+
+        Service serviceData = Service.CreateManager().Load(_serviceID);
+        if (service == null)
+          return this.Content("Could not load Service entry with ID:" + _serviceID);
+
+        serviceQueryParam = service;
+      }
+      else
+      {
+        List<Service> services = Service.CreateManager().Load(Product.CreateManager().Load(9));
+        for(int i = 0; i < services.Count; i++)
+        {
+          if (i > 0) serviceQueryParam += ",";
+          serviceQueryParam += services.ElementAt(i).ID.ToString();
+        }
+      }
+
+      #endregion
+
+      int sequentalLimit = totalLimit < 100 ? totalLimit : 100;
+      totalLimit -= sequentalLimit;
+
+      string query = "";
+      #region # construct sql query #
+
+      query = @"SELECT TOP [limit]
+        ol.OLCacheID,
+        us.UserSessionID,
+	      us.EntranceUrl, 
+	      us.Referrer, 
+	      us.Created AS 'SessionCreated',
+	      ol.ServiceName,
+	      ol.IPAddress,
+	      ol.ServiceCountry,
+	      ol.CountryName,
+	      ol.MobileOperatorName,
+	      ol.Msisdn, 
+	      t.Created AS 'TransactionCreated'
+      FROM MobilePaywall.core.OLCache AS ol
+      LEFT OUTER JOIN MobilePaywall.core.UserSession AS us ON ol.UserSessionID=us.UserSessionID
+      LEFT OUTER JOIN MobilePaywall.core.PaymentRequest AS pr ON pr.PaymentRequestID=ol.PaymentRequestID
+      LEFT OUTER JOIN MobilePaywall.core.[Transaction] AS t ON ol.TransactionID=t.TransactionID
+      WHERE 
+	      ol.ServiceID IN ([serviceQueryParam])
+        [clicksWithTransaction]
+        [clicksWithoutTransaction]
+        [continueSqlQuery]
+        AND ol.Created>=[from] AND ol.Created<=[to]
+      ORDER BY OLCacheID DESC";
+
+      string _continuationSqlQuery = "";
+
+      //query = query.Replace("[limit]", sequentalLimit.ToString());
+      query = query.Replace("[serviceQueryParam]", serviceQueryParam);
+      query = query.Replace("[clicksWithTransaction]", withTransaction.Equals("1") ? " AND ol.TransactionID IS NOT NULL " : "");
+      query = query.Replace("[clicksWithoutTransaction]", withOutTransaction.Equals("1") ? " AND ol.TransactionID IS NULL " : "");
+      query = query.Replace("[from]", "'" + fromDate.ToString("yyyy-MM-dd HH:mm:ss") + "'");
+      query = query.Replace("[to]", "'" + toDate.ToString("yyyy-MM-dd HH:mm:ss") + "'");
+      //query = query.Replace("[continueSqlQuery]", "");
+
+      Log.Debug(query);
+
+      #endregion
+      
+      MobilePaywallDirect db = MobilePaywallDirect.Instance;
+      DirectContainer container = null;
+      string _textData = "SessionID;EntranceUrl;Referrer;trckd_glm;SessionCreated;ServiceName;IPAddress;ServiceCountry;VisitorCountryName;MobileOperatorName;Msisdn;TransactionCreated;" + Environment.NewLine;
+
+      for (;;)
+      {
+        if (totalLimit <= 0)
+          break;
+
+        string queryToExecute = query.Replace("[limit]", sequentalLimit.ToString()).Replace("[continueSqlQuery]", _continuationSqlQuery);
+        container = db.LoadContainer(queryToExecute);
+
+        if (!container.HasValue || container.RowsCount == 0)
+          break;
+
+        foreach (DirectContainerRow row in container.Rows)
+        {
+          _textData += row.GetString("UserSessionID") + ";";
+          _textData += row.GetString("EntranceUrl") + ";";
+          _textData += row.GetString("Referrer") + ";";
+          _textData += this.GetParamFromUrl("trckd_glm", row.GetString("Referrer")) + ";";
+          _textData += row.GetString("SessionCreated") + ";";
+          _textData += row.GetString("ServiceName") + ";";
+          _textData += row.GetString("IPAddress") + ";";
+          _textData += row.GetString("ServiceCountry") + ";";
+          _textData += row.GetString("CountryName") + ";";
+          _textData += row.GetString("MobileOperatorName") + ";";
+          _textData += "=\"" + row.GetString("Msisdn") + "\";";
+          _textData += row.GetString("TransactionCreated") + ";";
+          _textData += Environment.NewLine;
+
+        }
+
+        _continuationSqlQuery = " AND ol.OLCacheID<" + container.Rows.LastOrDefault().GetString("OLCacheID");
+        sequentalLimit = (totalLimit < 100) ? totalLimit : 100;
+        totalLimit -= sequentalLimit;
+      }
+      
+      return File(new System.Text.UTF8Encoding().GetBytes(_textData), "text/csv", "database.csv");
+    }
+
+    private string GetParamFromUrl(string parameterName, string url)
+    {
+      Match match = new Regex(string.Format(@"(\?{0}=([A-Za-z0-9]+))|(\&{0}=([A-Za-z0-9]+))", parameterName)).Match(url);
+      string result = string.Empty;
+      if (!string.IsNullOrEmpty(match.Groups[2].Value.ToString()))
+        result = match.Groups[2].Value.ToString();
+      else if (string.IsNullOrEmpty(result) && !string.IsNullOrEmpty(match.Groups[4].Value.ToString()))
+        result = match.Groups[4].Value.ToString();
+      return result;
+    }
+
+  }
+}

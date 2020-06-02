@@ -1,0 +1,41 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class AutomationGroupManager : IAutomationGroupManager
+  {
+    public List<AutomationGroup> Load(Country country)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, country);
+    }
+
+    public List<AutomationGroup> Load(IConnectionInfo connection, Country country)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, country);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, country);
+    }
+
+    public List<AutomationGroup> Load(ISqlConnectionInfo connection, Country country)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[ag].CountryID=@CountryID";
+      parameters.Arguments.Add("CountryID", country.ID);
+      return this.LoadMany(connection, parameters);
+    }
+  }
+}
+

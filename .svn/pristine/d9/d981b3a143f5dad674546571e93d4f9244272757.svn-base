@@ -1,0 +1,50 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IQuizContentManager 
+  {
+
+    List<QuizContent> Load();
+    List<QuizContent> Load(IConnectionInfo connection);
+    QuizContent Load(Content content);
+    QuizContent Load(IConnectionInfo connection, Content content);
+    List<QuizContent> Load(ContentGroup contentGroup);
+    List<QuizContent> Load(IConnectionInfo connection, ContentGroup contentGroup);
+
+  }
+
+  public partial class QuizContent
+  {
+
+    public void UpdateWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void UpdateWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void InsertWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void InsertWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void DeleteWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+    public void DeleteWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+
+
+    public static List<QuizContent> LoadByContentGroup(ContentGroup contentGroup)
+    {
+      List<QuizContent> content = null;
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        connection.Transaction.Begin();
+        IQuizContentManager manager = QuizContent.CreateManager();
+        content = manager.Load(connection, contentGroup);
+        connection.Transaction.Commit();
+      }
+      return content;
+    }
+
+  }
+}
+

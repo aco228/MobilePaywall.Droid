@@ -1,0 +1,70 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using MobilePaywall.Data;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IShortcodeManager : IDataManager<Shortcode> 
+  {
+	
+
+  }
+
+  public partial class Shortcode : MobilePaywallObject<IShortcodeManager> 
+  {
+		private Keyword _defaultKeyword;
+		private int _number = -1;
+		
+
+		public Keyword DefaultKeyword 
+		{
+			get
+			{
+				if (this._defaultKeyword != null &&
+						this._defaultKeyword.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._defaultKeyword = Keyword.CreateManager().LazyLoad(this.ConnectionContext, this._defaultKeyword.ID) as Keyword;
+					else
+						this._defaultKeyword = Keyword.CreateManager().LazyLoad(this._defaultKeyword.ID) as Keyword;
+				return this._defaultKeyword;
+			}
+			set { _defaultKeyword = value; }
+		}
+
+		public int Number{ get {return this._number; } set { this._number = value;} }
+		
+
+    public override bool IsInsertable { get { return true;} }
+
+    public override bool IsDeletable { get { return false;} }
+
+    public override bool IsUpdatable { get { return true;} }
+
+    public Shortcode()
+    { 
+    }
+
+    public Shortcode(int id): base(id, DateTime.Now, DateTime.Now, true)
+    {
+    }
+
+    public Shortcode(int id,  Keyword defaultKeyword, int number, DateTime updated, DateTime created): base(id, updated, created, false)
+    {
+			this._defaultKeyword = defaultKeyword;
+			this._number = number;
+			
+    }
+
+    public override object Clone(bool deepClone)
+    {
+      return new Shortcode(-1,  this.DefaultKeyword,this.Number, DateTime.Now, DateTime.Now);
+    }
+  }
+}
+

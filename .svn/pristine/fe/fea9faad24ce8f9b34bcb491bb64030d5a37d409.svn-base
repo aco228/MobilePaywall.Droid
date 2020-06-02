@@ -1,0 +1,539 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(TemplateServiceContentSort))] 
+  public partial class TemplateServiceContentSortManager : MobilePaywall.Data.Sql.SqlManagerBase<TemplateServiceContentSort>, ITemplateServiceContentSortManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override TemplateServiceContentSort LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							TemplateServiceContentSortTable.GetColumnNames("[tscs]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[tscs_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[tscs_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[tscs_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[tscs_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[tscs_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[tscs_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[tscs_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[tscs_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[tscs_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[tscs_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[tscs_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[tscs_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentGroupTable.GetColumnNames("[tscs_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[tscs_cg_i]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTypeTable.GetColumnNames("[tscs_cg_cgt]") : string.Empty) + 
+					" FROM [core].[TemplateServiceContentSort] AS [tscs] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [tscs_s] ON [tscs].[ServiceID] = [tscs_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [tscs_s_a] ON [tscs_s].[ApplicationID] = [tscs_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [tscs_s_p] ON [tscs_s].[ProductID] = [tscs_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [tscs_s_m] ON [tscs_s].[MerchantID] = [tscs_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [tscs_s_st] ON [tscs_s].[ServiceTypeID] = [tscs_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [tscs_s_ust] ON [tscs_s].[UserSessionTypeID] = [tscs_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tscs_s_c] ON [tscs_s].[FallbackCountryID] = [tscs_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [tscs_s_l] ON [tscs_s].[FallbackLanguageID] = [tscs_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [tscs_s_ar] ON [tscs_s].[FallbackAgeRatingID] = [tscs_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [tscs_s_sc] ON [tscs_s].[ServiceConfigurationID] = [tscs_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [tscs_s_bm] ON [tscs_s].[BusinessModelID] = [tscs_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [tscs_s_t] ON [tscs_s].[TemplateID] = [tscs_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [tscs_cg] ON [tscs].[ContentGroupID] = [tscs_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Instance] AS [tscs_cg_i] ON [tscs_cg].[InstanceID] = [tscs_cg_i].[InstanceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroupType] AS [tscs_cg_cgt] ON [tscs_cg].[ContentGroupTypeID] = [tscs_cg_cgt].[ContentGroupTypeID] ";
+				sqlCmdText += "WHERE [tscs].[TemplateServiceContentSortID] = @TemplateServiceContentSortID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@TemplateServiceContentSortID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tscs", "loadinternal", "notfound"), "TemplateServiceContentSort could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				TemplateServiceContentSortTable tscsTable = new TemplateServiceContentSortTable(query);
+				ServiceTable tscs_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable tscs_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable tscs_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable tscs_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable tscs_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable tscs_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable tscs_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable tscs_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable tscs_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable tscs_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable tscs_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable tscs_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				ContentGroupTable tscs_cgTable = (this.Depth > 0) ? new ContentGroupTable(query) : null;
+				InstanceTable tscs_cg_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				ContentGroupTypeTable tscs_cg_cgtTable = (this.Depth > 1) ? new ContentGroupTypeTable(query) : null;
+
+        
+				Application tscs_s_aObject = (this.Depth > 1) ? tscs_s_aTable.CreateInstance() : null;
+				Product tscs_s_pObject = (this.Depth > 1) ? tscs_s_pTable.CreateInstance() : null;
+				Merchant tscs_s_mObject = (this.Depth > 1) ? tscs_s_mTable.CreateInstance() : null;
+				ServiceType tscs_s_stObject = (this.Depth > 1) ? tscs_s_stTable.CreateInstance() : null;
+				UserSessionType tscs_s_ustObject = (this.Depth > 1) ? tscs_s_ustTable.CreateInstance() : null;
+				Country tscs_s_cObject = (this.Depth > 1) ? tscs_s_cTable.CreateInstance() : null;
+				Language tscs_s_lObject = (this.Depth > 1) ? tscs_s_lTable.CreateInstance() : null;
+				AgeRating tscs_s_arObject = (this.Depth > 1) ? tscs_s_arTable.CreateInstance() : null;
+				ServiceConfiguration tscs_s_scObject = (this.Depth > 1) ? tscs_s_scTable.CreateInstance() : null;
+				BusinessModel tscs_s_bmObject = (this.Depth > 1) ? tscs_s_bmTable.CreateInstance() : null;
+				Template tscs_s_tObject = (this.Depth > 1) ? tscs_s_tTable.CreateInstance() : null;
+				Service tscs_sObject = (this.Depth > 0) ? tscs_sTable.CreateInstance(tscs_s_aObject, tscs_s_pObject, tscs_s_mObject, tscs_s_stObject, tscs_s_ustObject, tscs_s_cObject, tscs_s_lObject, tscs_s_arObject, tscs_s_scObject, tscs_s_bmObject, tscs_s_tObject) : null;
+				Instance tscs_cg_iObject = (this.Depth > 1) ? tscs_cg_iTable.CreateInstance() : null;
+				ContentGroupType tscs_cg_cgtObject = (this.Depth > 1) ? tscs_cg_cgtTable.CreateInstance() : null;
+				ContentGroup tscs_cgObject = (this.Depth > 0) ? tscs_cgTable.CreateInstance(tscs_cg_iObject, tscs_cg_cgtObject) : null;
+				TemplateServiceContentSort tscsObject = tscsTable.CreateInstance(tscs_sObject, tscs_cgObject);
+				sqlReader.Close();
+
+				return tscsObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tscs", "loadinternal", "exception"), "TemplateServiceContentSort could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "TemplateServiceContentSort", "Exception while loading TemplateServiceContentSort object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public TemplateServiceContentSort Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							TemplateServiceContentSortTable.GetColumnNames("[tscs]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[tscs_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[tscs_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[tscs_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[tscs_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[tscs_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[tscs_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[tscs_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[tscs_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[tscs_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[tscs_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[tscs_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[tscs_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentGroupTable.GetColumnNames("[tscs_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[tscs_cg_i]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTypeTable.GetColumnNames("[tscs_cg_cgt]") : string.Empty) +  
+					" FROM [core].[TemplateServiceContentSort] AS [tscs] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [tscs_s] ON [tscs].[ServiceID] = [tscs_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [tscs_s_a] ON [tscs_s].[ApplicationID] = [tscs_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [tscs_s_p] ON [tscs_s].[ProductID] = [tscs_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [tscs_s_m] ON [tscs_s].[MerchantID] = [tscs_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [tscs_s_st] ON [tscs_s].[ServiceTypeID] = [tscs_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [tscs_s_ust] ON [tscs_s].[UserSessionTypeID] = [tscs_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tscs_s_c] ON [tscs_s].[FallbackCountryID] = [tscs_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [tscs_s_l] ON [tscs_s].[FallbackLanguageID] = [tscs_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [tscs_s_ar] ON [tscs_s].[FallbackAgeRatingID] = [tscs_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [tscs_s_sc] ON [tscs_s].[ServiceConfigurationID] = [tscs_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [tscs_s_bm] ON [tscs_s].[BusinessModelID] = [tscs_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [tscs_s_t] ON [tscs_s].[TemplateID] = [tscs_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [tscs_cg] ON [tscs].[ContentGroupID] = [tscs_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Instance] AS [tscs_cg_i] ON [tscs_cg].[InstanceID] = [tscs_cg_i].[InstanceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroupType] AS [tscs_cg_cgt] ON [tscs_cg].[ContentGroupTypeID] = [tscs_cg_cgt].[ContentGroupTypeID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tscs", "customload", "notfound"), "TemplateServiceContentSort could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				TemplateServiceContentSortTable tscsTable = new TemplateServiceContentSortTable(query);
+				ServiceTable tscs_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable tscs_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable tscs_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable tscs_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable tscs_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable tscs_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable tscs_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable tscs_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable tscs_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable tscs_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable tscs_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable tscs_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				ContentGroupTable tscs_cgTable = (this.Depth > 0) ? new ContentGroupTable(query) : null;
+				InstanceTable tscs_cg_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				ContentGroupTypeTable tscs_cg_cgtTable = (this.Depth > 1) ? new ContentGroupTypeTable(query) : null;
+
+        
+				Application tscs_s_aObject = (this.Depth > 1) ? tscs_s_aTable.CreateInstance() : null;
+				Product tscs_s_pObject = (this.Depth > 1) ? tscs_s_pTable.CreateInstance() : null;
+				Merchant tscs_s_mObject = (this.Depth > 1) ? tscs_s_mTable.CreateInstance() : null;
+				ServiceType tscs_s_stObject = (this.Depth > 1) ? tscs_s_stTable.CreateInstance() : null;
+				UserSessionType tscs_s_ustObject = (this.Depth > 1) ? tscs_s_ustTable.CreateInstance() : null;
+				Country tscs_s_cObject = (this.Depth > 1) ? tscs_s_cTable.CreateInstance() : null;
+				Language tscs_s_lObject = (this.Depth > 1) ? tscs_s_lTable.CreateInstance() : null;
+				AgeRating tscs_s_arObject = (this.Depth > 1) ? tscs_s_arTable.CreateInstance() : null;
+				ServiceConfiguration tscs_s_scObject = (this.Depth > 1) ? tscs_s_scTable.CreateInstance() : null;
+				BusinessModel tscs_s_bmObject = (this.Depth > 1) ? tscs_s_bmTable.CreateInstance() : null;
+				Template tscs_s_tObject = (this.Depth > 1) ? tscs_s_tTable.CreateInstance() : null;
+				Service tscs_sObject = (this.Depth > 0) ? tscs_sTable.CreateInstance(tscs_s_aObject, tscs_s_pObject, tscs_s_mObject, tscs_s_stObject, tscs_s_ustObject, tscs_s_cObject, tscs_s_lObject, tscs_s_arObject, tscs_s_scObject, tscs_s_bmObject, tscs_s_tObject) : null;
+				Instance tscs_cg_iObject = (this.Depth > 1) ? tscs_cg_iTable.CreateInstance() : null;
+				ContentGroupType tscs_cg_cgtObject = (this.Depth > 1) ? tscs_cg_cgtTable.CreateInstance() : null;
+				ContentGroup tscs_cgObject = (this.Depth > 0) ? tscs_cgTable.CreateInstance(tscs_cg_iObject, tscs_cg_cgtObject) : null;
+				TemplateServiceContentSort tscsObject = tscsTable.CreateInstance(tscs_sObject, tscs_cgObject);
+				sqlReader.Close();
+
+				return tscsObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tscs", "customload", "exception"), "TemplateServiceContentSort could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "TemplateServiceContentSort", "Exception while loading (custom/single) TemplateServiceContentSort object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<TemplateServiceContentSort> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							TemplateServiceContentSortTable.GetColumnNames("[tscs]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[tscs_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[tscs_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[tscs_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[tscs_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[tscs_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[tscs_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[tscs_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[tscs_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[tscs_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[tscs_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[tscs_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[tscs_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentGroupTable.GetColumnNames("[tscs_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[tscs_cg_i]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTypeTable.GetColumnNames("[tscs_cg_cgt]") : string.Empty) +  
+					" FROM [core].[TemplateServiceContentSort] AS [tscs] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [tscs_s] ON [tscs].[ServiceID] = [tscs_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [tscs_s_a] ON [tscs_s].[ApplicationID] = [tscs_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [tscs_s_p] ON [tscs_s].[ProductID] = [tscs_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [tscs_s_m] ON [tscs_s].[MerchantID] = [tscs_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [tscs_s_st] ON [tscs_s].[ServiceTypeID] = [tscs_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [tscs_s_ust] ON [tscs_s].[UserSessionTypeID] = [tscs_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tscs_s_c] ON [tscs_s].[FallbackCountryID] = [tscs_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [tscs_s_l] ON [tscs_s].[FallbackLanguageID] = [tscs_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [tscs_s_ar] ON [tscs_s].[FallbackAgeRatingID] = [tscs_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [tscs_s_sc] ON [tscs_s].[ServiceConfigurationID] = [tscs_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [tscs_s_bm] ON [tscs_s].[BusinessModelID] = [tscs_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [tscs_s_t] ON [tscs_s].[TemplateID] = [tscs_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [tscs_cg] ON [tscs].[ContentGroupID] = [tscs_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Instance] AS [tscs_cg_i] ON [tscs_cg].[InstanceID] = [tscs_cg_i].[InstanceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroupType] AS [tscs_cg_cgt] ON [tscs_cg].[ContentGroupTypeID] = [tscs_cg_cgt].[ContentGroupTypeID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tscs", "customloadmany", "notfound"), "TemplateServiceContentSort list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<TemplateServiceContentSort>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				TemplateServiceContentSortTable tscsTable = new TemplateServiceContentSortTable(query);
+				ServiceTable tscs_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable tscs_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable tscs_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable tscs_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable tscs_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable tscs_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable tscs_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable tscs_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable tscs_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable tscs_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable tscs_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable tscs_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				ContentGroupTable tscs_cgTable = (this.Depth > 0) ? new ContentGroupTable(query) : null;
+				InstanceTable tscs_cg_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				ContentGroupTypeTable tscs_cg_cgtTable = (this.Depth > 1) ? new ContentGroupTypeTable(query) : null;
+
+        List<TemplateServiceContentSort> result = new List<TemplateServiceContentSort>();
+        do
+        {
+          
+					Application tscs_s_aObject = (this.Depth > 1) ? tscs_s_aTable.CreateInstance() : null;
+					Product tscs_s_pObject = (this.Depth > 1) ? tscs_s_pTable.CreateInstance() : null;
+					Merchant tscs_s_mObject = (this.Depth > 1) ? tscs_s_mTable.CreateInstance() : null;
+					ServiceType tscs_s_stObject = (this.Depth > 1) ? tscs_s_stTable.CreateInstance() : null;
+					UserSessionType tscs_s_ustObject = (this.Depth > 1) ? tscs_s_ustTable.CreateInstance() : null;
+					Country tscs_s_cObject = (this.Depth > 1) ? tscs_s_cTable.CreateInstance() : null;
+					Language tscs_s_lObject = (this.Depth > 1) ? tscs_s_lTable.CreateInstance() : null;
+					AgeRating tscs_s_arObject = (this.Depth > 1) ? tscs_s_arTable.CreateInstance() : null;
+					ServiceConfiguration tscs_s_scObject = (this.Depth > 1) ? tscs_s_scTable.CreateInstance() : null;
+					BusinessModel tscs_s_bmObject = (this.Depth > 1) ? tscs_s_bmTable.CreateInstance() : null;
+					Template tscs_s_tObject = (this.Depth > 1) ? tscs_s_tTable.CreateInstance() : null;
+					Service tscs_sObject = (this.Depth > 0) ? tscs_sTable.CreateInstance(tscs_s_aObject, tscs_s_pObject, tscs_s_mObject, tscs_s_stObject, tscs_s_ustObject, tscs_s_cObject, tscs_s_lObject, tscs_s_arObject, tscs_s_scObject, tscs_s_bmObject, tscs_s_tObject) : null;
+					Instance tscs_cg_iObject = (this.Depth > 1) ? tscs_cg_iTable.CreateInstance() : null;
+					ContentGroupType tscs_cg_cgtObject = (this.Depth > 1) ? tscs_cg_cgtTable.CreateInstance() : null;
+					ContentGroup tscs_cgObject = (this.Depth > 0) ? tscs_cgTable.CreateInstance(tscs_cg_iObject, tscs_cg_cgtObject) : null;
+					TemplateServiceContentSort tscsObject = (this.Depth > -1) ? tscsTable.CreateInstance(tscs_sObject, tscs_cgObject) : null;
+					result.Add(tscsObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tscs", "customloadmany", "exception"), "TemplateServiceContentSort list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "TemplateServiceContentSort", "Exception while loading (custom/many) TemplateServiceContentSort object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, TemplateServiceContentSort data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[TemplateServiceContentSort] ([ServiceID],[ContentGroupID],[Data],[Separator]) VALUES(@ServiceID,@ContentGroupID,@Data,@Separator); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentGroupID", data.ContentGroup == null ? DBNull.Value : (object)data.ContentGroup.ID);
+				sqlCmd.Parameters.AddWithValue("@Data", data.Data).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Separator", data.Separator).SqlDbType = SqlDbType.NVarChar;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tscs", "insert", "noprimarykey"), "TemplateServiceContentSort could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "TemplateServiceContentSort", "Exception while inserting TemplateServiceContentSort object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tscs", "insert", "exception"), "TemplateServiceContentSort could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "TemplateServiceContentSort", "Exception while inserting TemplateServiceContentSort object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, TemplateServiceContentSort data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[TemplateServiceContentSort] SET " +
+												"[ServiceID] = @ServiceID, " + 
+												"[ContentGroupID] = @ContentGroupID, " + 
+												"[Data] = @Data, " + 
+												"[Separator] = @Separator, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [TemplateServiceContentSortID] = @TemplateServiceContentSortID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentGroupID", data.ContentGroup == null ? DBNull.Value : (object)data.ContentGroup.ID);
+				sqlCmd.Parameters.AddWithValue("@Data", data.Data).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Separator", data.Separator).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@TemplateServiceContentSortID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tscs", "update", "norecord"), "TemplateServiceContentSort could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "TemplateServiceContentSort", "Exception while updating TemplateServiceContentSort object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tscs", "update", "morerecords"), "TemplateServiceContentSort was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "TemplateServiceContentSort", "Exception while updating TemplateServiceContentSort object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tscs", "update", "exception"), "TemplateServiceContentSort could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "TemplateServiceContentSort", "Exception while updating TemplateServiceContentSort object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, TemplateServiceContentSort data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[TemplateServiceContentSort] WHERE TemplateServiceContentSortID = @TemplateServiceContentSortID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@TemplateServiceContentSortID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tscs", "delete", "norecord"), "TemplateServiceContentSort could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "TemplateServiceContentSort", "Exception while deleting TemplateServiceContentSort object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tscs", "delete", "exception"), "TemplateServiceContentSort could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "TemplateServiceContentSort", "Exception while deleting TemplateServiceContentSort object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

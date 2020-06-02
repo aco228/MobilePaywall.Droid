@@ -1,0 +1,78 @@
+﻿using Cashflow.Message;
+using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Direct;
+using MobilePaywall.Implementation.Log;
+using Senti.Diagnostics.Log;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Web;
+
+namespace MobilePaywall.Service.Callback.Log
+{
+  public class CallbackLog : PaywallCustomLoggerBase
+  {
+    public CallbackLog(Notification notification, ILog log)
+      :base(notification, log)
+    {
+      //if(!this.HasError)
+      //  this.Info(string.Format("::Notification arrived \"{0}\" with refID \"{1}\"", notification.Name.ToString(), notification.ReferenceID.ToString()));
+    }
+
+    public void PDebug(string text) { this.PDebug(string.Empty, text);  }
+    public void PDebug(string key, string text)
+    {
+      this.Debug(string.Format("{0}:{1}", key, text));
+      PLog.DerivatedLog(PLog.PLogType.Debug, this.UserSessionID, this.UserSession.Service.ID, this.UserSession.Service.Application.ID, key, text, string.Empty);
+    }
+
+    public void PInfo(string text) { this.PInfo(string.Empty, text); }
+    public void PInfo(string key, string text)
+    {
+      this.Info(string.Format("{0}:{1}", key, text));
+      PLog.DerivatedLog(PLog.PLogType.Info, this.UserSessionID, this.UserSession.Service.ID, this.UserSession.Service.Application.ID, key, text, string.Empty);
+    }
+
+    public void PError(string text) { this.PError(string.Empty, text); }
+    public void PError(string key, string text)
+    {
+      this.Error(string.Format("{0}:{1}", key, text));
+      PLog.DerivatedLog(PLog.PLogType.Error, this.UserSessionID, this.UserSession.Service.ID, this.UserSession.Service.Application.ID, key, text, string.Empty);
+    }
+
+    public void PFatal(string text, string exception) { this.PFatal(string.Empty, text, exception); }
+    public void PFatal(string key, string text, string exception)
+    {
+      this.Fatal(string.Format("{0}:{1}", key, text));
+      PLog.DerivatedLog(PLog.PLogType.Debug, this.UserSessionID, this.UserSession.Service.ID, this.UserSession.Service.Application.ID, key, text, exception);
+    }
+
+    protected override void InsertAsync(UserSession us, CallbackLogMethodInfo clmi, ILog log, string type, string message, Exception e = null)
+    {
+      string command = @"
+          INSERT INTO MobilePaywallLog.log.CallbackLog([Date], [Thread], [Level], [Logger], [Message], [Exception], [Method], [Line]) VALUES 
+            (getdate(), '0', '{Level}', '{Logger}', '{Message}', '{Exception}', '{Method}', '{Line}'); 
+          INSERT INTO MobilePaywallLog.log.CallbackLogUserSessionMap([CallbackLogID], [UserSessionID]) VALUES (SCOPE_IDENTITY(), "+us.ID+")";
+
+      command = command.Replace("{Level}", type.ToUpper());
+      command = command.Replace("{Logger}", (log != null ? log.Logger.Name.ToString() : ""));
+      command = command.Replace("{Message}", message.Replace("'", ""));
+      command = command.Replace("{Exception}", (e != null ? e.ToString() : string.Empty));
+      command = command.Replace("{Method}", (clmi != null ? clmi.MethodName : ""));
+      command = command.Replace("{Line}", (clmi != null ? clmi.LineNumber : ""));
+
+      MobilePaywallLogDirect db = new MobilePaywallLogDirect();
+      int? _callbackLogID = db.Execute(command);
+
+      //if (!_callbackLogID.HasValue)
+      //  return;
+
+      //string mapCommand = string.Format("INSERT INTO MobilePaywall.log.CallbackLogUserSessionMap([CallbackLogID], [UserSessionID]) VALUES ({0}, {1});", _callbackLogID.Value, us.ID);
+      //db.Execute(mapCommand);
+    }
+  }
+
+
+}

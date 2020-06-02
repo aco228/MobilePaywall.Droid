@@ -1,0 +1,545 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(TemplateServiceCap))] 
+  public partial class TemplateServiceCapManager : MobilePaywall.Data.Sql.SqlManagerBase<TemplateServiceCap>, ITemplateServiceCapManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override TemplateServiceCap LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							TemplateServiceCapTable.GetColumnNames("[tsc]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[tsc_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[tsc_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[tsc_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[tsc_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[tsc_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[tsc_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[tsc_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[tsc_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[tsc_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[tsc_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[tsc_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[tsc_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[tsc_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[tsc_mo_c]") : string.Empty) + 
+					" FROM [core].[TemplateServiceCap] AS [tsc] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [tsc_s] ON [tsc].[ServiceID] = [tsc_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [tsc_s_a] ON [tsc_s].[ApplicationID] = [tsc_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [tsc_s_p] ON [tsc_s].[ProductID] = [tsc_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [tsc_s_m] ON [tsc_s].[MerchantID] = [tsc_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [tsc_s_st] ON [tsc_s].[ServiceTypeID] = [tsc_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [tsc_s_ust] ON [tsc_s].[UserSessionTypeID] = [tsc_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tsc_s_c] ON [tsc_s].[FallbackCountryID] = [tsc_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [tsc_s_l] ON [tsc_s].[FallbackLanguageID] = [tsc_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [tsc_s_ar] ON [tsc_s].[FallbackAgeRatingID] = [tsc_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [tsc_s_sc] ON [tsc_s].[ServiceConfigurationID] = [tsc_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [tsc_s_bm] ON [tsc_s].[BusinessModelID] = [tsc_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [tsc_s_t] ON [tsc_s].[TemplateID] = [tsc_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [tsc_mo] ON [tsc].[MobileOperatorID] = [tsc_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tsc_mo_c] ON [tsc_mo].[CountryID] = [tsc_mo_c].[CountryID] ";
+				sqlCmdText += "WHERE [tsc].[TemplateServiceCapID] = @TemplateServiceCapID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@TemplateServiceCapID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsc", "loadinternal", "notfound"), "TemplateServiceCap could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				TemplateServiceCapTable tscTable = new TemplateServiceCapTable(query);
+				ServiceTable tsc_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable tsc_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable tsc_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable tsc_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable tsc_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable tsc_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable tsc_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable tsc_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable tsc_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable tsc_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable tsc_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable tsc_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				MobileOperatorTable tsc_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable tsc_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+
+        
+				Application tsc_s_aObject = (this.Depth > 1) ? tsc_s_aTable.CreateInstance() : null;
+				Product tsc_s_pObject = (this.Depth > 1) ? tsc_s_pTable.CreateInstance() : null;
+				Merchant tsc_s_mObject = (this.Depth > 1) ? tsc_s_mTable.CreateInstance() : null;
+				ServiceType tsc_s_stObject = (this.Depth > 1) ? tsc_s_stTable.CreateInstance() : null;
+				UserSessionType tsc_s_ustObject = (this.Depth > 1) ? tsc_s_ustTable.CreateInstance() : null;
+				Country tsc_s_cObject = (this.Depth > 1) ? tsc_s_cTable.CreateInstance() : null;
+				Language tsc_s_lObject = (this.Depth > 1) ? tsc_s_lTable.CreateInstance() : null;
+				AgeRating tsc_s_arObject = (this.Depth > 1) ? tsc_s_arTable.CreateInstance() : null;
+				ServiceConfiguration tsc_s_scObject = (this.Depth > 1) ? tsc_s_scTable.CreateInstance() : null;
+				BusinessModel tsc_s_bmObject = (this.Depth > 1) ? tsc_s_bmTable.CreateInstance() : null;
+				Template tsc_s_tObject = (this.Depth > 1) ? tsc_s_tTable.CreateInstance() : null;
+				Service tsc_sObject = (this.Depth > 0) ? tsc_sTable.CreateInstance(tsc_s_aObject, tsc_s_pObject, tsc_s_mObject, tsc_s_stObject, tsc_s_ustObject, tsc_s_cObject, tsc_s_lObject, tsc_s_arObject, tsc_s_scObject, tsc_s_bmObject, tsc_s_tObject) : null;
+				Country tsc_mo_cObject = (this.Depth > 1) ? tsc_mo_cTable.CreateInstance() : null;
+				MobileOperator tsc_moObject = (this.Depth > 0) ? tsc_moTable.CreateInstance(tsc_mo_cObject) : null;
+				TemplateServiceCap tscObject = tscTable.CreateInstance(tsc_sObject, tsc_moObject);
+				sqlReader.Close();
+
+				return tscObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsc", "loadinternal", "exception"), "TemplateServiceCap could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "TemplateServiceCap", "Exception while loading TemplateServiceCap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public TemplateServiceCap Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							TemplateServiceCapTable.GetColumnNames("[tsc]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[tsc_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[tsc_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[tsc_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[tsc_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[tsc_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[tsc_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[tsc_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[tsc_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[tsc_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[tsc_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[tsc_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[tsc_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[tsc_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[tsc_mo_c]") : string.Empty) +  
+					" FROM [core].[TemplateServiceCap] AS [tsc] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [tsc_s] ON [tsc].[ServiceID] = [tsc_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [tsc_s_a] ON [tsc_s].[ApplicationID] = [tsc_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [tsc_s_p] ON [tsc_s].[ProductID] = [tsc_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [tsc_s_m] ON [tsc_s].[MerchantID] = [tsc_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [tsc_s_st] ON [tsc_s].[ServiceTypeID] = [tsc_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [tsc_s_ust] ON [tsc_s].[UserSessionTypeID] = [tsc_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tsc_s_c] ON [tsc_s].[FallbackCountryID] = [tsc_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [tsc_s_l] ON [tsc_s].[FallbackLanguageID] = [tsc_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [tsc_s_ar] ON [tsc_s].[FallbackAgeRatingID] = [tsc_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [tsc_s_sc] ON [tsc_s].[ServiceConfigurationID] = [tsc_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [tsc_s_bm] ON [tsc_s].[BusinessModelID] = [tsc_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [tsc_s_t] ON [tsc_s].[TemplateID] = [tsc_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [tsc_mo] ON [tsc].[MobileOperatorID] = [tsc_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tsc_mo_c] ON [tsc_mo].[CountryID] = [tsc_mo_c].[CountryID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsc", "customload", "notfound"), "TemplateServiceCap could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				TemplateServiceCapTable tscTable = new TemplateServiceCapTable(query);
+				ServiceTable tsc_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable tsc_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable tsc_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable tsc_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable tsc_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable tsc_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable tsc_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable tsc_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable tsc_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable tsc_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable tsc_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable tsc_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				MobileOperatorTable tsc_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable tsc_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+
+        
+				Application tsc_s_aObject = (this.Depth > 1) ? tsc_s_aTable.CreateInstance() : null;
+				Product tsc_s_pObject = (this.Depth > 1) ? tsc_s_pTable.CreateInstance() : null;
+				Merchant tsc_s_mObject = (this.Depth > 1) ? tsc_s_mTable.CreateInstance() : null;
+				ServiceType tsc_s_stObject = (this.Depth > 1) ? tsc_s_stTable.CreateInstance() : null;
+				UserSessionType tsc_s_ustObject = (this.Depth > 1) ? tsc_s_ustTable.CreateInstance() : null;
+				Country tsc_s_cObject = (this.Depth > 1) ? tsc_s_cTable.CreateInstance() : null;
+				Language tsc_s_lObject = (this.Depth > 1) ? tsc_s_lTable.CreateInstance() : null;
+				AgeRating tsc_s_arObject = (this.Depth > 1) ? tsc_s_arTable.CreateInstance() : null;
+				ServiceConfiguration tsc_s_scObject = (this.Depth > 1) ? tsc_s_scTable.CreateInstance() : null;
+				BusinessModel tsc_s_bmObject = (this.Depth > 1) ? tsc_s_bmTable.CreateInstance() : null;
+				Template tsc_s_tObject = (this.Depth > 1) ? tsc_s_tTable.CreateInstance() : null;
+				Service tsc_sObject = (this.Depth > 0) ? tsc_sTable.CreateInstance(tsc_s_aObject, tsc_s_pObject, tsc_s_mObject, tsc_s_stObject, tsc_s_ustObject, tsc_s_cObject, tsc_s_lObject, tsc_s_arObject, tsc_s_scObject, tsc_s_bmObject, tsc_s_tObject) : null;
+				Country tsc_mo_cObject = (this.Depth > 1) ? tsc_mo_cTable.CreateInstance() : null;
+				MobileOperator tsc_moObject = (this.Depth > 0) ? tsc_moTable.CreateInstance(tsc_mo_cObject) : null;
+				TemplateServiceCap tscObject = tscTable.CreateInstance(tsc_sObject, tsc_moObject);
+				sqlReader.Close();
+
+				return tscObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsc", "customload", "exception"), "TemplateServiceCap could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "TemplateServiceCap", "Exception while loading (custom/single) TemplateServiceCap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<TemplateServiceCap> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							TemplateServiceCapTable.GetColumnNames("[tsc]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[tsc_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[tsc_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[tsc_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[tsc_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[tsc_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[tsc_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[tsc_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[tsc_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[tsc_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[tsc_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[tsc_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[tsc_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[tsc_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[tsc_mo_c]") : string.Empty) +  
+					" FROM [core].[TemplateServiceCap] AS [tsc] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [tsc_s] ON [tsc].[ServiceID] = [tsc_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [tsc_s_a] ON [tsc_s].[ApplicationID] = [tsc_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [tsc_s_p] ON [tsc_s].[ProductID] = [tsc_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [tsc_s_m] ON [tsc_s].[MerchantID] = [tsc_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [tsc_s_st] ON [tsc_s].[ServiceTypeID] = [tsc_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [tsc_s_ust] ON [tsc_s].[UserSessionTypeID] = [tsc_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tsc_s_c] ON [tsc_s].[FallbackCountryID] = [tsc_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [tsc_s_l] ON [tsc_s].[FallbackLanguageID] = [tsc_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [tsc_s_ar] ON [tsc_s].[FallbackAgeRatingID] = [tsc_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [tsc_s_sc] ON [tsc_s].[ServiceConfigurationID] = [tsc_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [tsc_s_bm] ON [tsc_s].[BusinessModelID] = [tsc_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [tsc_s_t] ON [tsc_s].[TemplateID] = [tsc_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [tsc_mo] ON [tsc].[MobileOperatorID] = [tsc_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tsc_mo_c] ON [tsc_mo].[CountryID] = [tsc_mo_c].[CountryID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsc", "customloadmany", "notfound"), "TemplateServiceCap list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<TemplateServiceCap>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				TemplateServiceCapTable tscTable = new TemplateServiceCapTable(query);
+				ServiceTable tsc_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable tsc_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable tsc_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable tsc_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable tsc_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable tsc_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable tsc_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable tsc_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable tsc_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable tsc_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable tsc_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable tsc_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				MobileOperatorTable tsc_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable tsc_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+
+        List<TemplateServiceCap> result = new List<TemplateServiceCap>();
+        do
+        {
+          
+					Application tsc_s_aObject = (this.Depth > 1) ? tsc_s_aTable.CreateInstance() : null;
+					Product tsc_s_pObject = (this.Depth > 1) ? tsc_s_pTable.CreateInstance() : null;
+					Merchant tsc_s_mObject = (this.Depth > 1) ? tsc_s_mTable.CreateInstance() : null;
+					ServiceType tsc_s_stObject = (this.Depth > 1) ? tsc_s_stTable.CreateInstance() : null;
+					UserSessionType tsc_s_ustObject = (this.Depth > 1) ? tsc_s_ustTable.CreateInstance() : null;
+					Country tsc_s_cObject = (this.Depth > 1) ? tsc_s_cTable.CreateInstance() : null;
+					Language tsc_s_lObject = (this.Depth > 1) ? tsc_s_lTable.CreateInstance() : null;
+					AgeRating tsc_s_arObject = (this.Depth > 1) ? tsc_s_arTable.CreateInstance() : null;
+					ServiceConfiguration tsc_s_scObject = (this.Depth > 1) ? tsc_s_scTable.CreateInstance() : null;
+					BusinessModel tsc_s_bmObject = (this.Depth > 1) ? tsc_s_bmTable.CreateInstance() : null;
+					Template tsc_s_tObject = (this.Depth > 1) ? tsc_s_tTable.CreateInstance() : null;
+					Service tsc_sObject = (this.Depth > 0) ? tsc_sTable.CreateInstance(tsc_s_aObject, tsc_s_pObject, tsc_s_mObject, tsc_s_stObject, tsc_s_ustObject, tsc_s_cObject, tsc_s_lObject, tsc_s_arObject, tsc_s_scObject, tsc_s_bmObject, tsc_s_tObject) : null;
+					Country tsc_mo_cObject = (this.Depth > 1) ? tsc_mo_cTable.CreateInstance() : null;
+					MobileOperator tsc_moObject = (this.Depth > 0) ? tsc_moTable.CreateInstance(tsc_mo_cObject) : null;
+					TemplateServiceCap tscObject = (this.Depth > -1) ? tscTable.CreateInstance(tsc_sObject, tsc_moObject) : null;
+					result.Add(tscObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsc", "customloadmany", "exception"), "TemplateServiceCap list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "TemplateServiceCap", "Exception while loading (custom/many) TemplateServiceCap object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, TemplateServiceCap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[TemplateServiceCap] ([ServiceID],[MobileOperatorID],[Value],[TempCurrentValue],[Timespan],[DateKey],[Description],[IsLocked],[IsActive],[LastTransactionDate],[CapReferenceDate]) VALUES(@ServiceID,@MobileOperatorID,@Value,@TempCurrentValue,@Timespan,@DateKey,@Description,@IsLocked,@IsActive,@LastTransactionDate,@CapReferenceDate); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@MobileOperatorID", data.MobileOperator == null ? DBNull.Value : (object)data.MobileOperator.ID);
+				sqlCmd.Parameters.AddWithValue("@Value", data.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@TempCurrentValue", data.TempCurrentValue).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Timespan", data.Timespan).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@DateKey", data.DateKey).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", data.Description).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@IsLocked", data.IsLocked).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsActive", data.IsActive).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@LastTransactionDate", data.LastTransactionDate).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@CapReferenceDate", data.CapReferenceDate).SqlDbType = SqlDbType.DateTime2;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsc", "insert", "noprimarykey"), "TemplateServiceCap could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "TemplateServiceCap", "Exception while inserting TemplateServiceCap object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsc", "insert", "exception"), "TemplateServiceCap could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "TemplateServiceCap", "Exception while inserting TemplateServiceCap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, TemplateServiceCap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[TemplateServiceCap] SET " +
+												"[ServiceID] = @ServiceID, " + 
+												"[MobileOperatorID] = @MobileOperatorID, " + 
+												"[Value] = @Value, " + 
+												"[TempCurrentValue] = @TempCurrentValue, " + 
+												"[Timespan] = @Timespan, " + 
+												"[DateKey] = @DateKey, " + 
+												"[Description] = @Description, " + 
+												"[IsLocked] = @IsLocked, " + 
+												"[IsActive] = @IsActive, " + 
+												"[LastTransactionDate] = @LastTransactionDate, " + 
+												"[CapReferenceDate] = @CapReferenceDate, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [TemplateServiceCapID] = @TemplateServiceCapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@MobileOperatorID", data.MobileOperator == null ? DBNull.Value : (object)data.MobileOperator.ID);
+				sqlCmd.Parameters.AddWithValue("@Value", data.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@TempCurrentValue", data.TempCurrentValue).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Timespan", data.Timespan).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@DateKey", data.DateKey).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", data.Description).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@IsLocked", data.IsLocked).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsActive", data.IsActive).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@LastTransactionDate", data.LastTransactionDate).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@CapReferenceDate", data.CapReferenceDate).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@TemplateServiceCapID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsc", "update", "norecord"), "TemplateServiceCap could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "TemplateServiceCap", "Exception while updating TemplateServiceCap object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsc", "update", "morerecords"), "TemplateServiceCap was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "TemplateServiceCap", "Exception while updating TemplateServiceCap object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsc", "update", "exception"), "TemplateServiceCap could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "TemplateServiceCap", "Exception while updating TemplateServiceCap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, TemplateServiceCap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[TemplateServiceCap] WHERE TemplateServiceCapID = @TemplateServiceCapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@TemplateServiceCapID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsc", "delete", "norecord"), "TemplateServiceCap could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "TemplateServiceCap", "Exception while deleting TemplateServiceCap object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tsc", "delete", "exception"), "TemplateServiceCap could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "TemplateServiceCap", "Exception while deleting TemplateServiceCap object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

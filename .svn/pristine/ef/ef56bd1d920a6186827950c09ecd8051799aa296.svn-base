@@ -1,0 +1,110 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Web;
+
+using MobilePaywall.Web;
+
+using log4net;
+using MobilePaywall.Data;
+using Senti.Diagnostics.Log;
+
+namespace MobilePaywall.Merchant
+{
+  public class PaywallHttpContext : PaywallHttpContextBase
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (PaywallHttpContext._log == null)
+          PaywallHttpContext._log = LogManager.GetLogger(typeof(PaywallHttpContext));
+        return PaywallHttpContext._log;
+      }
+    }
+    #endregion
+
+    protected static readonly string PaywallHttpContextItemKey = "PaywallHttpContextItemKey";
+    protected static readonly string PaywallLocalizationItemKey = "PaywallLocalizationItemKey";
+    private ClientSession _clientSession = null;
+
+    public static PaywallHttpContext Current
+    {
+      get
+      {
+        HttpContext httpContext = HttpContext.Current;
+        return PaywallHttpContext.GetCurrent(httpContext);
+      }
+    }
+
+    public static PaywallHttpContext GetCurrent(HttpContext httpContext)
+    {
+      lock (httpContext.Request)
+      {
+        PaywallHttpContext paywallContext = httpContext.Items[PaywallHttpContextItemKey] as PaywallHttpContext;
+        if (paywallContext != null)
+          return paywallContext as PaywallHttpContext;
+
+        paywallContext = new PaywallHttpContext(httpContext, PaywallHttpApplication.GetRuntime(httpContext));
+        httpContext.Items[PaywallHttpContextItemKey] = paywallContext;
+        return paywallContext;
+      }
+    }
+
+    public ClientSession ClientSession { get { return this._clientSession; } }
+
+    public PaywallHttpContext(HttpContext context, IPaywallRuntime runtime)
+      : base(context, runtime)
+    {
+      this.InitializeSession(context);
+    }
+
+    protected virtual void InitializeSession(HttpContext httpContext)
+    {
+      string sessionID = httpContext.Session.SessionID;
+      Guid sessionGuid = Guid.Empty;
+      if (!Guid.TryParseExact(sessionID, "N", out sessionGuid))
+      {
+        PLog.Error("Invalid session");
+        
+      }
+
+      IClientSessionManager cManager = ClientSession.CreateManager();
+      ClientSession session = cManager.Load(sessionGuid);
+
+      if (session != null && session.IPAdress != httpContext.Request.UserHostAddress)
+      {
+        // TODO: hijack
+      }
+
+      if (session == null)
+      {
+        session = new ClientSession(-1,
+                                     sessionGuid,
+                                     this.Runtime.ApplicationData,
+                                     null,
+                                     null,
+                                     httpContext.Request.Url.Host,
+                                     httpContext.Request.UserHostAddress,
+                                     IPAddressType.IPv4,
+                                     httpContext.Request.UserAgent,
+                                     true,
+                                     DateTime.Now.AddMinutes(20),
+                                     DateTime.Now,
+                                     DateTime.Now);
+        session.Insert();
+      }
+
+      this._clientSession = session;
+
+      //INFO: DO NOT DO ANYTHING WITH THIS LINE BELOW!!!
+      httpContext.Session["someValue"] = "bla";
+    }
+
+  }
+}

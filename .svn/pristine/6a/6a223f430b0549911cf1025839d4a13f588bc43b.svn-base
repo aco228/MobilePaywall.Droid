@@ -1,0 +1,164 @@
+﻿using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall
+{
+  public class Auction : ContentBase
+  {
+    private AuctionContent _auctionContent = null;
+    private List<ContentThumbnail> _thumbnails = null;
+
+    public AuctionContent AuctionContent { get { return this._auctionContent; } }
+    public override string ContentIconClass { get { return "__contentIcon_auction"; } }
+    public override string DefaultTitle { get { return this._auctionContent.Title; } }
+
+    public Auction(Content content)
+      : base(content)
+    {
+      this._auctionContent = AuctionContent.CreateManager().Load(content);
+    }
+
+    public Auction(ICache cache, Content content, AuctionContent auctionContent)
+      :base(cache, content)
+    {
+      this._auctionContent = auctionContent;
+    }
+
+    public override bool IsDownloadable { get { return false; } }
+    public override bool IsStreamable { get { return false; } }
+
+    public List<ContentThumbnail> Thumbnails
+    {
+      get
+      {
+        if (this._thumbnails != null)
+          return this._thumbnails;
+
+        // TODO: delete this after tests
+        Content testContent = Content.CreateManager().Load(625);
+
+        this._thumbnails = (from ct in ContentThumbnail.LoadByContent<List<ContentThumbnail>>(testContent) where ct.IsDefault == false select ct).ToList();
+        return this._thumbnails;
+      }
+    }
+
+    public override ContentInformations GetInformations(Service service, Language language)
+    {
+      AuctionContentDetail detail = AuctionContentDetail.LoadByServiceAndLanguage(this._auctionContent, service, language);
+      if (detail != null)
+        return new ContentInformations()
+        {
+          Title = detail.Title,
+          Description = detail.Description,
+          HtmlTitle = detail.HtmlTitle,
+          MetaDescription = detail.MetaDescription,
+          MetaKeywords = detail.MetaKeywords,
+          Rating = detail.Rating.ToString()
+        };
+      else
+        return new ContentInformations()
+        {
+          Title = this._auctionContent.Title,
+          Description = this._auctionContent.Description
+        };
+    }
+
+
+    public override System.Collections.Specialized.NameValueCollection GetMetaInformation(Service service, Language language)
+    {
+      throw new NotImplementedException();
+    }
+
+    public override ContentData GetContentData(string userAgent)
+    {
+      throw new NotImplementedException();
+    }
+
+    public override ContentData GetContentData(int id)
+    {
+      throw new NotImplementedException();
+    }
+
+    public override void UpdateTitle(string title, IUserSession us)
+    {
+      this._auctionContent.Title = title;
+      this._auctionContent.UpdateWithHistory(us);
+    }
+
+    public override void UpdateDescription(string description, IUserSession us)
+    {
+      this._auctionContent.Description = description;
+      this._auctionContent.UpdateWithHistory(us);
+    }
+
+    public override List<ContentInformations> GetAllContentDetail()
+    {
+      List<AuctionContentDetail> acd = AuctionContentDetail.CreateManager().Load(this._auctionContent);
+      List<ContentInformations> result = new List<ContentInformations>();
+
+      foreach (AuctionContentDetail a in acd)
+        result.Add(new ContentInformations()
+        {
+          ID = a.ID,
+          Title = a.Title,
+          Description = a.Description,
+          HtmlTitle = a.HtmlTitle,
+          MetaDescription = a.MetaDescription,
+          MetaKeywords = a.MetaKeywords,
+          Language = a.Language,
+          Service = a.Service,
+          Rating = a.Rating.ToString(),
+        });
+
+      return result;
+    }
+
+    public override void UpdateContentDetails(ContentInformations info, IUserSession us)
+    {
+      if (info.Language == null)
+        return;
+
+      AuctionContentDetail dt = null;
+      if (info.Service != null)
+        dt = AuctionContentDetail.CreateManager().Load<AuctionContentDetail>(this._auctionContent, info.Service, info.Language);
+      else
+        dt = AuctionContentDetail.CreateManager().Load(this._auctionContent, info.Language);
+
+      if (dt == null)
+      {
+        dt = new AuctionContentDetail(-1, this._auctionContent, null, info.Language, info.Title, info.Description, info.RatingDecimal, info.HtmlTitle, info.MetaDescription, info.MetaKeywords, DateTime.Now, DateTime.Now);
+        dt.InsertWithHistory(us);
+        return;
+      }
+
+      dt.Title = info.Title;
+      dt.Service = info.Service;
+      dt.Language = info.Language;
+      dt.Description = info.Description;
+      dt.Rating = info.RatingDecimal;
+      dt.MetaKeywords = info.MetaKeywords;
+      dt.MetaDescription = info.MetaDescription;
+
+      dt.UpdateWithHistory(us);
+    }
+
+    public override void DeleteContentDetails(ContentInformations info, IUserSession us)
+    {
+      if (info.Language == null)
+        return;
+
+      AuctionContentDetail dt = null;
+      if (info.Service != null)
+        dt = AuctionContentDetail.CreateManager().Load<AuctionContentDetail>(this._auctionContent, info.Service, info.Language);
+      else
+        dt = AuctionContentDetail.CreateManager().Load(this._auctionContent, info.Language);
+
+      if (dt != null)
+        dt.DeleteWithHistory(us);
+    }
+  }
+}

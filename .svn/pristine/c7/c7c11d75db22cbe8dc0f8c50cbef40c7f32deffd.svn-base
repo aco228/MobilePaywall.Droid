@@ -1,0 +1,125 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using System.Data;
+
+namespace MobilePaywall.Data
+{
+  public partial interface IContentThumbnailDataManager
+  {
+    List<ContentThumbnailData> Load();
+    List<ContentThumbnailData> Load(IConnectionInfo connection);
+    List<ContentThumbnailData> Load(Content content, bool? isDefault);
+    List<ContentThumbnailData> Load(IConnectionInfo connection, Content content, bool? isDefault);
+    List<ContentThumbnailData> Load(Application application);
+    List<ContentThumbnailData> Load(IConnectionInfo connection, Application application);
+    ContentThumbnailData Load(Content content, ThumbnailConversionProfileEntry entry);
+    ContentThumbnailData Load(IConnectionInfo connection, Content content, ThumbnailConversionProfileEntry entry);
+    List<ContentThumbnailData> LoadWithoutData();
+    List<ContentThumbnailData> LoadWithoutData(IConnectionInfo connection);
+
+
+    List<ContentThumbnailData> Load(ContentThumbnail contentThumbnail);
+    List<ContentThumbnailData> Load(IConnectionInfo connection, ContentThumbnail contentThumbnail);
+
+
+
+
+
+  }
+
+  public partial class ContentThumbnailData
+  {
+    private string _dataFilePath;
+    public string DataFilePath { get { return this._dataFilePath; } set { this._dataFilePath = value; } }
+
+    public static List<ContentThumbnailData> LoadByApplication(Application application)
+    {
+      List<ContentThumbnailData> contentThumbnailData = null;
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        connection.Transaction.Begin();
+        IContentThumbnailDataManager vcManager = ContentThumbnailData.CreateManager(2);
+        contentThumbnailData = vcManager.Load(connection, application);
+        connection.Transaction.Commit();
+      }
+
+      return contentThumbnailData;
+    }
+
+    public static List<ContentThumbnailData> LoadByContent(Content content, bool? isDefault)
+    {
+      List<ContentThumbnailData> contentThumbnailData = null;
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        connection.Transaction.Begin();
+        IContentThumbnailDataManager vcManager = ContentThumbnailData.CreateManager(2);
+        contentThumbnailData = vcManager.Load(connection, content, isDefault);
+        connection.Transaction.Commit();
+      }
+
+      return contentThumbnailData;
+    }
+
+    public static List<ContentThumbnailData> LoadAllOriginals()
+    {
+      List<ContentThumbnailData> contentThumbnailData = null;
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        connection.Transaction.Begin();
+        IContentThumbnailDataManager ctdManager = ContentThumbnailData.CreateManager();
+        contentThumbnailData = ctdManager.LoadWithoutData(connection);
+        connection.Transaction.Commit();
+      }
+
+      return contentThumbnailData;
+    }
+
+    public static List<ContentThumbnailData> LoadAll()
+    {
+      return LoadAll(1);
+    }
+
+    public static List<ContentThumbnailData> LoadAll(int depth)
+    {
+      List<ContentThumbnailData> contentThumbnailData = null;
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        try
+        {
+          connection.Transaction.Begin();
+          IContentThumbnailDataManager manager = ContentThumbnailData.CreateManager(depth);
+          contentThumbnailData = manager.Load(connection);
+          connection.Transaction.Commit();
+          return contentThumbnailData;
+        }
+        catch (Exception ex)
+        {
+          connection.Transaction.Rollback();
+          return null;
+        }
+      }
+    }
+
+    public static ContentThumbnailData LoadByContentThumbnail(ContentThumbnail contentThumbanil)
+    {
+      List<ContentThumbnailData> ctd = new List<ContentThumbnailData>();
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+        ctd = ContentThumbnailData.CreateManager().Load(connection, contentThumbanil);
+
+      if (ctd == null || ctd.Count == 0)
+        return null;
+
+      ContentThumbnailData data = (from c in ctd where c.ThumbnailConversionProfileEntry.VisualMediaDimensions.ID == 16 select c).FirstOrDefault();
+      if (data == null)
+        data = ctd.FirstOrDefault();
+
+      return data;
+    }
+
+  }
+}
+

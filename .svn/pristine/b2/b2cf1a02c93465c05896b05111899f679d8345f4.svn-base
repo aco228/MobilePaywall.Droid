@@ -1,0 +1,108 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web
+{
+  public class PaywallCapManager
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (PaywallCapManager._log == null)
+          PaywallCapManager._log = LogManager.GetLogger(typeof(PaywallCapManager));
+        return PaywallCapManager._log;
+      }
+    }
+    #endregion
+    private static string TAG = "PaywallCapManager:: ";
+
+    // SUMMARY: Get single CAP entry (with out without MobileOperator
+    public static TemplateServiceCap GetCap(Service service, MobileOperator mobileOperator)
+    {
+      TemplateServiceCap tsc = TemplateServiceCap.CreateManager().Load(service, mobileOperator);
+      if (tsc == null || !tsc.IsActive)
+        return null;
+      return tsc;
+    } 
+    
+
+    // SUMMARY: Get CAP entry with MobileOperator
+    public static List<TemplateServiceCap> GetAllCaps(Customer customer) { return customer == null ? null : PaywallCapManager.GetAllCaps(customer.Service); } 
+    public static List<TemplateServiceCap> GetAllCaps(Service service)
+    {
+      List<TemplateServiceCap> tsc = TemplateServiceCap.CreateManager().Load(service);
+      if (tsc == null || tsc.Count == 0) return new List<TemplateServiceCap>();
+      return (from t in tsc where t.IsActive select t).ToList();
+    }
+
+
+
+
+    /*
+        ACCESS CHECK
+    */
+
+    // SUMMARY: Check if there is access for this customer to start initiate
+
+    public static bool HasAccess(Customer customer)
+    {
+      if (customer == null)
+        return false;
+
+      return PaywallCapManager.HasAccess(customer.Service, PaywallCapManager.GetCap(customer.Service, customer.MobileOperator));
+    }
+
+    public static bool HasAccess(Service service, MobileOperator mobileOperator)
+    {
+      return PaywallCapManager.HasAccess(service, PaywallCapManager.GetCap(service, mobileOperator));
+    }
+
+    public static bool HasAccess(Service service, TemplateServiceCap tsc)
+    {
+      if (tsc == null || !tsc.IsActive)
+        return true;
+
+      tsc.CheckIfValuesAreOld();
+            
+      bool _violation = false;
+      DateTime? timespan = tsc.TimeSpanDate;
+
+      if (timespan.HasValue)
+        Log.Debug(string.Format("CAP_TIMESPAN: {0}/{1}", tsc.LastTransactionDate.ToString(), timespan.Value.ToString()));
+
+      // Check if there are more transactions than CAP value
+      if (tsc.TempCurrentValue >= tsc.Value)
+      {
+        Log.Error(TAG + string.Format("Service '{0}' has CAP. {1}/{2}", service.Name, tsc.TempCurrentValue, tsc.Value));
+        _violation = true;
+      }
+      // Check for CAP on transaction timespan
+      else if(timespan.HasValue && tsc.LastTransactionDate < timespan.Value)
+      {
+        Log.Error(TAG + string.Format("Service '{0}' has timespan lock ({1}). Last conversion was made on '{2}', cap is set for '{3}'", tsc.Timespan, service.Name, tsc.LastTransactionDate.ToString(), timespan.Value.ToString()));
+        _violation = true;
+      }
+
+      if (_violation && tsc.IsLocked)
+      {
+        Log.Error(TAG + string.Format("Service '{0}' has CAP. {1}/{2}. Initiate could not pass", service.Name, tsc.TempCurrentValue, tsc.Value));
+        return false;
+      }
+      else if(_violation && !tsc.IsLocked)
+        Log.Error(TAG + string.Format("Service '{0}' has CAP. {1}/{2}. But initiate will pass because there is no LOCK", service.Name, tsc.TempCurrentValue, tsc.Value));
+
+      return true;
+    }
+
+  }
+}

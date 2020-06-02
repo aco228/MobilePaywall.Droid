@@ -1,0 +1,46 @@
+﻿@model MobilePaywall.Web.Models.NotificationViewModel
+@{
+	Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+
+	if(PaywallHttpContext.Current.Session.SessionData.MobileOperator == null)
+	{
+		MobilePaywall.GeoLocation.GeoResult geoResult = MobilePaywall.GeoLocation.GeoClient.Get(PaywallHttpContext.Current.Session.SessionData.IPAddress, PaywallHttpContext.Current.Session.SessionData.UserAgent);
+		if (geoResult != null && geoResult.MobileOperator != null)
+		{
+			foreach (var mno in geoResult.MobileOperator)
+			{
+				if (mno.ID == 220) // MNO
+				{
+					PaywallHttpContext.Current.Session.SessionData.MobileOperator = mno;
+					PaywallHttpContext.Current.Session.SessionData.Update();
+				}
+			}
+		}
+	}
+
+	string price = "3.49";
+	if(PaywallHttpContext.Current.Session.SessionData.MobileOperator.ID == 220)
+	{
+		price = "2.99";
+	}
+
+}
+
+@Styles.Render("~/Style/Pink/Page")
+
+<style>
+  #pt_cancellar{ display:none; }
+</style>
+
+<div class="content_page">
+  <div class="header">
+		O cancelamento do serviço @price EUR foi concluído com sucesso! Você não recebera mais débitos. + INFO: 707450201 
+	</div>
+  <div class="text_area">
+    @Model.Message
+		<br /><br />
+		<a href="@Model.AppendSessionID("/")" data-transition="slide" data-ajax="false">
+			<button class="btn" style="    width: 60%; margin: 15px 0px; margin-left: 20%; background: #4a87d2; border: none; color: white!important; border-radius: 10px;">Voltar</button>
+		</a>
+  </div>
+</div>

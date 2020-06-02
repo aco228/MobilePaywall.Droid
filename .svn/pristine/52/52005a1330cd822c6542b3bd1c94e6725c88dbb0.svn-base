@@ -1,0 +1,166 @@
+﻿using MobilePaywall.Data;
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Importer
+{
+	public class ImporterTask
+	{
+
+		private List<ImportRow> _rows;
+		private ImportLog _importLog;
+		private Dictionary<string, TemporaryMappingObject> _tempObjects;
+		private Dictionary<string, Language> _languageList;
+		private List<Dictionary<string, TemporaryMappingObject>> _temporaryObjectList;
+
+		public ImporterTask(List<ImportRow> rows) : this(rows, null)
+		{
+		}
+
+		public ImporterTask(List<ImportRow> rows, ImportLog importLog)
+		{
+			this._rows = rows;
+			this._importLog = importLog;
+			this._tempObjects = new Dictionary<string, TemporaryMappingObject>();
+			this._languageList = new Dictionary<string, Language>();
+		}
+
+		public void Run()
+		{
+			LoadTemporaryMappingObjects();
+			DoTemporaryObjectsInsertion();
+		}
+
+		private void LoadTemporaryMappingObjects()
+		{
+			foreach (ImportRow row in _rows)
+			{
+				if (!_tempObjects.ContainsKey(row.ContentKey))
+				{
+					Service service = GetService(row.ServiceName);
+					Content content = CreateContent(row);
+					VideoContent videoContent = CreateVideoContent(content, row);
+					TemporaryMappingObject tmpMappingObject = new TemporaryMappingObject();
+					tmpMappingObject.ContentKey = row.ContentKey;
+					tmpMappingObject.Service = service;
+					tmpMappingObject.Content = content;
+					tmpMappingObject.VideoContent = videoContent;
+					this._tempObjects.Add(row.ContentKey, tmpMappingObject);
+				}
+				VideoContentDetail detail = CreateNewVideoContentDetail(row);
+				_tempObjects[row.ContentKey].VideoContentDetailList.Add(detail);
+			}
+		}
+
+
+		private void DoTemporaryObjectsInsertion()
+		{
+			foreach (TemporaryMappingObject mappingObject in _tempObjects.Values)
+			{
+				using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+				{
+					ImportLogEntry importLogEntry = new ImportLogEntry(-1, this._importLog, mappingObject.ContentKey, null, DateTime.Now, DateTime.Now);
+					connection.Transaction.Begin();
+					bool isSuccessful = mappingObject.Insert(connection);
+					if (isSuccessful)
+					{
+						importLogEntry.IsSuccessful = true;
+						connection.Transaction.Commit();
+					}
+					else
+					{
+						importLogEntry.IsSuccessful = false;
+						connection.Transaction.Rollback();
+					}
+					importLogEntry.Insert();
+				}
+			}
+		}
+
+		private VideoContentDetail CreateNewVideoContentDetail(ImportRow row)
+		{
+			VideoContentDetail videoContentDetail = new VideoContentDetail();
+			if (_languageList.ContainsKey(row.LanguageTwoLetters))
+				videoContentDetail.Language = _languageList[row.LanguageTwoLetters];
+			else
+			{
+				Language language = Language.CreateManager().Load(row.LanguageTwoLetters, LanguageIdentifier.TwoLetterIsoCode);
+				_languageList.Add(row.LanguageTwoLetters, language);
+				videoContentDetail.Language = language;
+			}
+
+			videoContentDetail.Title = row.Title;
+			videoContentDetail.Description = row.Description;
+			videoContentDetail.Rating = row.Rating;
+
+			return videoContentDetail;
+		}
+
+		private Service GetService(string p)
+		{
+			IServiceManager serviceManager = Service.CreateManager(2);
+			Service service = serviceManager.Load(p);
+			return service;
+		}
+
+
+		private Content CreateContent(ImportRow row) 
+		{
+			ContentGroup contentGroup = GetOrCreateContentGroup(row.ContentGroupID);
+      ContentType contentType = ContentType.CreateManager().Load(Int32.Parse(row.ContentType));
+      bool exist = contentType != null ? true : false;
+			if (!exist) throw new NullReferenceException("ContentType " + row.ContentType + " doesn't exist");
+			ContentStorage contentStorage = GetOrCreateContentStorage(row.ContentStorageID);
+
+			Content content = new Content();
+			content.ContentGroup = contentGroup;
+			content.ContentType = contentType;
+			content.ContentStorage = contentStorage;
+			return content;
+		}
+
+		private ContentStorage GetOrCreateContentStorage(int contentStorageID)
+		{
+			ContentStorage storage = ContentStorage.CreateManager().Load(contentStorageID);
+			if (storage != null)
+			{
+				return storage;
+			}
+			//storage = new ContentStorage();
+			//storage.Name = p;
+			// TODO create new storage, CSV have contentstorage or contentstoragetype, maybe we need both??
+
+			return storage;
+		}
+
+		private ContentGroup GetOrCreateContentGroup(int contentGroupID)
+		{
+			ContentGroup group = ContentGroup.CreateManager().Load(contentGroupID);
+			if (group != null)
+			{
+				return group;
+			}
+			group = new ContentGroup();
+			//group. TODO ??
+
+			return group;
+		}
+
+
+		private VideoContent CreateVideoContent(Content content, ImportRow row)
+		{
+			VideoContent videoContent = new VideoContent();
+			videoContent.Title = row.Title;
+			videoContent.Description = row.Description;
+			videoContent.HasScenes = true; // TODO does it?
+			return videoContent;
+		}
+
+
+	}
+}

@@ -1,0 +1,521 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(CategoryServiceMap))] 
+  public partial class CategoryServiceMapManager : MobilePaywall.Data.Sql.SqlManagerBase<CategoryServiceMap>, ICategoryServiceMapManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override CategoryServiceMap LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							CategoryServiceMapTable.GetColumnNames("[csm]") + 
+							(this.Depth > 0 ? "," + CategoryTable.GetColumnNames("[csm_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[csm_c_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[csm_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[csm_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[csm_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[csm_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[csm_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[csm_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[csm_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[csm_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[csm_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[csm_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[csm_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[csm_s_t]") : string.Empty) + 
+					" FROM [core].[CategoryServiceMap] AS [csm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Category] AS [csm_c] ON [csm].[CategoryID] = [csm_c].[CategoryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [csm_c_i] ON [csm_c].[InstanceID] = [csm_c_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [csm_s] ON [csm].[ServiceID] = [csm_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [csm_s_a] ON [csm_s].[ApplicationID] = [csm_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [csm_s_p] ON [csm_s].[ProductID] = [csm_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [csm_s_m] ON [csm_s].[MerchantID] = [csm_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [csm_s_st] ON [csm_s].[ServiceTypeID] = [csm_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [csm_s_ust] ON [csm_s].[UserSessionTypeID] = [csm_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [csm_s_c] ON [csm_s].[FallbackCountryID] = [csm_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [csm_s_l] ON [csm_s].[FallbackLanguageID] = [csm_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [csm_s_ar] ON [csm_s].[FallbackAgeRatingID] = [csm_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [csm_s_sc] ON [csm_s].[ServiceConfigurationID] = [csm_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [csm_s_bm] ON [csm_s].[BusinessModelID] = [csm_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [csm_s_t] ON [csm_s].[TemplateID] = [csm_s_t].[TemplateID] ";
+				sqlCmdText += "WHERE [csm].[CategoryServiceMapID] = @CategoryServiceMapID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@CategoryServiceMapID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("csm", "loadinternal", "notfound"), "CategoryServiceMap could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				CategoryServiceMapTable csmTable = new CategoryServiceMapTable(query);
+				CategoryTable csm_cTable = (this.Depth > 0) ? new CategoryTable(query) : null;
+				InstanceTable csm_c_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				ServiceTable csm_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable csm_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable csm_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable csm_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable csm_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable csm_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable csm_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable csm_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable csm_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable csm_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable csm_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable csm_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        
+				Instance csm_c_iObject = (this.Depth > 1) ? csm_c_iTable.CreateInstance() : null;
+				Category csm_cObject = (this.Depth > 0) ? csm_cTable.CreateInstance(csm_c_iObject) : null;
+				Application csm_s_aObject = (this.Depth > 1) ? csm_s_aTable.CreateInstance() : null;
+				Product csm_s_pObject = (this.Depth > 1) ? csm_s_pTable.CreateInstance() : null;
+				Merchant csm_s_mObject = (this.Depth > 1) ? csm_s_mTable.CreateInstance() : null;
+				ServiceType csm_s_stObject = (this.Depth > 1) ? csm_s_stTable.CreateInstance() : null;
+				UserSessionType csm_s_ustObject = (this.Depth > 1) ? csm_s_ustTable.CreateInstance() : null;
+				Country csm_s_cObject = (this.Depth > 1) ? csm_s_cTable.CreateInstance() : null;
+				Language csm_s_lObject = (this.Depth > 1) ? csm_s_lTable.CreateInstance() : null;
+				AgeRating csm_s_arObject = (this.Depth > 1) ? csm_s_arTable.CreateInstance() : null;
+				ServiceConfiguration csm_s_scObject = (this.Depth > 1) ? csm_s_scTable.CreateInstance() : null;
+				BusinessModel csm_s_bmObject = (this.Depth > 1) ? csm_s_bmTable.CreateInstance() : null;
+				Template csm_s_tObject = (this.Depth > 1) ? csm_s_tTable.CreateInstance() : null;
+				Service csm_sObject = (this.Depth > 0) ? csm_sTable.CreateInstance(csm_s_aObject, csm_s_pObject, csm_s_mObject, csm_s_stObject, csm_s_ustObject, csm_s_cObject, csm_s_lObject, csm_s_arObject, csm_s_scObject, csm_s_bmObject, csm_s_tObject) : null;
+				CategoryServiceMap csmObject = csmTable.CreateInstance(csm_cObject, csm_sObject);
+				sqlReader.Close();
+
+				return csmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("csm", "loadinternal", "exception"), "CategoryServiceMap could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "CategoryServiceMap", "Exception while loading CategoryServiceMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public CategoryServiceMap Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							CategoryServiceMapTable.GetColumnNames("[csm]") + 
+							(this.Depth > 0 ? "," + CategoryTable.GetColumnNames("[csm_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[csm_c_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[csm_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[csm_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[csm_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[csm_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[csm_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[csm_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[csm_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[csm_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[csm_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[csm_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[csm_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[csm_s_t]") : string.Empty) +  
+					" FROM [core].[CategoryServiceMap] AS [csm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Category] AS [csm_c] ON [csm].[CategoryID] = [csm_c].[CategoryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [csm_c_i] ON [csm_c].[InstanceID] = [csm_c_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [csm_s] ON [csm].[ServiceID] = [csm_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [csm_s_a] ON [csm_s].[ApplicationID] = [csm_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [csm_s_p] ON [csm_s].[ProductID] = [csm_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [csm_s_m] ON [csm_s].[MerchantID] = [csm_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [csm_s_st] ON [csm_s].[ServiceTypeID] = [csm_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [csm_s_ust] ON [csm_s].[UserSessionTypeID] = [csm_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [csm_s_c] ON [csm_s].[FallbackCountryID] = [csm_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [csm_s_l] ON [csm_s].[FallbackLanguageID] = [csm_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [csm_s_ar] ON [csm_s].[FallbackAgeRatingID] = [csm_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [csm_s_sc] ON [csm_s].[ServiceConfigurationID] = [csm_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [csm_s_bm] ON [csm_s].[BusinessModelID] = [csm_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [csm_s_t] ON [csm_s].[TemplateID] = [csm_s_t].[TemplateID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("csm", "customload", "notfound"), "CategoryServiceMap could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				CategoryServiceMapTable csmTable = new CategoryServiceMapTable(query);
+				CategoryTable csm_cTable = (this.Depth > 0) ? new CategoryTable(query) : null;
+				InstanceTable csm_c_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				ServiceTable csm_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable csm_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable csm_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable csm_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable csm_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable csm_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable csm_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable csm_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable csm_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable csm_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable csm_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable csm_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        
+				Instance csm_c_iObject = (this.Depth > 1) ? csm_c_iTable.CreateInstance() : null;
+				Category csm_cObject = (this.Depth > 0) ? csm_cTable.CreateInstance(csm_c_iObject) : null;
+				Application csm_s_aObject = (this.Depth > 1) ? csm_s_aTable.CreateInstance() : null;
+				Product csm_s_pObject = (this.Depth > 1) ? csm_s_pTable.CreateInstance() : null;
+				Merchant csm_s_mObject = (this.Depth > 1) ? csm_s_mTable.CreateInstance() : null;
+				ServiceType csm_s_stObject = (this.Depth > 1) ? csm_s_stTable.CreateInstance() : null;
+				UserSessionType csm_s_ustObject = (this.Depth > 1) ? csm_s_ustTable.CreateInstance() : null;
+				Country csm_s_cObject = (this.Depth > 1) ? csm_s_cTable.CreateInstance() : null;
+				Language csm_s_lObject = (this.Depth > 1) ? csm_s_lTable.CreateInstance() : null;
+				AgeRating csm_s_arObject = (this.Depth > 1) ? csm_s_arTable.CreateInstance() : null;
+				ServiceConfiguration csm_s_scObject = (this.Depth > 1) ? csm_s_scTable.CreateInstance() : null;
+				BusinessModel csm_s_bmObject = (this.Depth > 1) ? csm_s_bmTable.CreateInstance() : null;
+				Template csm_s_tObject = (this.Depth > 1) ? csm_s_tTable.CreateInstance() : null;
+				Service csm_sObject = (this.Depth > 0) ? csm_sTable.CreateInstance(csm_s_aObject, csm_s_pObject, csm_s_mObject, csm_s_stObject, csm_s_ustObject, csm_s_cObject, csm_s_lObject, csm_s_arObject, csm_s_scObject, csm_s_bmObject, csm_s_tObject) : null;
+				CategoryServiceMap csmObject = csmTable.CreateInstance(csm_cObject, csm_sObject);
+				sqlReader.Close();
+
+				return csmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("csm", "customload", "exception"), "CategoryServiceMap could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "CategoryServiceMap", "Exception while loading (custom/single) CategoryServiceMap object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<CategoryServiceMap> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							CategoryServiceMapTable.GetColumnNames("[csm]") + 
+							(this.Depth > 0 ? "," + CategoryTable.GetColumnNames("[csm_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[csm_c_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[csm_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[csm_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[csm_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[csm_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[csm_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[csm_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[csm_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[csm_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[csm_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[csm_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[csm_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[csm_s_t]") : string.Empty) +  
+					" FROM [core].[CategoryServiceMap] AS [csm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Category] AS [csm_c] ON [csm].[CategoryID] = [csm_c].[CategoryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [csm_c_i] ON [csm_c].[InstanceID] = [csm_c_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [csm_s] ON [csm].[ServiceID] = [csm_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [csm_s_a] ON [csm_s].[ApplicationID] = [csm_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [csm_s_p] ON [csm_s].[ProductID] = [csm_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [csm_s_m] ON [csm_s].[MerchantID] = [csm_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [csm_s_st] ON [csm_s].[ServiceTypeID] = [csm_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [csm_s_ust] ON [csm_s].[UserSessionTypeID] = [csm_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [csm_s_c] ON [csm_s].[FallbackCountryID] = [csm_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [csm_s_l] ON [csm_s].[FallbackLanguageID] = [csm_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [csm_s_ar] ON [csm_s].[FallbackAgeRatingID] = [csm_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [csm_s_sc] ON [csm_s].[ServiceConfigurationID] = [csm_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [csm_s_bm] ON [csm_s].[BusinessModelID] = [csm_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [csm_s_t] ON [csm_s].[TemplateID] = [csm_s_t].[TemplateID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("csm", "customloadmany", "notfound"), "CategoryServiceMap list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<CategoryServiceMap>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				CategoryServiceMapTable csmTable = new CategoryServiceMapTable(query);
+				CategoryTable csm_cTable = (this.Depth > 0) ? new CategoryTable(query) : null;
+				InstanceTable csm_c_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				ServiceTable csm_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable csm_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable csm_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable csm_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable csm_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable csm_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable csm_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable csm_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable csm_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable csm_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable csm_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable csm_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        List<CategoryServiceMap> result = new List<CategoryServiceMap>();
+        do
+        {
+          
+					Instance csm_c_iObject = (this.Depth > 1) ? csm_c_iTable.CreateInstance() : null;
+					Category csm_cObject = (this.Depth > 0) ? csm_cTable.CreateInstance(csm_c_iObject) : null;
+					Application csm_s_aObject = (this.Depth > 1) ? csm_s_aTable.CreateInstance() : null;
+					Product csm_s_pObject = (this.Depth > 1) ? csm_s_pTable.CreateInstance() : null;
+					Merchant csm_s_mObject = (this.Depth > 1) ? csm_s_mTable.CreateInstance() : null;
+					ServiceType csm_s_stObject = (this.Depth > 1) ? csm_s_stTable.CreateInstance() : null;
+					UserSessionType csm_s_ustObject = (this.Depth > 1) ? csm_s_ustTable.CreateInstance() : null;
+					Country csm_s_cObject = (this.Depth > 1) ? csm_s_cTable.CreateInstance() : null;
+					Language csm_s_lObject = (this.Depth > 1) ? csm_s_lTable.CreateInstance() : null;
+					AgeRating csm_s_arObject = (this.Depth > 1) ? csm_s_arTable.CreateInstance() : null;
+					ServiceConfiguration csm_s_scObject = (this.Depth > 1) ? csm_s_scTable.CreateInstance() : null;
+					BusinessModel csm_s_bmObject = (this.Depth > 1) ? csm_s_bmTable.CreateInstance() : null;
+					Template csm_s_tObject = (this.Depth > 1) ? csm_s_tTable.CreateInstance() : null;
+					Service csm_sObject = (this.Depth > 0) ? csm_sTable.CreateInstance(csm_s_aObject, csm_s_pObject, csm_s_mObject, csm_s_stObject, csm_s_ustObject, csm_s_cObject, csm_s_lObject, csm_s_arObject, csm_s_scObject, csm_s_bmObject, csm_s_tObject) : null;
+					CategoryServiceMap csmObject = (this.Depth > -1) ? csmTable.CreateInstance(csm_cObject, csm_sObject) : null;
+					result.Add(csmObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("csm", "customloadmany", "exception"), "CategoryServiceMap list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "CategoryServiceMap", "Exception while loading (custom/many) CategoryServiceMap object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, CategoryServiceMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[CategoryServiceMap] ([CategoryID],[ServiceID],[IsEnabled]) VALUES(@CategoryID,@ServiceID,@IsEnabled); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@CategoryID", data.Category.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@IsEnabled", data.IsEnabled).SqlDbType = SqlDbType.Bit;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("csm", "insert", "noprimarykey"), "CategoryServiceMap could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "CategoryServiceMap", "Exception while inserting CategoryServiceMap object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("csm", "insert", "exception"), "CategoryServiceMap could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "CategoryServiceMap", "Exception while inserting CategoryServiceMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, CategoryServiceMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[CategoryServiceMap] SET " +
+												"[CategoryID] = @CategoryID, " + 
+												"[ServiceID] = @ServiceID, " + 
+												"[IsEnabled] = @IsEnabled, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [CategoryServiceMapID] = @CategoryServiceMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@CategoryID", data.Category.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@IsEnabled", data.IsEnabled).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@CategoryServiceMapID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("csm", "update", "norecord"), "CategoryServiceMap could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "CategoryServiceMap", "Exception while updating CategoryServiceMap object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("csm", "update", "morerecords"), "CategoryServiceMap was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "CategoryServiceMap", "Exception while updating CategoryServiceMap object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("csm", "update", "exception"), "CategoryServiceMap could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "CategoryServiceMap", "Exception while updating CategoryServiceMap object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, CategoryServiceMap data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[CategoryServiceMap] WHERE CategoryServiceMapID = @CategoryServiceMapID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@CategoryServiceMapID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("csm", "delete", "norecord"), "CategoryServiceMap could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "CategoryServiceMap", "Exception while deleting CategoryServiceMap object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("csm", "delete", "exception"), "CategoryServiceMap could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "CategoryServiceMap", "Exception while deleting CategoryServiceMap object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

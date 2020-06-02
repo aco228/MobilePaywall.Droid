@@ -1,0 +1,377 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(QuizAnswer))] 
+  public partial class QuizAnswerManager : MobilePaywall.Data.Sql.SqlManagerBase<QuizAnswer>, IQuizAnswerManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override QuizAnswer LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							QuizAnswerTable.GetColumnNames("[qa]") + 
+							(this.Depth > 0 ? "," + QuizQuestionTable.GetColumnNames("[qa_qq]") : string.Empty) + 
+							(this.Depth > 1 ? "," + QuizContentTable.GetColumnNames("[qa_qq_qc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[qa_qq_l]") : string.Empty) + 
+							(this.Depth > 0 ? "," + LanguageTable.GetColumnNames("[qa_l]") : string.Empty) + 
+					" FROM [core].[QuizAnswer] AS [qa] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[QuizQuestion] AS [qa_qq] ON [qa].[QuizQuestionID] = [qa_qq].[QuizQuestionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[QuizContent] AS [qa_qq_qc] ON [qa_qq].[QuizContentID] = [qa_qq_qc].[QuizContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Language] AS [qa_qq_l] ON [qa_qq].[LanguageID] = [qa_qq_l].[LanguageID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Language] AS [qa_l] ON [qa].[LanguageID] = [qa_l].[LanguageID] ";
+				sqlCmdText += "WHERE [qa].[QuizAnswerID] = @QuizAnswerID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@QuizAnswerID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qa", "loadinternal", "notfound"), "QuizAnswer could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				QuizAnswerTable qaTable = new QuizAnswerTable(query);
+				QuizQuestionTable qa_qqTable = (this.Depth > 0) ? new QuizQuestionTable(query) : null;
+				QuizContentTable qa_qq_qcTable = (this.Depth > 1) ? new QuizContentTable(query) : null;
+				LanguageTable qa_qq_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				LanguageTable qa_lTable = (this.Depth > 0) ? new LanguageTable(query) : null;
+
+        
+				QuizContent qa_qq_qcObject = (this.Depth > 1) ? qa_qq_qcTable.CreateInstance() : null;
+				Language qa_qq_lObject = (this.Depth > 1) ? qa_qq_lTable.CreateInstance() : null;
+				QuizQuestion qa_qqObject = (this.Depth > 0) ? qa_qqTable.CreateInstance(qa_qq_qcObject, qa_qq_lObject) : null;
+				Language qa_lObject = (this.Depth > 0) ? qa_lTable.CreateInstance() : null;
+				QuizAnswer qaObject = qaTable.CreateInstance(qa_qqObject, qa_lObject);
+				sqlReader.Close();
+
+				return qaObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qa", "loadinternal", "exception"), "QuizAnswer could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "QuizAnswer", "Exception while loading QuizAnswer object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public QuizAnswer Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							QuizAnswerTable.GetColumnNames("[qa]") + 
+							(this.Depth > 0 ? "," + QuizQuestionTable.GetColumnNames("[qa_qq]") : string.Empty) + 
+							(this.Depth > 1 ? "," + QuizContentTable.GetColumnNames("[qa_qq_qc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[qa_qq_l]") : string.Empty) + 
+							(this.Depth > 0 ? "," + LanguageTable.GetColumnNames("[qa_l]") : string.Empty) +  
+					" FROM [core].[QuizAnswer] AS [qa] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[QuizQuestion] AS [qa_qq] ON [qa].[QuizQuestionID] = [qa_qq].[QuizQuestionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[QuizContent] AS [qa_qq_qc] ON [qa_qq].[QuizContentID] = [qa_qq_qc].[QuizContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Language] AS [qa_qq_l] ON [qa_qq].[LanguageID] = [qa_qq_l].[LanguageID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Language] AS [qa_l] ON [qa].[LanguageID] = [qa_l].[LanguageID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qa", "customload", "notfound"), "QuizAnswer could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				QuizAnswerTable qaTable = new QuizAnswerTable(query);
+				QuizQuestionTable qa_qqTable = (this.Depth > 0) ? new QuizQuestionTable(query) : null;
+				QuizContentTable qa_qq_qcTable = (this.Depth > 1) ? new QuizContentTable(query) : null;
+				LanguageTable qa_qq_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				LanguageTable qa_lTable = (this.Depth > 0) ? new LanguageTable(query) : null;
+
+        
+				QuizContent qa_qq_qcObject = (this.Depth > 1) ? qa_qq_qcTable.CreateInstance() : null;
+				Language qa_qq_lObject = (this.Depth > 1) ? qa_qq_lTable.CreateInstance() : null;
+				QuizQuestion qa_qqObject = (this.Depth > 0) ? qa_qqTable.CreateInstance(qa_qq_qcObject, qa_qq_lObject) : null;
+				Language qa_lObject = (this.Depth > 0) ? qa_lTable.CreateInstance() : null;
+				QuizAnswer qaObject = qaTable.CreateInstance(qa_qqObject, qa_lObject);
+				sqlReader.Close();
+
+				return qaObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qa", "customload", "exception"), "QuizAnswer could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "QuizAnswer", "Exception while loading (custom/single) QuizAnswer object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<QuizAnswer> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							QuizAnswerTable.GetColumnNames("[qa]") + 
+							(this.Depth > 0 ? "," + QuizQuestionTable.GetColumnNames("[qa_qq]") : string.Empty) + 
+							(this.Depth > 1 ? "," + QuizContentTable.GetColumnNames("[qa_qq_qc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[qa_qq_l]") : string.Empty) + 
+							(this.Depth > 0 ? "," + LanguageTable.GetColumnNames("[qa_l]") : string.Empty) +  
+					" FROM [core].[QuizAnswer] AS [qa] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[QuizQuestion] AS [qa_qq] ON [qa].[QuizQuestionID] = [qa_qq].[QuizQuestionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[QuizContent] AS [qa_qq_qc] ON [qa_qq].[QuizContentID] = [qa_qq_qc].[QuizContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Language] AS [qa_qq_l] ON [qa_qq].[LanguageID] = [qa_qq_l].[LanguageID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Language] AS [qa_l] ON [qa].[LanguageID] = [qa_l].[LanguageID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qa", "customloadmany", "notfound"), "QuizAnswer list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<QuizAnswer>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				QuizAnswerTable qaTable = new QuizAnswerTable(query);
+				QuizQuestionTable qa_qqTable = (this.Depth > 0) ? new QuizQuestionTable(query) : null;
+				QuizContentTable qa_qq_qcTable = (this.Depth > 1) ? new QuizContentTable(query) : null;
+				LanguageTable qa_qq_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				LanguageTable qa_lTable = (this.Depth > 0) ? new LanguageTable(query) : null;
+
+        List<QuizAnswer> result = new List<QuizAnswer>();
+        do
+        {
+          
+					QuizContent qa_qq_qcObject = (this.Depth > 1) ? qa_qq_qcTable.CreateInstance() : null;
+					Language qa_qq_lObject = (this.Depth > 1) ? qa_qq_lTable.CreateInstance() : null;
+					QuizQuestion qa_qqObject = (this.Depth > 0) ? qa_qqTable.CreateInstance(qa_qq_qcObject, qa_qq_lObject) : null;
+					Language qa_lObject = (this.Depth > 0) ? qa_lTable.CreateInstance() : null;
+					QuizAnswer qaObject = (this.Depth > -1) ? qaTable.CreateInstance(qa_qqObject, qa_lObject) : null;
+					result.Add(qaObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qa", "customloadmany", "exception"), "QuizAnswer list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "QuizAnswer", "Exception while loading (custom/many) QuizAnswer object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, QuizAnswer data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[QuizAnswer] ([QuizQuestionID],[Weight],[LanguageID],[Text],[Description]) VALUES(@QuizQuestionID,@Weight,@LanguageID,@Text,@Description); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@QuizQuestionID", data.QuizQuestion.ID);
+				sqlCmd.Parameters.AddWithValue("@Weight", data.Weight).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@LanguageID", data.Language.ID);
+				sqlCmd.Parameters.AddWithValue("@Text", data.Text).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NText;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qa", "insert", "noprimarykey"), "QuizAnswer could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "QuizAnswer", "Exception while inserting QuizAnswer object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qa", "insert", "exception"), "QuizAnswer could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "QuizAnswer", "Exception while inserting QuizAnswer object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, QuizAnswer data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[QuizAnswer] SET " +
+												"[QuizQuestionID] = @QuizQuestionID, " + 
+												"[Weight] = @Weight, " + 
+												"[LanguageID] = @LanguageID, " + 
+												"[Text] = @Text, " + 
+												"[Description] = @Description, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [QuizAnswerID] = @QuizAnswerID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@QuizQuestionID", data.QuizQuestion.ID);
+				sqlCmd.Parameters.AddWithValue("@Weight", data.Weight).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@LanguageID", data.Language.ID);
+				sqlCmd.Parameters.AddWithValue("@Text", data.Text).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@QuizAnswerID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qa", "update", "norecord"), "QuizAnswer could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "QuizAnswer", "Exception while updating QuizAnswer object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qa", "update", "morerecords"), "QuizAnswer was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "QuizAnswer", "Exception while updating QuizAnswer object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qa", "update", "exception"), "QuizAnswer could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "QuizAnswer", "Exception while updating QuizAnswer object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, QuizAnswer data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[QuizAnswer] WHERE QuizAnswerID = @QuizAnswerID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@QuizAnswerID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qa", "delete", "norecord"), "QuizAnswer could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "QuizAnswer", "Exception while deleting QuizAnswer object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qa", "delete", "exception"), "QuizAnswer could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "QuizAnswer", "Exception while deleting QuizAnswer object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

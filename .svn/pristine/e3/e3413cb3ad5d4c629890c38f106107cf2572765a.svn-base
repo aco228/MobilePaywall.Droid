@@ -1,0 +1,67 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class UserHttpRequestManager : IUserHttpRequestManager
+  {
+    public UserHttpRequest Load(Guid userHttpRequestGuid)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, userHttpRequestGuid);
+    }
+
+    public UserHttpRequest Load(IConnectionInfo connection, Guid userHttpRequestGuid)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, userHttpRequestGuid);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, userHttpRequestGuid);
+    }
+
+    public UserHttpRequest Load(ISqlConnectionInfo connection, Guid userHttpRequestGuid)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[uhr].[UserHttpRequestGuid] = @UserHttpRequestGuid";
+      parameters.Arguments.Add("UserHttpRequestGuid", userHttpRequestGuid);
+      return this.Load(connection, parameters);
+    }
+
+
+    public List<UserHttpRequest> Load(Customer customer)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, customer);
+    }
+
+    public List<UserHttpRequest> Load(IConnectionInfo connection, Customer customer)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, customer);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, customer);
+    }
+
+    public List<UserHttpRequest> Load(ISqlConnectionInfo connection, Customer customer)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[uhr_us].CustomerID = @CustomerID";
+      parameters.Arguments.Add("CustomerID", customer.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+
+  }
+}
+

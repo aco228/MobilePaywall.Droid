@@ -1,0 +1,47 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class ConversionReportManager : IConversionReportManager
+  {
+    public ConversionReport Load(Payment payment, ConversionProvider provider, ConversionAction action)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, payment, provider, action);
+    }
+
+    public ConversionReport Load(IConnectionInfo connection, Payment payment, ConversionProvider provider, ConversionAction action)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, payment, provider, action);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, payment, provider, action);
+    }
+
+    public ConversionReport Load(ISqlConnectionInfo connection, Payment payment, ConversionProvider provider, ConversionAction action)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[cr_p].PaymentID = @PaymentID AND [cr].ConversionProviderID = @ConversionProviderID AND [cr].ConversionActionID = @ConversionActionID";
+      //parameters.OrderBy = "abbr.PrimaryKeyColumnID DESC";
+      parameters.Arguments.Add("PaymentID", payment.ID);
+      parameters.Arguments.Add("ConversionProviderID", (int)provider);
+      parameters.Arguments.Add("ConversionActionID", (int)action);
+      return this.Load(connection, parameters);
+      //return this.LoadMany(connection, parameters);
+    }
+
+
+  }
+}
+

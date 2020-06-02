@@ -1,0 +1,425 @@
+var Dashboard = function () {
+
+  return {
+
+    //main function
+    init: function () {
+      Metronic.addResizeHandler(function () {
+        jQuery('.vmaps').each(function () {
+          var map = jQuery(this);
+          map.width(map.parent().width());
+        });
+      });
+
+      //document.getElementById('returning').onclick = function () {
+      //  Dashboard.initCharts(visitorsReturning);
+      //}
+
+      //document.getElementById('newsessions').onclick = function () {
+      //  Dashboard.initCharts(visitors);
+      //}
+
+      //var visitors = [];
+      //var visitorsReturning = [];
+      //$.ajax({
+      //  url: '/dashboard/chart',
+      //  cache: false,
+      //  dataType: 'json',
+      //  method: 'GET',
+      //  success: function (response) {
+
+      //    for (var i = 0; i < response.length; i++) {
+      //      visitors.push([response[i].DateForDashboard, response[i].NewSessions]);
+      //    }
+
+      //    for (var i = 0; i < response.length; i++) {
+      //      visitorsReturning.push([response[i].DateForDashboard, response[i].ReturningSessions]);
+      //    }
+
+
+      //    Dashboard.initCharts(visitors);
+      //  },
+      //  error: function () {
+      //    Metronic.unblockUI();
+      //    errorNotification('error msg here');
+      //  }
+      //});
+    },
+
+    initJQVMAP: function () {
+      if (!jQuery().vectorMap) {
+        return;
+      }
+
+      var showMap = function (name) {
+        jQuery('.vmaps').hide();
+        jQuery('#vmap_' + name).show();
+      }
+
+      var setMap = function (name) {
+        var data = {
+          map: 'world_en',
+          backgroundColor: null,
+          borderColor: '#333333',
+          borderOpacity: 0.5,
+          borderWidth: 1,
+          color: '#c6c6c6',
+          enableZoom: true,
+          hoverColor: '#c9dfaf',
+          hoverOpacity: null,
+          values: sample_data,
+          normalizeFunction: 'linear',
+          scaleColors: ['#b6da93', '#0000FF'],
+          selectedColor: '#c9dfaf',
+          selectedRegion: null,
+          showTooltip: true,
+          onLabelShow: function (event, label, code) {
+            if (sample_data[code] != null && sample_data[code] != undefined) {
+              var message = '';
+              $.each(sample_sub_data[code], function (index, value) {
+                message += index + ' : ' + value + '<br/>';
+              });
+              label[0].innerHTML = '<b>' + label[0].innerHTML + '</b><br/>' + message;
+            }
+          },
+          onRegionOver: function (event, code) {
+
+          },
+          //    onRegionClick: function (element, code, region) {
+          //          var message = '';
+          //          $.each(sample_sub_data[code], function (index, value) {
+          //            message += index + ':' + value + '';
+          //          });
+          //          //var message = 'You clicked "' + region + '" which has the code: ' + code.toUpperCase();
+          //          alert(message);
+          //}
+        };
+
+        data.map = name + '_en';
+        var map = jQuery('#vmap_' + name);
+        if (!map) {
+          return;
+        }
+        map.width(map.parent().parent().width());
+        map.show();
+        map.vectorMap(data);
+        map.hide();
+      }
+
+      setMap("world");
+      setMap("usa");
+      setMap("europe");
+      setMap("russia");
+      setMap("germany");
+      //showMap("world");
+      showMap("world");
+
+      jQuery('#regional_stat_world').click(function () {
+        showMap("world");
+      });
+
+      jQuery('#regional_stat_usa').click(function () {
+        showMap("usa");
+      });
+
+      jQuery('#regional_stat_europe').click(function () {
+        showMap("europe");
+      });
+      jQuery('#regional_stat_russia').click(function () {
+        showMap("russia");
+      });
+      jQuery('#regional_stat_germany').click(function () {
+        showMap("germany");
+      });
+
+      $('#region_statistics_loading').hide();
+      $('#region_statistics_content').show();
+    },
+
+
+    initCharts: function (visitors) {
+      if (!jQuery.plot) {
+        return;
+      }
+
+      function showChartTooltip(x, y, xValue, yValue) {
+        $('<div id="tooltip" class="chart-tooltip">' + yValue + '<\/div>').css({
+          position: 'absolute',
+          display: 'none',
+          top: y - 40,
+          left: x - 40,
+          border: '0px solid #ccc',
+          padding: '2px 6px',
+          'background-color': '#fff'
+        }).appendTo("body").fadeIn(200);
+      }
+
+      var data = [];
+      var totalPoints = 250;
+
+      // random data generator for plot charts
+
+      //function getRandomData() {
+      //  if (data.length > 0) data = data.slice(1);
+      //  // do a random walk
+      //  while (data.length < totalPoints) {
+      //    var prev = data.length > 0 ? data[data.length - 1] : 50;
+      //    var y = prev + Math.random() * 10 - 5;
+      //    if (y < 0) y = 0;
+      //    if (y > 100) y = 100;
+      //    data.push(y);
+      //  }
+      //  // zip the generated y values with the x values
+      //  var res = [];
+      //  for (var i = 0; i < data.length; ++i) res.push([i, data[i]])
+      //  return res;
+      //}
+
+      //function randValue() {
+      //  return (Math.floor(Math.random() * (1 + 50 - 20))) + 10;
+      //}
+
+
+      if ($('#site_statistics').size() != 0) {
+
+        $('#site_statistics_loading').hide();
+        $('#site_statistics_content').show();
+
+        var plot_statistics = $.plot($("#site_statistics"),
+            [{
+              data: visitors,
+              lines: {
+                fill: 0.6,
+                lineWidth: 0
+              },
+              color: ['#f89f9f']
+            }, {
+              data: visitors,
+              points: {
+                show: true,
+                fill: true,
+                radius: 5,
+                fillColor: "#f89f9f",
+                lineWidth: 3
+              },
+              color: '#fff',
+              shadowSize: 0
+            }],
+
+            {
+              xaxis: {
+                tickLength: 0,
+                tickDecimals: 0,
+                mode: "categories",
+                min: 0,
+                font: {
+                  lineHeight: 14,
+                  style: "normal",
+                  variant: "small-caps",
+                  color: "#6F7B8A"
+                }
+              },
+              yaxis: {
+                ticks: 5,
+                tickDecimals: 0,
+                tickColor: "#eee",
+                font: {
+                  lineHeight: 14,
+                  style: "normal",
+                  variant: "small-caps",
+                  color: "#6F7B8A"
+                }
+              },
+              grid: {
+                hoverable: true,
+                clickable: true,
+                tickColor: "#eee",
+                borderColor: "#eee",
+                borderWidth: 1
+              }
+            });
+
+        var previousPoint = null;
+        $("#site_statistics").bind("plothover", function (event, pos, item) {
+          $("#x").text(pos.x.toFixed(2));
+          $("#y").text(pos.y.toFixed(2));
+          if (item) {
+            if (previousPoint != item.dataIndex) {
+              previousPoint = item.dataIndex;
+
+              $("#tooltip").remove();
+              var x = item.datapoint[0].toFixed(2),
+                  y = item.datapoint[1].toFixed(2);
+
+              showChartTooltip(item.pageX, item.pageY, item.datapoint[0], item.datapoint[1] + ' visits');
+            }
+          } else {
+            $("#tooltip").remove();
+            previousPoint = null;
+          }
+        });
+      }
+
+
+      if ($('#site_activities').size() != 0) {
+        //site activities
+        var previousPoint2 = null;
+        $('#site_activities_loading').hide();
+        $('#site_activities_content').show();
+
+        var data1 = [
+            ['DEC', 300],
+            ['JAN', 600],
+            ['FEB', 1100],
+            ['MAR', 1200],
+            ['APR', 860],
+            ['MAY', 1200],
+            ['JUN', 1450],
+            ['JUL', 1800],
+            ['AUG', 1200],
+            ['SEP', 600]
+        ];
+
+
+        var plot_statistics = $.plot($("#site_activities"),
+
+            [{
+              data: data1,
+              lines: {
+                fill: 0.2,
+                lineWidth: 0,
+              },
+              color: ['#BAD9F5']
+            }, {
+              data: data1,
+              points: {
+                show: true,
+                fill: true,
+                radius: 4,
+                fillColor: "#9ACAE6",
+                lineWidth: 2
+              },
+              color: '#9ACAE6',
+              shadowSize: 1
+            }, {
+              data: data1,
+              lines: {
+                show: true,
+                fill: false,
+                lineWidth: 3
+              },
+              color: '#9ACAE6',
+              shadowSize: 0
+            }],
+
+            {
+
+              xaxis: {
+                tickLength: 0,
+                tickDecimals: 0,
+                mode: "categories",
+                min: 0,
+                font: {
+                  lineHeight: 18,
+                  style: "normal",
+                  variant: "small-caps",
+                  color: "#6F7B8A"
+                }
+              },
+              yaxis: {
+                ticks: 5,
+                tickDecimals: 0,
+                tickColor: "#eee",
+                font: {
+                  lineHeight: 14,
+                  style: "normal",
+                  variant: "small-caps",
+                  color: "#6F7B8A"
+                }
+              },
+              grid: {
+                hoverable: true,
+                clickable: true,
+                tickColor: "#eee",
+                borderColor: "#eee",
+                borderWidth: 1
+              }
+            });
+
+        $("#site_activities").bind("plothover", function (event, pos, item) {
+          $("#x").text(pos.x.toFixed(2));
+          $("#y").text(pos.y.toFixed(2));
+          if (item) {
+            if (previousPoint2 != item.dataIndex) {
+              previousPoint2 = item.dataIndex;
+              $("#tooltip").remove();
+              var x = item.datapoint[0].toFixed(2),
+                  y = item.datapoint[1].toFixed(2);
+              showChartTooltip(item.pageX, item.pageY, item.datapoint[0], item.datapoint[1] + 'M$');
+            }
+          }
+        });
+
+        $('#site_activities').bind("mouseleave", function () {
+          $("#tooltip").remove();
+        });
+      }
+    },
+
+    initDashboardDaterange: function () {
+
+      if (!jQuery().daterangepicker) {
+        return;
+      }
+
+      $('#dashboard-report-range').daterangepicker({
+        opens: (Metronic.isRTL() ? 'right' : 'left'),
+        startDate: moment(), //.subtract('days', 29),
+        endDate: moment(),
+        minDate: '01/01/1900',
+        maxDate: moment(),
+        showDropdowns: false,
+        showWeekNumbers: true,
+        timePicker: false,
+        timePickerIncrement: 1,
+        timePicker24Hour: true,
+        minuteStep: 5,
+        showSeconds: false,
+        showMeridian: false,
+        ranges: {
+          'Today': [moment(), moment()],
+          'Yesterday': [moment().subtract('days', 1), moment().subtract('days', 1)],
+          'Last 7 Days': [moment().subtract('days', 6), moment()],
+          'Last 30 Days': [moment().subtract('days', 29), moment()],
+          'This Month': [moment().startOf('month'), moment().endOf('month')],
+          'Last Month': [moment().subtract('month', 1).startOf('month'), moment().subtract('month', 1).endOf('month')]
+        },
+        buttonClasses: ['btn btn-sm'],
+        applyClass: ' blue',
+        cancelClass: 'default',
+        format: 'DD/MM/YYYY',
+        separator: ' to ',
+        locale: {
+          applyLabel: 'Apply',
+          fromLabel: 'From',
+          toLabel: 'To',
+          customRangeLabel: 'Custom Range',
+          daysOfWeek: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+          monthNames: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+          firstDay: 1
+        },
+        autoApply: true
+      },
+          function (start, end) {
+            $('#dashboard-report-range span').html(start.format('MMMM D, YYYY') + ' - ' + end.format('MMMM D, YYYY'));
+          }
+      );
+
+
+      $('#dashboard-report-range span').html(moment().format('MMMM D, YYYY') + ' - ' + moment().format('MMMM D, YYYY'));
+      $('#dashboard-report-range').show();
+    }
+
+  };
+
+}();

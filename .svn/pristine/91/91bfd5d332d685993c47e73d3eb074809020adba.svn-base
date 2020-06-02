@@ -1,0 +1,165 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Web;
+using System.Web.Http;
+using System.Web.Mvc;
+
+using MobilePaywall.Data;
+using MobilePaywall.Web.Models;
+
+using Cashflow.Client;
+using Cashflow.Message;
+using Cashflow.Message.Mobile;
+
+using Senti.Diagnostics.Log;
+using Senti.Security;
+
+using log4net;
+using MobilePaywall.Web.Localization;
+using MobilePaywall.Web.Filters;
+using MobilePaywall.Direct;
+using MobilePaywall.Web.Helpers;
+
+namespace MobilePaywall.Web.Controllers
+{
+  [ContextValidation(Required = false)]
+  [AgeVerification(Required = false)]
+  [Authentication(Required = false)]
+  public class AccountController : PaywallController
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (AccountController._log == null)
+          AccountController._log = LogManager.GetLogger(typeof(AccountController));
+        return AccountController._log;
+      }
+    }
+    #endregion
+
+    public ActionResult Index()
+    {
+      string redirect = Request["redirect"] != null ? Request["redirect"].ToString() : "/";
+      CustomerModel model = new CustomerModel(PaywallHttpContext.Current, redirect);
+      return View("Login", model);
+    }
+
+    [System.Web.Mvc.HttpPost]
+    public ActionResult Login([FromBody]string username, [FromBody]string password)
+    {
+      if (string.IsNullOrEmpty(username) ||
+           string.IsNullOrEmpty(password))
+        return this.Json(new { result = false });
+			
+			if (PaywallHttpContext.Current.Service.ServiceData.ID == 239)
+        username = GreeceMsisdnHelper.FixNumber(username);
+
+      // TODO: check if PaywallContext.Session.SessionData is real UserSession, because we call this method by Ajax. If is not then maybe we should send UserSessionGuid by ajax and then load it
+      LoginAttempt loginAttempt = new LoginAttempt(-1, PaywallContext.Session.SessionData, null, username, false, DateTime.Now, DateTime.Now);
+      loginAttempt.Insert();
+
+      Customer customer = null;
+
+      if (PaywallHttpContext.Current.Service.ServiceData.ID == 349) // gr.shopvauchers
+        customer = Customer.LoadCustomerWithAccesPolicyByMsisdn(username);
+      else
+        customer = Customer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData, username, CustomerIdentifier.Username).FirstOrDefault();
+
+      if (customer == null)
+      {
+        Log.Error(string.Format("Customer could not be loaded with username:{0}", username));
+        return this.Json(new { result = false, redirect = "" });
+      }
+
+      if (PaywallHttpContext.Current.Service.ServiceData.ID == 239)
+        password = password.ToLower(); 
+
+      int SALT_LENGTH = 8;
+      byte[] salt = new byte[SALT_LENGTH];
+      for (int i = 0; i < SALT_LENGTH;
+        salt[i] = customer.EncryptedPassword[customer.EncryptedPassword.Length - SALT_LENGTH + i++]) ;
+      byte[] encryptedUnckeckedPassword = PasswordEncryption.Create(password, salt).EncryptedPasswordAndSalt;
+
+      if (!encryptedUnckeckedPassword.SequenceEqual(customer.EncryptedPassword))
+      {
+        if(!customer.Storage.GetString("password").Equals(password))
+        {
+          Log.Error(string.Format("Customer has wrong password with username:{0}, password provided: {1}", username, password));
+          return this.Json(new { result = false, redirect = "" });
+        }
+        Log.Error(string.Format("Customer had loged in by Storage password and not by encrypted password"));
+      }
+
+      MobilePaywallDirect direct = MobilePaywallDirect.Instance;
+      int? originalUserSessionID = direct.LoadInt(string.Format(@"SELECT TOP 1 UserSessionID FROM MobilePaywall.core.UserSession WHERE CustomerID={0} ORDER BY UserSessionID ASC;", customer.ID));
+      if (!originalUserSessionID.HasValue)
+      {
+        Log.Error(string.Format("Customer doeas not have valid UserSessionID"));
+        return this.Json(new { result = false });
+      }
+
+      UserSession originalUserSession = UserSession.CreateManager().Load(originalUserSessionID.Value);
+      if (originalUserSession == null)
+      {
+        Log.Error(string.Format("Customer doeas not have valid UserSession"));
+        return this.Json(new { result = false, redirect = "" });
+      }
+
+      loginAttempt.IsSuccessful = true;
+      loginAttempt.Customer = customer;
+      PaywallHttpContext.Current.Session.SessionData.Copy(originalUserSession);
+
+      // Create new redirect url
+      string lookupSessionGuid = direct.LoadString(string.Format("SELECT LookupSessionGuid FROM MobilePaywall.core.LookupSession WHERE UserSessionID={0} ORDER BY LookupSessionID DESC;",
+        PaywallHttpContext.Current.Session.SessionData.ID));
+      //string redirectUrl = "http://" + PaywallHttpContext.Current.Service.ServiceData.Name + 
+      //  "/sid/" +  PaywallHttpContext.Current.Session.SessionData.Guid.ToString().Replace("-", "") + "/lid/" + lookupSessionGuid.Replace("-", "");
+      string redirectUrl = "/";
+
+      Log.Debug(string.Format("Customer is successfuly loged in with username:{0} and pass:{1}", username, password));
+      return this.Json(new { result = true, redirect = redirectUrl });
+    }
+
+    [System.Web.Mvc.HttpPost]
+    public ActionResult Reset([FromBody]string username)
+    {
+      if (string.IsNullOrEmpty(username))
+        return this.Json(new { result = false });
+
+      ICustomerUtil cUtil = new WebCustomerUtil();
+      if (cUtil.Find(this.PaywallContext.Service, username, CustomerStatus.Unknown) == null)
+        return this.Json(new { result = false });
+
+      if (string.IsNullOrEmpty(cUtil.ResetPassword()))
+        return this.Json(new { result = false });
+
+      return this.Json(new { result = true });
+    }
+
+    public string GetById(string ip, string pxid)
+    {
+      IUserSessionManager usManager = UserSession.CreateManager();
+      UserSession session = usManager.Load(ip, pxid);
+      if (session == null)
+        return null;
+
+      IPaymentRequestManager prManager = PaymentRequest.CreateManager();
+      PaymentRequest request = prManager.Load(session);
+      if (request == null)
+        return null;
+
+      Data.IPaymentManager pManager = Payment.CreateManager();
+      Data.Payment payment = pManager.Load(request);
+      if (payment != null)
+        return null;
+
+      return request.PaymentRedirectUrl.Replace("auth", "accept");
+    }
+  }
+}

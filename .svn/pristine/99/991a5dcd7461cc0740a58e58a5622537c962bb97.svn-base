@@ -1,0 +1,1145 @@
+﻿using System;
+using System.Linq;
+using System.Web.Mvc;
+using System.Collections.Generic;
+
+using MobilePaywall.Data;
+using MobilePaywall.Web.Localization;
+using MobilePaywall.Web.Models;
+
+using Senti.Diagnostics.Log;
+
+using log4net;
+using System.Net;
+using System.Web;
+using System.IO;
+using System.Text.RegularExpressions;
+using MobilePaywall.Web.Log;
+using Newtonsoft.Json;
+using MobilePaywall.Data.DCBEgypt;
+using MobilePaywall.Data.Direct.MobilePaywall;
+using System.Web.Routing;
+using MobilePaywall.Direct;
+using MobilePaywall.Web.Controllers;
+
+namespace MobilePaywall.Web.Filters
+{
+  [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, Inherited = true, AllowMultiple = false)]
+  public class RestrictedAccessAttribute : PaywallActionFilterAttributeBase
+  {
+    #region #logging#
+
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (RestrictedAccessAttribute._log == null)
+          RestrictedAccessAttribute._log = LogManager.GetLogger(typeof(RestrictedAccessAttribute));
+        return RestrictedAccessAttribute._log;
+      }
+    }
+
+    #endregion #logging#
+
+    public override void OnActionExecuting(ActionExecutingContext filterContext)
+    {
+      base.OnActionExecuting(filterContext);
+
+      if (!this.Required)
+        return;
+
+
+      #region # Custom page Override #
+
+      //if ((filterContext.Controller as CustomPageController) != null)
+      //{
+      //  int _customPageID = -1;
+      //  string cpdID = filterContext.HttpContext.Request["id"] != null ? filterContext.HttpContext.Request["id"].ToString() : "";
+      //  if (Int32.TryParse(cpdID, out _customPageID))
+      //    return;
+
+      //  Data.CustomPage customPage = Data.CustomPage.CreateManager().Load(_customPageID);
+      //  if (customPage == null)
+      //    return;
+
+      //  if (!customPage..HasValue && !customPage.AgeVerificationFilter.Value)
+      //    return;
+
+      // }
+
+      #endregion
+
+      UserHttpRequest _userHttpRequest = new UserHttpRequest(-1, Guid.NewGuid(), PaywallHttpContext.Current.Session.SessionData, null, filterContext.HttpContext.Request.RawUrl, DateTime.Now, DateTime.Now);
+      _userHttpRequest.Insert();
+
+      string sessionID = this.PaywallContext.Session.SessionData.Guid.ToString();
+
+      IPaywallRestrictedAccessController restrictedAccessController = filterContext.Controller as IPaywallRestrictedAccessController;
+      if (restrictedAccessController == null)
+        throw new InvalidOperationException("RestrictedAccess-Filter requires Controller to implement IPaywallRestrictedAccessController interface.");
+
+      switch (this.PaywallContext.Service.ServiceData.ServiceStatus)
+      {
+        case ServiceStatus.Offline:
+          #region # /Template/ServiceError.cshtml #
+          ViewResult offlineView = new ViewResult();
+          offlineView.ViewName = "~/Views/Template/ServiceError.cshtml";
+          offlineView.ViewBag.Message = "Service is offline";
+          filterContext.Result = offlineView;
+          return;
+          #endregion
+        case ServiceStatus.Updating:
+          #region # /Template/ServiceError.cshtml #
+          ViewResult updateView = new ViewResult();
+          updateView.ViewName = "~/Views/Template/ServiceError.cshtml";
+          updateView.ViewBag.Message = "Service is updating...";
+          filterContext.Result = updateView;
+          return;
+          #endregion
+        case ServiceStatus.Free:
+          //INFO: Free mode is for testing. If service is in free mode that means that you will have access to all pages.
+          Log.Debug(string.Format("Service '{0}' is in free mode.", PaywallContext.Service.ServiceData.Name));
+          return;
+        default:
+          break;
+      }
+
+      #region # Cookie Bypass - Check cookie (allow content if there is Constants.CustomerCookie) #
+
+      /// Check if there is cookie with customer guid which have active payment and access view on content he wants to visit
+      /// cookie will be set on MobilePaywall.Web.Core.ContentController
+      
+      if (filterContext.HttpContext.Request.Cookies[Constants.CustomerCookie] != null) 
+      {
+        HttpCookie cookie = filterContext.HttpContext.Request.Cookies[Constants.CustomerCookie];
+        int csessionID = -1;
+        if(Int32.TryParse(cookie.Value.ToString(), out csessionID))
+        {
+          UserSession cookieUserSession = UserSession.CreateManager().Load(csessionID);
+          if(cookieUserSession != null)
+          {
+            if(cookieUserSession.Service.ID == this.PaywallContext.Service.ServiceData.ID)
+            {
+              if (cookieUserSession.Customer != null)
+              {
+                IContent cookieContent = restrictedAccessController.GetRequestedContent();
+                if (ContentAccessPolicy.HasAccess(this.PaywallContext.Service.ServiceData, cookieUserSession.Customer, cookieContent))
+                {
+                  Log.Debug( " - COOKIE_BYPASS - Customer have valid cookie to access video. CustomerID = " + cookieUserSession.Customer.ID);
+                  this.PaywallContext.Session.SessionData.Customer = cookieUserSession.Customer;
+                  this.PaywallContext.Session.SessionData.Update();
+                  return;
+                }
+                else
+                  Log.Error( " - COOKIE_BYPASS - Customer doesnt have access on requested video. SessionID = " + cookieUserSession.ID);
+              } // (cookieUserSession.Customer != null)
+              else
+              {
+                Log.Error( " - COOKIE_BYPASS - This usersession does not have original Customer. Please check this. Until then, customer will have video access! ");
+                return;
+              }
+            } //  (cookieUserSession.Service.ID == this.PaywallContext.Service.ServiceData.ID)
+          }// (cookieUserSession != null)
+          else
+            Log.Error(  " - COOKIE_BYPASS - This usersession could not be loaded! Please check this out! ");
+        } // (Int32.TryParse(cookie.Value.ToString(), out csessionID))
+        else
+          Log.Error( " - COOKIE_BYPASS - This customer has customer cookie but could not parse his id. ");
+      }
+
+      #endregion
+
+      #region # Check if cashflow has sent us 'subid' for subscription id #
+
+      Guid externalSubscriptionGuid = Guid.Empty;
+      if (this.PaywallContext.HttpContext.Request["subid"] != null && !string.IsNullOrEmpty(this.PaywallContext.HttpContext.Request["subid"].ToString()) && Guid.TryParse(this.PaywallContext.HttpContext.Request["subid"].ToString(), out externalSubscriptionGuid))
+      {
+        Payment exernalPayment = Payment.CreateManager().Load(externalSubscriptionGuid, GuidType.External);
+        List<PaymentContentAccessPolicyMap> pcapm = null;
+        if (exernalPayment != null)
+          pcapm = PaymentContentAccessPolicyMap.CreateManager().Load(exernalPayment);
+
+        if (pcapm != null && pcapm.Count > 0 && (from p in pcapm where p.ValidTo > DateTime.Now select p).FirstOrDefault() != null)
+        {
+          PaywallHttpContext.Current.Session.SessionData.Copy(exernalPayment.PaymentRequest.UserSession);
+          return;
+        }
+      }
+
+      #endregion
+
+      //TODO: Check if customer has already valid request. If it has, redirect him to payment page otherwise proceed with flow!
+      string requestRawUrl = MobilePaywall.Web.Helpers.UrlHelper.AppendSessionID(filterContext.RequestContext, filterContext.RequestContext.HttpContext.Request.RawUrl);
+      requestRawUrl = "http://" + this.PaywallContext.Domain.DomainName + requestRawUrl;
+
+      IPaymentManager paymentManager = this.PaywallContext.Service.CreatePaymentManager(this.PaywallContext.Session);
+
+      // from specific implementation, ignore all from restricted access attribute
+      if (paymentManager.IgnoreRestrictedAccessAttribute)
+      {
+        Log.Debug("RestrictedAttribute:: Is ignore from PaymentManager");
+        return;
+      }
+
+      bool isInitiateCallback = paymentManager.IsInitiateCallback(requestRawUrl);
+      
+      IContent content = null;
+      try
+      {
+        content = restrictedAccessController.GetRequestedContent();
+        if(content == null)
+        {
+          this.ErrorView(filterContext, "ERROR VIEW!! Content controller retured NULL for GetRequestedContent");
+          return;
+        }
+      }
+      catch (ArgumentException e)
+      {
+        this.ErrorView(filterContext, "ERROR VIEW!!  Error occured on content = restrictedAccessController.GetRequestedContent(); (ContentID=" + content.ContentData.ID + ")");
+        return;
+      } 
+
+      if(content != null)
+      {
+        _userHttpRequest.Content = content.ContentData;
+        _userHttpRequest.Update();
+      }
+           
+      #region # Spain centili specific ( if customer clicks cancel on payment page, redirect him to google.com )
+      if(this.PaywallContext.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("ES") && 
+        this.PaywallContext.Service.PaymentProvider.Name.Equals("Centili") &&
+        filterContext.HttpContext.Request.QueryString["status"] != null &&
+        filterContext.HttpContext.Request.QueryString["status"].Equals("canceled"))
+      {
+        Log.Debug( new LogMessageBuilder(new PaywallLogErrorCode("restrictedaccess", "payment", "canceled"), 
+          "SPAIN CENTILI SPECIFIC - Redirect to google -  Customer has clicked on cancel on payment page and he will be redirected to google.com!"));
+        
+        filterContext.HttpContext.Response.Redirect("http://www.google.com");
+        return;
+      }
+      #endregion
+      
+      BusinessModelEntry businessModelEntry = this.PaywallContext.GetBusinessModel();
+      IBusinessModel businessModel = businessModelEntry.Instantiate();
+
+      ContentAccessResult accessResult = businessModel.CheckContentAccess(this.PaywallContext.Session, content);
+      if (accessResult.HasAccess && !isInitiateCallback)
+      {
+        return;
+      }
+
+      //LookupSessionResult lsr = LookupSessionResult.CreateManager().Load(PaywallHttpContext.Current.Session.SessionData, SelectionMode.MostRecentOrderedByIsFinalResult);
+      //if (lsr == null && this.Configuration.HasSmsPayment)
+      //{
+      //  this.SendSmsView(filterContext, content.ContentData);
+      //  return;
+      //}
+
+      if (!this.Configuration.IsPaymentEnabled)
+      {
+        this.ErrorView(filterContext, string.Format("ERROR VIEW!! New payments disabled. Service {0} (ID: {1}) // Domain {2} (ID: {3}) // Configuration: {4} (Entry: {5})",
+          this.PaywallContext.Service.ServiceData.Name, this.PaywallContext.Service.ServiceData.ID, this.PaywallContext.Domain.DomainName, this.PaywallContext.Domain.ID, this.Configuration.ServiceConfiguration.Name, this.Configuration.ID));
+        return;
+      }
+
+      #region # check msisdn blacklist #
+      if (this.PaywallContext.Session.SessionData.Customer != null && !string.IsNullOrEmpty(this.PaywallContext.Session.SessionData.Customer.Msisdn))
+      {
+        IMsisdnBlacklistManager mbManager = MsisdnBlacklist.CreateManager();
+        MsisdnBlacklist msisdnBlacklist = mbManager.Load(this.PaywallContext.Service.ServiceData, this.PaywallContext.Session.SessionData.Customer.Msisdn);
+        if (msisdnBlacklist != null)
+        {
+          this.ErrorView(filterContext, string.Format("ERROR VIEW!! MSISDN_BLACKLIST!! This number is on blacklist: {0}", this.PaywallContext.Session.SessionData.Customer.Msisdn));
+          return;
+        }
+      }
+      #endregion
+
+      if (isInitiateCallback)
+      {
+        PaymentConfiguration paymentConfiguration = paymentManager.GetPaymentConfiguration(requestRawUrl);
+
+        #region # DCB Egypt (Pin) #
+        if (paymentConfiguration != null && paymentConfiguration.PaymentProvider.ID == 7)
+        {
+          if (!MobilePaywall.Constants.Confirmed.Equals(filterContext.HttpContext.Request.QueryString[MobilePaywall.Constants.PinVerification]))
+          {
+            // SUMMARY: Return PIN Verification page!
+            #region #return pin verification view#
+            ViewResult pinVerificationView = new ViewResult();
+            pinVerificationView.ViewName = "PinVerification";
+            PinVerificationModel pinVerificationModel = new PinVerificationModel(requestRawUrl, "");
+            pinVerificationView.ViewData.Model = pinVerificationModel;
+            filterContext.Result = pinVerificationView;
+            #endregion
+          }
+          else
+          {
+            PaymentRequestPinMap prpm = PaymentRequestPinMap.CreateManager().Load(paymentManager.GetRequest(requestRawUrl), filterContext.HttpContext.Request.QueryString["value"]);
+            if (prpm == null)
+            {
+              // SUMMARY: If doesnt match then show PIN Verification again with error.
+              #region #return pin verification view#
+              ViewResult pinVerificationView = new ViewResult();
+              pinVerificationView.ViewName = "PinVerification";
+              PinVerificationModel pinVerificationModel = new PinVerificationModel(requestRawUrl, "You have entered invalid pin! Try again!");
+              pinVerificationView.ViewData.Model = pinVerificationModel;
+              filterContext.Result = pinVerificationView;
+              #endregion
+            }
+          }
+        }
+        #endregion
+
+        InitiatePaymentResult result = paymentManager.ProcessInitiateCallbackResult(requestRawUrl);
+        
+        this.PaywallContext.Session.SessionData.Reload();
+        accessResult = businessModel.CheckContentAccess(this.PaywallContext.Session, content);
+        if (accessResult.HasAccess)
+        {
+
+          #region # Display Welcome page if service is configured that way. Else procede to the content #
+
+          if (this.Configuration.IsWelcomePageRequired && 
+            (this.PaywallContext.Session.SessionData.IsWelcomeShown.HasValue && !this.PaywallContext.Session.SessionData.IsWelcomeShown.Value))
+          {
+            try
+            {
+              bool? isWelcomePageShown = PaymentRequest.CreateManager().Load(accessResult.MatchedPolicy.Payment.PaymentRequest.ID).UserSession.IsWelcomeShown;
+
+              // QUICKFIX: fix for portugal customers who allready seen welcome page based on exstistance of access policy under diferent customer
+              if (result.Payment.PaymentStatus == PaymentStatus.Pending && 
+                this.PaywallContext.Session.SessionData.Customer != null && !string.IsNullOrEmpty(this.PaywallContext.Session.SessionData.Customer.Msisdn))
+                isWelcomePageShown = ContentAccessPolicy.HasAccess(this.PaywallContext.Service.ServiceData, this.PaywallContext.Session.SessionData.Customer, content);
+
+              if (isWelcomePageShown.HasValue && isWelcomePageShown.Value)
+                Log.Debug( new LogMessageBuilder(new PaywallLogErrorCode("restricteaccessattribute", "welcome", "show"),
+                  "Welcome page is allready shown to this customer in previous session", this.PaywallContext.Service.ServiceData));
+              else
+              {
+                Log.Debug( new LogMessageBuilder(new PaywallLogErrorCode("restricteaccessattribute", "welcome", "show"),
+                  "WELCOME VIEW!!! This configuration require welcome page to be show.", this.PaywallContext.Service.ServiceData));
+
+                #region return Welcome page
+
+                #region # PT go4Mobility wait for MobileOperator #
+
+                //if(PaywallHttpContext.Current.Service.PaymentProvider.ID == 17 && 
+                //  PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("PT"))
+                //{
+                //  MobilePaywallDirect database = MobilePaywallDirect.Instance;
+                //  for (int i = 0; i < 30; i++)
+                //  {
+                //    int? usMobileOpeartorID = database.LoadInt(
+                //      "SELECT MobileOperatorID FROM MobilePaywall.core.UserSession WHERE UserSessionID=" + PaywallHttpContext.Current.Session.SessionData.ID);
+                //    if (usMobileOpeartorID.HasValue)
+                //    {
+                //      MobileOperator mno = MobileOperator.CreateManager().Load(usMobileOpeartorID.Value);
+                //      PaywallHttpContext.Current.Session.SessionData.MobileOperator = mno;
+                //      PaywallHttpContext.Current.Session.SessionData.Update();
+                //      if (PaywallHttpContext.Current.Session.SessionData.Customer != null)
+                //      {
+                //        PaywallHttpContext.Current.Session.SessionData.Customer.MobileOperator = mno;
+                //        PaywallHttpContext.Current.Session.SessionData.Customer.Update();
+                //      }
+                //      break;
+                //    }
+                //    System.Threading.Thread.Sleep(1000);
+                //  }
+                //}
+
+                #endregion
+
+                this.PaywallContext.Session.SessionData.IsWelcomeShown = true;
+                this.PaywallContext.Session.SessionData.Update();
+
+                WelcomeViewModel wvm = new WelcomeViewModel(this.PaywallContext, content, result.Payment);
+                ViewResult viewResult = new ViewResult() { ViewName = "Welcome" };
+                viewResult.ViewData.Model = wvm;
+                filterContext.Result = viewResult;
+                return;
+
+                #endregion
+
+              }
+            }
+            catch (Exception ex)
+            {
+              Log.Fatal( new LogMessageBuilder(
+               new PaywallLogErrorCode("restricteaccessattribute", "welcome", "exception"),
+               "There was problem regarding showing the welcome page to customer!", this.PaywallContext.Service.ServiceData), ex);
+              return;
+            }
+          }
+
+          #endregion
+          return;
+        }
+        if (result == null)
+        {
+          #region #return login view#
+
+          Log.Debug( "LOGIN VIEW!! ");
+
+          CustomerModel customerModel = new CustomerModel(this.PaywallContext, requestRawUrl, Translations.Web.Error.ErrTitle, Translations.Web.Error.ErrInternal);
+          ViewResult viewResult = new ViewResult() { ViewName = "Login" };
+          viewResult.ViewData.Model = customerModel;
+          filterContext.Result = viewResult;
+          #endregion
+          return;
+        }
+        if (!result.IsFinalResult)
+        {
+
+          if (result.Callback == null)
+          {
+            this.ErrorView(filterContext, string.Format("ERROR VIEW!!! InitiatePayment result callback is null!"));
+            return;
+          }
+
+          #region #return pending view #
+
+          ReportOL(string.Empty, "yes_notification");
+          Log.Debug( "PENDING VIEW!!! Displaying pending view: Type = payment; CallbackGuid = " + result.Callback.Guid);
+
+          CallbackViewModel callbackViewModel =
+            new CallbackViewModel(this.PaywallContext)
+              {
+                Type = CallbackType.Payment,
+                CallbackGuid = result.Callback.Guid
+              };
+
+          ViewResult viewResult = new ViewResult() { ViewName = "Pending" };
+          viewResult.ViewData.Model = callbackViewModel;
+          filterContext.Result = viewResult;
+          #endregion
+          return;
+        }
+        if (!result.IsSuccessful)
+        {
+
+          #region # Report to the OL (TODO: check if this part is necceseary ) #
+
+          List<int> reportLinks = new List<int>() { 10, 13 };
+
+          try
+          {
+            if (!string.IsNullOrEmpty(this.PaywallContext.Session.SessionData.Referrer) &&
+              this.PaywallContext.Session.SessionData.Referrer.ToLower().Contains("pxid") &&
+              this.PaywallContext.Session.SessionData.Referrer.ToLower().Contains("country") &&
+              this.PaywallContext.Session.SessionData.MobileOperator != null &&
+              reportLinks.Contains(this.PaywallContext.Session.SessionData.MobileOperator.ID))
+            {
+              Uri requestUri = new Uri(this.PaywallContext.Session.SessionData.Referrer);
+              string clxid = HttpUtility.ParseQueryString(requestUri.Query).Get("pxid");
+              string pattern = "http://pornamatertube.mobi/report.php?clickid={0}&accepturl={1}";
+              string url = string.Format(pattern, clxid, "shit");
+              WebRequest wRequest = WebRequest.Create(url);
+              wRequest.Method = "GET";
+              WebResponse wResponse = wRequest.GetResponse();
+              StreamReader reader = new StreamReader(wResponse.GetResponseStream());
+              Log.Debug( new LogMessageBuilder(new PaywallLogErrorCode("restricteaccessattribute", "hack", "response"), reader.ReadToEnd().Trim(), url));
+              wResponse.Close();
+              reader.Close();
+            }
+          }
+          catch (Exception ex)
+          {
+            Log.Fatal( "restricteaccessattribute.hack.exception", ex);
+          }
+
+          #endregion
+
+          this.ErrorView(filterContext, string.Format("ERROR VIEW!!! Initiate payment result is not successful!"));
+          return;
+        }
+      }
+
+      //ServiceOffer activeOffer = accessResult.ServiceOffers.Where(x => x.IsActive).FirstOrDefault();
+
+      ServiceOffer activeOffer = null;
+      List<ServiceOffer> allServiceOffers = (from so in ServiceOffer.CreateManager().Load(PaywallContext.Service.ServiceData) where so.IsActive select so).ToList();
+      if(allServiceOffers != null && allServiceOffers.Count > 0)
+      {
+        if (PaywallContext.Session.SessionData.MobileOperator != null)
+          activeOffer = (from so in allServiceOffers where so.BusinessModelEntry.MobileOperator != null && so.BusinessModelEntry.MobileOperator.ID == PaywallContext.MobileOperatorID select so).FirstOrDefault();
+        if (activeOffer == null)
+          activeOffer = (from so in allServiceOffers where so.BusinessModelEntry.MobileOperator == null select so).FirstOrDefault();
+      }
+      
+      if (activeOffer == null)
+      {
+        this.ErrorView(filterContext, string.Format( "ERROR VIEW!!! No active offer for this service!"));
+        return;
+      }
+      
+      PaymentRequest request = paymentManager.InitiatePayment(null, activeOffer, content, requestRawUrl); 
+      if(request == null)
+      {
+        this.ErrorView(filterContext, "Payment request is null. Probably due a lookup session result does not exist before invoking InitiatePayment.");
+        return;
+      }
+
+      Log.Debug( new LogMessageBuilder(new PaywallLogErrorCode("restricteaccessattribute", "request", "status"),
+        string.Format("Request ({0}) // {1} ", request.Guid.ToString(), request.PaymentRequestStatus.ToString())));
+
+      switch (request.PaymentRequestStatus)
+      {
+
+        // SUMMARY: Used in case when we dont have msidn after identification, but session exists on provider side (case of AT NTH)
+        case PaymentRequestStatus.PaymentExists:
+          Log.Debug( new LogMessageBuilder(new LogErrorCode(this.PaywallContext.Session.SessionData.Guid.ToString(), "restrictedaccessattribute", "customer", "exists"),
+            "Customer has valid session on Provider side. New obsolete customer and old valid customer:",
+              this.PaywallContext.Session.SessionData.Customer,
+              request.Customer));
+
+          request.PaymentRequestStatus = PaymentRequestStatus.Complete;
+          this.PaywallContext.Session.SessionData.Customer.CustomerStatus = CustomerStatus.Obsolete;
+          this.PaywallContext.Session.SessionData.Customer.Update();
+          this.PaywallContext.Session.SessionData.Customer = request.Customer;
+          this.PaywallContext.Session.SessionData.Update();
+          accessResult = businessModel.CheckContentAccess(this.PaywallContext.Session, content);
+          if (accessResult.HasAccess && !isInitiateCallback)
+            return;
+          else
+          {
+            this.ErrorView(filterContext, "Old customer that still have active session on provider side does not have ContentPolicy!");
+            return;
+          }
+        case PaymentRequestStatus.Complete:
+
+          #region # HACK OL #
+          try
+          {
+            if (this.PaywallContext.Session.SessionData.EntranceUrl.Contains("pxid") &&
+              this.PaywallContext.Session.SessionData.EntranceUrl.Contains("country"))
+            {
+
+              #region # Check CapLock (&CPKL) for Service/MobileOperator? #
+
+              int capLockLimit = -1;
+              Int32.TryParse(this.PaywallContext.Session.SessionData.GetEntranceParameter("cplk"), out capLockLimit);
+              if (capLockLimit == -1)
+              {
+                Log.Error( new LogMessageBuilder(new LogErrorCode(this.PaywallContext.Session.SessionData.Guid.ToString(), "restrictedaccessattribute", "hack", "exception"),
+                  string.Format("CPKL is set but we could not parse url. CPKL=", this.PaywallContext.Session.SessionData.GetEntranceParameter("cplk"))));
+                goto capLock_exit;
+              }
+
+              if (!this.PaywallContext.Session.SessionData.EntranceParameterExists("cplk"))
+                goto capLock_exit;
+
+              int mnoID = -1;
+              MobileOperator _olMobileOperator = null;
+              Int32.TryParse(this.PaywallContext.Session.SessionData.GetEntranceParameter("mno"), out mnoID);
+              if (request.MobileOperator != null && request.MobileOperator.ID == mnoID)
+                _olMobileOperator = request.MobileOperator;
+
+              if (this.PaywallContext.Session.SessionData.EntranceParameterExists("mno") && _olMobileOperator == null)
+              {
+                Log.Error( new LogMessageBuilder(new LogErrorCode(this.PaywallContext.Session.SessionData.Guid.ToString(), "restrictedaccessattribute", "hack", "exception"),
+                  string.Format("CPKL and MNO is set but we could not load MobileOperator... Check this! mno={1}", mnoID)));
+                goto capLock_exit;
+              }
+
+              int transactionCount = DirectTransactionTable.TransactionCount(this.PaywallContext.Service.ServiceData, _olMobileOperator);
+              if (transactionCount >= capLockLimit)
+              {
+                request.PaymentRequestStatus = PaymentRequestStatus.Failure;
+                request.Update();
+
+                this.ErrorView(filterContext, string.Format("CapLock is set!!! CPKL=" + capLockLimit + "; MNO = " + (_olMobileOperator == null ? "NULL" : _olMobileOperator.ID.ToString())));
+                return;
+              }
+
+              capLock_exit:
+              #endregion
+
+              #region # Check if PaymentReqeust is unique #
+              //IPaymentRequestManager prManager = PaymentRequest.CreateManager();
+              //List<PaymentRequest> requests = prManager.Load(this.PaywallContext.Session.SessionData.IPAddress, PaywallContext.Service.ServiceData, DateTime.Now.AddMinutes(-2));
+              //if (requests.Count > 1)
+              //{
+              //  request.PaymentRequestStatus = PaymentRequestStatus.Failure;
+              //  request.Update();
+
+              //  this.ErrorView(filterContext, "This customer with ID:" + request.Customer.ID + " has payment requests in last 2 minutes.");
+              //  return;
+              //}
+              #endregion
+
+              #region # Operator OL BLCK #
+
+              if ( this.PaywallContext.Session.SessionData.EntranceParameterExists("blck") && 
+                request.Customer != null && request.Customer.MobileOperator != null &&
+                this.PaywallContext.Session.SessionData.EntranceUrl.Contains(string.Format("blck={0}", request.Customer.MobileOperator.ID)))
+              {
+                request.PaymentRequestStatus = PaymentRequestStatus.Failure;
+                request.Update();
+
+                this.ReportOL(string.Empty, "blck");
+                this.ErrorView(filterContext, "Customer has operator that is block in url (Has blck=" + request.Customer.MobileOperator.ID + ")");
+                return;
+              }
+
+              #endregion
+
+              #region # type=oclck (Oneclick OL reporting ) #
+              if ( this.PaywallContext.Session.SessionData.EntranceUrl.Contains("type=oclck") )
+              {
+                if(this.PaywallContext.Session.SessionData.EntranceUrl.Contains("force_pending=true"))
+                {
+                  ReportOL(string.Empty, "yes_notification");
+                  #region #return pending view #
+
+                  Log.Debug( new LogMessageBuilder(new PaywallLogErrorCode("restricteaccessattribute", "-", "none"),
+                    "PENDING VIEW!!! Displaying pending view because there is force_pending=true in url. Probably someone is testing OL oneclick "));
+
+                  CallbackViewModel callbackViewModel =
+                    new CallbackViewModel(this.PaywallContext)
+                    {
+                      Type = CallbackType.Payment,
+                      CallbackGuid = Guid.Empty
+                    };
+
+                  ViewResult viewResult = new ViewResult() { ViewName = "Pending" };
+                  viewResult.ViewData.Model = callbackViewModel;
+                  filterContext.Result = viewResult;
+                  return;
+                  #endregion
+                }
+                else
+                  ReportOL(string.Empty, "no_notification");
+              }
+              #endregion
+
+              #region type=_nclck ( send paymentRedirect url )
+
+              if (this.PaywallContext.Session.SessionData.EntranceUrl.Contains("&type=_nclk"))
+              {
+                Uri acceptUrl = new Uri(request.PaymentRedirectUrl);
+                ReportOL(this.PaywallContext.Session.SessionData.Pxid, acceptUrl.ToString());
+                #region #return pending view #
+
+                Log.Debug(new LogMessageBuilder(new PaywallLogErrorCode("restricteaccessattribute", "-", "none"),
+                  "PENDING VIEW!!! Displaying pending view because there is force_pending=true in url. Probably someone is testing OL oneclick "));
+
+                CallbackViewModel callbackViewModel =
+                  new CallbackViewModel(this.PaywallContext)
+                  {
+                    Type = CallbackType.Payment,
+                    CallbackGuid = Guid.Empty
+                  };
+
+                ViewResult viewResult = new ViewResult() { ViewName = "Pending" };
+                viewResult.ViewData.Model = callbackViewModel;
+                filterContext.Result = viewResult;
+                return;
+                #endregion
+              }
+
+              #endregion
+
+              IServiceOfferManager soManager = ServiceOffer.CreateManager(2);
+              ServiceOffer serviceOffer = soManager.Load(request.ServiceOffer.ID);
+
+              IPaymentConfigurationManager pcManager = PaymentConfiguration.CreateManager(2);
+              PaymentConfiguration configuration = pcManager.Load(serviceOffer.PaymentConfiguration.ID);
+
+              Country country = this.PaywallContext.Session.SessionData.Country;
+              MobileOperator mobileOperator = this.PaywallContext.Session.SessionData.MobileOperator;
+              
+              #region #de.dimoco.eplus#
+
+              // just return string back to ol
+
+              if(country.TwoLetterIsoCode.Equals("DE") 
+                  && PaywallHttpContext.Current.Service.PaymentProvider.Name.Equals("Dimoco")
+                  && PaywallHttpContext.Current.Session.SessionData.MobileOperator != null && PaywallHttpContext.Current.Session.SessionData.MobileOperator.ID == 379
+                  && PaywallHttpContext.Current.Session.SessionData.EntranceUrl.Contains("&nclk="))
+                {
+
+                  #region #auto go test #
+
+                  if (this.PaywallContext.Session.SessionData.EntranceParameterExists("autogo"))
+                  {
+                    Match matchTransaction = new Regex("transactionId=([0-9]+x[0-9]+x[0-9]+)").Match(request.PaymentRedirectUrl);
+                    Match matchSubscription = new Regex("subscriptionId=([0-9]+)").Match(request.PaymentRedirectUrl);
+
+                    string transactionId = matchTransaction.Success ? matchTransaction.Groups[1].Value.ToString() : string.Empty;
+                    string subscriptionId = matchSubscription.Success ? matchSubscription.Groups[1].Value.ToString() : string.Empty;
+
+                    if(string.IsNullOrEmpty(transactionId) || string.IsNullOrEmpty(subscriptionId))
+                    {
+                      this.ErrorView(filterContext, "AUTO_GO Something is null. " + string.Format("subscriptionId={0}, transactionId={1}", subscriptionId, transactionId));
+                      return;
+                    }
+
+                    string url = string.Format("http://payment.ic3s.de/portal/v1/A/confirm?login=DimocoGmbH?transactionId={0}&subscriptionId={1}", transactionId, subscriptionId);
+                    filterContext.Result = new RedirectToRouteResult(new System.Web.Routing.RouteValueDictionary(new { controller = "Other", action = "FilterRedirect", url = url }));
+                    return;
+                  }
+
+                  #endregion
+
+                  this.ReportOL(request.PaymentRedirectUrl);
+                  return;
+                }
+
+              #endregion
+
+              #region # PaymentRequest.RedirectUrl is null? #
+
+              if (string.IsNullOrEmpty(request.PaymentRedirectUrl))
+              {
+                this.ErrorView(filterContext, "Payment request Url is null!");
+                return;
+              }
+
+              #endregion
+
+              #region #be.nth#
+              if (country.ID == 22)
+              {
+                if (configuration.PaymentProvider.ID == 6)
+                {
+                  //INFO: Works on NTH and just for Proximus.
+                  if (mobileOperator.ID == 26)
+                  {
+                    //METHOD WITH TOKEN!
+                    //WebRequest wsRequest = WebRequest.Create(request.PaymentRedirectUrl);
+                    //wsRequest.Method = "GET";
+                    //WebResponse wsResponse = wsRequest.GetResponse();
+                    //StreamReader sReader = new StreamReader(wsResponse.GetResponseStream());
+                    //string response = sReader.ReadToEnd();
+                    //wsResponse.Close();
+                    //sReader.Close();
+
+                    //Regex linkParser = new Regex(@"\b(?:https?://|www\.)\S+\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+                    //string token = string.Empty;
+                    //string url = string.Empty;
+                    //string report = "";
+                    //string pattern = "http://pornamatertube.mobi/report.php?clickid={0}&accepturl={1}";
+                    //foreach (Match m in linkParser.Matches(response))
+                    //{
+                    //  #region #extracting.token"
+                    //  if (m.Value.Contains("token"))
+                    //  {
+
+                    //    wsRequest = WebRequest.Create(m.Value);
+                    //    wsRequest.Method = "POST";
+                    //    wsResponse = wsRequest.GetResponse();
+                    //    sReader = new StreamReader(wsResponse.GetResponseStream());
+                    //    string sResponse = sReader.ReadToEnd();
+                    
+                    //    dynamic tokenJson = JsonConvert.DeserializeObject(sResponse);
+                    //    token = tokenJson.token;
+
+                    //    wsResponse.Close();
+                    //    sReader.Close();
+
+                    //  }
+                    //  #endregion
+                    //  #region #extracting.accept"
+                    //  if (m.Value.Contains("accept"))
+                    //  {
+                    //    url = m.Value;
+                    //  }
+                    //  #endregion
+                    //}
+
+                    //if (!string.IsNullOrEmpty(url) && !string.IsNullOrEmpty(token))
+                    //{
+
+                    //  Uri requestUri = new Uri(this.PaywallContext.Session.SessionData.EntranceUrl);
+                    //  string pxid = HttpUtility.ParseQueryString(requestUri.Query).Get("pxid");
+                    //  string final = url + "/" + token;
+
+                    //  filterContext.Result = new RedirectResult(final);
+                    //  return;
+                    //}
+
+                    //METHOD WITHOUT TOKEN
+                    //WebRequest wsRequest = WebRequest.Create(request.PaymentRedirectUrl);
+                    //wsRequest.Method = "GET";
+                    //WebResponse wsResponse = wsRequest.GetResponse();
+                    //StreamReader sReader = new StreamReader(wsResponse.GetResponseStream());
+                    //string response = sReader.ReadToEnd();
+                    //Regex linkParser = new Regex(@"\b(?:https?://|www\.)\S+\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+                    //foreach (Match m in linkParser.Matches(response))
+                    //  if (m.Value.Contains("accept"))
+                    //  {
+                    //    wsResponse.Close();
+                    //    sReader.Close();
+                    //    filterContext.Result = new RedirectResult(m.Value);
+                    //    return;
+                    //  }
+                    //  else
+                    //  {
+                    //    wsResponse.Close();
+                    //    sReader.Close();
+
+                    //    Log.Warn(new LogMessageBuilder(new LogErrorCode(this.PaywallContext.Session.SessionData.Guid.ToString(), "restrictedaccessattribute", "hack", "exception"),
+                    //      "Confirmation URL not found."));
+                    //  }
+                  }
+                }
+              }
+              #endregion
+
+              #region #fl.nth#
+              if (country.ID == 74)
+              {
+                //if (configuration.PaymentProvider.ID == 6)
+                //{
+                //  //METHOD WITHOUT TOKEN
+                //  WebRequest wsRequest = WebRequest.Create(request.PaymentRedirectUrl);
+                //  wsRequest.Method = "GET";
+                //  WebResponse wsResponse = wsRequest.GetResponse();
+                //  StreamReader sReader = new StreamReader(wsResponse.GetResponseStream());
+                //  string response = sReader.ReadToEnd();
+                //  Regex linkParser = new Regex(@"\b(?:https?://|www\.)\S+\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+                //  foreach (Match m in linkParser.Matches(response))
+                //    if (m.Value.Contains("accept"))
+                //    {
+                //      wsResponse.Close();
+                //      sReader.Close();
+                //      Log.Debug(new LogMessageBuilder(new LogErrorCode(this.PaywallContext.Session.SessionData.Guid.ToString(), "restrictedaccessattribute", "hack", "exception"),
+                //        "Customer redirected directly to confirmation page.", m.Value));
+                //      filterContext.Result = new RedirectResult(m.Value);
+                //      return;
+                //    }
+                //    else
+                //    {
+                //      wsResponse.Close();
+                //      sReader.Close();
+
+                //      Log.Warn(new LogMessageBuilder(new LogErrorCode(this.PaywallContext.Session.SessionData.Guid.ToString(), "restrictedaccessattribute", "hack", "exception"),
+                //        "Confirmation URL not found."));
+                //    }
+                //}
+              }
+              #endregion
+
+              #region #de.nth#
+
+              //if (country.ID == 1)
+              //{
+              //  // INFO: Works on NTH and just for Vodafone & E-Plus.
+              //  if (configuration.PaymentProvider.ID == 6)
+              //  {
+              //    if (mobileOperator.ID == 388 || mobileOperator.ID == 379 || mobileOperator.ID == 383 /* DE Mobilcom */)
+              //    {
+
+              //      WebRequest wsRequest = WebRequest.Create(request.PaymentRedirectUrl);
+              //      wsRequest.Method = "GET";
+              //      WebResponse wsResponse = wsRequest.GetResponse();
+              //      StreamReader sReader = new StreamReader(wsResponse.GetResponseStream());
+              //      string response = sReader.ReadToEnd();
+              //      wsResponse.Close();
+              //      sReader.Close();
+
+              //      Regex linkParser = new Regex(@"\b(?:https?://|www\.)\S+\b", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+              //      string token = string.Empty;
+              //      string url = string.Empty;
+              //      string report = "";
+              //      string pattern = "http://pornamatertube.mobi/report.php?clickid={0}&accepturl={1}";
+              //      foreach (Match m in linkParser.Matches(response))
+              //      {
+              //        // Removed token
+              //        #region #extracting.token"
+              //        //if (m.Value.Contains("token"))
+              //        //{
+              //        //  Log.Debug(new LogMessageBuilder(new LogErrorCode(this.PaywallContext.Session.SessionData.Guid.ToString(), "restrictedaccessattribute", "hack", "nth.token"),
+              //        //    "Token URL found.", m.Value));
+
+              //        //  wsRequest = WebRequest.Create(m.Value);
+              //        //  wsRequest.Method = "POST";
+              //        //  wsResponse = wsRequest.GetResponse();
+              //        //  sReader = new StreamReader(wsResponse.GetResponseStream());
+              //        //  string sResponse = sReader.ReadToEnd();
+
+              //        //  Log.Debug(new LogMessageBuilder(new LogErrorCode(this.PaywallContext.Session.SessionData.Guid.ToString(), "restrictedaccessattribute", "hack", "nth.token"),
+              //        //    "Response", sResponse));
+
+              //        //  dynamic tokenJson = JsonConvert.DeserializeObject(sResponse);
+              //        //  token = tokenJson.token;
+
+              //        //  wsResponse.Close();
+              //        //  sReader.Close();
+
+              //        //  Log.Debug(new LogMessageBuilder(new LogErrorCode(this.PaywallContext.Session.SessionData.Guid.ToString(), "restrictedaccessattribute", "hack", "nth.token"),
+              //        //    "Token successfully retrieved from NTH.", token, m.Value));
+
+              //        //}
+              //        #endregion
+              //        #region #extracting.accept"
+              //        if (m.Value.Contains("accept"))
+              //        {
+              //          Log.Debug( new LogMessageBuilder(new LogErrorCode(this.PaywallContext.Session.SessionData.Guid.ToString(), "restrictedaccessattribute", "hack", "nth.accept"),
+              //            "Accept URL found.", m.Value));
+              //          url = m.Value;
+              //        }
+              //        #endregion
+              //      }
+
+              //      //if (!string.IsNullOrEmpty(url) && !string.IsNullOrEmpty(token))
+              //      if (!string.IsNullOrEmpty(url))
+              //      {
+              //        Log.Debug( new LogMessageBuilder(new LogErrorCode(this.PaywallContext.Session.SessionData.Guid.ToString(), "restrictedaccessattribute", "hack", "nth.report"),
+              //            "URL will be reported to OL.", url, token));
+
+              //        Uri requestUri = new Uri(this.PaywallContext.Session.SessionData.EntranceUrl);
+              //        string pxid = HttpUtility.ParseQueryString(requestUri.Query).Get("pxid");
+              //        string final = url.Replace('&', '|'); // +"/" + token;
+
+              //        //wsRequest = WebRequest.Create(final);
+              //        //wsRequest.Method = "POST";
+              //        //wsResponse = wsRequest.GetResponse();
+              //        //sReader = new StreamReader(wsResponse.GetResponseStream());
+              //        //string sResponse = sReader.ReadToEnd();
+
+              //        //report = string.Format(pattern, pxid, final);
+              //        //wsRequest = WebRequest.Create(report);
+              //        //wsRequest.Method = "GET";
+              //        //wsResponse = wsRequest.GetResponse();
+              //        //sReader = new StreamReader(wsResponse.GetResponseStream());
+              //        //wsResponse.Close();
+              //        //sReader.Close();
+
+              //        this.ReportOL(final);
+              //        this.ErrorView(filterContext, "Stoped after OL report.");
+              //        return;
+              //      }
+              //      else
+              //        Log.Debug( new LogMessageBuilder(new LogErrorCode(this.PaywallContext.Session.SessionData.Guid.ToString(), "restrictedaccessattribute", "hack", "nth.report"),
+              //            "URL is empty so nothing will be reported to OL"));
+
+              //    }
+              //  }
+              //}
+
+              #endregion
+              
+              #region # pl.dimoco #
+
+              if(PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.ToUpper().Equals("PL") &&
+                PaywallHttpContext.Current.Service.PaymentProvider.ID == 3)
+              {
+                this.ReportOL(request.PaymentRedirectUrl);
+              }
+
+              #endregion
+
+              #region #pl|de|fi|AU.dimoco#
+              if ( /* (pl is seperate right now) country.ID == 169 || */ country.ID == 1 || country.ID == 74
+                && !PaywallContext.Session.SessionData.EntranceUrl.Contains("type=instant"))
+              {
+                if (configuration.PaymentProvider.ID == 3) // && !serviceOffer.Service.Name.Equals("erotikclips.mobi")
+                {
+                  List<int> dimocoMNOs = new List<int>() { 73, 74, 79, 214 /*PL Plus*/, 216 /*PL T-Mobile*/, 379 /*E-Plus*/, 388 /* DE Vodafone D2 */, 383 /* DE Mobilcom */ };
+                  if (dimocoMNOs.Contains(mobileOperator.ID))
+                  {
+                    Uri requestUri = new Uri(this.PaywallContext.Session.SessionData.EntranceUrl);
+                    string pxid = HttpUtility.ParseQueryString(requestUri.Query).Get("pxid");
+                    string pattern = "http://pornamatertube.mobi/report.php?clickid={0}&accepturl={1}";
+                    string token = string.Empty;
+
+                    if(country.TwoLetterIsoCode.Equals("DE"))
+                    {
+                      WebRequest wsRequest = WebRequest.Create(request.PaymentRedirectUrl);
+                      wsRequest.Method = "GET";
+                      WebResponse wsResponse = wsRequest.GetResponse();
+                      StreamReader sReader = new StreamReader(wsResponse.GetResponseStream());
+                      string response = sReader.ReadToEnd();
+                      wsResponse.Close();
+                      sReader.Close();
+
+                      //([A-Za-z0-9]{8}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{12})
+                      Regex linkParser = new Regex(@"[A-Za-z0-9]{8}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{12}", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+                      if (linkParser.Match(response).Success)
+                        token = linkParser.Match(response).Value;
+
+                    }
+
+                    string redirectUrl = string.IsNullOrEmpty(token) ? request.PaymentRedirectUrl : string.Format("{0}~{1}", request.PaymentRedirectUrl, token);
+                    string url = string.Format(pattern, pxid, redirectUrl.Replace('&', '|'));
+                    
+                    Log.Debug( new LogMessageBuilder(new LogErrorCode(this.PaywallContext.Session.SessionData.Guid.ToString(), "restrictedaccessattribute", "hack", "exception"),
+                      "Confirmation URL reported to OL.", request.PaymentRedirectUrl));
+
+                    WebRequest wssRequest = WebRequest.Create(url);
+                    wssRequest.Method = "GET";
+                    WebResponse wssResponse = wssRequest.GetResponse();
+                    StreamReader ssReader = new StreamReader(wssResponse.GetResponseStream());
+                   
+                    wssResponse.Close();
+                    ssReader.Close();
+                  }
+                }
+              }
+              //else if(country.TwoLetterIsoCode.Equals("AU") && configuration.PaymentProvider.Name.Equals("Dimoco") &&
+              //  this.PaywallContext.Session.SessionData.EntranceUrl.Contains("type=nclk"))
+              //{
+              //  string acceptUrl = string.Empty;
+
+              //  if (this.PaywallContext.Session.SessionData.EntranceUrl.Contains("operator=28") || // OPTUS (Operator identification is not working for optus, so its important that OL configuration contains this query!!) (28=OperatorID from OL database)
+              //    this.PaywallContext.Session.SessionData.EntranceUrl.Contains("operator=27"))  // TELSTRA (if identification is not working as it should be)
+              //  {
+              //    Uri redirectUrl = new Uri(request.PaymentRedirectUrl);
+              //    acceptUrl = string.Format("{0}:{1}",
+              //        HttpUtility.ParseQueryString(redirectUrl.Query).Get("serviceID").ToString(),
+              //        HttpUtility.ParseQueryString(redirectUrl.Query).Get("TransID").ToString());
+              //  }
+
+              //  ReportOL(this.PaywallContext.Session.SessionData.Pxid, acceptUrl);
+              //}
+              #endregion
+
+              #region #centili.ES#
+
+              if (configuration.PaymentProvider.Name.Equals("Centili") && 
+                this.PaywallContext.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("ES") &&
+                this.PaywallContext.Session.SessionData.EntranceUrl.Contains("&type=nclk"))
+              {
+                Uri acceptUrl = new Uri(request.PaymentRedirectUrl);
+                ReportOL(this.PaywallContext.Session.SessionData.Pxid, acceptUrl.ToString());
+              }
+
+              #endregion
+
+            }
+          }
+          catch (Exception ex)
+          {
+            Log.Fatal( new LogMessageBuilder(new LogErrorCode(this.PaywallContext.Session.SessionData.Guid.ToString(), "restrictedaccessattribute", "hack", "exception"),
+              "Hack failed! Customer will proceed to payment page directly."), ex);
+          }
+          #endregion
+
+          if(string.IsNullOrEmpty(request.PaymentRedirectUrl))
+          {
+            if (this.PaywallContext.Service.ServiceData.ID == 247)
+            {
+              Log.Error("pl.shopvacehrs CHECK THIS OUT");
+              return;
+            }
+
+            this.ErrorView(filterContext, "request.PaymentRedirectUrl is NULL! Probably is instant flow!");
+            return;
+          }
+
+          ///
+          // CUSTOMER WILL BE SENT TO PAYMENT PAGE CLEANLY
+          ///
+                    
+          Log.Debug( new LogMessageBuilder(new LogErrorCode(this.PaywallContext.Session.SessionData.Guid.ToString(), "restrictedaccessattribute", "hack", "redirect"),
+            "Customer will be redirected to payment page cleanly.", request.PaymentRedirectUrl));
+          filterContext.Result = new RedirectResult(request.PaymentRedirectUrl);
+          return;
+
+        case PaymentRequestStatus.Failure:
+          this.ErrorView(filterContext, " Payment request status is failure!");
+          return;
+
+        case PaymentRequestStatus.Pending:
+          #region #return callback view#
+          try
+          {
+            Log.Debug( new LogMessageBuilder( new PaywallLogErrorCode("restricteaccessattribute", "offer", "none"),
+              "PENDING VIEW!!! Displaying pending page! Type = initiate; CallbackGuid = " + request.Callback.Guid));
+
+            //TODO: There is some case when we do not have ExternalPaymentRequest so we should pass something else to CallbackViewModel!
+            CallbackViewModel callbackViewModel =
+              new CallbackViewModel(this.PaywallContext)
+              {
+                Type = CallbackType.Initiate,
+                CallbackGuid = request.Callback.Guid
+              };
+            ViewResult viewResult4 = new ViewResult() { ViewName = "Pending" };
+            viewResult4.ViewData.Model = callbackViewModel;
+            filterContext.Result = viewResult4;
+          }
+          catch (Exception ex)
+          {
+            Log.Error( new LogMessageBuilder(new PaywallLogErrorCode("restricteaccessattribute", "offer", "none"),
+              "No active offer for this service!", this.PaywallContext.Service.ServiceData), ex);
+            ErrorViewModel pendingError =
+                new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, "", Translations.Web.Error.ErrInternal);
+            ViewResult pendingResult = new ViewResult() { ViewName = "Error" };
+            pendingResult.ViewData.Model = pendingError;
+            filterContext.Result = pendingResult;
+            return;
+          }
+          #endregion #return callback view#
+          return;
+        default:
+          break;
+      }
+    }
+  
+
+    // SUMMARY: Generic function for sending reports to OL
+    public void ReportOL(string acceptUrl)
+    {
+      this.ReportOL(this.PaywallContext.Session.SessionData.Pxid, acceptUrl);
+    }
+
+    public void ReportOL(string pxid, string acceptUrl)
+    {
+      if (!this.PaywallContext.Session.SessionData.EntranceUrl.Contains("pxid") ||
+        !this.PaywallContext.Session.SessionData.EntranceUrl.Contains("country"))
+        return;
+
+      if (string.IsNullOrEmpty(pxid))
+        pxid = PaywallContext.Session.SessionData.Pxid;
+
+      Uri requestUri = new Uri(this.PaywallContext.Session.SessionData.EntranceUrl);
+      string pattern = "http://pornamatertube.mobi/report.php?clickid={0}&accepturl={1}";
+      string url = string.Format(pattern, pxid, acceptUrl.Replace('&', '|'));
+
+      Log.Debug( new LogMessageBuilder(new LogErrorCode(this.PaywallContext.Session.SessionData.Guid.ToString(), "restrictedaccessattribute", "hack", "exception"),
+           string.Format("Confirmation URL reported to OL. Pxid={0}, AcceptUrl={1}", pxid, acceptUrl)));
+      WebRequest wssRequest = WebRequest.Create(url);
+      wssRequest.Method = "GET";
+      WebResponse wssResponse = wssRequest.GetResponse();
+      StreamReader ssReader = new StreamReader(wssResponse.GetResponseStream());
+
+      wssResponse.Close();
+      ssReader.Close();
+    }
+
+    // SUMMARY: Generic function for displaying Error View and logging error message
+    private void ErrorView(ActionExecutingContext filterContext, string message)
+    {
+      Log.Error( new LogMessageBuilder(
+        new PaywallLogErrorCode("restricteaccessattribute", "request", "none"),
+        "ERROR VIEW!!! " + message));
+
+      //if (!string.IsNullOrEmpty(this.PaywallContext.Session.SessionData.Referrer) && this.PaywallContext.Session.SessionData.Referrer.Contains(Constants.LandingIdentifier))
+      //{
+      //  filterContext.Result = new RedirectToRouteResult(new RouteValueDictionary { { "Controller", "LandingPage" }, { "Action", "ErrorRedirect" } });
+      //  return;
+      //}
+
+      ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, "", Translations.Web.Error.ErrInternal);
+      ViewResult viewResult = new ViewResult() { ViewName = "Error" };
+      viewResult.ViewData.Model = errorModel;
+      filterContext.Result = viewResult;
+    }
+
+    // SUMMARY: Generic function for displaying Error View and logging error message
+    private void SendSmsView(ActionExecutingContext filterContext, Content content)
+    {
+      Log.Error( "SEND_NUMBER_RESTICTED - Customer will be redirected to SendNumber view");
+      SendNumberModel model = new SendNumberModel(PaywallHttpContext.Current, content);
+      ViewResult viewResult = new ViewResult() { ViewName = "SendNumber" };
+      viewResult.ViewData.Model = model;
+      filterContext.Result = viewResult;
+    }
+
+  }
+}

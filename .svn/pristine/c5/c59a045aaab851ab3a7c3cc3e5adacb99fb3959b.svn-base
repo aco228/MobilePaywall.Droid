@@ -1,0 +1,179 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Web.Localization;
+using MobilePaywall.Web.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers
+{
+  // Controller for pages
+  public class QuizController : PaywallRestrictedAccessController
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (QuizController._log == null)
+          QuizController._log = LogManager.GetLogger(typeof(QuizController));
+        return QuizController._log;
+      }
+    }
+    #endregion
+
+    public ActionResult Index(string id)
+    {
+      int contentID = -1;
+      if (!Int32.TryParse(id, out contentID))
+      {
+        Log.Error("Error View!!! ContentID:" + id + ", could not be parsed");
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, Translations.Web.Error.ErrTitle, Translations.Web.Error.ErrInternal);
+        return View("Error", errorModel);
+      }
+
+      if ((this.PaywallContext.Service as QuizService) == null)
+      {
+        Log.Error("Error View!!! Service '" + this.PaywallContext.Service.ServiceData.Name + "' has Quiz cotnent but service is not QuizService type");
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, Translations.Web.Error.ErrTitle, Translations.Web.Error.ErrInternal);
+        return View("Error", errorModel);
+      }
+
+      Data.Content content = Data.Content.CreateManager().Load(contentID);
+      if (content == null)
+      {
+        Log.Error("Error View!!! Could not load Content with ID:" + contentID);
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, Translations.Web.Error.ErrTitle, Translations.Web.Error.ErrInternal);
+        return View("Error", errorModel);
+      }
+
+      IContent icontent = content.Instantiate();
+      if (icontent == null)
+      {
+        Log.Error("Error View!!! Could not parse Content into IContent with ID:" + contentID);
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, Translations.Web.Error.ErrTitle, Translations.Web.Error.ErrInternal);
+        return View("Error", errorModel);
+      }
+      
+      return View("ContentQuiz", new QuizModel(PaywallHttpContext.Current, icontent));
+    }
+
+    // get requested cotnent from RestrictedAccessAttribute
+    public override IContent GetRequestedContent()
+    {
+      object cid = null;
+      Data.Content content = null;
+
+      if(!this.RouteData.Values.TryGetValue("id", out cid))
+      { 
+        ServiceContentGroupMap scgm = (from s in ServiceContentGroupMap.CreateManager().Load(this.PaywallContext.Service.ServiceData) where s.ContentGroup.ContentGroupType.Name.Equals("Quiz Content Group") select s).FirstOrDefault();
+        content = Data.Content.CreateManager().Load(scgm.ContentGroup).FirstOrDefault();
+      }
+
+      int _contentID = 0;
+      int.TryParse(cid.ToString(), out _contentID);
+
+      Log.Debug("GR GET CONTERNTE: " + _contentID.ToString());
+      
+      content = Data.Content.CreateManager().Load(_contentID);
+      return (content == null) ? null : content.Instantiate();
+    }
+  }
+
+  // Controller for ajax
+  public class QuizApiController : Controller
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (QuizApiController._log == null)
+          QuizApiController._log = LogManager.GetLogger(typeof(QuizApiController));
+        return QuizApiController._log;
+      }
+    }
+    #endregion
+
+    // SUMMARY: Load next quesion
+    public ActionResult Load(string quizContentID, string questionID, string weight, string isLastQuestion)
+    {
+      if (isLastQuestion.Equals("1"))
+      {
+        QuizService quizService = PaywallHttpContext.Current.Service as QuizService;
+        if (quizService != null)
+          quizService.OnLastQuestion(PaywallHttpContext.Current.Session);
+
+        #region # if this is last quistion and GR Dimoco service #
+
+        if(PaywallHttpContext.Current.Service.ServiceData.ServiceType.ID == 4)
+          return PartialView("_QuizData", new QuizDataModel(PaywallHttpContext.Current));
+
+        #endregion
+
+        QuizDataModel quizResultModel = new QuizDataModel(PaywallHttpContext.Current);
+        int _quizContentID;
+        if (!Int32.TryParse(quizContentID, out _quizContentID))
+        {
+          Log.Error("Partial Error!!! QUIZ!! QuizContentID could not be parsed!");
+          quizResultModel = new QuizDataModel(PaywallHttpContext.Current);
+          quizResultModel.HasError = true;
+        }
+
+        QuizContent quizContent = null;
+        QuizResult quizResult = null;
+        if (!quizResultModel.HasError)
+        {
+          quizContent = QuizContent.CreateManager().Load(_quizContentID);
+          
+          quizResult = QuizResult.CreateManager().Load(quizContent, PaywallHttpContext.Current.Service.ServiceData.FallbackLanguage, weight);
+          if(quizResult== null)
+          {
+            Language language = Language.CreateManager().Load(1);
+            quizResult = QuizResult.CreateManager().Load(quizContent, language, weight);
+          }
+          // load metoda (quizContent, languge, int weight)
+        }
+                
+        quizResultModel = new QuizDataModel(PaywallHttpContext.Current, quizResult);
+        return PartialView("_QuizData", quizResultModel);
+      }
+
+      int _questionID = -1;
+      QuizDataModel model = null;
+
+      // could not parse quistionID from javascript
+      if (!Int32.TryParse(questionID, out _questionID))
+      {
+        Log.Error("Partial Error!!! QUIZ!! QuestionID could not be parsed!");
+        model = new QuizDataModel(PaywallHttpContext.Current);
+        model.HasError = true;
+      }
+
+      // could not load quistion from DB
+      QuizQuestion question = QuizQuestion.CreateManager().Load(_questionID);
+      if (question == null)
+      {
+        Log.Error("Partial Error!!! QUIZ!! QuestionID could not be loaded!");
+        model = new QuizDataModel(PaywallHttpContext.Current);
+        model.HasError = true;
+      }
+
+      if (model == null)
+        model = new QuizDataModel(PaywallHttpContext.Current, question);
+
+      return PartialView("_QuizData", model);
+    }
+  }
+
+}

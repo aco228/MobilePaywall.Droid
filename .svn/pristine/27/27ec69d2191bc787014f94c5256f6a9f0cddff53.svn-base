@@ -1,0 +1,40 @@
+﻿using Direct.Core;
+using MobilePaywall.MobilePaywallDirect;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Implementation.PaywallLog
+{
+  internal class PLogTrace
+  {
+    public int ID = -1;
+    public string Key = string.Empty;
+    public bool IsActive = false;
+
+    public PLogTrace(string key, int applicationID)
+    {
+      this.Key = key;
+      MobilePaywallLogDirect db = MobilePaywallLogDirect.Instance;
+      DirectContainer dc = db.LoadContainer(string.Format("SELECT PaywallLogTraceID, IsActive FROM [MobilePaywallLog].log.PaywallLogTrace WHERE [Key]='{0}' AND PaywallLogApplicationID={1}",
+        key, applicationID));
+
+      if (dc == null || !dc.HasValue)
+      {
+        int? id = db.Execute(string.Format("INSERT INTO [MobilePaywallLog].log.PaywallLogTrace ([Key], PaywallLogApplicationID) VALUES ('{0}', {1});", this.Key, applicationID));
+        if (id.HasValue)
+        {
+          this.ID = id.Value;
+          this.IsActive = true;
+        }
+
+        return;
+      }
+      
+      this.ID = dc.GetInt("PaywallLogTraceID").Value;
+      this.IsActive = dc.GetBoolean("IsActive");
+    }
+  }
+}

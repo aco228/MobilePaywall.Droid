@@ -1,0 +1,98 @@
+﻿using System;
+using System.IO;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.ComponentModel;
+using System.Windows.Threading;
+
+using MobilePaywall.Data;
+
+namespace MobilePaywall.Importer.Process
+{
+  public class VideoConverter
+  {
+    private static int _totalCounter = -1;
+
+    public event VideoConversionEventHandler Converting;
+    public event VideoConversionEventHandler Converted;
+    public event ConverterProgressEventHandler Progress;
+
+    private BackgroundWorker _conversionWorker = null;
+    private List<VideoConversionTask> _tasks = new List<VideoConversionTask>();
+
+    public List<VideoConversionTask> Tasks { get { return this._tasks; } }
+    protected BackgroundWorker ConversionWorker { get { return this._conversionWorker; } }
+
+    public void AddTask(VideoConversionTask task)
+    {
+      this._tasks.Add(task);
+    }
+
+    public void Convert()
+    {
+      _totalCounter = this.Tasks.Count();
+      this._conversionWorker = new BackgroundWorker();
+      this.ConversionWorker.WorkerReportsProgress = true;
+      this.ConversionWorker.DoWork += this.ProcessConversionTasks;
+      this.ConversionWorker.ProgressChanged += this.ConversionTaskProgress;
+      this.ConversionWorker.RunWorkerCompleted += this.FinishedConversionTasks;
+      if (this.Converting != null)
+        this.Converting(this, new VideoConversionEventArgs(null));
+      this.ConversionWorker.RunWorkerAsync();
+    }
+    void Dispatcher_UnhandledExceptionFilter(object sender, DispatcherUnhandledExceptionFilterEventArgs e)
+    {
+      System.Windows.Forms.MessageBox.Show(e.Exception.ToString());
+      e.RequestCatch = false;
+      // Display error message or close the window.
+    }
+    protected void ProcessConversionTasks(object sender, DoWorkEventArgs e)
+    {
+      Dispatcher.CurrentDispatcher.UnhandledExceptionFilter +=
+  new DispatcherUnhandledExceptionFilterEventHandler(Dispatcher_UnhandledExceptionFilter);
+
+      VideoConversionResult result = new VideoConversionResult();
+      while (this.Tasks.Count > 0)
+      {
+        VideoConversionTask task = this.Tasks[0];
+        this.Tasks.RemoveAt(0);
+        result.TaskResults.Add(this.ProcessTask(task));
+      }
+      e.Result = result;
+    }
+
+    protected void ConversionTaskProgress(object sender, ProgressChangedEventArgs e)
+    {
+      if (this.Progress != null)
+        this.Progress(this, new ConverterProgressEventArgs((int)e.UserState, e.ProgressPercentage));
+    }
+
+    private VideoConversionTaskResult ProcessTask(VideoConversionTask task)
+    {
+      int conversionCounter = 0;
+      ////here conversion has to happen...
+			SortedDictionary<VideoConversionProfileEntry, string> encodedData = new SortedDictionary<VideoConversionProfileEntry, string>();
+			foreach (VideoConversionProfileEntry targetFormat in task.TargetFormats)
+      {
+        encodedData.Add(targetFormat, this.ConvertVideo(targetFormat, task.SourceFileName));
+        this.ConversionWorker.ReportProgress(++conversionCounter, (_totalCounter * task.TargetFormats.Count));
+      }
+      // for each 
+      return new VideoConversionTaskResult(true, task, encodedData);
+    }
+
+    private string ConvertVideo(VideoConversionProfileEntry videoConversionProfileEntry, string sourceFilename)
+    {
+      FfmpegProcess ffmpeg = new FfmpegProcess();
+      return ffmpeg.Start(sourceFilename, videoConversionProfileEntry);
+    }
+
+    protected void FinishedConversionTasks(object sender, RunWorkerCompletedEventArgs e)
+    {
+      if (this.Converted != null)
+        this.Converted(this, new VideoConversionEventArgs(e.Result as VideoConversionResult));
+    }
+  }
+}

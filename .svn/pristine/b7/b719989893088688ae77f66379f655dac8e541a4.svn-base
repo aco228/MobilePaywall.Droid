@@ -1,0 +1,40 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Data.Direct.MobilePaywall;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web.Models
+{
+    public class TemplateAutomationModel : PaywallViewModelBase
+    {
+
+        private Automation _serviceAutomation = null;
+        private List<Automation> _serviceAutomations = null;
+        private List<MobileOperator> _mobileOperators = null;
+        private List<AutomationGroup> _groups = null;
+
+        public List<Automation> ServiceAutomations { get { return this._serviceAutomations; } }
+        public List<MobileOperator> MobileOperators { get { return this._mobileOperators; } }
+        public List<AutomationGroup> Groups { get { return this._groups; } }
+
+        public TemplateAutomationModel(PaywallHttpContext context)
+            : base(context)
+        {
+            IAutomationManager aManager = Automation.CreateManager();
+            this._serviceAutomations = aManager.Load(this.Context.Service.ServiceData);
+            if (this._serviceAutomations == null)
+                this._serviceAutomations = new List<Automation>();
+
+            this._groups = AutomationGroup.CreateManager().Load(this.Context.Service.ServiceData.FallbackCountry);
+
+            this._mobileOperators = new List<MobileOperator>();
+            List<MobileOperator> _mno = MobileOperator.CreateManager().Load(this.Context.Service.ServiceData.FallbackCountry);
+            this._mobileOperators = (from mno in _mno where mno.ExternalMobileOperatorID.HasValue select mno).ToList();
+        }
+
+    }
+}

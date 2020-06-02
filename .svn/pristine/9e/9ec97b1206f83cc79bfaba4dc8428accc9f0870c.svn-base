@@ -1,0 +1,87 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.MobilePaywallDirectWebCore;
+using MobilePaywall.MobilePaywallDirect;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web.Models.Specific._Template
+{
+  public class TemplateEditCategoryModel : PaywallViewModelBase
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (TemplateEditCategoryModel._log == null)
+          TemplateEditCategoryModel._log = LogManager.GetLogger(typeof(TemplateEditCategoryModel));
+        return TemplateEditCategoryModel._log;
+      }
+    }
+    #endregion
+
+    private bool _hasError = false;
+    private string _errorMessage = string.Empty;
+    private Category _category = null;
+    private List<ContentGroupType> _contentGroupTypes = null;
+    private List<ContentGroup> _contentGroups = null;
+    private bool _categoryUsedByService = false;
+    private List<CategoryDetail> _categoryDetails = null;
+    private List<Language> _languages = null;
+
+    public Category Category { get { return this._category != null ? this._category : new Category(); } }
+    public List<ContentGroupType> ContentGroupTypes { get { return this._contentGroupTypes != null ? this._contentGroupTypes : new List<ContentGroupType>(); } }
+    public List<CategoryDetail> CategoryDetails { get { return this._categoryDetails != null ? this._categoryDetails : new List<CategoryDetail>(); } }
+    public List<ContentGroup> ContentGroups { get { return this._contentGroups != null ? this._contentGroups : new List<ContentGroup>(); } }
+    public List<Language> Languages { get { return this._languages != null ? this._languages : new List<Language>(); } }
+    public string ErrorMessage { get { return this._errorMessage; } }
+    public bool HasError { get { return this._hasError; } }
+    public bool CategoryUsedByService { get { return this._categoryUsedByService; } }
+    
+    public TemplateEditCategoryModel(PaywallHttpContext context, string categoryID)
+      : base(context)
+    {
+      CheckParsing(categoryID);
+      if (this._hasError)
+        return;
+
+      this._categoryUsedByService = PaywallDirect.Instance.LoadString(string.Format(@"
+        SELECT IsEnabled FROM MobilePaywall.core.CategoryServiceMap   
+        WHERE ServiceID={0} AND CategoryID={1}", context.Service.ServiceData.ID, categoryID)).Equals("True");
+
+      _contentGroupTypes = ContentGroupType.CreateManager().Load();
+      _contentGroups = ContentGroup.CreateManager().Load();
+      _languages = Language.CreateManager().Load();
+    }
+
+
+    public void CheckParsing(string categoryID)
+    {
+      int _categoryID = -1;
+      if (!Int32.TryParse(categoryID, out _categoryID))
+      {
+        this._hasError = true;
+        this._errorMessage = "Could not parse categoryID";
+        return;
+      }
+
+      this._category = Data.Category.CreateManager().Load(_categoryID);
+      
+      if (this._category == null)
+      {
+        this._hasError = true;
+        this._errorMessage = "Category not found!";
+        return;
+      }
+
+      _categoryDetails = CategoryDetail.CreateManager().Load(_category);
+    }
+  }
+}

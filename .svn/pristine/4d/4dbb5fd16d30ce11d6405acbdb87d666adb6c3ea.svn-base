@@ -1,0 +1,159 @@
+﻿function Payments() {
+  this._searchResultBox = null;
+
+  this._init = function () {
+    this._initialGoto();
+    this._searchResultBox = $('#search_result');
+    this._searchSubmit();
+    this._transactionRefund();
+    this._paymentCancel();
+    this._pcapmDisable();
+  };
+
+  // SUMMARY: On refresh
+  this._initialGoto = function () {
+    var data = location.hash;
+    if (data == '' || data[0] != '#')
+      return;
+
+    data = data.substring(1);
+    data = data.split('|');
+    var self = this;
+
+    if (data.length != 3)
+      returnl
+
+    $('#phoneNumber_input').val(data[0]);
+
+    $.ajax({
+      url: '/payment/Search', type: 'POST', data: '&phoneNumber=' + data[0] + '&serviceInput=' + data[1] + '&searchByInput=' + data[2],
+      success: function (response) { self._searchResultBox.html(response);
+      }
+    });
+
+  };
+
+  this._searchSubmit = function () {
+    var btn = $('#payment_submit_button');
+    btn.attr('inuse', 'false');
+    var originalText = btn.text();
+    var self = this;
+
+    btn.click(function (event) {
+      event.preventDefault();
+
+      if (btn.attr('inuse') == 'true')
+        return;
+
+      var phoneNumber = $('#phoneNumber_input').val();
+      //alert(phoneNumber);
+      var service = $('#select_service option:selected').attr('guid');
+      var searchBy = $('input:radio[name=findBy]:checked').attr('value');
+
+      console.log('sb: ' + searchBy);
+      console.log('phoneNumber: ' + phoneNumber);
+      console.log('service: ' + service);
+
+      btn.attr('inuse', 'true');
+      btn.text('...');
+
+      self.Ajax(
+        '/Search',
+        '&phoneNumber=' + phoneNumber + '&serviceInput=' + service + '&searchByInput=' + searchBy,
+        function (response) {
+          location.hash = phoneNumber + '|' + service + '|' + searchBy;
+          btn.attr('inuse', 'false');
+          btn.text(originalText);
+
+          if (response == '') _application.BoxMessage('Nothing is found!', btn, true);
+          else                _application.BoxMessage('Customer is found!', btn, false);
+
+          self._searchResultBox.html(response);
+        }, btn);
+
+    });
+  };
+
+  this._transactionRefund = function () {
+    var self = this;
+    $('.button_transaction_refund').click(function () {
+      
+      var elem = $(this);
+      var transactionGuid = $(this).attr('transactionGuid');
+      var transactionGroupGuid = $(this).attr('transactionGroupGuid');
+      var paymentGuid = $(this).attr('paymentGuid');
+            
+      _application.Confirm('Refund', 'Are you sure you want to refund this transaction?', 'Submit', function () {
+        self.Ajax("/refund",
+          "&transactionGuid=" + transactionGuid + "&transactionGroupGuid=" + transactionGroupGuid + "&paymentGuid=" + paymentGuid,
+          function (response) {
+            if(response.status)
+            {
+              alert("Transaction is successfuly refunded!");
+              var label = elem.parent().parent().find('.transactionLabel');
+              label.removeClass('label-success');
+              label.text('Cancelled');
+              label.addClass('label-danger');
+              elem.remove();
+
+              location.reload();
+            }
+            else
+              alert(response.message);
+          }, elem);
+      });
+    });
+  };
+
+  this._pcapmDisable = function () {
+    var self = this;
+    $('body').on('click', '.button_pcapm_remove', function () {
+      var elem = $(this);
+      var pcapm = $(this).attr('pcapm');
+      _application.Confirm('Content Policy', 'Are you sure you want to disable this content policy?', 'I am', function () {
+        self.Ajax('/RemoveAccessPolicy', '&pcampm=' + pcapm, function () {
+          _application.Confirm('Content Policy', 'This payment content policy is disabled!');
+          var label = elem.closest('tr').find('.pcapmLabel');
+          label.text('False'); label.removeClass('label-success'); label.addClass('label-danger');
+          elem.remove();
+        });
+      });
+    });
+  }
+
+  this._paymentCancel = function () {
+  	var self = this;
+  	$('body').on('click', '.button_payment_cancel', function () {
+  	  var elem = $(this);
+  		var paymentGuid = $(this).attr('guid');
+      
+  	  _application.Confirm('Subscription', 'Are you sure you want to cancel this subscription?', 'Submit', function () {
+  		  self.Ajax("/cancel", "&paymentGuid=" + paymentGuid,
+				  function (response) {
+				    _application.Confirm('Cancel payment', response.message );
+					  if (response.status) {
+					    var label = elem.closest('tr').find('.paymentLabel');
+					    label.removeClass('label-success');
+					    label.addClass('label-danger');
+					    label.text('Cancelled');
+
+					    elem.remove();                
+					  }
+				  }, null);
+  	  });
+    });
+  };
+
+
+  this.Ajax = function (url, data, succ_func, elem) {
+    _application.Ajax( '/payment/' + url, data, succ_func, elem);
+    //$.ajax({
+    //  url: url,
+    //  method: 'POST',
+    //  data: data,
+    //  success: function (response) { succ_func(response); }
+    //});
+  };
+
+  this._init();
+};

@@ -1,0 +1,61 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Web;
+
+namespace MobilePaywall.Web
+{
+  public class QuizService : ServiceBase
+  {
+
+    #region #logging#
+
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (QuizService._log == null)
+          QuizService._log = LogManager.GetLogger(typeof(QuizService));
+        return QuizService._log;
+      }
+    }
+
+    #endregion #logging#
+
+    public QuizService(Data.Service service, IPaywallRuntime runtime)
+      :base(service, runtime)
+    { }
+
+    public override IUserSession TryGetUserSessionByCookie(HttpContext context)
+    {
+      HttpCookie cookie = context.Request.Cookies[Constants.UserSessionCookie];
+      if (cookie == null)
+        return null;
+
+      int sessionID = -1;
+      if (!Int32.TryParse(cookie.ToString(), out sessionID))
+        return null;
+
+      UserSession session = UserSession.CreateManager().Load(sessionID);
+      if (session == null)
+        return null;
+
+      return session.Instantiate(this);
+    }
+
+    // SUMMARY: Method will be called on last qustion from customer
+    public void OnLastQuestion(IUserSession us)
+    {
+      GreeceUserSession gus = us as GreeceUserSession;
+      if (gus != null)
+        gus.OnLastQuestion();
+    }
+
+  }
+}

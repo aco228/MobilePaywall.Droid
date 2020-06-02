@@ -1,0 +1,165 @@
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.Drawing.Drawing2D;
+
+using MobileMafia.Portal.Data;
+using MobileMafia.Management.Converter;
+
+namespace MobileMafia.Management.Helpers
+{
+  public class ImageHelper
+  {
+    public static List<string> Extension = new List<string> { ".bmp", ".gif", ".jpeg", ".jpg", ".png", ".tiff", ".tif" };
+
+    public static byte[] Resize(System.Drawing.Image imgToResize, int w, int h)
+    {
+      int width = imgToResize.Width;
+      int height = imgToResize.Height;
+      byte[] data = null;
+
+      if (width == w && height == h)
+      {
+        MemoryStream imgData = new MemoryStream();
+        imgToResize.Save(imgData, ImageFormat.Png);
+        data = imgData.GetBuffer();
+      }
+      else
+      {
+				try
+				{
+					Bitmap b = new Bitmap(w, h);
+					Graphics g = Graphics.FromImage((Image)b);
+					g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+
+					g.DrawImage(imgToResize, 0, 0, w, h);
+					g.Dispose();
+
+					System.Drawing.Image img = (System.Drawing.Image)b;
+
+					MemoryStream imageData = new MemoryStream();
+					img.Save(imageData, System.Drawing.Imaging.ImageFormat.Png);
+					data = imageData.GetBuffer();
+
+					b.Dispose();
+					img.Dispose();
+					imageData.Dispose();
+				}
+				catch (Exception ex)
+				{
+					return null;
+				}
+      }
+
+      return data;
+    }
+
+    public static SortedDictionary<VideoThumbnailType, byte[]> GetJpg(string file)
+    {
+      SortedDictionary<VideoThumbnailType, byte[]> images = new SortedDictionary<VideoThumbnailType, byte[]>();
+      List<VideoThumbnailType> videoThumbnailTypes = VideoThumbnailType.CreateManager().Load(".jpg");
+      foreach (VideoThumbnailType videoThumbnailType in videoThumbnailTypes)
+      {
+        Image input = Image.FromFile(file);
+        int height = videoThumbnailType.Height;
+        int width = videoThumbnailType.Width;
+        byte[] image = Resize(input, width, height);
+				input.Dispose();
+				if (image == null || image.Length <= 0)
+					continue;
+
+        images.Add(videoThumbnailType, image);
+      }
+      return images;
+    }
+
+    public static ImageFile GetImage(string file)
+    {
+      Image image = Image.FromFile(file);
+      byte[] data = null;
+      ImageFile imageFile = new ImageFile();
+
+      MemoryStream ms = new MemoryStream();
+      image.Save(ms, image.RawFormat);
+      imageFile.Image = ms.GetBuffer();
+      imageFile.Height = image.Height;
+      imageFile.Width = image.Width;
+
+      if (image.RawFormat.Equals(ImageFormat.Bmp))
+        imageFile.Extension = ".bmp";
+      if (image.RawFormat.Equals(ImageFormat.Emf))
+        imageFile.Extension = ".emf";
+      if (image.RawFormat.Equals(ImageFormat.Exif))
+        imageFile.Extension = ".exif";
+      if (image.RawFormat.Equals(ImageFormat.Jpeg))
+        imageFile.Extension = ".jpeg";
+      if (image.RawFormat.Equals(ImageFormat.Png))
+        imageFile.Extension = ".png";
+      if (image.RawFormat.Equals(ImageFormat.Tiff))
+        imageFile.Extension = ".tiff";
+      if (image.RawFormat.Equals(ImageFormat.Wmf))
+        imageFile.Extension = ".wmf";
+      else
+      {
+        data = Resize(image, image.Width, image.Height);
+      }
+
+      return imageFile;
+    }
+
+    public static void GenerateThumbnail(VideoObject videoObject)
+    {
+      string thumbnailPath = string.Format("{0}\\Thumbnails\\", videoObject.VideoFolderPath);
+      int thumbnailIndex = 0;
+      int step = (int)Math.Round((decimal)videoObject.VideoFile.Duration / 4);
+      int position = 0;
+
+      while (position <= videoObject.VideoFile.Duration)
+      {
+        if (position == 0)
+          position += 50;
+        else if (position == 50)
+          position = position - 50 + step;
+        else if (position == videoObject.VideoFile.Duration)
+          position = videoObject.VideoFile.Duration - 50;
+        else
+          position += step;
+        string filename = string.Format("{0}{1}.jpg", thumbnailPath, thumbnailIndex);
+        string parameters = string.Format("-i {0} -ss {1} -f image2 -vframes 1 {2}", string.Format("\"{0}\"", videoObject.VideoPath), position, string.Format("\"{0}\"", filename));
+        string output = VideoHelper.RunFfMpeg(parameters);
+
+        thumbnailIndex++;
+      }
+    }
+
+    public static void GenerateVideoSceneThumbnail(VideoSceneObject videoSceneObject)
+    {
+      string thumbnailPath = string.Format("{0}\\", videoSceneObject.VideoSceneFolderPath);
+      int thumbnailIndex = 0;
+      int step = (int)Math.Round((decimal)videoSceneObject.VideoScene.Duration / 2);
+      int position = 0;
+
+      while (position <= videoSceneObject.VideoScene.Duration)
+      {
+        if (position == 0)
+          position += 50;
+        else if (position == 50)
+          position = position - 50 + step;
+        else if (position == videoSceneObject.VideoScene.Duration)
+          position = videoSceneObject.VideoScene.Duration - 50;
+        else
+          position += step;
+        string filename = string.Format("{0}{1}.jpg", thumbnailPath, thumbnailIndex);
+        string parameters = string.Format("-i {0} -ss {1} -f image2 -vframes 1 {2}", string.Format("\"{0}\"", videoSceneObject.VideoScenePath), position, string.Format("\"{0}\"", filename));
+        string output = VideoHelper.RunFfMpeg(parameters);
+
+        thumbnailIndex++;
+      }
+    }
+  }
+}

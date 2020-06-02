@@ -1,0 +1,96 @@
+﻿@{
+//int _sessionID = (PaywallHttpContext.Current.Session != null && PaywallHttpContext.Current.Session.ClientSession != null) ? PaywallHttpContext.Current.Session.ClientSession.ID : -1;
+//string _username = (PaywallHttpContext.Current.Session != null && PaywallHttpContext.Current.Session.ClientSession != null && PaywallHttpContext.Current.Session.ClientSession.Client != null) ? PaywallHttpContext.Current.Session.ClientSession.Client.Username : "NULL";
+}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <link rel="icon" type="image/png" href="~/Images/Template/favicon-16x16.png" sizes="16x16">
+  <link rel="icon" type="image/png" href="~/Images/Template/favicon-32x32.png" sizes="32x32">
+  <title>@PaywallHttpContext.Current.Service.ServiceData.Name</title>
+  <link href='http://fonts.googleapis.com/css?family=Roboto:300,400,500' rel='stylesheet' type='text/css'>
+
+  <meta name="SID" id="@PaywallHttpContext.Current.Service.ServiceData.ID" />
+  <meta name="CID" id="@PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.ID" />
+  <meta name="PPID" id="@PaywallHttpContext.Current.Service.PaymentProvider.ID" />
+  <meta name="MOID" id="@PaywallHttpContext.Current.MobileOperatorID.ToString()" />
+  <meta name="TMPL" id="@PaywallHttpContext.Current.Service.ServiceData.Template.Name" />
+  @*<meta name="ClientSessionID" id="@_sessionID" />*@
+  @*<meta name="Username" id="@_username" />*@
+
+  @Styles.Render("~/Style/css")
+  @Scripts.Render("~/Script/js")
+  @Styles.Render("~/Style/Template/Login")
+
+</head>
+<body class="login_page">
+
+  @RenderBody()
+  @Scripts.Render("~/Scripts/Template/Login")
+
+  <script>
+    var system = null;
+    var visual = null;
+    var originalRequest = '@ViewBag.OriginalRequest';
+
+    $(document).ready(function () {
+      system = new System();
+      visual = new Visual();
+
+      $('#loginBtn').click(function (event) {
+        event.preventDefault();
+
+        if ($(this).attr('inuse') == 'true') return;
+
+        var username = $('#login_username').val();
+        var password = $('#login_password').val();
+
+        if(username == '')
+        {
+          visual.Alert('You did not entered username');
+          return;
+        }
+
+        if (password == '')
+        {
+          visual.Alert('You did not entered password');
+          return;
+        }
+
+        var btn = $(this);
+        var text = $(this).text();
+        btn.text('...');
+        btn.attr('inuse', 'true');
+
+        $.ajax({
+          url: '/template/apiLogin',
+          data: {
+            username: username,
+            password: password
+          },
+          beforeSend: function (request) { request.setRequestHeader("skip", "true"); },
+          type:'POST',
+          success:function(response)
+          {
+            console.log(response);
+
+            if (response.status)
+              window.location = originalRequest;
+            else
+            {
+              btn.text(text);
+              btn.attr('inuse', 'false');
+              visual.Alert(response.message);
+            }
+
+          }
+        });
+      });
+    });
+  </script>
+
+</body>
+</html>

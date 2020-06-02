@@ -1,0 +1,57 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Web;
+using static MobilePaywall.PLog;
+
+namespace MobilePaywall.Implementation.PaywallLog
+{
+  public class PLogPipe
+  {
+
+    public string Key = string.Empty;
+    public string Text = string.Empty;
+    public string Exception = string.Empty;
+    public PLogType Type = PLogType.Debug;
+    public HttpContext HttpContext = null;
+
+    public int PaywallLogContextID = -1;
+    public int PaywallLogTraceID = -1;
+    public int PaywallLogApplicationID = -1;
+
+    public int? UserSessionID = null;
+    public int? ApplicationID = null;
+    public int? ServiceID = null;
+    
+    public string ClassName = string.Empty;
+    public string MethodName = string.Empty;
+
+    public PLogPipe(string key, string text, string exception)
+    {
+      this.Key = key; this.Text = text; this.Exception = exception;
+
+      // Class info
+      int depth = 1;
+      for(;;)
+      {
+        var frm = new StackTrace().GetFrame(depth);
+        var mth = frm.GetMethod();
+
+        if(mth.ReflectedType.FullName.Equals("MobilePaywall.PLog") || 
+          mth.ReflectedType.FullName.Equals("MobilePaywall.Service.Callback.Log.CallbackLog"))
+        {
+          depth++;
+          continue;
+        }
+        
+        this.ClassName = mth.ReflectedType.FullName;
+        this.MethodName = mth.Name;
+        break;
+      }
+    }
+    
+  }
+}

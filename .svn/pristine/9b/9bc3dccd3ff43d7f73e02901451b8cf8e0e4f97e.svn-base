@@ -1,0 +1,79 @@
+﻿using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using Senti.Diagnostics.Log;
+
+using log4net;
+
+namespace MobilePaywall.CustomerCare
+{
+  public class CustomerCarePaywallRuntime : PaywallRuntimeBase
+  {
+		private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+				if (CustomerCarePaywallRuntime._log == null)
+					CustomerCarePaywallRuntime._log = LogManager.GetLogger(typeof(CustomerCarePaywallRuntime));
+				return CustomerCarePaywallRuntime._log;
+      }
+    }
+
+    private static readonly object PaywallRuntimeInitializationLockObject = new object();
+    private bool _isInitialized = false;
+
+    public CustomerCarePaywallRuntime(Data.Application application)
+      : base(application)
+    {
+
+    }
+
+    public override bool Initialize(string siteName)
+    {
+      if (this._isInitialized)
+        return true;
+
+			lock (CustomerCarePaywallRuntime.PaywallRuntimeInitializationLockObject)
+			{
+				if (this._isInitialized)
+					return true;
+
+				IServiceManager sManager = Service.CreateManager(2);
+				List<Service> instanceServices = sManager.Load(this.ApplicationData.Instance);
+
+				if (instanceServices == null || instanceServices.Count == 0)
+				{
+					if (Log.IsWarnEnabled)
+					{
+						LogMessageBuilder builder = new LogMessageBuilder(new LogErrorCode("paywall.core", "paywallruntimebase", "initialize"),
+							"Services do not exists for application", this.ApplicationData);
+						Log.Warn(builder);
+					}
+
+					return false;
+				}
+
+				foreach (Service s in instanceServices)
+				{
+					IService serviceInstance = s.Instantiate(this);
+					this._serviceMap.Add(s.ID, serviceInstance);
+					this._services.Add(serviceInstance);
+				}
+
+				IDomainManager domainManager = Domain.CreateManager();
+				List<Domain> serviceDomains = domainManager.Load(this.ApplicationData);
+				foreach (Domain d in serviceDomains)
+					this._domainNameMap.Add(d.DomainName, d);
+
+				this._isInitialized = true;
+				return true;
+			}
+    }
+  }
+}

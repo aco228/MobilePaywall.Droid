@@ -1,0 +1,205 @@
+﻿using MobilePaywall.CustomerCare.Models;
+using MobilePaywall.Data;
+using Senti.Security;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.CustomerCare.Controllers
+{
+  public class ClientsController : PaywallController
+  {
+    // GET: Clients
+    public ActionResult Index()
+    {
+      if (!PaywallHttpContext.Current.ClientSession.Client.ClientType.Name.Equals("Administrator"))
+        return View("~/Views/Shared/Error.cshtml", new ErrorModel() { Title = "Permission denied!" });
+
+      ClientsModel model = new ClientsModel();
+      model.Clients = Client.CreateManager().Load();
+      
+      return View(model);
+    }
+
+    // SUMMARY: Returns view for editing or creating new customer
+    public ActionResult Edit(string clientGuidInput)
+    {
+      Guid clientGuid = Guid.Empty;
+      if (!string.IsNullOrEmpty(clientGuidInput) && !Guid.TryParse(clientGuidInput, out clientGuid))
+        return View("~/Views/Shared/Error.cshtml", new ErrorModel() { Title = "Internal error!", Description = "Required GUID is not provided or it is in wrong format" });
+
+      Client client = Client.CreateManager().Load(clientGuid);
+      ClientEditModel model = new ClientEditModel()
+      {
+        Client = client,
+        AccessPolicy = client != null ? ClientAccessPolicy.CreateManager().Load(client) : new List<ClientAccessPolicy>(),
+        ComponentsAccessPolicy =  client != null ? ClientComponentAccessPolicy.CreateManager().Load(client) : new List<ClientComponentAccessPolicy>()
+      };
+
+      return View("~/Views/Clients/_ClientEditForm.cshtml", model);
+    }
+
+    // SUMMARY: Creates new customer or Updated existing
+    public ActionResult Update(string username, string email, string password, string typeID, string status)
+    {
+      ClientType clientType = ClientType.CreateManager().Load(this.ConvertID(typeID));
+      if(clientType == null)
+        return this.Json(new { status = false, method = "ClientType is null", message = "" });
+
+      Client client = Client.CreateManager().Load(username);
+      ClientStatus clientStatus = ClientStatus.Active;
+      Enum.TryParse(status, out clientStatus);
+      string method = "";
+
+      if(client == null)
+      {
+        client = new Client(-1,
+                             Guid.NewGuid(),
+                             clientType,
+                             clientStatus,
+                             username,
+                             PasswordEncryption.Create(password).EncryptedPasswordAndSalt,
+                             email,
+                             DateTime.Now,
+                             DateTime.Now);
+        client.InsertWithHistory(this.PaywallContext.ClientSession);
+        method = "Insert";
+      }
+      else
+      {
+        if(!string.IsNullOrEmpty(password))
+          client.Password = PasswordEncryption.Create(password).EncryptedPasswordAndSalt;
+        client.MailAddress = email;
+        client.ClientType = clientType;
+        client.ClientStatus = clientStatus;
+        client.UpdateWithHistory(this.PaywallContext.ClientSession);
+        method = "Update";
+      }
+
+      return this.Json(new
+      {
+        status = true,
+        method = method,
+        message = "OK",
+        ClientID = client.ID,
+        ClientGuid = client.Guid,
+        Username = client.Username,
+        MailAddress = client.MailAddress,
+        Type = client.ClientType.Name,
+        Created = client.Created.ToString(),
+        Status = client.ClientStatus.ToString()
+      });
+
+    }
+
+    // SUMMARY: Adds new ClientComponentAccessPolicy to Customer with selected AccessMode
+    public ActionResult AddComponent(string componentID, string clientID, string accessMode)
+    {
+      Client client = Client.CreateManager().Load(this.ConvertID(clientID));
+      if (client == null)
+        return this.Json(new { status = false, message = "Client is null" });
+
+      Component component = Component.CreateManager().Load(this.ConvertID(componentID));
+      if(component == null)
+        return this.Json(new { status = false, message = "Component is null" });
+
+      ClientComponentAccessPolicy cap = ClientComponentAccessPolicy.CreateManager().Load(client, component);
+      if(cap == null)
+      {
+        cap = new ClientComponentAccessPolicy(-1,
+                                              client,
+                                              component,
+                                              this.ConvertAccessMode(accessMode),
+                                              DateTime.Now,
+                                              DateTime.Now);
+        cap.InsertWithHistory(this.PaywallContext.ClientSession);
+        return this.Json(new { status = true, message = "Insert ok" });
+      }
+      else
+      {
+        cap.AccessMode = this.ConvertAccessMode(accessMode);
+        cap.UpdateWithHistory(this.PaywallContext.ClientSession);
+        return this.Json(new { status = true, message = "Update ok" });
+      }
+    }
+      
+    // SUMMARY: Adds new ClientAccessPolicy
+    public ActionResult AccessPolicyUpdate(string accessPolicyID, string clientID, string instanceID, string applicationID, string merchantID, string productID, string serviceID, string accessMode)
+    {
+      Client client = Client.CreateManager().Load(this.ConvertID(clientID));
+      if(client == null)
+        return this.Json(new{ status = false, message = "Client is null ", id = "" });
+
+      Instance instance = Instance.CreateManager().Load(this.ConvertID(instanceID));
+      Data.Application application = Data.Application.CreateManager().Load(this.ConvertID(applicationID));
+      Data.Merchant merchant = Data.Merchant.CreateManager().Load(this.ConvertID(merchantID));
+      Product product = Product.CreateManager().Load(this.ConvertID(productID));
+      Service service = Service.CreateManager().Load(this.ConvertID(serviceID));
+
+      if (instance == null && application == null && merchant == null && product == null && service == null)
+        return this.Json(new { status = false, message = "All properties are null", id="" });
+
+      ClientAccessPolicy accessPolicy = ClientAccessPolicy.CreateManager().Load(this.ConvertID(accessPolicyID));
+      if(accessPolicy == null)
+      {
+        accessPolicy = new ClientAccessPolicy(-1,
+                                              client,
+                                              instance,
+                                              application,
+                                              merchant,
+                                              product,
+                                              service,
+                                              this.ConvertAccessMode(accessMode),
+                                              DateTime.Now,
+                                              DateTime.Now);
+
+        accessPolicy.InsertWithHistory(this.PaywallContext.ClientSession);
+        AccessPolicyRowModel model = new AccessPolicyRowModel()
+        {
+          Client = client,
+          ClientAccessPolicy = accessPolicy
+        };
+
+        if (this.PaywallContext.ClientSession.Client.ID == client.ID)
+          this.PaywallContext.ClientSession.Client.FilterServices();
+
+        return this.Json(new { status = true, message = "OK insert", id=accessPolicy.ID.ToString()});
+      }
+      else
+      {
+        accessPolicy.Instance = instance;
+        accessPolicy.Application = application;
+        accessPolicy.Merchant = merchant;
+        accessPolicy.Product = product;
+        accessPolicy.Service = service;
+        accessPolicy.AccessMode = this.ConvertAccessMode(accessMode);
+        accessPolicy.UpdateWithHistory(this.PaywallContext.ClientSession);
+
+        if(this.PaywallContext.ClientSession.Client.ID == client.ID)
+          this.PaywallContext.ClientSession.Client.FilterServices();
+
+        return this.Json(new { status = true, message = "OK update", id="" });
+      }
+    }
+
+    /// SUMMARY: Try to convert provided ID from AJAX, if fail, return -1
+    private int ConvertID(string id)
+    {
+      int returnID = -1;
+      Int32.TryParse(id, out returnID);
+      return returnID;
+    }
+
+    /// SUMMARY: Convert accessMode (string) FROM AJAX
+    private AccessMode ConvertAccessMode(string accessMode)
+    {
+      switch(accessMode)
+      {
+        case "true": return AccessMode.Allowed;
+        default: return AccessMode.Restricted;
+      }
+    }
+  } 
+}

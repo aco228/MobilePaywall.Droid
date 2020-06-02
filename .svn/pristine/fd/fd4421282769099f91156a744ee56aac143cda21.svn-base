@@ -1,0 +1,54 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using System.Data;
+
+namespace MobilePaywall.Data
+{
+	public partial interface IContentThumbnailManager
+	{
+		T Load<T>(Content content);
+		T Load<T>(IConnectionInfo connection, Content content);
+		ContentThumbnail Load(int contentID, bool? isDefault);
+		ContentThumbnail Load(IConnectionInfo connection, int contentID, bool? isDefault);
+		ContentThumbnail Load(Content content, ImageFormat imageFormat);
+		ContentThumbnail Load(IConnectionInfo connection, Content content, ImageFormat imageFormat);
+		ContentThumbnail Load(Content content, string mimeType);
+		ContentThumbnail Load(IConnectionInfo connection, Content content, string mimeType);
+		ContentThumbnail Load(Content content, ImageFormat imageFormat, VisualMediaDimensions visualMediaDimensions);
+		ContentThumbnail Load(IConnectionInfo connection, Content content, ImageFormat imageFormat, VisualMediaDimensions visualMediaDimensions);
+		ContentThumbnail Load(Content content, ImageFormat imageFormat, VisualMediaDimensions visualMediaDimensions, bool isDefault);
+		ContentThumbnail Load(IConnectionInfo connection, Content content, ImageFormat imageFormat, VisualMediaDimensions visualMediaDimensions, bool isDefault);
+		ContentThumbnail Load(Content content, ImageFormat imageFormat, bool isDefault);
+		ContentThumbnail Load(IConnectionInfo connection, Content content, ImageFormat imageFormat, bool isDefault);
+		ContentThumbnail Load(Content content, bool isDefault);
+		ContentThumbnail Load(IConnectionInfo connection, Content content, bool isDefault);
+	}
+
+	public partial class ContentThumbnail
+	{
+
+    public string GetAccessUrl()
+    {
+      return string.Format("/thumbnail/ct/{0}", this.ID);
+    }
+
+		public static T LoadByContent<T>(Content content)
+		{
+			T contentThumbnail;
+			using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+			{
+				connection.Transaction.Begin();
+				IContentThumbnailManager ctManager = ContentThumbnail.CreateManager();
+				contentThumbnail = ctManager.Load<T>(connection, content);
+				connection.Transaction.Commit();
+			}
+
+			return contentThumbnail;
+		}
+	}
+}
+

@@ -1,0 +1,42 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class ApplicationContentManager : IApplicationContentManager
+  {
+    public ApplicationContent Load(Content content)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, content);
+    }
+
+    public ApplicationContent Load(IConnectionInfo connection, Content content)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, content);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, content);
+    }
+
+    public ApplicationContent Load(ISqlConnectionInfo connection, Content content)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[ac].ContentID = @ContentID";
+      parameters.Arguments.Add("ContentID", content.ID);
+      return this.Load(connection, parameters);
+    }
+
+  }
+}
+

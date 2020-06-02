@@ -1,0 +1,44 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class AndroidPremiumCustomerServiceMapManager : IAndroidPremiumCustomerServiceMapManager
+  {
+
+    public AndroidPremiumCustomerServiceMap Load(AndroidPremiumCustomer apc, Service service)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, apc, service);
+    }
+
+    public AndroidPremiumCustomerServiceMap Load(IConnectionInfo connection, AndroidPremiumCustomer apc, Service service)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, apc, service);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, apc, service);
+    }
+
+    public AndroidPremiumCustomerServiceMap Load(ISqlConnectionInfo connection, AndroidPremiumCustomer apc, Service service)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[apcsm].AndroidPremiumCustomerID=@AndroidPremiumCustomerID AND [apcsm].ServiceID=@ServiceID";
+      parameters.Arguments.Add("AndroidPremiumCustomerID", apc.ID);
+      parameters.Arguments.Add("ServiceID", service.ID);
+      return this.Load(connection, parameters);
+    }
+
+  }
+}
+

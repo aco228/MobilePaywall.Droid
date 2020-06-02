@@ -1,0 +1,50 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+using log4net;
+
+using Senti.Diagnostics;
+
+namespace MobilePaywall.Service.Callback.Controllers
+{
+	public class HomeController : Controller
+	{
+		#region #logging#
+		private static ILog _log = null;
+
+		protected static ILog Log
+		{
+			get
+			{
+				if (HomeController._log == null)
+					HomeController._log = log4net.LogManager.GetLogger(typeof(HomeController));
+				return HomeController._log;
+			}
+		}
+		#endregion
+		public ActionResult Index()
+		{
+      return this.Content("service.callback");
+		}
+
+		[Route("postback")]
+		public ActionResult Postback()
+		{
+			Code.Undercover.UndercoverResult undercover = Callback.Code.Undercover.UndercoverAgent.ContinueWithReport(HttpContext.Request.RawUrl, null);
+			if (undercover.ShouldContinueWithReport == true)
+				return Content("not");
+
+			Code.Undercover.UndercoverAgent.SendPostbackToBananaclicks(undercover.Offer);
+			return Content("ok");
+		}
+
+    public ActionResult Test()
+    {
+      Log.Debug("OK OK OK");
+      return this.Content("OK OK OK");
+    }
+	}
+}

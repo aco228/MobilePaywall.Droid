@@ -1,0 +1,193 @@
+﻿@{
+  Layout = "~/Views/Template/_Layout/_Layout.cshtml";
+  List<TemplateServiceNote> _notes = TemplateServiceNote.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData);
+  TemplateServiceInfo _info = TemplateServiceInfo.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData);
+
+  int defaultProgress = _info != null ? _info.Progress : 0;
+  int defaultColor = _info != null && _info.Color.HasValue ? _info.Color.Value : 0;
+  string price = _info != null ? _info.Price : "";
+  string contact = _info != null ? _info.Contact : "";
+  int serviceType = _info == null ? 0 : (int)_info.TemplateServiceType;
+  string trackingEnabled = _info == null || !_info.TrckdEnabled ? string.Empty : "checked";
+}
+
+<style>
+  select{ margin-left: 35px!important; padding: 10px; }
+</style>
+
+<div class="md-card">
+  <div class="md-card-content">
+    <h3 class="heading_a">Add note</h3>
+    <div class="uk-grid" data-uk-grid-margin="">
+      <div class="uk-width-medium-2-2">
+        <div class="uk-form-row">
+          <div class="md-input-wrapper">
+            <label>Note text</label>
+            <input type="text" class="md-input" id="inputNote">
+            <span class="md-input-bar"></span>
+          </div>
+        </div>
+        @if (_notes != null && _notes.Count != 0)
+        {
+          <span class="uk-form-help-block">
+            <strong>Last note: </strong> @_notes.FirstOrDefault().Text
+          </span>
+        }
+      </div>
+    </div>
+    <div class="uk-grid" data-uk-grid-margin="">
+      <div class="uk-grid">
+        <div class="uk-width-medium-1-2">
+          <a class="md-btn" href="#" id="btnInsertNewNote">Insert</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="md-card">
+  <div class="md-card-content">
+    <h3 class="heading_a">Service information</h3>
+
+    <div class="uk-grid" data-uk-grid-margin="">
+      <div class="uk-width-medium-2-2">
+        <div class="md-input-wrapper md-input-filled">
+          <label>Price ( "10.00€ | [10]=4.99€, [1]=1.9e" where [10] or [1] are MNO ids )</label>
+          <input type="text" class="md-input" id="inputPrice" value="@price">
+          <span class="md-input-bar"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="uk-grid" data-uk-grid-margin="">
+      <div class="uk-width-medium-2-2">
+        <div class="md-input-wrapper md-input-filled">
+          <label>Contact</label>
+          <input type="text" class="md-input" id="inputContact" value="@contact">
+          <span class="md-input-bar"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="uk-grid" data-uk-grid-margin="">
+      <select id="serviceType" selected_value="@serviceType">
+        <option value="Unknown">Unknown</option>
+        <option value="VideoAdult" selected="">VideoAdult</option>
+        <option value="VideoNonAdult">VideoNonAdult</option>
+        <option value="Images">Images</option>
+        <option value="Html5Application">Html5Application</option>
+        <option value="Android">Android</option>
+      </select>
+    </div>
+
+    <div class="uk-grid" data-uk-grid-margin="">
+      <div class="uk-grid">
+        <div class="uk-width-medium-1-2">
+          <a class="md-btn" href="#" id="btnUpdateServiceInfo">Update</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="md-card">
+  <div class="md-card-content">
+    <h3 class="heading_a">Tracking</h3>
+
+    <div class="uk-grid" data-uk-grid-margin="">
+      <div class="uk-width-medium-1-4">
+        <input type="checkbox" id="trackingIsEnabled" @trackingEnabled>
+        <label for="switch_demo_danger" class="inline-label">Active</label>
+      </div>
+    </div>
+
+    <div class="uk-grid" data-uk-grid-margin="">
+      <div class="uk-grid">
+        <div class="uk-width-medium-1-2">
+          <a class="md-btn" href="#" id="btnUpdateTracking">Update</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+
+  var defaultProgress = @defaultProgress;
+  var defaultColor= @defaultColor;
+
+  document.addEventListener("DOMContentLoaded", function () {
+    DefaultValues();
+    InsertNewNote();
+    UpdateServiceInfo();
+    UpdateTracking();
+  });
+
+  function DefaultValues()
+  {
+    //$('#progress option').each(function()
+    //{
+    //  if($(this).attr('value') == defaultProgress)
+    //    $(this).attr('selected', 'selected');
+    //});
+
+    //$('#color option').each(function()
+    //{
+    //  if($(this).attr('value') == defaultColor)
+    //    $(this).attr('selected', 'selected');
+    //});
+
+    var serviceTypeID = $('#serviceType').attr('selected_value');
+    $('#serviceType option[value=' + serviceTypeID + ']').attr('selected', 'selected');
+  }
+
+  function InsertNewNote()
+  {
+    $('#btnInsertNewNote').click(function (e) {
+      e.preventDefault();
+      var text = $('#inputNote').val();
+      $('#inputNote').val('')
+
+      if(text == '')
+      {
+        visual.Alert('You did not entered text for new note!', 'Close');
+        return;
+      }
+
+      template.call('ApiInsertNewNote', { noteText : text}, function (response) {
+        visual.Alert(response.message);
+      });
+    });
+  }
+
+  // SUMMARY: 
+  function UpdateServiceInfo()
+  {
+    $('#btnUpdateServiceInfo').click(function (e) {
+      e.preventDefault();
+
+      var progress = '@defaultProgress';
+      var color = '@defaultColor';
+      var price = $('#inputPrice').val();
+      var contact = $('#inputContact').val();
+      var serviceType = $('#serviceType option:selected').attr('value');
+
+      //string progress, string color, string contact, string price, string trckdEnabled, string serviceType, string serviceID = "-1"
+      template.call('ApiUpdateTemplateServiceStatus', { progress: progress, color: color, contact: contact, price: price, trckdEnabled: '0', serviceType: serviceType, serviceID: "-1" }, function (response) {
+        visual.Alert(response.message);
+      });
+    });
+  }
+
+  function UpdateTracking()
+  {
+    $('#btnUpdateTracking').click(function(){
+      var value = $('#trackingIsEnabled').is(':checked') ? '1' : '0';
+      template.call('ApiUpdateTracking', { data: value }, function (response) {
+        visual.Alert(response.message);
+      });
+    });
+  }
+
+</script>

@@ -1,0 +1,43 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class TemplateProviderNoteManager : ITemplateProviderNoteManager
+  {
+
+    public TemplateProviderNote Load(Country country, PaymentProvider paymentProvider)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, country, paymentProvider);
+    }
+
+    public TemplateProviderNote Load(IConnectionInfo connection, Country country, PaymentProvider paymentProvider)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, country, paymentProvider);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, country, paymentProvider);
+    }
+
+    public TemplateProviderNote Load(ISqlConnectionInfo connection, Country country, PaymentProvider paymentProvider)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[tpn].CountryID = @CountryID AND [tpn].PaymentProviderID = @PaymentProviderID";
+      parameters.Arguments.Add("CountryID", country.ID);
+      parameters.Arguments.Add("PaymentProviderID", paymentProvider.ID);
+      return this.Load(connection, parameters);
+    }
+  }
+}
+

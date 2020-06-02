@@ -1,0 +1,508 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+using MobilePaywall.Web.Filters;
+using MobilePaywall.Web.Models;
+using Cashflow.Client;
+using Cashflow.Message;
+using MobilePaywall.Data;
+using MobilePaywall.Web.Localization;
+using System.IO;
+using System.Reflection;
+using Senti.Diagnostics.Log;
+using MobilePaywall.Web.Log;
+using log4net;
+using MobilePaywall.MobilePaywallDirect;
+
+namespace MobilePaywall.Web.Controllers
+{
+
+  public partial class TemplateController : PaywallTemplateController
+  {
+
+    public int PAGE_ITEMS = 10; // Number of content items per page
+
+
+    [TemplateAttribute(ClientType =TemplateClientType.Tester)]
+    public ActionResult Home(int page = 0, int categoryID = 0)
+    {
+      int? serviceStoragePageItems = PaywallHttpContext.Current.Service.Storage.GetInt("PageItems");
+      if (serviceStoragePageItems.HasValue)
+        PAGE_ITEMS = serviceStoragePageItems.Value;
+
+      ICategoryManager cManager = Category.CreateManager();
+      Category category = categoryID == 0 ? null : cManager.Load(categoryID);
+
+      List<IContent> contentList = this.Cache.FilterContent(this.PaywallContext.Service.ServiceData, this.PaywallContext.GetConfiguration(), category, page, PAGE_ITEMS);
+      if (contentList == null || contentList.Count == 0)
+      {
+        //- InternalError: Internal error. Please try again or contact support!
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, Translations.Web.Error.ErrTitle, Translations.Web.Error.ErrInternal);
+        return View("Error", errorModel);
+      }
+
+      ContentListViewModel model = new ContentListViewModel(PaywallHttpContext.Current, category, contentList, PAGE_ITEMS, page);
+      model.TemplateMode = true;
+
+      if (contentList.ElementAt(0).ContentData.ContentType.Name.Equals("Android"))
+        return View("HomeAndroid", model);
+      else if (contentList.ElementAt(0).ContentData.ContentType.Name.Equals("Auction"))
+        return View("HomeAuction", model);
+      else if (contentList.ElementAt(0).ContentData.ContentType.Name.Equals("Quiz"))
+      {
+        if (contentList.Count > 1) return View("HomeQuiz", model);
+        else return Redirect("/quiz?id=" + contentList.ElementAt(0).ContentData.ID + "&" + Constants.TemplateBypass +  "=true");
+      }
+
+
+      return View("Home", model);
+    }
+
+
+    [TemplateAttribute(ClientType = TemplateClientType.Tester)]
+    public ActionResult Videos(int page, int categoryID = 0)
+    {
+      ICategoryManager cManager = Category.CreateManager();
+      Category category = categoryID == 0 ? null : cManager.Load(categoryID);
+
+      List<IContent> contentList = this.Cache.FilterContent(this.PaywallContext.Service.ServiceData, this.PaywallContext.GetConfiguration(), category, page, PAGE_ITEMS);
+
+      if (contentList == null)
+        contentList = new List<IContent>();
+
+      ContentListViewModel model = new ContentListViewModel(PaywallHttpContext.Current, category, contentList, PAGE_ITEMS, page);
+      model.TemplateMode = true;
+      return PartialView("_Videos", model);
+    }
+
+
+    [TemplateAttribute(ClientType = TemplateClientType.Tester)]
+    public ActionResult Content(int? contentID)
+    {
+      if(!contentID.HasValue)
+      {
+        ServiceContentGroupMap groupMap = ServiceContentGroupMap.CreateManager().Load(this.PaywallContext.Service.ServiceData).FirstOrDefault();
+        contentID = Data.Content.CreateManager().Load(groupMap.ContentGroup).FirstOrDefault().ID;
+      }
+
+      IContent content = this.Cache.GetContent(contentID.Value);
+      IContentAccessViewManager cavManager = ContentAccessView.CreateManager();
+      ContentAccessView contentView = cavManager.Load(this.PaywallContext.Runtime.ApplicationData.Instance,
+                                                      content.ContentData.ContentType,
+                                                      this.PaywallContext.Runtime.ApplicationData,
+                                                      this.PaywallContext.Service.ServiceData,
+                                                      this.PaywallContext.GetConfiguration());
+
+
+      if (contentView == null)  
+      {
+        // DONE: Return error view because there is no reason to proceed!
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Content);
+        return View("Error", errorModel);
+      }
+
+      List<ContentDownloadOption> downloadOptions = content.GetDownloadOptions(this.Request.UserAgent);
+      List<ContentStreamingOption> streamingOptions = content.GetStreamingOptions(this.Request.UserAgent);
+      
+      ContentModel model = new ContentModel(this.PaywallContext, downloadOptions, streamingOptions, content, contentView);
+      model.TemplateMode = true;
+      return View(contentView.ViewName, model);
+    }
+
+
+    [TemplateAttribute(ClientType = TemplateClientType.Tester)]
+    public FileStreamResult Stream(int id)
+    {
+      VideoContentData data = VideoContentData.LoadByID(id);
+      IContent content = this.Cache.GetContent(data.VideoContent.Content.ID);
+      Video video = content as Video;
+
+      if (video == null)
+      {
+        ErrorViewModel model = new ErrorViewModel(this.PaywallContext, 0, "Content error", "Content not found");
+        return null;
+      }
+
+      if (!video.IsStreamable)
+      {
+        return null;
+      }
+
+      HttpContext.Response.Headers.Add("Accept-Ranges", "bytes");
+      Stream stream = new MemoryStream(data.Data);
+      return new FileStreamResult(stream, data.VideoConversionProfileEntry.VideoCodec.MimeType);
+    }
+
+
+    [TemplateAttribute(ClientType = TemplateClientType.Tester)]
+    public ActionResult Download(int id, string type)
+    {
+      string name = "", mimeType = "";
+      byte[] data = new byte[] { 0 };
+
+      #region if (type.Equals("Video"))
+      if (type.Equals("Video"))
+      {
+        VideoContentData videoContentData = VideoContentData.LoadByID(id);
+        IContent content = this.Cache.GetContent(videoContentData.VideoContent.Content.ID);
+        Video video = content as Video;
+        if (video == null)
+        {
+          ErrorViewModel model = new ErrorViewModel(this.PaywallContext, 0, "Content error", "Content not found");
+          return View("Error", model);
+        }
+
+        if (!video.IsDownloadable)
+        {
+          ErrorViewModel model = new ErrorViewModel(this.PaywallContext, 0, "Content error", "Content is not downloadable");
+          return View("Error", model);
+        }
+
+        data = videoContentData.Data;
+        name = string.Format("{0}{1}", videoContentData.VideoContent.Title, videoContentData.VideoConversionProfileEntry.VideoCodec.Extension);
+        mimeType = videoContentData.VideoConversionProfileEntry.VideoCodec.MimeType;
+      }
+      #endregion
+      #region else if(type.Equals("Image"))
+      else if(type.Equals("Image"))
+      {
+        ImageContentData imageContentData = ImageContentData.CreateManager().Load(id);
+        if (imageContentData == null)
+        {
+          ErrorViewModel model = new ErrorViewModel(this.PaywallContext, 0, "Content error", "Content not found");
+          return View("Error", model);
+        }
+
+        IContent content = new Image(imageContentData.ImageContent);
+        if (!content.IsDownloadable)
+        {
+          ErrorViewModel model = new ErrorViewModel(this.PaywallContext, 0, "Content error", "Content is not downloadable");
+          return View("Error", model);
+        }
+
+        data = imageContentData.Data;
+        name = string.Format("{0}{1}", imageContentData.ImageContent.Title, imageContentData.VideoConversionProfileEntry.VideoCodec.Extension);
+        mimeType = imageContentData.VideoConversionProfileEntry.VideoCodec.MimeType;
+      }
+      #endregion
+
+      HttpContext.Response.ContentType = mimeType;
+      return File(data, mimeType, name);
+    }
+
+
+    [TemplateAttribute(ClientType = TemplateClientType.Tester)]
+    public ActionResult Application(int contentID)
+    {
+      IContent content = this.Cache.GetContent(contentID);
+      IContentAccessViewManager cavManager = ContentAccessView.CreateManager();
+      ContentAccessView contentView = cavManager.Load(this.PaywallContext.Runtime.ApplicationData.Instance,
+                                                      content.ContentData.ContentType,
+                                                      this.PaywallContext.Runtime.ApplicationData,
+                                                      this.PaywallContext.Service.ServiceData,
+                                                      this.PaywallContext.GetConfiguration());
+
+
+      if (contentView == null)
+      {
+
+        // DONE: Return error view because there is no reason to proceed!
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Content);
+        return View("Error", errorModel);
+      }
+
+      List<ContentDownloadOption> downloadOptions = content.GetDownloadOptions(this.Request.UserAgent);
+      List<ContentStreamingOption> streamingOptions = content.GetStreamingOptions(this.Request.UserAgent);
+
+      ContentModel model = new ContentModel(this.PaywallContext, downloadOptions, streamingOptions, content, contentView);
+      model.TemplateMode = true;
+      return View("Application", model);
+    }
+
+
+    [TemplateAttribute(ClientType = TemplateClientType.Tester)]
+    public ActionResult AVS()
+    {
+      PaywallViewModelBase model = new PaywallViewModelBase(this.PaywallContext);
+      ViewBag.OriginalUrl = "/";
+      model.TemplateMode = true;
+      return View("AgeVerification", model);
+    }
+    
+    public ActionResult Login()
+    {
+      CustomerModel model = new CustomerModel(this.PaywallContext, "/", "Login test error", "Testing error on this page");
+      model.TemplateMode = true;
+      return View("Login", model);
+    }
+
+    public ActionResult Pending()
+    {
+      CallbackViewModel model = new CallbackViewModel(this.PaywallContext)
+      {
+        Type = CallbackType.Payment,
+        CallbackGuid = Guid.Parse("649BD225-5064-49EA-AEBC-F21246F8B0C1"),
+        TemplateMode = true
+      };
+      return View("Pending", model);
+    }
+    
+    public ActionResult Payments()
+    {
+      int? customerID = PaywallDirect.Instance.LoadInt(@"SELECT TOP 1 c.CustomerID FROM MobilePaywall.core.Customer AS c
+        LEFT OUTER JOIN MobilePaywall.core.Payment AS p ON p.CustomerID=c.CustomerID
+        WHERE p.PaymentStatusID=3 AND CountryID!=83
+        ORDER BY p.PaymentID DESC");
+
+      if(!customerID.HasValue)
+      {
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, Data.ErrorCode.Authentication, "REAL ERROR", string.Format("Could not load CustomerID from paywall who has payment.. wtf?", customerID));
+        return View("Error", errorModel);
+      }
+
+      MobilePaywall.Data.Customer customer = Data.Customer.CreateManager().Load(customerID.Value);
+      if (customer == null)
+      {
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, Data.ErrorCode.Authentication, "REAL ERROR", string.Format("Customer with id {0} does not exists? wtf?", customerID));
+        return View("Error", errorModel);
+      }
+
+      CustomerClient customerClient = CashflowClientPaywallManager.GetCustomerClient(PaywallHttpContext.Current.Service.ServiceData);
+      customerClient.AttachLogWriter(new CashflowLog(PaywallContext.Service.ServiceData));
+      ServiceLookupMethodMap lookupMethod = ServiceLookupMethodMap.CreateManager().Load(5);
+			
+      GetSubscriptionsRequest request = new GetSubscriptionsRequest(RequestMode.Synchronous,
+        string.Empty,
+        lookupMethod.PaymentConfiguration.PaymentCredentials.Username,
+        lookupMethod.PaymentConfiguration.PaymentCredentials.Password,
+        null,
+        customer.ExternalCustomerGuid.Value);
+      request.ReferenceIntID = this.PaywallContext.Session.SessionData.ID;
+
+      GetSubscriptionsResponse response = customerClient.GetSubscriptions(request, null);
+      if (response.Status.Code != MessageStatusCode.Success || response.Subscriptions.Length < 1)
+      {
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, Data.ErrorCode.Authentication, "REAL ERROR", string.Format("request is not success for lookupmethod:{0} and customer:{1}", lookupMethod.ID, customerID));
+        return View("Error", errorModel);
+      }
+
+      PaymentsViewModel model = new PaymentsViewModel(this.PaywallContext, response.Subscriptions.ToList(), null, null);
+      ViewBag.HideCancelOption = true;
+      model.TemplateMode = true;
+      return View("Payments", model);
+    }
+
+    // SUMMARY: Basicly same page as /payments, mostly used for BE services
+    public ActionResult Cancellation()
+    {
+      int customerID = 1324847;
+      MobilePaywall.Data.Customer customer = Data.Customer.CreateManager().Load(customerID);
+      if (customer == null)
+      {
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, Data.ErrorCode.Authentication, "REAL ERROR", string.Format("Customer with id {0} does not exists? wtf?", customerID));
+        return View("Error", errorModel);
+      }
+
+      CustomerClient customerClient = CashflowClientPaywallManager.GetCustomerClient(PaywallHttpContext.Current.Service.ServiceData);
+      customerClient.AttachLogWriter(new CashflowLog(PaywallContext.Service.ServiceData));
+      ServiceLookupMethodMap lookupMethod = ServiceLookupMethodMap.CreateManager().Load(5);
+
+      GetSubscriptionsRequest request = new GetSubscriptionsRequest(RequestMode.Synchronous,
+                                                                    string.Empty,
+                                                                    lookupMethod.PaymentConfiguration.PaymentCredentials.Username,
+                                                                    lookupMethod.PaymentConfiguration.PaymentCredentials.Password,
+                                                                    null,
+                                                                    customer.ExternalCustomerGuid.Value);
+
+      GetSubscriptionsResponse response = customerClient.GetSubscriptions(request, null);
+      if (response.Status.Code != MessageStatusCode.Success || response.Subscriptions.Length < 1)
+      {
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, Data.ErrorCode.Authentication, "REAL ERROR", string.Format("request is not success for lookupmethod:{0} and customer:{1}", lookupMethod.ID, customerID));
+        return View("Error", errorModel);
+      }
+
+      PaymentsViewModel model = new PaymentsViewModel(this.PaywallContext, response.Subscriptions.ToList(), null, null);
+      ViewBag.HideCancelOption = true;
+      model.TemplateMode = true;
+      return View("Cancel", model);
+    }
+    
+    public ActionResult Imprint()
+    {
+      PaywallViewModelBase model = new PaywallViewModelBase(this.PaywallContext);
+      model.TemplateMode = true;
+      return View("Imprint", model);
+    }
+
+    public ActionResult Terms()
+    {
+      PaywallViewModelBase model = new PaywallViewModelBase(this.PaywallContext);
+      model.TemplateMode = true;
+      return View("Terms", model);
+    }
+    
+    public ActionResult Notification()
+    {
+      NotificationViewModel model = new NotificationViewModel(this.PaywallContext, "Testing", "Testing the tempalte");
+      model.TemplateMode = true;
+      return View("Notification", model);
+    }
+
+    public ActionResult NotificationCancelSuccess(string paymentID = "1566019")
+    {
+      string translation = Translations.Web.Cancel.Success;
+
+      #region # check [Payment.DaysLeft] for counting how many days have left for subscription #
+      if (translation.Contains("[Payment.DaysLeft]"))
+      {
+        int _paymentID = 1566019;
+        Int32.TryParse(paymentID, out _paymentID);
+        Payment payment = Payment.CreateManager().Load(_paymentID);
+        PaymentContentAccessPolicyMap cap = (from c in PaymentContentAccessPolicyMap.CreateManager().Load(payment) where c.IsValid && !c.IsTemporary && c.Transaction != null && c.ValidTo > DateTime.Now select c).FirstOrDefault();
+        string days = cap != null ? ((cap.ValidTo.Value - DateTime.Now).Days).ToString() : "";
+        translation = translation.Replace("[Payment.DaysLeft]", days);
+      }
+      #endregion
+
+      return View("Notification", new NotificationViewModel(this.PaywallContext, Translations.Web.Cancel.SuccessTitle, translation));
+    }
+
+    public ActionResult Categories()
+    {
+      CategoryViewModel model = new CategoryViewModel(PaywallHttpContext.Current);
+      if (this.Request.IsAjaxRequest() && PaywallViewEngineHelper.PartialViewExists("_Categories"))
+        return PartialView("_Categories", model);
+      return View("Category", model);
+    }
+
+    public ActionResult Error()
+    {
+      ErrorViewModel model = new ErrorViewModel(this.PaywallContext, Data.ErrorCode.Unknown)
+      {
+        ErrorTitle = Translations.Web.Error.ErrTitle,
+        ErrorDescription = Translations.Web.Error.ErrInternal,
+        TemplateMode = true
+      };
+      return View("Error", model);
+    }
+
+    public ActionResult Country()
+    {
+      ErrorViewModel model = new ErrorViewModel(this.PaywallContext, Data.ErrorCode.Unknown)
+      {
+        ErrorTitle = "Country not supported",
+        ErrorDescription = "Testing error description",
+        TemplateMode = true
+      };
+      return View("Error", model);
+    }
+
+    public ActionResult Welcome()
+    {
+      Content content = Data.Content.CreateManager().Load(77);
+      IContent icontent = content.Instantiate();
+      Payment payment = Payment.CreateManager().Load(240427);
+
+      WelcomeViewModel model = new WelcomeViewModel(this.PaywallContext, icontent, payment);
+      model.TemplateMode = true;
+      return View("Welcome", model);
+    }
+
+    public ActionResult Helpdesk()
+    {
+      WelcomeViewModel model = new WelcomeViewModel(this.PaywallContext, null, null);
+      model.TemplateMode = true;
+      return View("Helpdesk", model);
+    }
+
+    public ActionResult LandingaPage(string mo = "mts")
+    {
+      if (mo.Equals("mts"))
+        this.PaywallContext.Session.SessionData.MobileOperator = MobileOperator.CreateManager().Load(235);
+      else if (mo.Equals("beeline"))
+        this.PaywallContext.Session.SessionData.MobileOperator = MobileOperator.CreateManager().Load(230);
+      else if (mo.Equals("tele2"))
+        this.PaywallContext.Session.SessionData.MobileOperator = MobileOperator.CreateManager().Load(244);
+      this.PaywallContext.Session.SessionData.Update();
+
+      WelcomeViewModel model = new WelcomeViewModel(this.PaywallContext, null, null);
+      model.TemplateMode = true;
+      return View("Landing", model);
+    }
+
+    public ActionResult Unsubscribe(string succ = "true")
+    {
+      UnsubscribeViewModel model = new UnsubscribeViewModel(this.PaywallContext)
+      {
+        Payment = Payment.CreateManager().Load(1566019),
+        IsSuccessful = succ == "true" ? true : false
+      };
+      return View("Unsubscribe", model);
+    }
+
+    public ActionResult Html5Access(int id)
+    {
+      Html5Content content = Html5Content.CreateManager().Load(id);
+      if (content == null)
+      {
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Content);
+        return View("Error", errorModel);
+      }
+      ApplicationContentModel model = new ApplicationContentModel(this.PaywallContext, content);
+      return View("~/Views/_Other/_Application/Content.cshtml", model);
+    }
+
+    public ActionResult SendNumber()
+    {
+      ServiceContentGroupMap scgm = ServiceContentGroupMap.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData).FirstOrDefault();
+      Data.Content content = Data.Content.CreateManager().Load(scgm.ContentGroup).FirstOrDefault();
+
+      SendNumberModel model = new SendNumberModel(this.PaywallContext, content);
+      return View("SendNumber", model);
+    }
+
+    public ActionResult Html5Get(int id)
+    {
+      Html5Content content = Html5Content.CreateManager().Load(id);
+      if (content == null)
+      {
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Content);
+        return View("Error", errorModel);
+      }
+
+      // from paywall 
+      //return Redirect(string.Format("~/Content/_Application/{0}/{1}/Source/Index.html", content.Content.ContentGroup.ID, content.ID));
+
+      // from clickenzi
+      return Redirect(string.Format("http://landing.clickenzi.me/data/MobilePaywall/GameContent/{0}/{1}/Source/index.html?lang={2}", content.Content.ContentGroup.ID, content.ID, PaywallHttpContext.Current.Service.ServiceData.FallbackLanguage.TwoLetterIsoCode));
+    }
+
+    public ActionResult ContentProxy(string id)
+    {
+      int contentID = -1;
+      if(!Int32.TryParse(id, out contentID))
+      {
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, "Tempalte error", "contentID could not be parsed");
+        return View("Error", errorModel);
+      }
+
+      IContent content = this.PaywallContext.Runtime.Cache.GetContent(contentID);
+      if (content == null)
+      {
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal);
+        return View("Error", errorModel);
+      }
+
+      // Check if customer has allready access
+      if (this.PaywallContext.Session.SessionData.Customer != null && this.PaywallContext.Session.SessionData.Customer.HasAccess(this.PaywallContext.Service.ServiceData))
+        return this.Redirect(PaywallHttpContext.AppendSessionID(content.GetAccessUrl(this.Request.UserAgent)));
+
+      ContentProxyModel model = new ContentProxyModel(this.PaywallContext, content);
+      return View("ContentProxy", model);      
+    }
+
+  }
+}

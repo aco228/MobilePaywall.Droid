@@ -1,0 +1,83 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Web.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers
+{
+	public class WelcomeController : PaywallController, IPaywallRestrictedAccessController
+	{
+		public ActionResult Index() //Guid paymentGuid
+    {
+      string paymentGuid = Request["paymentGuid"] != null ? Request["paymentGuid"].ToString() : string.Empty;
+      string paymentRequestGuid = Request["paymentRequestGuid"] != null ? Request["paymentRequestGuid"].ToString() : string.Empty;
+
+      if (string.IsNullOrEmpty(paymentGuid) && string.IsNullOrEmpty(paymentRequestGuid))
+        return this.Content("Error args");
+
+      Guid refGuid;
+      Payment payment = null;
+      PaymentRequest paymentRequest = null;
+
+      if(!string.IsNullOrEmpty(paymentGuid) && Guid.TryParse(paymentGuid, out refGuid))
+      {
+        payment = Payment.CreateManager().Load(refGuid, GuidType.Internal);
+        paymentRequest = payment.PaymentRequest;
+      }
+
+      else if(!string.IsNullOrEmpty(paymentRequestGuid) && Guid.TryParse(paymentRequestGuid, out refGuid))
+      {
+        paymentRequest = PaymentRequest.CreateManager().Load(refGuid, GuidType.Internal);
+        payment = Payment.CreateManager().Load(paymentRequest);
+      }
+      else
+        return this.Content("Error args2");
+
+      if (payment == null || paymentRequest == null)
+        return this.Content("Error args3");
+
+      IContent content = null;
+      if(paymentRequest.UserHttpRequest.Content != null)
+        content = paymentRequest.UserHttpRequest.Content.Instantiate();
+
+      #region # fortumo quick fix (we need to set evrything before restricted fitler) #
+
+      payment.PaymentStatus = PaymentStatus.Successful;
+      payment.Update();
+
+      ContentAccessPolicy cap = PaywallContext.Service.DefaultServiceOffer.ContentAccessPolicy;
+      PaymentContentAccessPolicyMap map = new PaymentContentAccessPolicyMap(-1, payment,
+        null, cap, null, true, true, DateTime.Now, DateTime.Now.AddMinutes(15), DateTime.Now, DateTime.Now);
+      map.Insert();
+
+      #endregion
+      
+      // TODO: Check why this not applies on non customer sessions
+      if (PaywallHttpContext.Current.Session.SessionData.Customer == null)
+      {
+        PaywallHttpContext.Current.Session.SessionData.Customer = paymentRequest.UserSession.Customer;
+        PaywallHttpContext.Current.Session.SessionData.Update();
+      }
+
+      WelcomeViewModel welcomeViewModel = new WelcomeViewModel(this.PaywallContext, content, payment);
+			return View("Welcome", welcomeViewModel);
+		}
+
+		public IContent GetRequestedContent()
+		{
+			object contentID = null;
+			if (!this.RouteData.Values.TryGetValue("id", out contentID) ||
+					contentID == null)
+			{
+				// problem here...
+				throw new ArgumentException("Invalid argument supplied for contentID parameter.", "contentID");
+			}
+			int contentIDValue = Int32.Parse(contentID.ToString());
+      IContent content = this.Cache.GetContent(contentIDValue);
+			return content;
+		}
+	}
+}

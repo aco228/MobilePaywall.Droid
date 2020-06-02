@@ -1,0 +1,211 @@
+﻿using Cashflow.Client;
+using Cashflow.Message;
+using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Web;
+using Senti.Diagnostics.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall
+{
+  public class CashflowClientPaywallManager
+  {
+    
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (CashflowClientPaywallManager._log == null)
+          CashflowClientPaywallManager._log = LogManager.GetLogger(typeof(CashflowClientPaywallManager));
+        return CashflowClientPaywallManager._log;
+      }
+    }
+    #endregion
+
+    public static string GetServiceUrl(Service service)
+    {
+      if (service != null && service.FallbackCountry.TwoLetterIsoCode.Equals("ir"))
+        return "http://v20.api.cashflow-payment.com";
+      return string.Empty;
+    }
+    
+    //
+    /// PurchaseClient
+    //
+
+    public static PurchaseClient GetPurchaseClient(IUserSession us) { return CashflowClientPaywallManager.GetPurchaseClient(us.Service.ServiceData); }
+    public static PurchaseClient GetPurchaseClient(UserSession us) { return CashflowClientPaywallManager.GetPurchaseClient(us.Service); }
+    public static PurchaseClient GetPurchaseClient(IService service) { return CashflowClientPaywallManager.GetPurchaseClient(service.ServiceData); }
+    public static PurchaseClient GetPurchaseClient(Service service)
+    {
+      PurchaseClient client = null;
+      string serviceUrl = CashflowClientPaywallManager.GetServiceUrl(service);
+      if (string.IsNullOrEmpty(serviceUrl))
+        client = new PurchaseClient();
+      else
+        client = new PurchaseClient(serviceUrl);
+
+      client.AttachLogWriter(new CashflowLog(service));
+      return client;
+    }
+
+    //
+    /// CheckoutClient
+    //
+
+    public static CheckoutClient GetCheckoutClient(IUserSession us) { return CashflowClientPaywallManager.GetCheckoutClient(us.Service.ServiceData); }
+    public static CheckoutClient GetCheckoutClient(UserSession us) { return CashflowClientPaywallManager.GetCheckoutClient(us.Service); }
+    public static CheckoutClient GetCheckoutClient(IService service) { return CashflowClientPaywallManager.GetCheckoutClient(service.ServiceData); }
+    public static CheckoutClient GetCheckoutClient(Service service)
+    {
+      CheckoutClient client = null;
+      string serviceUrl = CashflowClientPaywallManager.GetServiceUrl(service);
+      if (string.IsNullOrEmpty(serviceUrl))
+        client = new CheckoutClient();
+      else
+        client = new CheckoutClient(serviceUrl);
+
+      client.AttachLogWriter(new CashflowLog(service));
+      return client;
+    }
+
+    //
+    /// CustomerClient
+    //
+
+    public static CustomerClient GetCustomerClient(IUserSession us) { return CashflowClientPaywallManager.GetCustomerClient(us.Service.ServiceData); }
+    public static CustomerClient GetCustomerClient(UserSession us) { return CashflowClientPaywallManager.GetCustomerClient(us.Service); }
+    public static CustomerClient GetCustomerClient(IService service) { return CashflowClientPaywallManager.GetCustomerClient(service.ServiceData); }
+    public static CustomerClient GetCustomerClient(Service service)
+    {
+      CustomerClient client = null;
+      string serviceUrl = CashflowClientPaywallManager.GetServiceUrl(service);
+      if (string.IsNullOrEmpty(serviceUrl))
+        client = new CustomerClient();
+      else
+        client = new CustomerClient(serviceUrl);
+
+      client.AttachLogWriter(new CashflowLog(service));
+      return client;
+    }
+
+    //
+    /// MobileExtensionClient
+    //
+
+    public static MobileExtensionClient GetMobileExtensionClient(IUserSession us) { return CashflowClientPaywallManager.GetMobileExtensionClient(us.Service.ServiceData); }
+    public static MobileExtensionClient GetMobileExtensionClient(UserSession us) { return CashflowClientPaywallManager.GetMobileExtensionClient(us.Service); }
+    public static MobileExtensionClient GetMobileExtensionClient(IService service) { return CashflowClientPaywallManager.GetMobileExtensionClient(service.ServiceData); }
+    public static MobileExtensionClient GetMobileExtensionClient(Service service)
+    {
+      MobileExtensionClient client = null;
+      string serviceUrl = CashflowClientPaywallManager.GetServiceUrl(service);
+      if (string.IsNullOrEmpty(serviceUrl))
+        client = new MobileExtensionClient();
+      else
+        client = new MobileExtensionClient(serviceUrl);
+
+      client.AttachLogWriter(new CashflowLog(service));
+      return client;
+    }
+
+    //
+    /// SubscriptionClient
+    //
+
+    public static SubscriptionClient GetSubscriptionClient(IUserSession us) { return CashflowClientPaywallManager.GetSubscriptionClient(us.Service.ServiceData); }
+    public static SubscriptionClient GetSubscriptionClient(UserSession us) { return CashflowClientPaywallManager.GetSubscriptionClient(us.Service); }
+    public static SubscriptionClient GetSubscriptionClient(IService service) { return CashflowClientPaywallManager.GetSubscriptionClient(service.ServiceData); }
+    public static SubscriptionClient GetSubscriptionClient(Service service)
+    {
+      SubscriptionClient client = null;
+      string serviceUrl = CashflowClientPaywallManager.GetServiceUrl(service);
+      if (string.IsNullOrEmpty(serviceUrl))
+        client = new SubscriptionClient();
+      else
+        client = new SubscriptionClient(serviceUrl);
+
+      client.AttachLogWriter(new CashflowLog(service));
+      return client;
+    }
+    
+    public static InitiateSubscriptionResponse GetInitiateSubscriptionResponse(IUserSession us, string redirectUrl, params IArgumentGroup[] arguments)
+    {
+      if (!PaywallCapManager.HasAccess(us.SessionData.Customer))
+        return new InitiateSubscriptionResponse(ResponseMode.Synchronous, "", MessageStatus.CreateFailure(MessageStatusSubCode.InternalError, "This service has CAP lock"), null);
+
+      ServiceOffer so = us.Service.DefaultServiceOffer;
+      InitiateSubscriptionRequest initiateSubscriptionRequest = new InitiateSubscriptionRequest(RequestMode.Synchronous,
+        us.SessionData.Guid.ToString(),
+        so.PaymentConfiguration.PaymentCredentials.Username,
+        so.PaymentConfiguration.PaymentCredentials.Password,
+        so.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+        so.Service.FallbackCountry.TwoLetterIsoCode,
+        so.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+        so.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid,
+        null, // custoemrID,
+        string.Empty, // customerReferenceID
+        string.Empty, // subscriptionReferenceID
+        null, // paymentModifiers
+        us.SessionData.IPAddress,
+        (string.IsNullOrEmpty(redirectUrl) ? string.Format("http://{0}", so.Service.Name) : redirectUrl), // redirectUrl
+        string.Format("http://{0}/error", so.Service.Name), // errorLink
+        string.Empty, // notificationUrl
+        null);
+      initiateSubscriptionRequest.ReferenceIntID = us.SessionData.ID;
+
+      return CashflowClientPaywallManager.GetSubscriptionClient(us.Service).InitiateSubscription(initiateSubscriptionRequest, arguments);
+    }
+    
+
+
+    //
+    /// TransactionClient
+    //
+
+    public static TransactionClient GetTransactionClient(IUserSession us) { return CashflowClientPaywallManager.GetTransactionClient(us.Service.ServiceData); }
+    public static TransactionClient GetTransactionClient(UserSession us) { return CashflowClientPaywallManager.GetTransactionClient(us.Service); }
+    public static TransactionClient GetTransactionClient(IService service) { return CashflowClientPaywallManager.GetTransactionClient(service.ServiceData); }
+    public static TransactionClient GetTransactionClient(Service service)
+    {
+      TransactionClient client = null;
+      string serviceUrl = CashflowClientPaywallManager.GetServiceUrl(service);
+      if (string.IsNullOrEmpty(serviceUrl))
+        client = new TransactionClient();
+      else
+        client = new TransactionClient(serviceUrl);
+
+      client.AttachLogWriter(new CashflowLog(service));
+      return client;
+    }
+
+    //
+    /// VerificationClient
+    //
+
+    public static VerificationClient GetVerificationClient(IUserSession us) { return CashflowClientPaywallManager.GetVerificationClient(us.Service.ServiceData); }
+    public static VerificationClient GetVerificationClient(UserSession us) { return CashflowClientPaywallManager.GetVerificationClient(us.Service); }
+    public static VerificationClient GetVerificationClient(IService service) { return CashflowClientPaywallManager.GetVerificationClient(service.ServiceData); }
+    public static VerificationClient GetVerificationClient(Service service)
+    {
+      VerificationClient client = null;
+      //string serviceUrl = "http://v1.0.api.cashflow.dev.sentiware.me/verification.svc/soap12";
+      string serviceUrl = CashflowClientPaywallManager.GetServiceUrl(service);
+      if (string.IsNullOrEmpty(serviceUrl))
+        client = new VerificationClient();
+      else
+        client = new VerificationClient(serviceUrl);
+
+      client.AttachLogWriter(new CashflowLog(service));
+      return client;
+    }
+
+  }
+}

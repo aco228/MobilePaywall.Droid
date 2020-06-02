@@ -1,0 +1,75 @@
+using Cashflow.Message;
+using MobilePaywall.MobilePaywallDirect;
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IPaymentRequestManager
+  {
+    PaymentRequest Load(Guid paymentRequestGuid, GuidType guidType);
+    PaymentRequest Load(IConnectionInfo connection, Guid paymentRequestGuid, GuidType guidType);
+    PaymentRequest Load(UserSession session);
+    PaymentRequest Load(IConnectionInfo connection, UserSession session);
+    List<PaymentRequest> Load(string ip, DateTime time);
+    List<PaymentRequest> Load(IConnectionInfo connection, string ip, DateTime time);
+    List<PaymentRequest> Load(string ip, Service service, DateTime time);
+    List<PaymentRequest> Load(IConnectionInfo connection, string ip, Service service, DateTime time);
+  }
+
+  public partial class PaymentRequest
+  {
+    private InitiateCallback _callback = null;
+    private MobileOperator _mobileOperator = null; // QUICKFIX for blocking mobile operators on OL
+
+    public InitiateCallback Callback { get { return this._callback; } set { this._callback = value; } }
+    public MobileOperator MobileOperator { get { return this._mobileOperator; } set { this._mobileOperator = value; } }
+
+		public static PaymentRequest LoadByPaymentRequestGuid(Guid paymentRequestGuid, GuidType guidType)
+		{
+			PaymentRequest paymentRequest;
+			using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+			{
+				connection.Transaction.Begin();
+				paymentRequest = PaymentRequest.CreateManager().Load(connection, paymentRequestGuid, guidType);
+				connection.Transaction.Commit();
+			}
+			return paymentRequest;
+		}
+
+		public static PaymentRequest LoadByUserSession(UserSession userSession)
+		{
+			PaymentRequest paymentRequest;
+			using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+			{
+				connection.Transaction.Begin();
+				paymentRequest = PaymentRequest.CreateManager().Load(connection, userSession);
+				connection.Transaction.Commit();
+			}
+			return paymentRequest;
+		}
+
+
+    public override bool Insert()
+    {
+      bool result = base.Insert();
+      new OLCacher().Synchronize(this);
+      return result;
+    }
+
+    public override bool Update()
+    {
+      bool result = base.Update();
+      new OLCacher().Synchronize(this);
+      return result;
+    }
+
+  }
+}
+

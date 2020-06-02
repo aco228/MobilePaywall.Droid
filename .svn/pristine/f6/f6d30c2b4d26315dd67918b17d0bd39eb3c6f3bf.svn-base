@@ -1,0 +1,40 @@
+﻿using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.ContentUploader.Video
+{
+	class FFmpegProcessThumbnail : FFmpegProcessBase
+	{
+		public FFmpegProcessThumbnail(string pathToTheExe) : base(pathToTheExe)
+		{
+		}
+
+		public FfmpegResult Start(string inputFilename, string outputFile)
+		{
+			VideoCodec videoCodec = VideoCodec.CreateManager().Load(17);
+			VisualMediaDimensions dimensions = VisualMediaDimensions.CreateManager().Load(10);
+			
+			//string outputFile = Path.Combine(_pathToSave + name + this._videoCodec.Extension);
+
+			//-i {inputfile} -vf scale="'if(gt(a,4/3),{width},-1)':'if(gt(a,4/3),-1,{height})'" {output}
+			//string parameters = ("-i {inputfile} \"scale={width}:ih*{width}/iw, crop={width}:{height}\" {output}").Replace("{inputfile}", string.Format("\"{0}\"", inputFilename))
+			//string parameters = videoCodec.Arguments
+			string parameters = "-i {inputfile} -ss 00:00:05.435 -vf \"scale=max({width}\\,a*{height}):max({height}\\,{width}/a),crop={width}:{height}\" {output}"
+				.Replace("{inputfile}", string.Format("\"{0}\"", inputFilename))
+				.Replace("{width}", dimensions.Width.ToString())
+				.Replace("{height}", dimensions.Height.ToString())
+				.Replace("{output}", string.Format("\"{0}\"", outputFile));
+
+			bool s = Process(outputFile, parameters);
+			return new FfmpegResult()
+			{
+				Success = s,
+				File = outputFile
+			};
+		}
+	}
+}

@@ -1,0 +1,276 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Net;
+using System.Threading.Tasks;
+
+using MobilePaywall.Data;
+using System.Xml;
+using System.IO;
+using System.Web;
+
+using log4net;
+
+using Senti.Diagnostics.Log;
+
+namespace MobilePaywall.Core
+{
+	public class Mblox : ShortMessageProviderBase
+	{
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (Mblox._log == null)
+          Mblox._log = log4net.LogManager.GetLogger(typeof(Mblox));
+        return Mblox._log;
+      }
+    }
+    #endregion
+
+		private string _requestData = string.Empty;
+		private string _responseData = string.Empty;
+		
+		public override string RequestData { get { return this._requestData; } }
+		public override string ResponseData { get { return this._responseData; } }
+
+		public Mblox(ShortMessageProvider shortMessageProvider, ShortMessage shortMessage)
+			: base(shortMessageProvider, shortMessage)
+		{
+
+		}
+
+		public override HttpWebRequest Prepare()
+		{
+			HttpWebRequest httpWebRequest = HttpWebRequest.Create(this.ShortMessageProvider.ShortMessageProviderConfiguration.Url) as HttpWebRequest;
+			httpWebRequest.Method = "POST";
+			httpWebRequest.ContentType = "application/x-www-form-urlencoded";
+
+			StringBuilder request = new StringBuilder();
+			XmlWriterSettings xmlWriterSettings = new XmlWriterSettings();
+			xmlWriterSettings.Indent = true;
+			xmlWriterSettings.ConformanceLevel = ConformanceLevel.Auto;
+      xmlWriterSettings.Encoding = new UTF8Encoding(false);
+
+			using (MemoryStream memoryStream = new MemoryStream())
+			{
+				using (XmlWriter xmlWriter = XmlWriter.Create(memoryStream, xmlWriterSettings))
+				{
+					xmlWriter.WriteStartDocument();
+
+					xmlWriter.WriteStartElement("NotificationRequest");
+					xmlWriter.WriteAttributeString("Version", "3.5");
+
+					//notification header
+					xmlWriter.WriteStartElement("NotificationHeader");
+
+					xmlWriter.WriteStartElement("PartnerName");
+					xmlWriter.WriteString(this.ShortMessageProvider.ShortMessageProviderConfiguration.Username);
+					xmlWriter.WriteFullEndElement();
+
+					xmlWriter.WriteStartElement("PartnerPassword");
+					xmlWriter.WriteString(this.ShortMessageProvider.ShortMessageProviderConfiguration.Password);
+					xmlWriter.WriteFullEndElement();
+
+					xmlWriter.WriteFullEndElement();
+					//end notification header 
+
+					//notification list
+					xmlWriter.WriteStartElement("NotificationList");
+					xmlWriter.WriteAttributeString("BatchID", "1");
+
+					xmlWriter.WriteStartElement("Notification");
+          xmlWriter.WriteAttributeString("SequenceNumber", "1");
+          xmlWriter.WriteAttributeString("MessageType", "SMS");
+          xmlWriter.WriteAttributeString("Format", "Unicode");
+
+					xmlWriter.WriteStartElement("Message");
+          xmlWriter.WriteString(this.ShortMessage.Text);
+          xmlWriter.WriteString("Test");
+					xmlWriter.WriteFullEndElement();
+
+					xmlWriter.WriteStartElement("Profile");
+					//TODO: Should not be fixed!
+					xmlWriter.WriteString("21300");
+					xmlWriter.WriteFullEndElement();
+
+					xmlWriter.WriteStartElement("SenderID");
+					//TODO: Should not be fixed!
+					xmlWriter.WriteAttributeString("Type", "Alpha");
+					xmlWriter.WriteString("Test");
+					xmlWriter.WriteFullEndElement();
+
+					xmlWriter.WriteStartElement("Subscriber");
+					xmlWriter.WriteStartElement("SubscriberNumber");
+          xmlWriter.WriteString(this.ShortMessage.Customer.Msisdn);
+          //xmlWriter.WriteString("38267055550");
+					xmlWriter.WriteFullEndElement();
+					xmlWriter.WriteFullEndElement();
+
+					xmlWriter.WriteFullEndElement();
+
+					xmlWriter.WriteFullEndElement();
+					//end notification list
+
+					xmlWriter.WriteFullEndElement();
+					xmlWriter.WriteEndDocument();
+
+					xmlWriter.Flush();
+					xmlWriter.Close();
+
+					this._requestData = Encoding.GetEncoding("ISO-8859-1").GetString(memoryStream.ToArray());
+          Log.Debug(new LogMessageBuilder(new LogErrorCode("shortmessage", "mblox", "prepare"), "", this._requestData));
+				}
+			}
+			return httpWebRequest;
+		}
+
+		public override void Send()
+		{
+			HttpWebRequest httpWebRequest = this.Prepare();
+
+			string response = string.Empty;
+
+			Encoding encoding = Encoding.GetEncoding("ISO-8859-1");
+			try
+			{
+				HttpWebResponse httpWebResponse = null;
+				using (Stream httpWebRequestStream = httpWebRequest.GetRequestStream())
+				{
+					try
+					{
+						if (!string.IsNullOrEmpty(this.RequestData))
+						{
+							StreamWriter httpWebRequestStreamWriter = new StreamWriter(httpWebRequestStream);
+              httpWebRequestStreamWriter.Write(string.Format("XMLDATA={0}", HttpUtility.UrlEncode(this.RequestData, encoding)));
+							httpWebRequestStreamWriter.Flush();
+							httpWebRequestStreamWriter.Close();
+
+
+							StringBuilder httpWebRequestStringBuilder = new StringBuilder(this.RequestData.Length + 1000);
+							httpWebRequestStringBuilder.Append(this.RequestData);
+
+						}
+					}
+					catch (Exception ex)
+					{
+            ShortMessageStatusHistory shortMessageStatusHistory = new ShortMessageStatusHistory(-1, this.ShortMessage, this.ShortMessage.ShortMessageStatus, ShortMessageStatus.Failure, DateTime.Now, DateTime.Now);
+            shortMessageStatusHistory.Insert();
+
+            this.ShortMessage.ShortMessageStatus = ShortMessageStatus.Failure;
+            this.ShortMessage.Update();
+            Log.Fatal(new LogMessageBuilder(new LogErrorCode("shortmessage", "mblox", "send"), "Something went wrong."), ex);
+						return;
+					}
+
+					try
+					{
+						httpWebResponse = httpWebRequest.GetResponse() as HttpWebResponse;
+						using (Stream httpWebResponseStream = httpWebResponse.GetResponseStream())
+						{
+							using (StreamReader httpWebResponseStreamReader = new StreamReader(httpWebResponseStream))
+							{
+								response = httpWebResponseStreamReader.ReadToEnd();
+								httpWebResponse.Close();
+								httpWebResponseStreamReader.Close();
+
+								StringBuilder httpWebResponseStringBuilder = new StringBuilder(response.Length);
+								httpWebResponseStringBuilder.Append(response);
+							}
+						}
+					}
+					catch (Exception ex)
+					{
+            ShortMessageStatusHistory shortMessageStatusHistory = new ShortMessageStatusHistory(-1, this.ShortMessage, this.ShortMessage.ShortMessageStatus, ShortMessageStatus.Failure, DateTime.Now, DateTime.Now);
+            shortMessageStatusHistory.Insert();
+
+            this.ShortMessage.ShortMessageStatus = ShortMessageStatus.Failure;
+            this.ShortMessage.Update();
+            Log.Fatal(new LogMessageBuilder(new LogErrorCode("shortmessage", "mblox", "send"), "Something went wrong."), ex);
+						return;
+					}
+				}
+			}
+			catch (Exception ex)
+			{
+        ShortMessageStatusHistory shortMessageStatusHistory = new ShortMessageStatusHistory(-1, this.ShortMessage, this.ShortMessage.ShortMessageStatus, ShortMessageStatus.Failure, DateTime.Now, DateTime.Now);
+        shortMessageStatusHistory.Insert();
+
+        this.ShortMessage.ShortMessageStatus = ShortMessageStatus.Failure;
+        this.ShortMessage.Update();
+        Log.Fatal(new LogMessageBuilder(new LogErrorCode("shortmessage", "mblox", "send"), "Something went wrong."), ex);
+        return;
+			}
+
+			this._responseData = response;
+      Log.Debug(new LogMessageBuilder(new LogErrorCode("shortmessage", "mblox", "send"), "", this._responseData));
+
+			this.ProcessResponse();
+		}
+
+		public override void ProcessNotification()
+		{
+			throw new NotImplementedException();
+		}
+
+		public override void ProcessResponse()
+		{
+			StringBuilder output = new StringBuilder();
+			using (XmlReader xmlReader = XmlReader.Create(new StringReader(this._responseData)))
+			{
+				if (xmlReader.ReadToFollowing("SubscriberResultCode"))
+				{
+					if (xmlReader.HasValue)
+					{
+						try
+						{
+							int mbloxStatus = -1;
+							if (Int32.TryParse(xmlReader.Value, out mbloxStatus))
+								if (mbloxStatus == 0)
+								{
+                  //ShortMessageStatusHistory shortMessageStatusHistory = new ShortMessageStatusHistory(-1, this.ShortMessage, this.ShortMessage.ShortMessageStatus, ShortMessageStatus.Sent, DateTime.Now, DateTime.Now);
+                  //shortMessageStatusHistory.Insert();
+
+                  //this.ShortMessage.ShortMessageStatus = ShortMessageStatus.Sent;
+                  //this.ShortMessage.Update();
+                  //Log.Debug(new LogMessageBuilder(new LogErrorCode("shortmessage", "mblox", "processresponse"), "", this._requestData));
+								}
+								else
+								{
+                  //ShortMessageStatusHistory shortMessageStatusHistory = new ShortMessageStatusHistory(-1, this.ShortMessage, this.ShortMessage.ShortMessageStatus, ShortMessageStatus.NotSent, DateTime.Now, DateTime.Now);
+                  //shortMessageStatusHistory.Insert();
+
+                  //this.ShortMessage.ShortMessageStatus = ShortMessageStatus.NotSent;
+                  //this.ShortMessage.Update();
+								}
+
+							else
+							{
+                //ShortMessageStatusHistory shortMessageStatusHistory = new ShortMessageStatusHistory(-1, this.ShortMessage, this.ShortMessage.ShortMessageStatus, ShortMessageStatus.NotSent, DateTime.Now, DateTime.Now);
+                //shortMessageStatusHistory.Insert();
+
+                //this.ShortMessage.ShortMessageStatus = ShortMessageStatus.NotSent;
+                //this.ShortMessage.Update();
+							}
+						}
+						catch (Exception ex)
+						{
+              //ShortMessageStatusHistory shortMessageStatusHistory = new ShortMessageStatusHistory(-1, this.ShortMessage, this.ShortMessage.ShortMessageStatus, ShortMessageStatus.NotSent, DateTime.Now, DateTime.Now);
+              //shortMessageStatusHistory.Insert();
+
+              //this.ShortMessage.ShortMessageStatus = ShortMessageStatus.NotSent;
+              //this.ShortMessage.Update();
+
+              Log.Fatal(new LogMessageBuilder(new LogErrorCode("shortmessage", "mblox", "processresponse"), "Something went wrong."), ex);
+              return;
+						}
+					}
+				}
+			}
+		}
+	}
+}

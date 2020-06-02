@@ -1,0 +1,319 @@
+﻿  using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Collections.Specialized;
+
+using MobilePaywall.Data;
+using log4net;
+using Senti.Diagnostics.Log;
+
+namespace MobilePaywall
+{
+	public class Video : ContentBase
+	{
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (Video._log == null)
+          Video._log = LogManager.GetLogger(typeof(Video));
+        return Video._log;
+      }
+    }
+    #endregion
+    
+		public VideoContent _videoContentData = null;
+		public List<VideoScene> _videoSceneList = null;
+
+		public VideoContent VideoContentData { get { return this._videoContentData; } }
+		public List<VideoScene> VideoSceneList { get { return this._videoSceneList; } }
+    public override string ContentIconClass { get { return "__contentIcon_video"; } }
+    public override string DefaultTitle { get { return this._videoContentData.Title; } }
+
+		public Video(Content content)
+			: base(content)
+		{
+			this.LoadVideo();
+		}
+
+    public Video(ICache cache, Content content, VideoContent videoContentData)
+      : base(cache, content)
+    {
+      this._videoContentData = videoContentData;
+      //this.LoadVideo();
+      //this.LoadScenes();
+    }
+
+    //public Video(IContentCacheManager contentCache, Content content, VideoContent videoContentData)
+    //  : base(contentCache, content)
+    //{
+    //  this._videoContentData = videoContentData;
+    //  //this.LoadVideo();
+    //  //this.LoadScenes();
+    //}
+
+		private void LoadVideo()
+		{
+			IVideoContentManager videoContentManager = VideoContent.CreateManager();
+			this._videoContentData = videoContentManager.Load(this.ContentData);
+		}
+
+		private void LoadScenes()
+		{
+			if (!this.VideoContentData.HasScenes)
+				return;
+
+			IVideoSceneManager videoSceneManager = VideoScene.CreateManager();
+			this._videoSceneList = videoSceneManager.Load(this.VideoContentData);
+
+      if ((this._videoSceneList == null || this._videoSceneList.Count == 0) && Log.IsWarnEnabled)
+      {
+        LogMessageBuilder builder = new LogMessageBuilder(new LogErrorCode("paywall.core", "video", "loadscenes"), "Video scenes list is null or empty, but has scenes flag is true", this.VideoContentData);
+        Log.Warn(builder);
+      }
+		}
+
+		public override ContentData GetContentData(string userAgent)
+		{
+      VideoContentData videoContentData = MobilePaywall.Data.VideoContentData.LoadByVideoContent(this.VideoContentData);
+      if (Log.IsErrorEnabled && videoContentData == null)
+      {
+        LogMessageBuilder builder = new LogMessageBuilder(new LogErrorCode("paywall.core", "video", "getcontentdata"), "Video Content Data is null", this.VideoContentData);
+        Log.Error(builder);
+        return null;
+      }
+
+      // Title is in format {{ID}}.{{Extension}}
+			return new ContentData(this.VideoContentData.ID + videoContentData.VideoConversionProfileEntry.VideoCodec.Extension,
+														 videoContentData.VideoConversionProfileEntry.VideoCodec.MimeType, 
+														 videoContentData.Data);
+		}
+
+    public override ContentData GetContentData(int id)
+    {
+      VideoContentData videoContentData = MobilePaywall.Data.VideoContentData.LoadByID(id);
+      if (Log.IsErrorEnabled && videoContentData == null)
+      {
+        LogMessageBuilder builder = new LogMessageBuilder(new LogErrorCode("paywall.core", "video", "getcontentdata"), "Video Content Data is null", this.VideoContentData);
+        Log.Error(builder);
+        return null;
+      }
+
+      // Title is in format {{ID}}.{{Extension}}
+      return new ContentData(this.VideoContentData.ID + videoContentData.VideoConversionProfileEntry.VideoCodec.Extension,
+                             videoContentData.VideoConversionProfileEntry.VideoCodec.MimeType,
+                             videoContentData.Data);
+    }
+
+		public override List<ContentDownloadOption> GetDownloadOptions(string userAgent)
+		{
+      if(!this.IsDownloadable) return new List<ContentDownloadOption>();
+
+      List<VideoContentData> videoContentData = MobilePaywall.Data.VideoContentData.LoadWithoutDataByVideoContent(this.VideoContentData);
+      List<ContentDownloadOption> returnList = new List<ContentDownloadOption>();
+
+      foreach(VideoContentData data in videoContentData)
+      {
+        // QUICKFIX: hide .webm from download list
+
+        // QUICKFIX.. Until we fix .mp4 on new content groups
+        if ((this.VideoContentData.Content.ContentGroup.ID == 35) || (this.VideoContentData.Content.ContentGroup.ID == 36) ||
+          (this.VideoContentData.Content.ContentGroup.ID == 37) || (this.VideoContentData.Content.ContentGroup.ID == 38))
+        {
+          if (data.VideoConversionProfileEntry.ID != 8)
+            continue;
+        }
+        else
+        {
+          if (data.VideoConversionProfileEntry.ID == 8)
+            continue;
+        }
+
+        string name = string.Format("{0}", data.VideoConversionProfileEntry.VisualMediaDimensions.Description);
+        //string url =  string.Format("/video/download?id={0}", data.ID);
+        //string url = string.Format("/content/video/download/{0}?did={1}", this._videoContentData.ID, data.ID);
+        string url = string.Format("/content/video/download/{0}", data.ID);
+        string extension = data.VideoConversionProfileEntry.VideoCodec.Extension;
+        string mime = data.VideoConversionProfileEntry.VideoCodec.MimeType;
+
+        returnList.Add(new ContentDownloadOption() { ID = data.ID, Label = name, Url = url, MimeType = mime, Extension = extension, Type = ContentDownloadOptionType.Video });
+      }
+
+      return returnList;
+
+      //return (from VideoContentData vcd in videoContentData
+      //        select new ContentDownloadOption()
+      //        {
+      //          Label = vcd.VideoConversionProfileEntry.VideoCodec.Name,
+      //          Url = "/video/download?videoContentDataID=" + vcd.ID.ToString()
+      //        }).ToList();
+
+		}
+
+    public override List<ContentStreamingOption> GetStreamingOptions(string userAgent)
+    {
+      if (!this.IsStreamable) return new List<ContentStreamingOption>();
+
+      List<VideoContentData> videoContentData = MobilePaywall.Data.VideoContentData.LoadWithoutDataByVideoContent(this.VideoContentData);
+      videoContentData = videoContentData.OrderByDescending(x => x.VideoConversionProfileEntry.ID).ToList(); // with this .webm should allways be on top (becasue webm  profileEntry is 8)
+
+      List<ContentStreamingOption> returnList = new List<ContentStreamingOption>();
+
+      foreach (VideoContentData data in videoContentData)
+      {
+        string name = string.Format("{0}", data.VideoConversionProfileEntry.VisualMediaDimensions.Description);
+        string url = string.Format("/content/video/stream/{0}", data.ID);
+        string extension = data.VideoConversionProfileEntry.VideoCodec.Extension;
+        string mime = data.VideoConversionProfileEntry.VideoCodec.MimeType;
+
+        returnList.Add(new ContentStreamingOption() { VideoContentDataID = data.ID,  Label = name, Url = url, MimeType = mime, Extension = extension, Type = ContentStreamingOptionType.Video });
+      }
+
+      return returnList;
+    }
+
+		public override NameValueCollection GetMetaInformation(Service service, Language language)
+		{
+      string title = "",
+             description = "",
+             htmlTitle = "",
+             metaDescription = "",
+             metaKeywords = "",
+             rating = "";
+
+      VideoContentDetail videoContentDetail = VideoContentDetail.LoadByVideoContentServiceAndLanguage(this.VideoContentData, service, language);
+      if(videoContentDetail != null)
+      {
+        title = videoContentDetail.Title;
+        description = videoContentDetail.Description;
+        htmlTitle = videoContentDetail.Description;
+        metaDescription = videoContentDetail.MetaDescription;
+        metaKeywords = videoContentDetail.MetaKeywords;
+        rating = videoContentDetail.Rating.ToString();
+      }
+      else
+      {
+        title = this.VideoContentData.Title;
+        description = this.VideoContentData.Description;
+      }
+
+      NameValueCollection nvc = new NameValueCollection();
+      nvc.Add("Title", title);
+      nvc.Add("Description", description);
+      nvc.Add("HTMLTitle", htmlTitle);
+      nvc.Add("MetaDescription", metaDescription);
+      nvc.Add("MetaKeywords", metaKeywords);
+      nvc.Add("Rating", rating);
+      return nvc;
+		}
+
+    public override ContentInformations GetInformations(Service service, Language language)
+    {
+      VideoContentDetail videoContentDetail = VideoContentDetail.LoadByVideoContentServiceAndLanguage(this.VideoContentData, service, language);
+      if (videoContentDetail != null)
+        return new ContentInformations()
+        {
+          Title = videoContentDetail.Title,
+          Description = videoContentDetail.Description,
+          HtmlTitle = videoContentDetail.HtmlTitle,
+          MetaDescription = videoContentDetail.MetaDescription,
+          MetaKeywords = videoContentDetail.MetaKeywords,
+          Rating = videoContentDetail.Rating.ToString()
+        };
+      else
+        return new ContentInformations()
+        {
+          Title = this.VideoContentData.Title,
+          Description = this.VideoContentData.Description
+        };
+    }
+        
+    public override string GetThumbnailUrl(string userAgent)
+    {
+      return base.GetThumbnailUrl(userAgent);
+    }
+
+    public override void UpdateTitle(string title, IUserSession us)
+    {
+      this._videoContentData.Title = title;
+      this._videoContentData.UpdateWithHistory(us);
+    }
+
+    public override void UpdateDescription(string description, IUserSession us)
+    {
+      this._videoContentData.Description = description;
+      this._videoContentData.UpdateWithHistory(us);
+    }
+
+    public override List<ContentInformations> GetAllContentDetail()
+    {
+      List<VideoContentDetail> vcd = VideoContentDetail.CreateManager().Load(this._videoContentData);
+      List<ContentInformations> result = new List<ContentInformations>();
+
+      foreach (VideoContentDetail v in vcd)
+        result.Add(new ContentInformations()
+          {
+            ID = v.ID,
+            Title = v.Title,
+            Description = v.Description,
+            HtmlTitle = v.HtmlTitle,
+            MetaDescription = v.MetaDescription,
+            MetaKeywords = v.MetaKeywords,
+            Language = v.Language,
+            Service = v.Service,
+            Rating = v.Rating.ToString(),
+          });
+
+      return result;
+    }
+
+    public override void UpdateContentDetails(ContentInformations info, IUserSession us)
+    {
+      if(info.Language == null)
+        return;
+
+      VideoContentDetail dt = null;
+      if (info.Service != null)
+        dt = VideoContentDetail.CreateManager().Load<VideoContentDetail>(this._videoContentData, info.Service, info.Language);
+      else
+        dt = VideoContentDetail.CreateManager().Load(this._videoContentData, info.Language);
+
+      if(dt == null)
+      {
+        dt = new VideoContentDetail(-1, this._videoContentData, null, info.Language, info.Title, info.Description, info.RatingDecimal, info.HtmlTitle, info.MetaDescription, info.MetaKeywords, DateTime.Now, DateTime.Now);
+        dt.InsertWithHistory(us);
+        return;
+      }
+
+      dt.Title = info.Title;
+      dt.Service = info.Service;
+      dt.Language = info.Language;
+      dt.Description = info.Description;
+      dt.Rating = info.RatingDecimal;
+      dt.MetaKeywords = info.MetaKeywords;
+      dt.MetaDescription = info.MetaDescription;
+
+      dt.UpdateWithHistory(us);
+    }
+
+    public override void DeleteContentDetails(ContentInformations info, IUserSession us)
+    {
+      if (info.Language == null)
+        return;
+
+      VideoContentDetail dt = null;
+      if (info.Service != null)
+        dt = VideoContentDetail.CreateManager().Load<VideoContentDetail>(this._videoContentData, info.Service, info.Language);
+      else
+        dt = VideoContentDetail.CreateManager().Load(this._videoContentData, info.Language);
+
+      if (dt != null)
+        dt.DeleteWithHistory(us);
+    }
+	}
+}

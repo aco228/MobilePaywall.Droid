@@ -1,0 +1,425 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+using Senti.Security;
+
+namespace MobilePaywall.Data.Sql
+{
+	public partial class CustomerManager : ICustomerManager
+	{
+    public Customer Load(Guid customerGuid, GuidType guidType)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, customerGuid, guidType);
+    }
+    public Customer Load(IConnectionInfo connection, Guid customerGuid, GuidType guidType)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, customerGuid, guidType);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, customerGuid, guidType);
+    }
+    public Customer Load(ISqlConnectionInfo connection, Guid customerGuid, GuidType guidType)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      string parameter = guidType == GuidType.External ? "ExternalCustomerGuid" : "CustomerGuid";
+      parameters.Where = string.Format("[c].{0} = @{0}", parameter);
+      parameters.Arguments.Add(parameter, customerGuid);
+      return this.Load(connection, parameters);
+    }
+
+    public Customer Load(Guid value, GuidType type, CustomerStatus status)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, value, type, status);
+    }
+    public Customer Load(IConnectionInfo connection, Guid value, GuidType type, CustomerStatus status)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, value, type, status);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, value, type, status);
+    }
+    public Customer Load(ISqlConnectionInfo connection, Guid value, GuidType type, CustomerStatus status)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      string parameter = type == GuidType.External ? "ExternalCustomerGuid" : "CustomerGuid";
+      switch (status)
+      {
+        case CustomerStatus.Unknown:
+          parameters.Where = string.Format("[c].{0} = @{0}", parameter);
+          break;
+        default:
+          parameters.Where = string.Format("[c].{0} = @{0} AND [c].CustomerStatusID = @CustomerStatusID", parameter);
+          parameters.Arguments.Add("CustomerStatusID", (int)status);
+          break;
+      }
+      parameters.Arguments.Add(parameter, value);
+      return this.Load(connection, parameters);
+    }
+
+    //public Customer Load(Service service, string value, bool isMsisdnEncrypted)
+    //{
+    //  using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+    //    return this.Load(connection, service, value, isMsisdnEncrypted);
+    //}
+    //public Customer Load(IConnectionInfo connection, Service service, string value, bool isMsisdnEncrypted)
+    //{
+    //  ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+    //  if (sqlConnection != null)
+    //    return this.Load(sqlConnection, service, value, isMsisdnEncrypted);
+    //  using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+    //    return this.Load(sqlConnection, service, value, isMsisdnEncrypted);
+    //}
+    //public Customer Load(ISqlConnectionInfo connection, Service service, string value, bool isMsisdnEncrypted)
+    //{
+    //  SqlQueryParameters parameters = new SqlQueryParameters();
+    //  string parameter = isMsisdnEncrypted ? "EncryptedMsisdn" : "Msisdn";
+    //  parameters.Where = string.Format("[c_s].ServiceID = @ServiceID AND [c].{0} = @{0}", parameter);
+    //  parameters.Arguments.Add("ServiceID", service.ID);
+    //  parameters.Arguments.Add(parameter, value);
+    //  return this.Load(connection, parameters);
+    //}
+
+    //public Customer Load(Service service, string username, string password)
+    //{
+    //  using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+    //    return this.Load(connection, service, username, password);
+    //}
+    //public Customer Load(IConnectionInfo connection, Service service, string username, string password)
+    //{
+    //  ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+    //  if (sqlConnection != null)
+    //    return this.Load(sqlConnection, service, username, password);
+    //  using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+    //    return this.Load(sqlConnection, service, username, password);
+    //}
+    //public Customer Load(ISqlConnectionInfo connection, Service service, string username, string password)
+    //{
+    //  int SALT_LENGTH = 8;
+
+    //  // Load user from database
+    //  SqlQueryParameters parameters = new SqlQueryParameters();
+    //  parameters.Where = "[c_s].ServiceID = @ServiceID AND [c].Username = @Username";
+    //  parameters.Arguments.Add("ServiceID", service.ID);
+    //  parameters.Arguments.Add("Username", username);
+    //  parameters.OrderBy = "[c].CustomerID DESC";
+
+    //  Customer user = Load(connection, parameters);
+    //  if (user == null)
+    //    return null;
+
+    //  // Encrypt provided password and compare with user.EncryptedPassword
+
+    //  // Load salt from user.EncryptedPassword
+    //  byte[] salt = new byte[SALT_LENGTH];
+    //  for (int i = 0; i < SALT_LENGTH;
+    //    salt[i] = user.EncryptedPassword[user.EncryptedPassword.Length - SALT_LENGTH + i++]) ;
+
+    //  byte[] encryptedUnckeckedPassword = PasswordEncryption.Create(password, salt).EncryptedPasswordAndSalt;
+
+    //  // Compare passwords
+    //  if (encryptedUnckeckedPassword.SequenceEqual(user.EncryptedPassword))
+    //    return user; // EQUAL
+
+    //  return null;
+
+    //  //SqlQueryParameters parameters = new SqlQueryParameters();
+    //  //parameters.Where = "[c].MSISDN = @MSISDN AND Password = @Password";
+    //  //parameters.Arguments.Add("MSISDN", msisdn);
+    //  //parameters.Arguments.Add("Password", PasswordEncryption.Create(password).EncryptedPasswordAndSalt);
+    //  //return this.Load(connection, parameters);
+    //}
+
+    //public Customer Load(Service service, string username)
+    //{
+    //  using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+    //    return this.Load(connection, service, username);
+    //}
+    //public Customer Load(IConnectionInfo connection, Service service, string username)
+    //{
+    //  ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+    //  if (sqlConnection != null)
+    //    return this.Load(sqlConnection, service, username);
+    //  using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+    //    return this.Load(sqlConnection, service, username);
+    //}
+    //public Customer Load(ISqlConnectionInfo connection, Service service, string username)
+    //{
+    //  SqlQueryParameters parameters = new SqlQueryParameters();
+    //  parameters.Where = "[c].ServiceID = @ServiceID AND [c].Username = @Username";
+    //  parameters.Arguments.Add("ServiceID", service.ID);
+    //  parameters.Arguments.Add("Username", username);
+    //  return this.Load(connection, parameters);
+    //}
+
+    //public List<Customer> Load(string value, CustomerIdentifier identifier)
+    //{
+    //  using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+    //    return this.Load(connection, value, identifier);
+    //}
+
+    //public List<Customer> Load(IConnectionInfo connection, string value, CustomerIdentifier identifier)
+    //{
+    //  ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+    //  if (sqlConnection != null)
+    //    return this.Load(sqlConnection, value, identifier);
+    //  using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+    //    return this.Load(sqlConnection, value, identifier);
+    //}
+
+    //public List<Customer> Load(ISqlConnectionInfo connection, string value, CustomerIdentifier identifier)
+    //{
+    //  SqlQueryParameters parameters = new SqlQueryParameters();
+    //  string parameter = identifier == CustomerIdentifier.Msisdn ? "Msisdn" : identifier == CustomerIdentifier.EncryptedMsisdn ? "EncryptedMsisdn" : "Username";
+    //  parameters.Where = string.Format("[c].{0} = @{0}", parameter);
+    //  parameters.Arguments.Add(parameter, value);
+    //  return this.LoadMany(connection, parameters);
+    //}
+
+    public Customer Load(Service service, string value, CustomerIdentifier identifier, CustomerStatus status)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, service, value, identifier, status);
+    }
+
+    public Customer Load(IConnectionInfo connection, Service service, string value, CustomerIdentifier identifier, CustomerStatus status)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, service, value, identifier, status);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, service, value, identifier, status);
+    }
+
+    public Customer Load(ISqlConnectionInfo connection, Service service, string value, CustomerIdentifier identifier, CustomerStatus status)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      string parameter = string.Format("{0}", identifier.ToString());
+      switch (status)
+      {
+        case CustomerStatus.Unknown:
+          parameters.Where = string.Format("[c].ServiceID = @ServiceID AND [c].{0} = @{0}", parameter);
+          break;
+        default:
+          parameters.Where = string.Format("[c].ServiceID = @ServiceID AND [c].{0} = @{0} AND [c].CustomerStatusID = @CustomerStatusID", parameter);
+          parameters.Arguments.Add("CustomerStatusID", (int)status);
+          break;
+      }
+      parameters.Arguments.Add("ServiceID", service.ID);
+      parameters.Arguments.Add(parameter, value);
+      return this.Load(connection, parameters);
+    }
+
+    public Customer Load(Service service, string value, string password, CustomerIdentifier identifier)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, service, value, password, identifier);
+    }
+
+    public Customer Load(IConnectionInfo connection, Service service, string value, string password, CustomerIdentifier identifier)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, service, value, password, identifier);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, service, value, password, identifier);
+    }
+
+    public Customer Load(ISqlConnectionInfo connection, Service service, string value, string password, CustomerIdentifier identifier)
+    {
+      Log.Debug("AAAAAAAAAAAAAA");
+      return null;
+
+      //SqlQueryParameters parameters = new SqlQueryParameters();
+      //string parameter = string.Format("{0}", identifier.ToString());
+      //parameters.Where = string.Format("[c_s].ServiceID = @ServiceID AND [c].{0} = @{0}", parameter);
+      //parameters.Arguments.Add("ServiceID", service.ID);
+      //parameters.Arguments.Add(parameter, value);
+
+      //Customer customer = Load(connection, parameters);
+      //if (customer == null)
+      //  return null;
+      
+      //int SALT_LENGTH = 8;
+      //byte[] salt = new byte[SALT_LENGTH];
+      //for (int i = 0; i < SALT_LENGTH;
+      //  salt[i] = customer.EncryptedPassword[customer.EncryptedPassword.Length - SALT_LENGTH + i++]) ;
+
+      //byte[] encryptedUnckeckedPassword = PasswordEncryption.Create(password, salt).EncryptedPasswordAndSalt;
+
+      //if (encryptedUnckeckedPassword.SequenceEqual(customer.EncryptedPassword))
+      //  return customer;
+
+      //return null;
+    }
+
+
+
+    public List<Customer> Load(Service service)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, service);
+    }
+
+    public List<Customer> Load(IConnectionInfo connection, Service service)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, service);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, service);
+    }
+
+    public List<Customer> Load(ISqlConnectionInfo connection, Service service)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[c].ServiceID = @ServiceID";
+      parameters.Arguments.Add("ServiceID", service.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+
+		public List<Customer> Load(string value, CustomerIdentifier identifier)
+		{
+			using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+				return this.Load(connection, value, identifier);
+		}
+
+		public List<Customer> Load(IConnectionInfo connection, string value, CustomerIdentifier identifier)
+		{
+			ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+			if (sqlConnection != null)
+				return this.Load(sqlConnection, value, identifier);
+			using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+				return this.Load(sqlConnection, value, identifier);
+		}
+
+		public List<Customer> Load(ISqlConnectionInfo connection, string value, CustomerIdentifier identifier)
+		{
+			SqlQueryParameters parameters = new SqlQueryParameters();
+			string parameter = string.Format("{0}", identifier.ToString());
+			parameters.Where = string.Format("[c].{0} = @{0}", parameter);
+			parameters.Arguments.Add(parameter, value);
+			return this.LoadMany(connection, parameters);
+		}
+
+    public List<Customer> Load(Service service, string value, CustomerIdentifier identifier)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, service, value, identifier);
+    }
+
+    public List<Customer> Load(IConnectionInfo connection, Service service, string value, CustomerIdentifier identifier)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, service, value, identifier);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, service, value, identifier);
+    }
+
+    public List<Customer> Load(ISqlConnectionInfo connection, Service service, string value, CustomerIdentifier identifier)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      string parameter = string.Format("{0}", identifier.ToString());
+      parameters.Where = string.Format("[c].{0} = @{0} AND [c].CustomerStatusID=3", parameter);
+      if (service != null)
+      {
+        parameters.Where += " AND [c].ServiceID = @ServiceID";
+        parameters.Arguments.Add("ServiceID", service.ID);
+      }
+      parameters.OrderBy = "[c].Created DESC";
+      parameters.Arguments.Add(parameter, value);
+      return this.LoadMany(connection, parameters);
+    }
+
+
+
+    public Customer Load(Product product, string msisdn, CustomerIdentifier identifier)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, product, msisdn, identifier);
+    }
+
+    public Customer Load(IConnectionInfo connection, Product product, string msisdn, CustomerIdentifier identifier)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, product, msisdn, identifier);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, product, msisdn, identifier);
+    }
+
+    public Customer Load(ISqlConnectionInfo connection, Product product, string msisdn, CustomerIdentifier identifier)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[c].ProductID = @ProductID AND [c].Msisnd = @Msisdn";
+      parameters.Arguments.Add("ProductID", product.ID);
+      parameters.Arguments.Add("Msisdn", msisdn);
+      return this.Load(connection, parameters);
+    }
+
+
+    public Customer Load(Country country, string msisdn, CustomerIdentifier identifier)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, country, msisdn, identifier);
+    }
+
+    public Customer Load(IConnectionInfo connection, Country country, string msisdn, CustomerIdentifier identifier)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, country, msisdn, identifier);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, country, msisdn, identifier);
+    }
+
+    public Customer Load(ISqlConnectionInfo connection, Country country, string msisdn, CustomerIdentifier identifier)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[c].CountryID = @CountryID AND [c].Msisdn = @Msisdn";
+      parameters.Arguments.Add("CountryID", country.ID);
+      parameters.Arguments.Add("Msisnd", msisdn);
+      return this.Load(connection, parameters);
+    }
+
+    public List<Customer> Load()
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection);
+    }
+
+    public List<Customer> Load(IConnectionInfo connection)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection);
+    }
+
+    public List<Customer> Load(ISqlConnectionInfo connection)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      //parameters.Where = "a = b OR a = @MyParam";
+      //parameters.OrderBy = "abbr.PrimaryKeyColumnID DESC";
+      //parameters.Arguments.Add("MyParam", "MyValue");
+      //return this.Load(connection, parameters);
+      return this.LoadMany(connection, parameters);
+    }
+
+
+
+	}
+}
+

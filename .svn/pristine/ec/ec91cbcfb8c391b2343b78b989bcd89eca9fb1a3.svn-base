@@ -1,0 +1,43 @@
+﻿using MobilePaywall.Merchant.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Merchant.Filters
+{
+  [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, Inherited = true, AllowMultiple = false)]
+  public class AuthenticationAttribute : PaywallActionFilterAttributeBase
+  {
+    public override void OnActionExecuting(ActionExecutingContext filterContext)
+    {
+      if (!this.Required)
+        return;
+
+      base.OnActionExecuting(filterContext);
+
+      if (this.PaywallContext.ClientSession.Client != null && DateTime.Now > this.PaywallContext.ClientSession.ValidUntil)
+      {
+        this.PaywallContext.ClientSession.IsActive = false;
+        this.PaywallContext.ClientSession.Update();
+
+        LockModel model = new LockModel(this.PaywallContext.ClientSession.Client, this.PaywallContext.HttpContext.Request.Url.ToString());
+        ViewResult viewLockResult = new ViewResult();
+        viewLockResult.ViewData.Model = model;
+        viewLockResult.ViewName = "~/Views/Login/Lock.cshtml";
+        filterContext.Result = viewLockResult;
+        return;
+      }
+
+      if (this.PaywallContext.ClientSession.Client != null)
+        return;
+
+      ViewResult viewResult = new ViewResult();
+      viewResult.ViewBag.OriginalRequestUrl = this.PaywallContext.HttpContext.Request.Url.ToString();
+      viewResult.ViewName = "~/Views/Login/Index.cshtml";
+      filterContext.Result = viewResult;
+    }
+  }
+}

@@ -1,0 +1,509 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(UserHttpRequest))] 
+  public partial class UserHttpRequestManager : MobilePaywall.Data.Sql.SqlManagerBase<UserHttpRequest>, IUserHttpRequestManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override UserHttpRequest LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							UserHttpRequestTable.GetColumnNames("[uhr]") + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[uhr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[uhr_us_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[uhr_us_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + DomainTable.GetColumnNames("[uhr_us_d]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[uhr_us_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[uhr_us_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[uhr_us_mo]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[uhr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[uhr_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[uhr_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[uhr_c_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[uhr_c_ar]") : string.Empty) + 
+					" FROM [core].[UserHttpRequest] AS [uhr] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [uhr_us] ON [uhr].[UserSessionID] = [uhr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [uhr_us_ust] ON [uhr_us].[UserSessionTypeID] = [uhr_us_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [uhr_us_s] ON [uhr_us].[ServiceID] = [uhr_us_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Domain] AS [uhr_us_d] ON [uhr_us].[DomainID] = [uhr_us_d].[DomainID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [uhr_us_c] ON [uhr_us].[CustomerID] = [uhr_us_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c1] ON [uhr_us].[CountryID] = [c1].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [uhr_us_l] ON [uhr_us].[LanguageID] = [uhr_us_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [uhr_us_mo] ON [uhr_us].[MobileOperatorID] = [uhr_us_mo].[MobileOperatorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [uhr_c] ON [uhr].[ContentID] = [uhr_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [uhr_c_cg] ON [uhr_c].[ContentGroupID] = [uhr_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentType] AS [uhr_c_ct] ON [uhr_c].[ContentTypeID] = [uhr_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentStorage] AS [uhr_c_cs] ON [uhr_c].[ContentStorageID] = [uhr_c_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [uhr_c_ar] ON [uhr_c].[AgeRatingID] = [uhr_c_ar].[AgeRatingID] ";
+				sqlCmdText += "WHERE [uhr].[UserHttpRequestID] = @UserHttpRequestID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@UserHttpRequestID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("uhr", "loadinternal", "notfound"), "UserHttpRequest could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				UserHttpRequestTable uhrTable = new UserHttpRequestTable(query);
+				UserSessionTable uhr_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+				UserSessionTypeTable uhr_us_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				ServiceTable uhr_us_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				DomainTable uhr_us_dTable = (this.Depth > 1) ? new DomainTable(query) : null;
+				CustomerTable uhr_us_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				CountryTable c1Table = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable uhr_us_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				MobileOperatorTable uhr_us_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				ContentTable uhr_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable uhr_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable uhr_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable uhr_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+				AgeRatingTable uhr_c_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+
+        
+				UserSessionType uhr_us_ustObject = (this.Depth > 1) ? uhr_us_ustTable.CreateInstance() : null;
+				Service uhr_us_sObject = (this.Depth > 1) ? uhr_us_sTable.CreateInstance() : null;
+				Domain uhr_us_dObject = (this.Depth > 1) ? uhr_us_dTable.CreateInstance() : null;
+				Customer uhr_us_cObject = (this.Depth > 1) ? uhr_us_cTable.CreateInstance() : null;
+				Country c1Object = (this.Depth > 1) ? c1Table.CreateInstance() : null;
+				Language uhr_us_lObject = (this.Depth > 1) ? uhr_us_lTable.CreateInstance() : null;
+				MobileOperator uhr_us_moObject = (this.Depth > 1) ? uhr_us_moTable.CreateInstance() : null;
+				UserSession uhr_usObject = (this.Depth > 0) ? uhr_usTable.CreateInstance(uhr_us_ustObject, uhr_us_sObject, uhr_us_dObject, uhr_us_cObject, c1Object, uhr_us_lObject, uhr_us_moObject) : null;
+				ContentGroup uhr_c_cgObject = (this.Depth > 1) ? uhr_c_cgTable.CreateInstance() : null;
+				ContentType uhr_c_ctObject = (this.Depth > 1) ? uhr_c_ctTable.CreateInstance() : null;
+				ContentStorage uhr_c_csObject = (this.Depth > 1) ? uhr_c_csTable.CreateInstance() : null;
+				AgeRating uhr_c_arObject = (this.Depth > 1) ? uhr_c_arTable.CreateInstance() : null;
+				Content uhr_cObject = (this.Depth > 0) ? uhr_cTable.CreateInstance(uhr_c_cgObject, uhr_c_ctObject, uhr_c_csObject, uhr_c_arObject) : null;
+				UserHttpRequest uhrObject = uhrTable.CreateInstance(uhr_usObject, uhr_cObject);
+				sqlReader.Close();
+
+				return uhrObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("uhr", "loadinternal", "exception"), "UserHttpRequest could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "UserHttpRequest", "Exception while loading UserHttpRequest object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public UserHttpRequest Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							UserHttpRequestTable.GetColumnNames("[uhr]") + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[uhr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[uhr_us_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[uhr_us_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + DomainTable.GetColumnNames("[uhr_us_d]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[uhr_us_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[uhr_us_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[uhr_us_mo]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[uhr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[uhr_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[uhr_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[uhr_c_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[uhr_c_ar]") : string.Empty) +  
+					" FROM [core].[UserHttpRequest] AS [uhr] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [uhr_us] ON [uhr].[UserSessionID] = [uhr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [uhr_us_ust] ON [uhr_us].[UserSessionTypeID] = [uhr_us_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [uhr_us_s] ON [uhr_us].[ServiceID] = [uhr_us_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Domain] AS [uhr_us_d] ON [uhr_us].[DomainID] = [uhr_us_d].[DomainID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [uhr_us_c] ON [uhr_us].[CustomerID] = [uhr_us_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c1] ON [uhr_us].[CountryID] = [c1].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [uhr_us_l] ON [uhr_us].[LanguageID] = [uhr_us_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [uhr_us_mo] ON [uhr_us].[MobileOperatorID] = [uhr_us_mo].[MobileOperatorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [uhr_c] ON [uhr].[ContentID] = [uhr_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [uhr_c_cg] ON [uhr_c].[ContentGroupID] = [uhr_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentType] AS [uhr_c_ct] ON [uhr_c].[ContentTypeID] = [uhr_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentStorage] AS [uhr_c_cs] ON [uhr_c].[ContentStorageID] = [uhr_c_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [uhr_c_ar] ON [uhr_c].[AgeRatingID] = [uhr_c_ar].[AgeRatingID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("uhr", "customload", "notfound"), "UserHttpRequest could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				UserHttpRequestTable uhrTable = new UserHttpRequestTable(query);
+				UserSessionTable uhr_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+				UserSessionTypeTable uhr_us_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				ServiceTable uhr_us_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				DomainTable uhr_us_dTable = (this.Depth > 1) ? new DomainTable(query) : null;
+				CustomerTable uhr_us_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				CountryTable c1Table = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable uhr_us_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				MobileOperatorTable uhr_us_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				ContentTable uhr_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable uhr_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable uhr_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable uhr_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+				AgeRatingTable uhr_c_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+
+        
+				UserSessionType uhr_us_ustObject = (this.Depth > 1) ? uhr_us_ustTable.CreateInstance() : null;
+				Service uhr_us_sObject = (this.Depth > 1) ? uhr_us_sTable.CreateInstance() : null;
+				Domain uhr_us_dObject = (this.Depth > 1) ? uhr_us_dTable.CreateInstance() : null;
+				Customer uhr_us_cObject = (this.Depth > 1) ? uhr_us_cTable.CreateInstance() : null;
+				Country c1Object = (this.Depth > 1) ? c1Table.CreateInstance() : null;
+				Language uhr_us_lObject = (this.Depth > 1) ? uhr_us_lTable.CreateInstance() : null;
+				MobileOperator uhr_us_moObject = (this.Depth > 1) ? uhr_us_moTable.CreateInstance() : null;
+				UserSession uhr_usObject = (this.Depth > 0) ? uhr_usTable.CreateInstance(uhr_us_ustObject, uhr_us_sObject, uhr_us_dObject, uhr_us_cObject, c1Object, uhr_us_lObject, uhr_us_moObject) : null;
+				ContentGroup uhr_c_cgObject = (this.Depth > 1) ? uhr_c_cgTable.CreateInstance() : null;
+				ContentType uhr_c_ctObject = (this.Depth > 1) ? uhr_c_ctTable.CreateInstance() : null;
+				ContentStorage uhr_c_csObject = (this.Depth > 1) ? uhr_c_csTable.CreateInstance() : null;
+				AgeRating uhr_c_arObject = (this.Depth > 1) ? uhr_c_arTable.CreateInstance() : null;
+				Content uhr_cObject = (this.Depth > 0) ? uhr_cTable.CreateInstance(uhr_c_cgObject, uhr_c_ctObject, uhr_c_csObject, uhr_c_arObject) : null;
+				UserHttpRequest uhrObject = uhrTable.CreateInstance(uhr_usObject, uhr_cObject);
+				sqlReader.Close();
+
+				return uhrObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("uhr", "customload", "exception"), "UserHttpRequest could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "UserHttpRequest", "Exception while loading (custom/single) UserHttpRequest object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<UserHttpRequest> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							UserHttpRequestTable.GetColumnNames("[uhr]") + 
+							(this.Depth > 0 ? "," + UserSessionTable.GetColumnNames("[uhr_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[uhr_us_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTable.GetColumnNames("[uhr_us_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + DomainTable.GetColumnNames("[uhr_us_d]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CustomerTable.GetColumnNames("[uhr_us_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[c1]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[uhr_us_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[uhr_us_mo]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[uhr_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[uhr_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[uhr_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[uhr_c_cs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[uhr_c_ar]") : string.Empty) +  
+					" FROM [core].[UserHttpRequest] AS [uhr] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [uhr_us] ON [uhr].[UserSessionID] = [uhr_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [uhr_us_ust] ON [uhr_us].[UserSessionTypeID] = [uhr_us_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [uhr_us_s] ON [uhr_us].[ServiceID] = [uhr_us_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Domain] AS [uhr_us_d] ON [uhr_us].[DomainID] = [uhr_us_d].[DomainID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Customer] AS [uhr_us_c] ON [uhr_us].[CustomerID] = [uhr_us_c].[CustomerID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [c1] ON [uhr_us].[CountryID] = [c1].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [uhr_us_l] ON [uhr_us].[LanguageID] = [uhr_us_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [uhr_us_mo] ON [uhr_us].[MobileOperatorID] = [uhr_us_mo].[MobileOperatorID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [uhr_c] ON [uhr].[ContentID] = [uhr_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [uhr_c_cg] ON [uhr_c].[ContentGroupID] = [uhr_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentType] AS [uhr_c_ct] ON [uhr_c].[ContentTypeID] = [uhr_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentStorage] AS [uhr_c_cs] ON [uhr_c].[ContentStorageID] = [uhr_c_cs].[ContentStorageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [uhr_c_ar] ON [uhr_c].[AgeRatingID] = [uhr_c_ar].[AgeRatingID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("uhr", "customloadmany", "notfound"), "UserHttpRequest list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<UserHttpRequest>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				UserHttpRequestTable uhrTable = new UserHttpRequestTable(query);
+				UserSessionTable uhr_usTable = (this.Depth > 0) ? new UserSessionTable(query) : null;
+				UserSessionTypeTable uhr_us_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				ServiceTable uhr_us_sTable = (this.Depth > 1) ? new ServiceTable(query) : null;
+				DomainTable uhr_us_dTable = (this.Depth > 1) ? new DomainTable(query) : null;
+				CustomerTable uhr_us_cTable = (this.Depth > 1) ? new CustomerTable(query) : null;
+				CountryTable c1Table = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable uhr_us_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				MobileOperatorTable uhr_us_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				ContentTable uhr_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable uhr_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable uhr_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable uhr_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+				AgeRatingTable uhr_c_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+
+        List<UserHttpRequest> result = new List<UserHttpRequest>();
+        do
+        {
+          
+					UserSessionType uhr_us_ustObject = (this.Depth > 1) ? uhr_us_ustTable.CreateInstance() : null;
+					Service uhr_us_sObject = (this.Depth > 1) ? uhr_us_sTable.CreateInstance() : null;
+					Domain uhr_us_dObject = (this.Depth > 1) ? uhr_us_dTable.CreateInstance() : null;
+					Customer uhr_us_cObject = (this.Depth > 1) ? uhr_us_cTable.CreateInstance() : null;
+					Country c1Object = (this.Depth > 1) ? c1Table.CreateInstance() : null;
+					Language uhr_us_lObject = (this.Depth > 1) ? uhr_us_lTable.CreateInstance() : null;
+					MobileOperator uhr_us_moObject = (this.Depth > 1) ? uhr_us_moTable.CreateInstance() : null;
+					UserSession uhr_usObject = (this.Depth > 0) ? uhr_usTable.CreateInstance(uhr_us_ustObject, uhr_us_sObject, uhr_us_dObject, uhr_us_cObject, c1Object, uhr_us_lObject, uhr_us_moObject) : null;
+					ContentGroup uhr_c_cgObject = (this.Depth > 1) ? uhr_c_cgTable.CreateInstance() : null;
+					ContentType uhr_c_ctObject = (this.Depth > 1) ? uhr_c_ctTable.CreateInstance() : null;
+					ContentStorage uhr_c_csObject = (this.Depth > 1) ? uhr_c_csTable.CreateInstance() : null;
+					AgeRating uhr_c_arObject = (this.Depth > 1) ? uhr_c_arTable.CreateInstance() : null;
+					Content uhr_cObject = (this.Depth > 0) ? uhr_cTable.CreateInstance(uhr_c_cgObject, uhr_c_ctObject, uhr_c_csObject, uhr_c_arObject) : null;
+					UserHttpRequest uhrObject = (this.Depth > -1) ? uhrTable.CreateInstance(uhr_usObject, uhr_cObject) : null;
+					result.Add(uhrObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("uhr", "customloadmany", "exception"), "UserHttpRequest list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "UserHttpRequest", "Exception while loading (custom/many) UserHttpRequest object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, UserHttpRequest data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[UserHttpRequest] ([UserHttpRequestGuid],[UserSessionID],[ContentID],[RequestedUrl]) VALUES(@UserHttpRequestGuid,@UserSessionID,@ContentID,@RequestedUrl); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@UserHttpRequestGuid", data.Guid);
+				sqlCmd.Parameters.AddWithValue("@UserSessionID", data.UserSession.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentID", data.Content == null ? DBNull.Value : (object)data.Content.ID);
+				sqlCmd.Parameters.AddWithValue("@RequestedUrl", data.RequestedUrl).SqlDbType = SqlDbType.NVarChar;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("uhr", "insert", "noprimarykey"), "UserHttpRequest could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "UserHttpRequest", "Exception while inserting UserHttpRequest object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("uhr", "insert", "exception"), "UserHttpRequest could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "UserHttpRequest", "Exception while inserting UserHttpRequest object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, UserHttpRequest data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[UserHttpRequest] SET " +
+												"[UserHttpRequestGuid] = @UserHttpRequestGuid, " + 
+												"[UserSessionID] = @UserSessionID, " + 
+												"[ContentID] = @ContentID, " + 
+												"[RequestedUrl] = @RequestedUrl, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [UserHttpRequestID] = @UserHttpRequestID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@UserHttpRequestGuid", data.Guid);
+				sqlCmd.Parameters.AddWithValue("@UserSessionID", data.UserSession.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentID", data.Content == null ? DBNull.Value : (object)data.Content.ID);
+				sqlCmd.Parameters.AddWithValue("@RequestedUrl", data.RequestedUrl).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@UserHttpRequestID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("uhr", "update", "norecord"), "UserHttpRequest could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "UserHttpRequest", "Exception while updating UserHttpRequest object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("uhr", "update", "morerecords"), "UserHttpRequest was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "UserHttpRequest", "Exception while updating UserHttpRequest object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("uhr", "update", "exception"), "UserHttpRequest could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "UserHttpRequest", "Exception while updating UserHttpRequest object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, UserHttpRequest data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[UserHttpRequest] WHERE UserHttpRequestID = @UserHttpRequestID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@UserHttpRequestID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("uhr", "delete", "norecord"), "UserHttpRequest could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "UserHttpRequest", "Exception while deleting UserHttpRequest object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("uhr", "delete", "exception"), "UserHttpRequest could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "UserHttpRequest", "Exception while deleting UserHttpRequest object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

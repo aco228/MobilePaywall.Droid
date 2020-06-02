@@ -1,0 +1,55 @@
+﻿@model MobilePaywall.Web.Models.ContentListViewModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+}
+@Scripts.Render("~/Script/Home")
+
+<div id="subheader">@Translations.Web.Home.Header2</div>
+<div id="videoswrapper">
+  <ul id="contentVideoContainer">
+    @foreach (MobilePaywall.IContent content in Model.Content)
+    {
+      MobilePaywall.ContentInformations info = content.GetInformations(PaywallHttpContext.Current.Service.ServiceData, PaywallHttpContext.Current.Service.ServiceData.FallbackLanguage);
+
+      <li>
+          <a href="@Model.AppendSessionID(content)" class="___clink">
+              <div class="column">
+                  <div class="left">
+                      <div class="contentIcon @content.ContentIconClass"></div>
+                      <div class="contentThumb" style="background-image:url(@content.GetThumbnailUrl(this.Request.UserAgent))"></div>
+                  </div>
+                  <div class="right">
+                      <div class="title">@info.Title</div>
+                      <div class="subtitle">@info.Description</div>
+                  </div>
+              </div>
+          </a>
+      </li>
+
+    }
+  </ul>
+  <input type="button" class="loadmorebtn" id="controlLoadMore" value="@Translations.Web.Controls.More" />
+</div>
+
+<script>
+  var _videoController = null;
+  var _contentHome = null;
+
+  $(document).ready(function () {
+    _videoController = new VideoController();
+    _videoController.TextPending = '@Translations.Web.Pending.PleaseWait';
+
+    @{
+      if(Model.Category != null)
+      {
+        @Html.Raw(Server.HtmlDecode("_homeVideoControler.CategoryID = '" + Model.Category.ID + "';"));
+      }
+    }
+
+    _videoController.OnAppendFunc = function () {
+      // tempalte function to adapt size of thumbnails ( Scripts/Blinds/custom.js:286 )
+      adaptPortfolio()
+    }
+
+  });
+</script>

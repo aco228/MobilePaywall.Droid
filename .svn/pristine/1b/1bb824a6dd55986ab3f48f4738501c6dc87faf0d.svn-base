@@ -1,0 +1,91 @@
+﻿using MobilePaywall.MobilePaywallDirect;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Data.Direct.MobilePaywall
+{
+
+  public class DirectTransactionManager : MobilePaywallDirect.PaywallDirect
+  {
+    protected DataTable Construct(Service service, MobileOperator mobileOperator, DateTime from, DateTime to)
+    {
+      string command = string.Empty;
+      #region # sql command #
+      
+      command = " SELECT COUNT(*) AS br FROM MobilePaywall.core.[Transaction] AS t   " +
+                " LEFT OUTER JOIN MobilePaywall.core.Payment AS p ON t.PaymentID=p.PaymentID   " +
+                " LEFT OUTER JOIN MobilePaywall.core.Customer AS c ON p.CustomerID=c.CustomerID " +
+                " WHERE   " +
+                " t.TransactionStatusID=5 AND " +
+                " t.Created >=  '"+ this.Date(from) +"'  AND  " +
+                " t.Created <=   '"+ this.Date(to) +"'  AND  " +
+                " p.Created >  '" + this.Date(from) + "'  AND  " +
+                ( mobileOperator != null ? " c.MobileOperatorID = " + mobileOperator.ID + " AND " : " " ) +
+                " c.ServiceID="+ service.ID +";  ";
+
+      #endregion
+
+      return this.Load(command);
+    }
+
+    protected DataTable Construct(Payment payment)
+    {
+      string command = string.Empty;
+      #region # sql command #
+
+      command = "SELECT COUNT(*) FROM MobilePaywall.core.[Transaction] WHERE TransactionStatusID=5 AND PaymentID="+ payment.ID +";";
+
+      #endregion
+
+
+      return this.Load(command);
+    }
+
+  }
+
+  public class DirectTransactionTable : DirectTransactionManager
+  {
+    public static int TransactionCount(Service service, MobileOperator mobileOperator = null, DateTime? from = null, DateTime? to = null)
+    {
+      DirectTransactionTable table = new DirectTransactionTable();
+
+      if (from == null || !from.HasValue)
+        from = new DateTime(DateTime.Now.Year, DateTime.Now.Month, DateTime.Now.Day);
+
+      if(to == null || !to.HasValue)
+      {
+        DateTime temp = DateTime.Now.AddDays(1);
+        to = new DateTime(temp.Year, temp.Month, temp.Day);
+      }
+
+      DataTable result = table.Construct(service, mobileOperator, from.Value, to.Value);
+      if (result == null)
+        return 0;
+
+      int count = -1;
+      Int32.TryParse(result.Rows[0][0].ToString(), out count);
+      return count;
+    }
+
+    public static int TransactionCount(Payment payment)
+    {
+      DirectTransactionTable table = new DirectTransactionTable();
+
+      if(payment == null)
+        return 0;
+
+      DataTable result = table.Construct(payment);
+      if(result == null)
+        return 0;
+
+      int count = -1;
+      Int32.TryParse(result.Rows[0][0].ToString(), out count);
+      return count;      
+    }
+
+  }
+}

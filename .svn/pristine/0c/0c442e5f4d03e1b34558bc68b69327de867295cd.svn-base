@@ -1,0 +1,35 @@
+SELECT
+	TOP 50
+	trans.TransactionID,
+	trans.TransactionGuid,
+	trans.ExternalTransactionGroupGuid,
+	transactionStatus.Name AS 'TransactionStatus',
+	transactionType.Name AS 'TransactionType',
+	payment.PaymentID AS 'PaymentID',
+	payment.PaymentGuid AS 'PaymentGuid',
+	payment.ExternalPaymentGuid AS 'ExternalPaymentGuid',
+	paymentType.Name AS 'PaymentType',
+	paymentStatus.Name AS 'PaymentStatus',
+	payment.PaymentRequestID,
+	payment.CustomerID,
+	payment.ServiceOfferID,
+	payment.BusinessModelEntryID,
+	trans.Created
+FROM
+	MobilePaywall.core.[Transaction] AS trans
+LEFT JOIN MobilePaywall.core.Payment AS payment ON trans.PaymentID = payment.PaymentID
+LEFT JOIN MobilePaywall.core.TransactionStatus AS transactionStatus ON trans.TransactionStatusID = transactionStatus.TransactionStatusID
+LEFT JOIN MobilePaywall.core.TransactionType AS transactionType ON trans.TransactionTypeID = transactionType.TransactionTypeID
+LEFT JOIN MobilePaywall.core.PaymentType AS paymentType ON payment.PaymentTypeID = paymentType.PaymentTypeID
+LEFT JOIN MobilePaywall.core.PaymentStatus AS paymentStatus ON payment.PaymentStatusID = paymentStatus.PaymentStatusID
+WHERE
+	@input = '{{input}}' OR
+	(
+		CAST(trans.TransactionID AS NVARCHAR(MAX)) = @input OR
+		CAST(trans.TransactionGuid AS NVARCHAR(MAX)) = @input OR
+		CAST(trans.ExternalTransactionGuid AS NVARCHAR(MAX)) = @input OR
+		CAST(trans.ExternalTransactionGroupGuid AS NVARCHAR(MAX)) = @input OR
+		CAST(trans.PaymentID AS NVARCHAR(MAX)) = @input 
+	)
+ORDER BY 
+	payment.PaymentID DESC

@@ -1,0 +1,51 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
+using System.Web;
+using System.Web.Http;
+using System.Web.Mvc;
+using System.Web.Optimization;
+using System.Web.Routing;
+
+namespace MobilePaywall.Web
+{
+  public class WebApiApplication : PaywallHttpApplication
+  {   
+
+    //protected override void Application_Start()
+    //{
+    //  base.Application_Start();
+
+    // NOTE: I changed this to "InitializeApplication" as this method will now be invoked by base classes "InitializeRuntime" method right after setting the runtime (and it will only be invoked once!)
+    // This way we ensure that runtime and all other things have been initialized before registering anything.
+    // Base classes InitializeApplication does nothing anymore (moved all code to "Init") and doesn't have to be called. However, it won't hurt to do it...
+    protected override void InitializeApplication()
+    {
+      base.InitializeApplication();
+
+      AreaRegistration.RegisterAllAreas();
+      FilterConfig.RegisterGlobalFilters(GlobalFilters.Filters);
+      //RouteConfig.RegisterRoutes(RouteTable.Routes);
+      //RouteConfig.RegisterRoutes(this);
+      GlobalConfiguration.Configure(WebApiConfig.Register);
+      BundleConfig.RegisterBundles(BundleTable.Bundles);
+
+      ViewEngines.Engines.Clear();
+      ViewEngines.Engines.Add(new PaywallViewEngine());
+      //ViewEngines.Engines.Add(new RazorViewEngine());
+
+      GlobalConfiguration.Configuration.Formatters.JsonFormatter.SerializerSettings.DefaultValueHandling = Newtonsoft.Json.DefaultValueHandling.Include;
+      log4net.Config.XmlConfigurator.ConfigureAndWatch(new System.IO.FileInfo(Server.MapPath("~/log4net.config")));
+    }
+
+    protected void Session_Start(Object sender, EventArgs e)
+    {
+      Session["init"] = 0;
+    }
+
+    protected void Application_BeginRequest(Object sender, EventArgs e)
+    {
+    }
+  }
+}

@@ -1,0 +1,80 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Direct;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Merchant.Direct
+{
+  public class TestDatabaseManager
+  {
+    private MobilePaywallDirect _database = null;
+
+    public TestDatabaseManager()
+    {
+      this._database = new MobilePaywallDirect();
+    }
+
+    public TestDatabaseTable Load(Country country, DateTime from, DateTime to)
+    {
+      string command = string.Empty;
+
+      #region # sql command #
+
+      command = string.Format(" ( " +
+                  " SELECT COUNT(*) FROM MobilePaywall.core.UserSession AS us " +
+                  " LEFT OUTER JOIN MobilePaywall.core.Service AS s ON us.ServiceID=s.ServiceID " +
+                  " WHERE s.Description LIKE '{0}%' " +
+                    " AND us.Created>='{1}'   " +
+                    " AND us.Created<='{2}'  " +
+                  " ) " +
+                  " UNION ALL " +
+                  " ( " +
+                  " SELECT COUNT(*) FROM MobilePaywall.core.[Transaction] AS t " +
+                  " LEFT OUTER JOIN MobilePaywall.core.Payment AS p ON t.PaymentID=p.PaymentID " +
+                  " LEFT OUTER JOIN MobilePaywall.core.Customer AS c ON p.CustomerID=c.CustomerID " +
+                  " LEFT OUTER JOIN MobilePaywall.core.Service AS s ON c.ServiceID=s.ServiceID " +
+                  " WHERE  " +
+                    " t.TransactionID IS NOT NULL " +
+                    " AND t.TransactionStatusID=5 " +
+                    " AND t.Created>='{1}'   " +
+                    " AND t.Created<='{2}'  " +
+                    " AND p.Created >='{1}'   " +
+                    " AND s.Description LIKE '{0}%' " +
+                  " ) ", country.TwoLetterIsoCode, this._database.Date(from), this._database.Date(to));
+
+      #endregion
+
+      TestDatabaseTable result = new TestDatabaseTable();
+      DataTable table = this._database.Load(command);
+      if (table == null)
+        return result;
+
+      result.UserSessions = Int32.Parse(table.Rows[(int)TestDatabaseTable.Columns.UserSession][0].ToString());
+      result.Transactions = Int32.Parse(table.Rows[(int)TestDatabaseTable.Columns.Transactions][0].ToString());
+      
+      return result;
+    }
+
+
+  }
+
+  public class TestDatabaseTable
+  {
+    private int _userSessions = -1;
+    private int _transactions = -1;
+
+    public int UserSessions { get { return this._userSessions; } set { this._userSessions = value; } }
+    public int Transactions { get { return this._transactions; } set { this._transactions = value; } }
+
+    public enum Columns
+    {
+      UserSession,
+      Transactions
+    }
+  }
+
+}

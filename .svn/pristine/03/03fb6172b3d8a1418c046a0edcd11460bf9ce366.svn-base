@@ -1,0 +1,1060 @@
+﻿using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Merchant
+{
+  public class QueryBuilder
+  {
+    private DateTime _from = DateTime.Now;
+    private DateTime _to = DateTime.Now.AddDays(1d);
+    private string _referrer = string.Empty;
+    private List<Data.Merchant> _merchants = new List<Data.Merchant>();
+    private List<Service> _services = new List<Service>();
+    private List<Country> _countries = new List<Country>();
+    private List<MobileOperator> _operators = new List<MobileOperator>();
+    private string _select = string.Empty;
+    private List<string> _selectInner = new List<string>(new string[8]);
+    private List<string> _queryFrom = new List<string>(new string[8]);
+    //private List<string> _queryFromOLC = new List<string>(new string[7]);
+    private string _filterBy = string.Empty;
+    //private string _filterByOLC = string.Empty;
+    private List<string> _groupBy = new List<string>(new string[7]);
+    private List<string> _groupByOLC = new List<string>(new string[7]);
+    private string _splitBy = string.Empty;
+    private List<string> _joinOn = new List<string>(new string[15]);
+    private List<string> _joinOnTemp = new List<string>(new string[3]);
+    //private bool _useOLCache = false;
+    private Dictionary<string, string> _providerQueryBuilder = new Dictionary<string, string>();
+    private string _revenueGroupBy = string.Empty;
+
+    public DateTime From { get { return new DateTime(this._from.Year, this._from.Month, this._from.Day); } }
+    public DateTime To { get { return this._to.Date < this._from.Date ? new DateTime(this._from.Year, this._from.Month, this._from.Date.AddDays(1d).Day).AddMilliseconds(-1) : new DateTime(this._to.Year, this._to.Month, this._to.Day, this._to.Hour, this._to.Minute, this._to.Second); } }
+    public string Referrer { get { return this._referrer; } }
+    public List<Data.Merchant> Merchants { get { return this._merchants; } }
+    public List<Service> Services { get { return this._services; } }
+    public List<Country> Countries { get { return this._countries; } }
+    public List<MobileOperator> Operators { get { return this._operators; } }
+    public string Select { get { return this._select; } }
+    public List<string> SelectInner { get { return this._selectInner; } }
+    public List<string> QueryFrom { get { return this._queryFrom; } }
+    //public List<string> QueryFromOLC { get { return this._queryFromOLC; } }
+    public string FilterBy { get { return this._filterBy; } }
+    //public string FilterByOLC { get { return this._filterByOLC; } }
+    public List<string> GroupBy { get { return this._groupBy; } }
+    public string SplitBy { get { return this._splitBy; } }
+    public List<string> JoinOn { get { return this._joinOn; } }
+    public List<string> JoinOnTemp { get { return this._joinOnTemp; } }
+    public bool UseOLCache { get { return (this._from >= DateTime.ParseExact("29/09/2016 00:00:00", "dd/MM/yyyy HH:mm:ss", null) ? true : false); } }
+    public Dictionary<string, string> ProviderQueryBuilder { get { return this._providerQueryBuilder; } }
+    public string RevenueGroupBy { get { return this._revenueGroupBy; } }
+
+    public QueryBuilder()
+    {
+
+    }
+
+    public QueryBuilder(Dictionary<int, Service> allowedServices, bool useOLCache)
+    {
+      if (useOLCache)
+        this.InitializeUsingOLCache(Split.None, null, null, null, null, null, null, null, null, allowedServices);
+      else
+        this.Initialize(Split.None, null, null, null, null, null, null, null, null, allowedServices);
+    }
+
+    public QueryBuilder(Split split, Dictionary<int, Service> allowedServices, bool useOLCache)
+    {
+      if (useOLCache)
+        this.InitializeUsingOLCache(split, null, null, null, null, null, null, null, null, allowedServices);
+      else
+        this.Initialize(split, null, null, null, null, null, null, null, null, allowedServices);
+    }
+
+    public QueryBuilder(DateTime from, DateTime to, Split split, List<Group> group, List<string> instances, List<string> merchants, List<string> services, List<string> providers, List<string> countries, List<string> countryCodes, List<string> operators, Dictionary<int, Service> allowedServices, bool useOLCache)
+    {
+      this._from = from;
+      this._to = to;
+
+      if (useOLCache)
+        this.InitializeUsingOLCache(split, group, instances, merchants, services, providers, countryCodes, operators, null, allowedServices);
+      else
+        this.Initialize(split, group, instances, merchants, services, providers, countries, operators, null, allowedServices);
+    }
+
+    public QueryBuilder(DateTime from, DateTime to, Split split, List<Group> group, List<string> instances, List<string> merchants, List<string> services, List<string> providers, List<string> countries, List<string> countryCodes, List<string> operators, string referrer, Dictionary<int, Service> allowedServices, bool useOLCache, string page)
+    {
+      this._from = from;
+      this._to = to;
+      this._referrer = referrer;
+
+      if (page.Equals("index"))
+        if (useOLCache)
+          this.InitializeUsingOLCache(split, group, instances, merchants, services, providers, countryCodes, operators, referrer, allowedServices);
+        else
+          this.Initialize(split, group, instances, merchants, services, providers, countries, operators, referrer, allowedServices);
+      else
+        this.InitializeRevenue(split, group, instances, merchants, services, providers, countryCodes, operators, referrer, allowedServices);
+    }
+
+    protected void InitializeUsingOLCache(Split split, List<Group> group, List<string> instances, List<string> merchants, List<string> services, List<string> providers, List<string> countryCodes, List<string> operators, string referrer, Dictionary<int, Service> allowedServices)
+    {
+      MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+      List<string> serviceIDs = new List<string>();
+      //ClientComponentAccessPolicy ccap = ClientComponentAccessPolicy.CreateManager().Load(PaywallHttpContext.Current.ClientSession.Client, Component.CreateManager().Load(5)); //Payout Component ID = 5
+      //bool allowPayout = (ccap != null && ccap.AccessMode == AccessMode.Allowed);
+      bool isAdministrator = PaywallHttpContext.Current.ClientSession.Client.ClientType.Name.Equals("Administrator");
+
+      //filters
+      if (instances != null && instances.Count > 0 || merchants != null && merchants.Count > 0 || services != null && services.Count > 0 || providers != null && providers.Count > 0)
+      {
+        serviceIDs = this.GetServiceIDs(instances, merchants, services, providers, allowedServices);
+        this._filterBy += string.Format("AND EXISTS (SELECT * FROM (VALUES{0}) temp(ID) WHERE temp.ID = olc.ServiceID) ", serviceIDs.Count > 0 ? string.Concat(from s in serviceIDs select "('" + s + "'),").TrimEnd(',') : "('')");
+      }
+      else if (!isAdministrator && allowedServices != null && allowedServices.Count > 0)
+      {
+        serviceIDs = (from serviceID in allowedServices.Keys select serviceID.ToString()).ToList();
+        this._filterBy += string.Format("AND EXISTS (SELECT * FROM (VALUES{0}) temp(ID) WHERE temp.ID = olc.ServiceID) ", serviceIDs.Count > 0 ? string.Concat(from s in serviceIDs select "('" + s + "'),").TrimEnd(',') : "('')");
+      }
+      else if (!isAdministrator)
+        this._filterBy += string.Format("AND EXISTS (SELECT * FROM (VALUES('0')) temp(ID) WHERE temp.ID = olc.ServiceID) ");
+
+
+      if (countryCodes != null && countryCodes.Count > 0)
+        this._filterBy += string.Format("AND EXISTS (SELECT * FROM (VALUES{0}) temp(Code) WHERE temp.Code = olc.CountryCode) ", string.Concat(from c in countryCodes select "('" + c + "'),").TrimEnd(','));
+
+      if (operators != null && operators.Count > 0)
+        this._filterBy += string.Format("AND EXISTS (SELECT * FROM (VALUES{0}) temp(ID) WHERE temp.ID = olc.MobileOperatorID) ", string.Concat(from mo in operators select "('" + mo + "'),").TrimEnd(','));
+
+      //groupBy
+      if (group != null && group.Count > 0)
+      {
+        if (group.Count == 1 && group.Contains(Group.Provider) && split == Split.None)
+        {
+          #region #generating query when grouped by Provider only#
+          foreach (PaymentProvider provider in runtime.Providers)
+          {
+            List<string> providerServices = (from p in runtime.ProviderServiceMap[provider.ID] select p.ServiceData.ID.ToString()).ToList();
+            if (serviceIDs.Count > 0)
+              providerServices = providerServices.Intersect(serviceIDs).ToList();
+
+            if (!this._providerQueryBuilder.ContainsKey("us"))
+              this._providerQueryBuilder.Add("us", string.Empty);
+            if (!this._providerQueryBuilder.ContainsKey("ident"))
+              this._providerQueryBuilder.Add("ident", string.Empty);
+            if (!this._providerQueryBuilder.ContainsKey("successIdent"))
+              this._providerQueryBuilder.Add("successIdent", string.Empty);
+            if (!this._providerQueryBuilder.ContainsKey("pendingIdent"))
+              this._providerQueryBuilder.Add("pendingIdent", string.Empty);
+            if (!this._providerQueryBuilder.ContainsKey("initIdent"))
+              this._providerQueryBuilder.Add("initIdent", string.Empty);
+            if (!this._providerQueryBuilder.ContainsKey("failedIdent"))
+              this._providerQueryBuilder.Add("failedIdent", string.Empty);
+            if (!this._providerQueryBuilder.ContainsKey("pr"))
+              this._providerQueryBuilder.Add("pr", string.Empty);
+            if (!this._providerQueryBuilder.ContainsKey("initP"))
+              this._providerQueryBuilder.Add("initP", string.Empty);
+            if (!this._providerQueryBuilder.ContainsKey("pendingP"))
+              this._providerQueryBuilder.Add("pendingP", string.Empty);
+            if (!this._providerQueryBuilder.ContainsKey("successP"))
+              this._providerQueryBuilder.Add("successP", string.Empty);
+            if (!this._providerQueryBuilder.ContainsKey("failedP"))
+              this._providerQueryBuilder.Add("failedP", string.Empty);
+            if (!this._providerQueryBuilder.ContainsKey("cancelP"))
+              this._providerQueryBuilder.Add("cancelP", string.Empty);
+            if (!this._providerQueryBuilder.ContainsKey("otherCancelP"))
+              this._providerQueryBuilder.Add("otherCancelP", string.Empty);
+            if (!this._providerQueryBuilder.ContainsKey("t1"))
+              this._providerQueryBuilder.Add("t1", string.Empty);
+            if (!this._providerQueryBuilder.ContainsKey("t2"))
+              this._providerQueryBuilder.Add("t2", string.Empty);
+
+
+
+            if (providerServices.Count > 0)
+            {
+              string inOrEquals = providerServices.Count == 1 ? " = " : " IN ";
+
+              string serviceList = string.Concat(from s in providerServices select s + ",").TrimEnd(',');
+
+              this._providerQueryBuilder["us"] += string.Format("{0} " +
+                                                               "SELECT '1' AS temp, COUNT(*) AS br, '{1}' AS 'ProviderName' " +
+                                                               "FROM MobilePaywall.core.OLCache AS olc {{joinUserSession}} " +
+                                                               "WHERE olc.IsSubseguent = 0 " +
+                                                                   "AND olc.SessionCreated >= '{{from}}' " +
+                                                                   "AND olc.SessionCreated <= '{{to}}' " +
+                                                                   "AND olc.ServiceID {2} ({3}) {{filterBy}} ",
+                                                                !string.IsNullOrEmpty(this._providerQueryBuilder["us"]) ? "UNION " : "",
+                                                                provider.Name,
+                                                                inOrEquals,
+                                                                serviceList);
+
+              this._providerQueryBuilder["ident"] += string.Format("{0} " +
+                                                                  "SELECT '1' AS temp, COUNT(*) AS br, '{1}' AS 'ProviderName' " +
+                                                                  "FROM MobilePaywall.core.OLCache AS olc {{joinUserSession}} " +
+                                                                  "WHERE olc.IdentificationSessionGuid IS NOT NULL " +
+                                                                      "AND olc.IsSubseguent = 0 " +
+                                                                      "AND olc.SessionCreated >= '{{from}}' " +
+                                                                      "AND olc.SessionCreated <= '{{to}}' " +
+                                                                      "AND olc.ServiceID {2} ({3}) {{filterBy}} ",
+                                                                  !string.IsNullOrEmpty(this._providerQueryBuilder["ident"]) ? "UNION " : "",
+                                                                  provider.Name,
+                                                                  inOrEquals,
+                                                                  serviceList);
+
+              this._providerQueryBuilder["successIdent"] += string.Format("{0} " +
+                                                                          "SELECT '1' AS temp, COUNT(DISTINCT(ls.LookupSessionID)) AS br, '{1}' AS 'ProviderName' " +
+                                                                          "FROM MobilePaywall.core.OLCache AS olc {{joinUserSession}} " +
+                                                                             "INNER JOIN MobilePaywall.core.LookupSession AS ls ON olc.IdentificationSessionGuid = ls.IdentificationSessionGuid " +
+                                                                             "INNER JOIN MobilePaywall.core.LookupSessionResult AS lsr ON ls.LookupSessionID = lsr.LookupSessionID " +
+                                                                          "WHERE olc.IsSubseguent = 0 " +
+                                                                              "AND olc.SessionCreated >= '{{from}}' " +
+                                                                              "AND olc.SessionCreated <= '{{to}}' " +
+                                                                              "AND ls.LookupSessionStatusID = 3 " +
+                                                                              "AND lsr.IsSuccessful = 1 " +
+                                                                              "AND olc.ServiceID {2} ({3}) {{filterBy}} ",
+                                                                          !string.IsNullOrEmpty(this._providerQueryBuilder["successIdent"]) ? "UNION " : "",
+                                                                          provider.Name,
+                                                                          inOrEquals,
+                                                                          serviceList);
+
+              this._providerQueryBuilder["pendingIdent"] += string.Format("{0} " +
+                                                                          "SELECT '1' AS temp, COUNT(*) AS br, '{1}' AS 'ProviderName' " +
+                                                                          "FROM MobilePaywall.core.OLCache AS olc {{joinUserSession}} " +
+                                                                              "INNER JOIN MobilePaywall.core.LookupSession AS ls ON olc.IdentificationSessionGuid = ls.IdentificationSessionGuid " +
+                                                                          "WHERE olc.IsSubseguent = 0 " +
+                                                                              "AND olc.SessionCreated >= '{{from}}' " +
+                                                                              "AND olc.SessionCreated <= '{{to}}' " +
+                                                                              "AND ls.LookupSessionStatusID = 2 " +
+                                                                              "AND olc.ServiceID {2} ({3}) {{filterBy}} ",
+                                                                          !string.IsNullOrEmpty(this._providerQueryBuilder["pendingIdent"]) ? "UNION " : "",
+                                                                          provider.Name,
+                                                                          inOrEquals,
+                                                                          serviceList);
+
+              this._providerQueryBuilder["initIdent"] += string.Format("{0} " +
+                                                                          "SELECT '1' AS temp, COUNT(*) AS br, '{1}' AS 'ProviderName' " +
+                                                                          "FROM MobilePaywall.core.OLCache AS olc {{joinUserSession}} " +
+                                                                              "INNER JOIN MobilePaywall.core.LookupSession AS ls ON olc.IdentificationSessionGuid = ls.IdentificationSessionGuid " +
+                                                                          "WHERE olc.IsSubseguent = 0 " +
+                                                                              "AND olc.SessionCreated >= '{{from}}' " +
+                                                                              "AND olc.SessionCreated <= '{{to}}' " +
+                                                                              "AND ls.LookupSessionStatusID = 1 " +
+                                                                              "AND olc.ServiceID {2} ({3}) {{filterBy}} ",
+                                                                          !string.IsNullOrEmpty(this._providerQueryBuilder["initIdent"]) ? "UNION " : "",
+                                                                          provider.Name,
+                                                                          inOrEquals,
+                                                                          serviceList);
+
+              this._providerQueryBuilder["failedIdent"] += string.Format("{0} " +
+                                                                          "SELECT '1' AS temp, COUNT(DISTINCT(ls.LookupSessionID)) AS br, '{1}' AS 'ProviderName' " +
+                                                                          "FROM MobilePaywall.core.OLCache AS olc {{joinUserSession}} " +
+                                                                              "INNER JOIN MobilePaywall.core.LookupSession AS ls ON olc.IdentificationSessionGuid = ls.IdentificationSessionGuid " +
+                                                                              "INNER JOIN MobilePaywall.core.LookupSessionResult AS lsr ON ls.LookupSessionID = lsr.LookupSessionID " +
+                                                                          "WHERE olc.IsSubseguent = 0 " +
+                                                                              "AND olc.SessionCreated >= '{{from}}' " +
+                                                                              "AND olc.SessionCreated <= '{{to}}' " +
+                                                                              "AND ls.LookupSessionStatusID = 3 " +
+                                                                              "AND lsr.IsSuccessful = 0 " +
+                                                                              "AND olc.ServiceID {2} ({3}) {{filterBy}} ",
+                                                                          !string.IsNullOrEmpty(this._providerQueryBuilder["failedIdent"]) ? "UNION " : "",
+                                                                          provider.Name,
+                                                                          inOrEquals,
+                                                                          serviceList);
+
+              this._providerQueryBuilder["pr"] += string.Format("{0} " +
+                                                                "SELECT '1' AS temp, COUNT(*) AS br, '{1}' AS 'ProviderName' " +
+                                                                "FROM MobilePaywall.core.OLCache AS olc " +
+                                                                    "INNER JOIN MobilePaywall.core.PaymentRequest AS pr ON olc.PaymentRequestID = pr.PaymentRequestID {{joinUserSession}} " +
+                                                                "WHERE olc.IsSubseguent = 0 " +
+                                                                    "AND pr.Created >= '{{from}}' " +
+                                                                    "AND pr.Created <= '{{to}}' " +
+                                                                    "AND olc.ServiceID {2} ({3}) {{filterBy}} ",
+                                                                !string.IsNullOrEmpty(this._providerQueryBuilder["pr"]) ? "UNION " : "",
+                                                                provider.Name,
+                                                                inOrEquals,
+                                                                serviceList);
+
+              this._providerQueryBuilder["initP"] += string.Format("{0} " +
+                                                                    "SELECT '1' AS temp, COUNT(*) AS br, '{1}' AS 'ProviderName' " +
+                                                                    "FROM MobilePaywall.core.OLCache AS olc " +
+                                                                        "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID = p.PaymentID {{joinUserSession}} " +
+                                                                    "WHERE olc.IsSubseguent = 0 " +
+                                                                        "AND olc.SessionCreated >= '{{from}}' " +
+                                                                        "AND olc.SessionCreated <= '{{to}}' " +
+                                                                        "AND p.PaymentStatusID = 1 " +
+                                                                        "AND olc.ServiceID {2} ({3}) {{filterBy}} ",
+                                                                    !string.IsNullOrEmpty(this._providerQueryBuilder["initP"]) ? "UNION " : "",
+                                                                    provider.Name,
+                                                                    inOrEquals,
+                                                                    serviceList);
+
+              this._providerQueryBuilder["pendingP"] += string.Format("{0} " +
+                                                                      "SELECT '1' AS temp, COUNT(*) AS br, '{1}' AS 'ProviderName' " +
+                                                                      "FROM MobilePaywall.core.OLCache AS olc " +
+                                                                          "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID = p.PaymentID {{joinUserSession}} " +
+                                                                      "WHERE olc.IsSubseguent = 0 " +
+                                                                          "AND olc.SessionCreated >= '{{from}}' " +
+                                                                          "AND olc.SessionCreated <= '{{to}}' " +
+                                                                          "AND p.PaymentStatusID = 2 " +
+                                                                          "AND olc.ServiceID {2} ({3}) {{filterBy}} ",
+                                                                      !string.IsNullOrEmpty(this._providerQueryBuilder["pendingP"]) ? "UNION " : "",
+                                                                      provider.Name,
+                                                                      inOrEquals,
+                                                                      serviceList);
+
+              this._providerQueryBuilder["successP"] += string.Format("{0} " +
+                                                                      "SELECT '1' AS temp, COUNT(*) AS br, '{1}' AS 'ProviderName' " +
+                                                                      "FROM MobilePaywall.core.OLCache AS olc " +
+                                                                          "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID = p.PaymentID {{joinUserSession}} " +
+                                                                      "WHERE olc.IsSubseguent = 0 " +
+                                                                          "AND olc.SessionCreated >= '{{from}}' " +
+                                                                          "AND olc.SessionCreated <= '{{to}}' " +
+                                                                          "AND p.PaymentStatusID = 3 " +
+                                                                          "AND olc.ServiceID {2} ({3}) {{filterBy}} ",
+                                                                      !string.IsNullOrEmpty(this._providerQueryBuilder["successP"]) ? "UNION " : "",
+                                                                      provider.Name,
+                                                                      inOrEquals,
+                                                                      serviceList);
+
+              this._providerQueryBuilder["failedP"] += string.Format("{0} " +
+                                                                      "SELECT '1' AS temp, COUNT(*) AS br, '{1}' AS 'ProviderName' " +
+                                                                      "FROM MobilePaywall.core.OLCache AS olc " +
+                                                                          "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID = p.PaymentID {{joinUserSession}} " +
+                                                                      "WHERE olc.IsSubseguent = 0 " +
+                                                                          "AND olc.SessionCreated >= '{{from}}' " +
+                                                                          "AND olc.SessionCreated <= '{{to}}' " +
+                                                                          "AND p.PaymentStatusID = 4 " +
+                                                                          "AND olc.ServiceID {2} ({3}) {{filterBy}} ",
+                                                                      !string.IsNullOrEmpty(this._providerQueryBuilder["failedP"]) ? "UNION " : "",
+                                                                      provider.Name,
+                                                                      inOrEquals,
+                                                                      serviceList);
+
+              this._providerQueryBuilder["cancelP"] += string.Format("{0} " +
+                                                                       "SELECT '1' AS temp, COUNT(*) AS br, '{1}' AS 'ProviderName' " +
+                                                                       "FROM MobilePaywall.core.OLCache AS olc " +
+                                                                           "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID = p.PaymentID {{joinUserSession}} " +
+                                                                       "WHERE olc.IsSubseguent = 0 " +
+                                                                           "AND olc.SessionCreated >= '{{from}}' " +
+                                                                           "AND olc.SessionCreated <= '{{to}}' " +
+                                                                           "AND p.PaymentStatusID = 5 " +
+                                                                           "AND olc.ServiceID {2} ({3}) {{filterBy}} ",
+                                                                       !string.IsNullOrEmpty(this._providerQueryBuilder["cancelP"]) ? "UNION " : "",
+                                                                       provider.Name,
+                                                                       inOrEquals,
+                                                                       serviceList);
+
+              this._providerQueryBuilder["otherCancelP"] += string.Format("{0} " +
+                                                                          "SELECT '1' AS temp, COUNT(*) AS br, '{1}' AS 'ProviderName' " +
+                                                                          "FROM MobilePaywall.core.OLCache AS olc " +
+                                                                              "INNER JOIN MobilePaywall.core.Payment AS p ON olc.PaymentID = p.PaymentID {{joinUserSession}} " +
+                                                                          "WHERE p.PaymentStatusID = 5 " +
+                                                                              "AND (p.Updated >= '{{from}}' AND p.Updated <= '{{to}}') " +
+                                                                              "AND (olc.SessionCreated <= '{{from}}' OR olc.SessionCreated >= '{{to}}') " +
+                                                                              "AND olc.ServiceID {2} ({3}) {{filterBy}} ",
+                                                                         !string.IsNullOrEmpty(this._providerQueryBuilder["otherCancelP"]) ? "UNION " : "",
+                                                                         provider.Name,
+                                                                         inOrEquals,
+                                                                         serviceList);
+
+              this._providerQueryBuilder["t1"] += string.Format("{0} " +
+                                                                "SELECT '1' AS temp, COUNT(*) AS br, '{1}' AS 'ProviderName' " +
+                                                                "FROM MobilePaywall.core.OLCache AS olc " +
+                                                                    "INNER JOIN MobilePaywall.core.[Transaction] AS t ON olc.TransactionID = t.TransactionID {{joinUserSession}} " +
+                                                                "WHERE olc.IsSubseguent = 0 " +
+                                                                    "AND olc.SessionCreated >= '{{from}}' " +
+                                                                    "AND olc.SessionCreated <= '{{to}}' " +
+                                                                    "AND t.TransactionStatusID = 5 " +
+                                                                    "AND olc.ServiceID {2} ({3}) {{filterBy}} ",
+                                                                !string.IsNullOrEmpty(this._providerQueryBuilder["t1"]) ? "UNION " : "",
+                                                                provider.Name,
+                                                                inOrEquals,
+                                                                serviceList);
+
+              this._providerQueryBuilder["t2"] += string.Format("{0} " +
+                                                                "SELECT '1' AS temp, COUNT(*) AS br, '{1}' AS 'ProviderName' " +
+                                                                "FROM MobilePaywall.core.OLCache AS olc " +
+                                                                    "INNER JOIN MobilePaywall.core.[Transaction] AS t ON olc.TransactionID = t.TransactionID {{joinUserSession}} " +
+                                                                "WHERE olc.IsSubseguent = 1 " +
+                                                                    "AND t.Created >= '{{from}}' " +
+                                                                    "AND t.Created <= '{{to}}' " +
+                                                                    "AND t.TransactionStatusID = 5 " +
+                                                                    "AND olc.ServiceID {2} ({3}) {{filterBy}} ",
+                                                                !string.IsNullOrEmpty(this._providerQueryBuilder["t2"]) ? "UNION " : "",
+                                                                provider.Name,
+                                                                inOrEquals,
+                                                                serviceList);
+            }
+
+          }
+          #endregion
+        }
+        else
+        {
+          if (group.Contains(Group.Instance))
+          {
+            this._select += ", COALESCE(us.InstanceID, otherCancelP.InstanceID, t2.InstanceID) AS 'InstanceID'";
+            this._selectInner[0] += ", [m].InstanceID";
+            this._queryFrom[0] += string.IsNullOrEmpty(this._queryFrom[0]) ? "INNER JOIN MobilePaywall.core.[Service] AS s ON olc.ServiceID = s.ServiceID" : "";
+            this._queryFrom[1] += string.IsNullOrEmpty(this._queryFrom[1]) ? "INNER JOIN MobilePaywall.core.Merchant AS m ON s.MerchantID = m.MerchantID" : "";
+            this._groupBy[0] += ", [m].InstanceID";
+            this._joinOnTemp[0] += " AND ISNULL(us.InstanceID, 0) = ISNULL({0}.InstanceID, 0) ";
+            this._joinOnTemp[1] += " AND ISNULL(otherCancelP.InstanceID, 0) = ISNULL({0}.InstanceID, 0) ";
+          }
+          if (group.Contains(Group.Merchant))
+          {
+            this._select += ", COALESCE(us.MerchantID, otherCancelP.MerchantID, t2.MerchantID) AS 'MerchantID'";
+            this._selectInner[0] += ", [s].MerchantID";
+            this._queryFrom[0] += string.IsNullOrEmpty(this._queryFrom[0]) ? "INNER JOIN MobilePaywall.core.[Service] AS s ON olc.ServiceID = s.ServiceID" : "";
+            this._groupBy[0] += ", [s].MerchantID";
+            this._joinOnTemp[0] += " AND ISNULL(us.MerchantID, 0) = ISNULL({0}.MerchantID, 0) ";
+            this._joinOnTemp[1] += " AND ISNULL(otherCancelP.MerchantID, 0) = ISNULL({0}.MerchantID, 0) ";
+          }
+          if (group.Contains(Group.Service))
+          {
+            this._select += ", COALESCE(us.ServiceID, otherCancelP.ServiceID, t2.ServiceID) AS 'ServiceID'";
+            this._selectInner[0] += ", [olc].ServiceID";
+            //this._selectInner[1] += ", [olc].ServiceName AS 'ServiceName'";
+            this._groupBy[0] += ", [olc].ServiceID";
+            //this._groupBy[1] += ", [olc].ServiceName";
+            this._joinOnTemp[0] += " AND ISNULL(us.ServiceID, 0) = ISNULL({0}.ServiceID, 0) ";
+            this._joinOnTemp[1] += " AND ISNULL(otherCancelP.ServiceID, 0) = ISNULL({0}.ServiceID, 0) ";
+          }
+          if (group.Contains(Group.Provider))
+          {
+            this._select += ", COALESCE(us.PaymentProviderID, otherCancelP.PaymentProviderID, t2.PaymentProviderID) AS 'PaymentProviderID'";
+            this._selectInner[0] += ", [pc].PaymentProviderID";
+            this._filterBy += string.IsNullOrEmpty(this._queryFrom[4]) ? " AND so.IsActive = 1 AND so.IsDefault = 1 " : "";
+            this._queryFrom[4] += string.IsNullOrEmpty(this._queryFrom[4]) ?
+                                  "INNER JOIN MobilePaywall.core.ServiceOffer AS so ON olc.ServiceID = so.ServiceID " +
+                                  "INNER JOIN MobilePaywall.core.PaymentConfiguration AS pc ON so.PaymentConfigurationID = pc.PaymentConfigurationID " : "";
+            this._groupBy[0] += ", [pc].PaymentProviderID";
+            this._joinOnTemp[0] += " AND ISNULL(us.PaymentProviderID, 0) = ISNULL({0}.PaymentProviderID, 0) ";
+            this._joinOnTemp[1] += " AND ISNULL(otherCancelP.PaymentProviderID, 0) = ISNULL({0}.PaymentProviderID, 0) ";
+          }
+          if (group.Contains(Group.Country))
+          {
+            this._select += ", COALESCE(us.CountryCode, otherCancelP.CountryCode, t2.CountryCode) AS 'CountryCode'";
+            this._selectInner[0] += ", [olc].CountryCode";
+            //this._selectInner[1] += ", [olc].CountryName AS 'CountryName'";
+            this._groupBy[0] += ", [olc].CountryCode";
+            //this._groupBy[1] += ", [olc].CountryName";
+            this._joinOnTemp[0] += " AND ISNULL(us.CountryCode, 0) = ISNULL({0}.CountryCode, 0)";
+            this._joinOnTemp[1] += " AND ISNULL(otherCancelP.CountryCode, 0) = ISNULL({0}.CountryCode, 0)";
+          }
+          if (group.Contains(Group.Operator))
+          {
+            this._select += ", COALESCE(us.MobileOperatorID, otherCancelP.MobileOperatorID, t2.MobileOperatorID) AS 'MobileOperatorID'";
+            this._selectInner[0] += ", [olc].MobileOperatorID";
+            this._groupBy[0] += ", [olc].MobileOperatorID";
+            this._joinOnTemp[0] += " AND ISNULL(us.MobileOperatorID, 0) = ISNULL({0}.MobileOperatorID, 0) ";
+            this._joinOnTemp[1] += " AND ISNULL(otherCancelP.MobileOperatorID, 0) = ISNULL({0}.MobileOperatorID, 0) ";
+
+            //if (group.Contains(Group.Service) && allowPayout)
+            //{
+            //  this._select += ", ISNULL(t1.br,0) * ISNULL(t1.Gross,0) AS 'GrossTransactions'," +
+            //                  "ISNULL(t1.br,0) * ISNULL(t1.Payout,0) AS 'NetTransactions'," +
+            //                  "ISNULL(t2.br,0) * ISNULL(t2.Gross,0) AS 'GrossSubsequents'," +
+            //                  "ISNULL(t2.br,0) * ISNULL(t2.Payout,0) AS 'NetSubsequents'," +
+            //                  "COALESCE ([t1].Abbreviation, [t2].Abbreviation) AS 'Currency'";
+            //  this._selectInner[6] = ", [sbmmom].ServiceBehaviorModelMobileOperatorMapID, [sbmmom].Gross, [sbmmom].Payout, [curr].Abbreviation";
+            //  this._groupBy[6] = ", [sbmmom].ServiceBehaviorModelMobileOperatorMapID, [sbmmom].Gross, [sbmmom].Payout, [curr].Abbreviation";
+            //  this._queryFrom[6] = "INNER JOIN MobilePaywall.core.PaymentRequest AS pr ON olc.PaymentRequestID = pr.PaymentRequestID " +
+            //                        "LEFT OUTER JOIN (MobilePaywall.core.ServiceBehaviorModelMobileOperatorMap AS sbmmom " +
+            //                                          "INNER JOIN MobilePaywall.core.Currency AS curr ON sbmmom.CurrencyID = curr.CurrencyID) ON (olc.ServiceID = sbmmom.ServiceID " +
+            //                                                                                                                "AND pr.ServiceOfferID = sbmmom.ServiceOfferID " +
+            //                                                                                                                "AND olc.MobileOperatorID = sbmmom.MobileOperatorID " +
+            //                                                                                                                "AND t.Created >= sbmmom.ValidFrom AND t.Created <= ISNULL(sbmmom.ValidTo, GETDATE())) ";
+            //}
+          }
+        }
+      }
+
+
+      if (split != Split.None)
+      {
+        this._splitBy =
+          string.Format("{0}",
+                        split == Split.Year ? "DATETIMEFROMPARTS(DATEPART(yyyy, {0}),1,1,0,0,0,0)" :
+                        split == Split.Month ? "DATETIMEFROMPARTS(DATEPART(yyyy, {0}),DATEPART(mm, {0}),1,0,0,0,0)" :
+                        split == Split.Day ? "DATETIMEFROMPARTS(DATEPART(yyyy, {0}),DATEPART(mm, {0}),DATEPART(dd, {0}),0,0,0,0)" :
+                        split == Split.Week ? "DATEPART(wk, {0}), DATEPART(yyyy, {0})" :
+                        split == Split.Hour ? "DATETIMEFROMPARTS(DATEPART(yyyy, {0}),DATEPART(mm, {0}),DATEPART(dd, {0}),DATEPART(hh, {0}),0,0,0)" : "");
+
+        if (split == Split.Week)
+        {
+          this._select += ", CONVERT(VARCHAR(11), DATEADD(wk, DATEDIFF(wk, 6, CAST(RTRIM(COALESCE(us.[Year],otherCancelP.[Year],t2.[Year]) * 10000 + 101) AS DATETIME)) + (COALESCE(us.[Week],otherCancelP.[Week],t2.[Week])  - 1 ), 6), 106) + ' - ' + " +
+                         "CONVERT(VARCHAR(11),DATEADD(second, -1, DATEADD(day, DATEDIFF(day, 0, DATEADD(wk, DATEDIFF(wk, 5, CAST(RTRIM(COALESCE(us.[Year],otherCancelP.[Year],t2.[Year]) * 10000 + 101) AS DATETIME)) + (COALESCE(us.[Week],otherCancelP.[Week],t2.[Week]) + -1 ), 5)) + 1, 0)), 106) AS 'WeekRange' ";
+          this._selectInner[2] = string.Format(", DATEPART(wk, {0}) AS Week, DATEPART(yyyy, {0}) AS Year ", "olc.SessionCreated");
+          this._groupBy[2] = string.Format(", {0} ", string.Format(this._splitBy, "olc.SessionCreated"));
+          //for otherCancelPayments (by Updated)
+          this._selectInner[3] = string.Format(", DATEPART(wk, {0}) AS Week, DATEPART(yyyy, {0}) AS Year ", "p.Updated");
+          this._groupBy[3] = string.Format(", {0} ", string.Format(this._splitBy, "p.Updated"));
+          //for t2(subsequents)
+          this._selectInner[4] = string.Format(", DATEPART(wk, {0}) AS Week, DATEPART(yyyy, {0}) AS Year ", "t.Created");
+          this._groupBy[4] = string.Format(", {0} ", string.Format(this._splitBy, "t.Created"));
+
+          this._joinOnTemp[0] += " AND us.Week = {0}.Week AND us.Year = {0}.Year";
+          this._joinOnTemp[1] += " AND otherCancelP.Week = {0}.Week AND otherCancelP.Year = {0}.Year";
+        }
+        else
+        {
+          this._select += ", COALESCE(us.[Date], otherCancelP.[Date], t2.[Date]) AS 'Date' ";
+          this._selectInner[2] = string.Format(", {0} AS 'Date' ", string.Format(this._splitBy, "olc.SessionCreated"));
+          this._groupBy[2] = string.Format(", {0} ", string.Format(this._splitBy, "olc.SessionCreated"));
+          this._selectInner[3] = string.Format(", {0} AS 'Date' ", string.Format(this._splitBy, "p.Updated"));
+          this._groupBy[3] = string.Format(", {0} ", string.Format(this._splitBy, "p.Updated"));
+          this._selectInner[4] = string.Format(", {0} AS 'Date' ", string.Format(this._splitBy, "t.Created"));
+          this._groupBy[4] = string.Format(", {0} ", string.Format(this._splitBy, "t.Created"));
+
+          this._joinOnTemp[0] += " AND us.[Date] = {0}.[Date]";
+          this._joinOnTemp[1] += " AND otherCancelP.[Date] = {0}.[Date]";
+        }
+      }
+
+      #region #join and group by#
+      if (group != null && group.Count > 0 && !(group.Count == 1 && group.Contains(Group.Provider)) || split != Split.None)
+      {
+        this._joinOn[0] = string.Format(this._joinOnTemp[0], "ident");
+        this._joinOn[1] = string.Format(this._joinOnTemp[0], "successIdent");
+        this._joinOn[2] = string.Format(this._joinOnTemp[0], "pendingIdent");
+        this._joinOn[3] = string.Format(this._joinOnTemp[0], "initIdent");
+        this._joinOn[4] = string.Format(this._joinOnTemp[0], "failedIdent");
+        this._joinOn[5] = string.Format(this._joinOnTemp[0], "pr");
+        this._joinOn[6] = string.Format(this._joinOnTemp[0], "initP");
+        this._joinOn[7] = string.Format(this._joinOnTemp[0], "pendingP");
+        this._joinOn[8] = string.Format(this._joinOnTemp[0], "successP");
+        this._joinOn[9] = string.Format(this._joinOnTemp[0], "failedP");
+        this._joinOn[10] = string.Format(this._joinOnTemp[0], "cancelP");
+        this._joinOn[11] = string.Format(this._joinOnTemp[0], "otherCancelP");
+        this._joinOn[12] = string.Format(this._joinOnTemp[0], "t1");
+        this._joinOn[13] = string.Format(this._joinOnTemp[0] + " OR otherCancelP.TEMP = {0}.TEMP" + this._joinOnTemp[1], "t2");
+      }
+
+      if (!string.IsNullOrEmpty(this._groupBy[0]))
+        this._groupBy[0] = string.Format("GROUP BY {0}", this._groupBy[0].TrimStart(','));
+      else if (!string.IsNullOrEmpty(this._groupBy[2]))
+      {
+        this._groupBy[2] = string.Format("GROUP BY{0}", this._groupBy[2].TrimStart(','));
+        this._groupBy[3] = string.Format("GROUP BY{0}", this._groupBy[3].TrimStart(','));
+        this._groupBy[4] = string.Format("GROUP BY{0}", this._groupBy[4].TrimStart(','));
+      }
+      #endregion
+
+      if (!string.IsNullOrEmpty(this._referrer))
+      {
+        this._queryFrom[7] = "INNER JOIN MobilePaywall.core.UserSession AS us ON olc.UserSessionID = us.UserSessionID";
+        this._filterBy += string.Format("AND us.Referrer LIKE '%{0}%' ", this._referrer);
+      }
+    }
+
+    protected void Initialize(Split split, List<Group> group, List<string> instances, List<string> merchants, List<string> services, List<string> providers, List<string> countries, List<string> operators, string referrer, Dictionary<int, Service> allowedServices)
+    {
+      MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+      bool isAdministrator = PaywallHttpContext.Current.ClientSession.Client.ClientType.Name.Equals("Administrator");
+      //ClientComponentAccessPolicy ccap = ClientComponentAccessPolicy.CreateManager().Load(PaywallHttpContext.Current.ClientSession.Client, Component.CreateManager().Load(5)); //Payout Component ID = 5
+      //bool allowPayout = (ccap != null && ccap.AccessMode == AccessMode.Allowed);
+
+      if (instances != null && instances.Count > 0)
+      {
+        this._queryFrom[0] = "INNER JOIN MobilePaywall.core.[Service] AS s ON us.ServiceID = s.ServiceID";
+        this._queryFrom[1] = "INNER JOIN MobilePaywall.core.Merchant AS m ON s.MerchantID = m.MerchantID";
+        this._filterBy += string.Format("AND EXISTS (SELECT * FROM (VALUES{0}) temp(ID) WHERE temp.ID = m.InstanceID) ", string.Concat(from ins in instances select "('" + ins + "'),").TrimEnd(','));
+      }
+
+      if (merchants != null && merchants.Count > 0)
+      {
+        this._queryFrom[0] += string.IsNullOrEmpty(this._queryFrom[0]) ? "INNER JOIN MobilePaywall.core.[Service] AS s ON us.ServiceID = s.ServiceID" : "";
+        this._filterBy += string.Format("AND EXISTS (SELECT * FROM (VALUES{0}) temp(ID) WHERE temp.ID = s.MerchantID) ", string.Concat(from m in merchants select "('" + m + "'),").TrimEnd(','));
+      }
+
+      if (services != null && services.Count > 0)
+        this._filterBy += string.Format("AND EXISTS (SELECT * FROM (VALUES{0}) temp(ID) WHERE temp.ID = us.ServiceID) ", string.Concat(from s in services select "('" + s + "'),").TrimEnd(','));
+      else if (!isAdministrator && allowedServices != null && allowedServices.Count > 0)
+        this._filterBy += string.Format("AND EXISTS (SELECT * FROM (VALUES{0}) temp(ID) WHERE temp.ID = us.ServiceID) ", string.Concat(from s in allowedServices select "('" + s.Key + "'),").TrimEnd(','));
+      else if (!isAdministrator)
+        this._filterBy += string.Format("AND EXISTS (SELECT * FROM (VALUES('0')) temp(ID) WHERE temp.ID = us.ServiceID) ");
+
+      if (providers != null && providers.Count > 0)
+      {
+        this._queryFrom[0] += string.IsNullOrEmpty(this._queryFrom[0]) ? "INNER JOIN MobilePaywall.core.[Service] AS s ON us.ServiceID = s.ServiceID" : "";
+        this._queryFrom[4] += "INNER JOIN MobilePaywall.core.ServiceOffer AS so ON s.ServiceID = so.ServiceID " +
+                              "INNER JOIN MobilePaywall.core.PaymentConfiguration AS pc ON so.PaymentConfigurationID = pc.PaymentConfigurationID ";
+        this._filterBy += string.Format("AND so.IsActive = 1 AND so.IsDefault = 1 AND EXISTS (SELECT * FROM (VALUES{0}) temp(ID) WHERE temp.ID = pc.PaymentProviderID) ", string.Concat(from p in providers select "('" + p + "'),").TrimEnd(','));
+      }
+
+      if (countries != null && countries.Count > 0)
+        this._filterBy += string.Format("AND EXISTS (SELECT * FROM (VALUES{0}) temp(CountryID) WHERE temp.CountryID = us.CountryID) ", string.Concat(from c in countries select "('" + c + "'),").TrimEnd(','));
+
+      if (operators != null && operators.Count > 0)
+        this._filterBy += string.Format("AND EXISTS (SELECT * FROM (VALUES{0}) temp(ID) WHERE temp.ID = us.MobileOperatorID) ", string.Concat(from mo in operators select "('" + mo + "'),").TrimEnd(','));
+
+
+      if (split != Split.None)
+      {
+        this._splitBy =
+          string.Format("{0}",
+                        split == Split.Year ? "DATETIMEFROMPARTS(DATEPART(yyyy, {0}),1,1,0,0,0,0)" :
+                        split == Split.Month ? "DATETIMEFROMPARTS(DATEPART(yyyy, {0}),DATEPART(mm, {0}),1,0,0,0,0)" :
+                        split == Split.Day ? "DATETIMEFROMPARTS(DATEPART(yyyy, {0}),DATEPART(mm, {0}),DATEPART(dd, {0}),0,0,0,0)" :
+                        split == Split.Week ? "DATEPART(wk, {0}), DATEPART(yyyy, {0})" :
+                        split == Split.Hour ? "DATETIMEFROMPARTS(DATEPART(yyyy, {0}),DATEPART(mm, {0}),DATEPART(dd, {0}),DATEPART(hh, {0}),0,0,0)" : "");
+
+        if (split == Split.Week)
+        {
+          this._select = ", CONVERT(VARCHAR(11), DATEADD(wk, DATEDIFF(wk, 6, CAST(RTRIM(COALESCE(us.[Year],otherCancelP2.[Year],otherCancelP1.[Year],t2.[Year]) * 10000 + 101) AS DATETIME)) + (COALESCE(us.[Week],otherCancelP2.[Week],otherCancelP1.[Week],t2.[Week])  - 1 ), 6), 106) + ' - ' + " +
+                         "CONVERT(VARCHAR(11),DATEADD(second, -1, DATEADD(day, DATEDIFF(day, 0, DATEADD(wk, DATEDIFF(wk, 5, CAST(RTRIM(COALESCE(us.[Year],otherCancelP2.[Year],otherCancelP1.[Year],t2.[Year]) * 10000 + 101) AS DATETIME)) + (COALESCE(us.[Week],otherCancelP2.[Week],otherCancelP1.[Week],t2.[Week]) + -1 ), 5)) + 1, 0)), 106) AS 'WeekRange' ";
+          this._selectInner[2] = string.Format(", DATEPART(wk, {0}) AS Week, DATEPART(yyyy, {0}) AS Year ", "us.Created");
+          this._groupBy[2] = string.Format(", {0} ", string.Format(this._splitBy, "us.Created"));
+          //different select and group by for otherCancelPayments (by Created)
+          this._selectInner[3] = string.Format(", DATEPART(wk, {0}) AS Week, DATEPART(yyyy, {0}) AS Year ", "p.Created");
+          this._groupBy[3] = string.Format(", {0} ", string.Format(this._splitBy, "p.Created"));
+          //for otherCancelPayments (by Updated)
+          this._selectInner[4] = string.Format(", DATEPART(wk, {0}) AS Week, DATEPART(yyyy, {0}) AS Year ", "p.Updated");
+          this._groupBy[4] = string.Format(", {0} ", string.Format(this._splitBy, "p.Updated"));
+          //for t2(subsequents)
+          this._selectInner[5] = string.Format(", DATEPART(wk, {0}) AS Week, DATEPART(yyyy, {0}) AS Year ", "t.Created");
+          this._groupBy[5] = string.Format(", {0} ", string.Format(this._splitBy, "t.Created"));
+
+          this._joinOnTemp[0] += " AND us.Week = {0}.Week AND us.Year = {0}.Year";
+          this._joinOnTemp[1] += " AND otherCancelP1.Week = {0}.Week AND otherCancelP1.Year = {0}.Year";
+          this._joinOnTemp[2] += " AND otherCancelP2.Week = {0}.Week AND otherCancelP2.Year = {0}.Year";
+        }
+        else
+        {
+          this._select = ", COALESCE(us.[Date], otherCancelP2.[Date], otherCancelP1.[Date], t2.[Date]) AS 'Date' ";
+          this._selectInner[2] = string.Format(", {0} AS 'Date' ", string.Format(this._splitBy, "us.Created"));
+          this._groupBy[2] = string.Format(", {0} ", string.Format(this._splitBy, "us.Created"));
+          this._selectInner[3] = string.Format(", {0} AS 'Date' ", string.Format(this._splitBy, "p.Created"));
+          this._groupBy[3] = string.Format(", {0} ", string.Format(this._splitBy, "p.Created"));
+          this._selectInner[4] = string.Format(", {0} AS 'Date' ", string.Format(this._splitBy, "p.Updated"));
+          this._groupBy[4] = string.Format(", {0} ", string.Format(this._splitBy, "p.Updated"));
+          this._selectInner[5] = string.Format(", {0} AS 'Date' ", string.Format(this._splitBy, "t.Created"));
+          this._groupBy[5] = string.Format(", {0} ", string.Format(this._splitBy, "t.Created"));
+
+          this._joinOnTemp[0] += " AND us.[Date] = {0}.[Date]";
+          this._joinOnTemp[1] += " AND otherCancelP1.[Date] = {0}.[Date]";
+          this._joinOnTemp[2] += " AND otherCancelP2.[Date] = {0}.[Date]";
+        }
+      }
+
+
+      if (group != null && group.Count > 0)
+      {
+        if (group.Contains(Group.Instance))
+        {
+          this._select += ", COALESCE(us.InstanceName, otherCancelP2.InstanceName, otherCancelP1.InstanceName, t2.InstanceName) AS 'InstanceName'";
+          this._selectInner[0] += ", [ins].InstanceID";
+          this._selectInner[1] += ", [ins].Name AS 'InstanceName'";
+          this._queryFrom[0] += string.IsNullOrEmpty(this._queryFrom[0]) ? "INNER JOIN MobilePaywall.core.[Service] AS s ON us.ServiceID = s.ServiceID" : "";
+          this._queryFrom[1] += string.IsNullOrEmpty(this._queryFrom[1]) ? "INNER JOIN MobilePaywall.core.Merchant AS m ON s.MerchantID = m.MerchantID" : "";
+          this._queryFrom[5] += string.IsNullOrEmpty(this._queryFrom[5]) ? "INNER JOIN MobilePaywall.core.Instance AS ins ON m.InstanceID = ins.InstanceID" : "";
+          this._groupBy[0] += ", [ins].InstanceID";
+          this._groupBy[1] += ", [ins].Name";
+          this._joinOnTemp[0] += " AND ISNULL(us.InstanceID, 0) = ISNULL({0}.InstanceID, 0) ";
+          this._joinOnTemp[1] += " AND ISNULL(otherCancelP1.InstanceID, 0) = ISNULL({0}.InstanceID, 0) ";
+          this._joinOnTemp[2] += " AND ISNULL(otherCancelP2.InstanceID, 0) = ISNULL({0}.InstanceID, 0) ";
+        }
+        if (group.Contains(Group.Merchant))
+        {
+          this._select += ", COALESCE(us.MerchantName, otherCancelP2.MerchantName, otherCancelP1.MerchantName, t2.MerchantName) AS 'MerchantName'";
+          this._selectInner[0] += ", [m].MerchantID";
+          this._selectInner[1] += ", [m].Name AS 'MerchantName'";
+          this._queryFrom[0] += string.IsNullOrEmpty(this._queryFrom[0]) ? "INNER JOIN MobilePaywall.core.[Service] AS s ON us.ServiceID = s.ServiceID" : "";
+          this._queryFrom[1] += string.IsNullOrEmpty(this._queryFrom[1]) ? "INNER JOIN MobilePaywall.core.Merchant AS m ON s.MerchantID = m.MerchantID" : "";
+          this._groupBy[0] += ", [m].MerchantID";
+          this._groupBy[1] += ", [m].Name";
+          this._joinOnTemp[0] += " AND ISNULL(us.MerchantID, 0) = ISNULL({0}.MerchantID, 0) ";
+          this._joinOnTemp[1] += " AND ISNULL(otherCancelP1.MerchantID, 0) = ISNULL({0}.MerchantID, 0) ";
+          this._joinOnTemp[2] += " AND ISNULL(otherCancelP2.MerchantID, 0) = ISNULL({0}.MerchantID, 0) ";
+        }
+        if (group.Contains(Group.Service))
+        {
+          this._select += ", COALESCE(us.ServiceName, otherCancelP2.ServiceName, otherCancelP1.ServiceName, t2.ServiceName) AS 'ServiceName'";
+          this._selectInner[0] += ", [s].ServiceID";
+          this._selectInner[1] += ", [s].Name AS 'ServiceName'";
+          this._queryFrom[0] += string.IsNullOrEmpty(this._queryFrom[0]) ? "INNER JOIN MobilePaywall.core.[Service] AS s ON us.ServiceID = s.ServiceID" : "";
+          this._groupBy[0] += ", [s].ServiceID";
+          this._groupBy[1] += ", [s].Name";
+          this._joinOnTemp[0] += " AND ISNULL(us.ServiceID, 0) = ISNULL({0}.ServiceID, 0) ";
+          this._joinOnTemp[1] += " AND ISNULL(otherCancelP1.ServiceID, 0) = ISNULL({0}.ServiceID, 0) ";
+          this._joinOnTemp[2] += " AND ISNULL(otherCancelP2.ServiceID, 0) = ISNULL({0}.ServiceID, 0) ";
+        }
+        if (group.Contains(Group.Provider))
+        {
+          this._select += ", COALESCE(us.ProviderName, otherCancelP2.ProviderName, otherCancelP1.ProviderName, t2.ProviderName) AS 'ProviderName'";
+          this._selectInner[0] += ", [pp].PaymentProviderID";
+          this._selectInner[1] += ", [pp].Name AS 'ProviderName'";
+          this._queryFrom[0] += string.IsNullOrEmpty(this._queryFrom[0]) ? "INNER JOIN MobilePaywall.core.[Service] AS s ON us.ServiceID = s.ServiceID" : "";
+          this._filterBy += string.IsNullOrEmpty(this._queryFrom[4]) ? " AND so.IsActive = 1 AND so.IsDefault = 1 " : "";
+          this._queryFrom[4] += string.IsNullOrEmpty(this._queryFrom[4]) ?
+                                "INNER JOIN MobilePaywall.core.ServiceOffer AS so ON s.ServiceID = so.ServiceID " +
+                                "INNER JOIN MobilePaywall.core.PaymentConfiguration AS pc ON so.PaymentConfigurationID = pc.PaymentConfigurationID " +
+                                "INNER JOIN MobilePaywall.core.PaymentProvider AS pp ON pc.PaymentProviderID = pp.PaymentProviderID" :
+                                "INNER JOIN MobilePaywall.core.PaymentProvider AS pp ON pc.PaymentProviderID = pp.PaymentProviderID";
+          this._groupBy[0] += ", [pp].PaymentProviderID";
+          this._groupBy[1] += ", [pp].Name";
+          this._joinOnTemp[0] += " AND ISNULL(us.PaymentProviderID, 0) = ISNULL({0}.PaymentProviderID, 0) ";
+          this._joinOnTemp[1] += " AND ISNULL(otherCancelP1.PaymentProviderID, 0) = ISNULL({0}.PaymentProviderID, 0) ";
+          this._joinOnTemp[2] += " AND ISNULL(otherCancelP2.PaymentProviderID, 0) = ISNULL({0}.PaymentProviderID, 0) ";
+        }
+        if (group.Contains(Group.Country))
+        {
+          this._select += ", COALESCE(us.CountryName, otherCancelP2.CountryName, otherCancelP1.CountryName, t2.CountryName) AS 'CountryName'";
+          this._selectInner[0] += ", [c].CountryID";
+          this._selectInner[1] += ", [c].GlobalName AS 'CountryName'";
+          this._queryFrom[2] += string.IsNullOrEmpty(this._queryFrom[2]) ? "LEFT OUTER JOIN MobilePaywall.core.Country AS c ON us.CountryID = c.CountryID" : "";
+          this._groupBy[0] += ", [c].CountryID";
+          this._groupBy[1] += ", [c].GlobalName";
+          this._joinOnTemp[0] += " AND ISNULL(us.CountryID, 0) = ISNULL({0}.CountryID, 0)";
+          this._joinOnTemp[1] += " AND ISNULL(otherCancelP1.CountryID, 0) = ISNULL({0}.CountryID, 0)";
+          this._joinOnTemp[2] += " AND ISNULL(otherCancelP2.CountryID, 0) = ISNULL({0}.CountryID, 0)";
+        }
+        if (group.Contains(Group.Operator))
+        {
+          this._select += ", COALESCE(us.OperatorName, otherCancelP2.OperatorName, otherCancelP1.OperatorName, t2.OperatorName) AS 'OperatorName'";
+          this._selectInner[0] += ", [mo].MobileOperatorID";
+          this._selectInner[1] += ", [mo].Name AS 'OperatorName'";
+          this._queryFrom[3] += string.IsNullOrEmpty(this._queryFrom[3]) ? "LEFT OUTER JOIN MobilePaywall.core.MobileOperator AS mo ON us.MobileOperatorID = mo.MobileOperatorID" : "";
+          this._groupBy[0] += ", [mo].MobileOperatorID";
+          this._groupBy[1] += ", [mo].Name";
+          this._joinOnTemp[0] += " AND ISNULL(us.MobileOperatorID, 0) = ISNULL({0}.MobileOperatorID, 0) ";
+          this._joinOnTemp[1] += " AND ISNULL(otherCancelP1.MobileOperatorID, 0) = ISNULL({0}.MobileOperatorID, 0) ";
+          this._joinOnTemp[2] += " AND ISNULL(otherCancelP2.MobileOperatorID, 0) = ISNULL({0}.MobileOperatorID, 0) ";
+
+          //if (group.Contains(Group.Service) && allowPayout)
+          //{
+          //  this._select += ", ISNULL(t1.br,0) * ISNULL(t1.Gross,0) AS 'GrossTransactions'," +
+          //                  "ISNULL(t1.br,0) * ISNULL(t1.Payout,0) AS 'NetTransactions'," +
+          //                  "ISNULL(t2.br,0) * ISNULL(t2.Gross,0) AS 'GrossSubsequents'," +
+          //                  "ISNULL(t2.br,0) * ISNULL(t2.Payout,0) AS 'NetSubsequents'," +
+          //                  "COALESCE ([t1].Abbreviation, [t2].Abbreviation) AS 'Currency'";
+          //  this._selectInner[6] = ", [sbmmom].ServiceBehaviorModelMobileOperatorMapID, [sbmmom].Gross, [sbmmom].Payout, [curr].Abbreviation";
+          //  this._groupBy[6] = ", [sbmmom].ServiceBehaviorModelMobileOperatorMapID, [sbmmom].Gross, [sbmmom].Payout, [curr].Abbreviation";
+          //  this._queryFrom[6] = "LEFT OUTER JOIN (MobilePaywall.core.ServiceBehaviorModelMobileOperatorMap AS sbmmom " +
+          //                                          "INNER JOIN MobilePaywall.core.Currency AS curr ON sbmmom.CurrencyID = curr.CurrencyID ) ON (us.ServiceID = sbmmom.ServiceID " +
+          //                                                                                                                "AND pr.ServiceOfferID = sbmmom.ServiceOfferID " +
+          //                                                                                                                "AND us.MobileOperatorID = sbmmom.MobileOperatorID " +
+          //                                                                                                                "AND t.Created >= sbmmom.ValidFrom AND t.Created <= ISNULL(sbmmom.ValidTo, GETDATE())) ";
+          //  this._filterBy += !string.IsNullOrEmpty(this._queryFrom[4]) ? " AND so.IsActive = 1 AND so.IsDefault = 1 " : "";
+          //}
+        }
+      }
+
+      if (group != null && group.Count > 0 || split != Split.None)
+      {
+        this._joinOn[0] = string.Format(this._joinOnTemp[0], "ident");
+        this._joinOn[1] = string.Format(this._joinOnTemp[0], "successIdent");
+        this._joinOn[2] = string.Format(this._joinOnTemp[0], "pendingIdent");
+        this._joinOn[3] = string.Format(this._joinOnTemp[0], "initIdent");
+        this._joinOn[4] = string.Format(this._joinOnTemp[0], "failedIdent");
+        this._joinOn[5] = string.Format(this._joinOnTemp[0], "pr");
+        this._joinOn[6] = string.Format(this._joinOnTemp[0], "initP");
+        this._joinOn[7] = string.Format(this._joinOnTemp[0], "pendingP");
+        this._joinOn[8] = string.Format(this._joinOnTemp[0], "successP");
+        this._joinOn[9] = string.Format(this._joinOnTemp[0], "failedP");
+        this._joinOn[10] = string.Format(this._joinOnTemp[0], "cancelP");
+        this._joinOn[11] = string.Format(this._joinOnTemp[0], "otherCancelP1");
+        this._joinOn[12] = string.Format(this._joinOnTemp[0] + " OR otherCancelP1.TEMP = {0}.TEMP" + this._joinOnTemp[1], "otherCancelP2");
+        this._joinOn[13] = string.Format(this._joinOnTemp[0], "t1");
+        this._joinOn[14] = string.Format(this._joinOnTemp[0] + " OR otherCancelP1.TEMP = {0}.TEMP" + this._joinOnTemp[1] + " OR otherCancelP2.TEMP = {0}.TEMP" + this._joinOnTemp[2], "t2");
+      }
+
+      if (!string.IsNullOrEmpty(this._groupBy[0]))
+        this._groupBy[0] = string.Format("GROUP BY {0}", this._groupBy[0].TrimStart(','));
+      else if (!string.IsNullOrEmpty(this._groupBy[2]))
+      {
+        this._groupBy[2] = string.Format("GROUP BY{0}", this._groupBy[2].TrimStart(','));
+        this._groupBy[3] = string.Format("GROUP BY{0}", this._groupBy[3].TrimStart(','));
+        this._groupBy[4] = string.Format("GROUP BY{0}", this._groupBy[4].TrimStart(','));
+        this._groupBy[5] = string.Format("GROUP BY{0}", this._groupBy[5].TrimStart(','));
+      }
+
+      if (!string.IsNullOrEmpty(this._referrer))
+        this._filterBy += string.Format("AND us.Referrer LIKE '%{0}%' ", this._referrer);
+
+
+
+
+      //MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+      //foreach (string merchant in merchants)
+      //  this._merchants.Add(runtime.Merchants.Where(x => x.ID == Int32.Parse(merchant)).Select(x => x).FirstOrDefault());
+      //foreach (string service in services)
+      //  this._services.Add(runtime.Services.Where(x => x.ServiceData.ID == Int32.Parse(service)).Select(x => x.ServiceData).FirstOrDefault());
+      //foreach (string country in countries)
+      //  this._countries.Add(runtime.Countries.Where(x => x.ID == Int32.Parse(country)).Select(x => x).FirstOrDefault());
+      //foreach (string @operator in operators)
+      //  this._operators.Add(runtime.Operators.Where(x => x.ID == Int32.Parse(@operator)).Select(x => x).FirstOrDefault());
+      //CommentOut
+      //if (this._merchants != null && this._merchants.Count > 0)
+      //  this._filterBy += string.Format("[m].MerchantID IN ({0})", string.Concat(from Data.Merchant m in this._merchants select m.ID + ",").TrimEnd(','));
+      //if (this._services != null && this._services.Count > 0)
+      //  this._filterBy += string.IsNullOrEmpty(this._filterBy) ? string.Format("[s].ServiceID IN ({0})", string.Concat(from Service s in this._services select s.ID + ",").TrimEnd(',')) : string.Format(" AND [s].ServiceID IN ({0})", string.Concat(from Service s in this._services select s.ID + ",").TrimEnd(','));
+      //if (this._countries != null && this._countries.Count > 0)
+      //  this._filterBy += string.IsNullOrEmpty(this._filterBy) ? string.Format("[c].CountryID IN ({0})", string.Concat(from Country c in this._countries select c.ID + ",").TrimEnd(',')) : string.Format(" AND [c].CountryID IN ({0})", string.Concat(from Country c in this._countries select c.ID + ",").TrimEnd(','));
+      //if (this._operators != null && this._operators.Count > 0)
+      //  this._filterBy += string.IsNullOrEmpty(this._filterBy) ? string.Format("[mo].MobileOperatorID IN ({0})", string.Concat(from MobileOperator mo in this._operators select mo.ID + ",").TrimEnd(',')) : string.Format(" AND [mo].MobileOperatorID IN ({0})", string.Concat(from MobileOperator mo in this._operators select mo.ID + ",").TrimEnd(','));
+      //if (!string.IsNullOrEmpty(this._search))
+      //  this._filterBy += string.IsNullOrEmpty(this._filterBy) ? string.Format("[us].Referrer LIKE '%{0}%'", this._search) : string.Format(" AND [us].Referrer LIKE '%{0}%'", this._search);
+
+      //if (!string.IsNullOrEmpty(this._filterBy))
+      //  this._filterBy = string.Format("WHERE {0}", this._filterBy);
+
+      //if (split != Split.None)
+      //{
+      //  this._splitBy =
+      //    string.Format("{0}",
+      //                  split == Split.Year ? "DATETIMEFROMPARTS(DATEPART(yyyy, {0}),1,1,0,0,0,0)" :
+      //                  split == Split.Month ? "DATETIMEFROMPARTS(DATEPART(yyyy, {0}),DATEPART(mm, {0}),1,0,0,0,0)" :
+      //                  split == Split.Day ? "DATETIMEFROMPARTS(DATEPART(yyyy, {0}),DATEPART(mm, {0}),DATEPART(dd, {0}),0,0,0,0)" :
+      //                  split == Split.Week ? "wk" :
+      //                  split == Split.Hour ? "DATETIMEFROMPARTS(DATEPART(yyyy, {0}),DATEPART(mm, {0}),DATEPART(dd, {0}),DATEPART(hh, {0}),0,0,0)" : "");
+
+
+      //  string @case =
+      //    string.Format(
+      //      "CASE " +
+      //        "WHEN t1.Created >= '{0}' AND t1.Created <= '{1}' THEN {2} " +
+      //        "WHEN us.Created >= '{0}' AND us.Created <= '{1}' THEN {3} " +
+      //        "ELSE {4} " +
+      //      "END", this.From, this.To, string.Format(this._splitBy, "t1.Created"), string.Format(this._splitBy, "us.Created"), string.Format(this._splitBy, "DATETIMEFROMPARTS(DATEPART(yyyy, GETDATE()),DATEPART(mm, GETDATE()),DATEPART(dd, GETDATE()),0,0,0,0)"));
+
+      //  this._groupBy += @case;
+      //  this._select += string.Format("{0} AS 'Date',", @case);
+      //}
+
+
+      //if (group != null && group.Count > 0)
+      //{
+      //  if (group.Contains(Group.Merchant))
+      //  {
+      //    this._groupBy += string.IsNullOrEmpty(this._groupBy) ? "[m].MerchantID, [m].Name" : ", [m].MerchantID, [m].Name";
+      //    this._select +=  "[m].MerchantID, [m].Name AS 'MerchantName',";
+      //  }
+      //  if (group.Contains(Group.Service))
+      //  {
+      //    this._groupBy += string.IsNullOrEmpty(this._groupBy) ? "[s].ServiceID, [s].Name" : ", [s].ServiceID, [s].Name";
+      //    this._select += "[s].ServiceID, [s].Name AS 'ServiceName',";
+      //  }
+      //  if (group.Contains(Group.Country))
+      //  {
+      //    this._groupBy += string.IsNullOrEmpty(this._groupBy) ? "[c].CountryID, [c].GlobalName" : ", [c].CountryID, [c].GlobalName";
+      //    this._select += "[c].CountryID, [c].GlobalName AS 'CountryName',";
+      //  }
+      //  if (group.Contains(Group.Operator))
+      //  {
+      //    this._groupBy += string.IsNullOrEmpty(this._groupBy) ? "[mo].MobileOperatorID, [mo].Name" : ", [mo].MobileOperatorID, [mo].Name";
+      //    this._select += "[mo].MobileOperatorID, [mo].Name As 'OperatorName',";
+      //  }
+      //}
+
+      //if (!string.IsNullOrEmpty(this._groupBy))
+      //  this._groupBy = string.Format("GROUP BY {0}", this._groupBy);
+    }
+
+    protected void InitializeRevenue(Split split, List<Group> group, List<string> instances, List<string> merchants, List<string> services, List<string> providers, List<string> countryCodes, List<string> operators, string referrer, Dictionary<int, Service> allowedServices)
+    {
+      MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+      List<string> serviceIDs = new List<string>();
+      bool isAdministrator = PaywallHttpContext.Current.ClientSession.Client.ClientType.Name.Equals("Administrator");
+
+      //filters
+      if (instances != null && instances.Count > 0 || merchants != null && merchants.Count > 0 || services != null && services.Count > 0 || providers != null && providers.Count > 0)
+      {
+        serviceIDs = this.GetServiceIDs(instances, merchants, services, providers, allowedServices);
+        this._filterBy += string.Format("AND EXISTS (SELECT * FROM (VALUES{0}) temp(ID) WHERE temp.ID = olc.ServiceID) ", serviceIDs.Count > 0 ? string.Concat(from s in serviceIDs select "('" + s + "'),").TrimEnd(',') : "('')");
+      }
+      else if (!isAdministrator && allowedServices != null && allowedServices.Count > 0)
+      {
+        serviceIDs = (from serviceID in allowedServices.Keys select serviceID.ToString()).ToList();
+        this._filterBy += string.Format("AND EXISTS (SELECT * FROM (VALUES{0}) temp(ID) WHERE temp.ID = olc.ServiceID) ", serviceIDs.Count > 0 ? string.Concat(from s in serviceIDs select "('" + s + "'),").TrimEnd(',') : "('')");
+      }
+      else if (!isAdministrator)
+        this._filterBy += string.Format("AND EXISTS (SELECT * FROM (VALUES('0')) temp(ID) WHERE temp.ID = olc.ServiceID) ");
+
+      if (countryCodes != null && countryCodes.Count > 0)
+        this._filterBy += string.Format("AND EXISTS (SELECT * FROM (VALUES{0}) temp(Code) WHERE temp.Code = olc.CountryCode) ", string.Concat(from c in countryCodes select "('" + c + "'),").TrimEnd(','));
+
+      if (operators != null && operators.Count > 0)
+        this._filterBy += string.Format("AND EXISTS (SELECT * FROM (VALUES{0}) temp(ID) WHERE temp.ID = olc.MobileOperatorID) ", string.Concat(from mo in operators select "('" + mo + "'),").TrimEnd(','));
+
+
+      //groupBy
+      if (group != null && group.Count > 0)
+      {
+        if (group.Contains(Group.Instance))
+        {
+          this._select += ", ISNULL(t1.InstanceID, t2.InstanceID) AS 'InstanceID'";
+          this._selectInner[0] += ", [m].InstanceID";
+          this._queryFrom[0] += string.IsNullOrEmpty(this._queryFrom[0]) ? "INNER JOIN MobilePaywall.core.[Service] AS s ON olc.ServiceID = s.ServiceID" : "";
+          this._queryFrom[1] += string.IsNullOrEmpty(this._queryFrom[1]) ? "INNER JOIN MobilePaywall.core.Merchant AS m ON s.MerchantID = m.MerchantID" : "";
+          this._groupBy[0] += ", [m].InstanceID";
+          this._joinOn[0] += " AND ISNULL(t1.InstanceID, 0) = ISNULL(t2.InstanceID, 0) ";
+          this._revenueGroupBy += ", revenue.InstanceID";
+        }
+        if (group.Contains(Group.Merchant))
+        {
+          this._select += ", ISNULL(t1.MerchantID, t2.MerchantID) AS 'MerchantID'";
+          this._selectInner[0] += ", [s].MerchantID";
+          this._queryFrom[0] += string.IsNullOrEmpty(this._queryFrom[0]) ? "INNER JOIN MobilePaywall.core.[Service] AS s ON olc.ServiceID = s.ServiceID" : "";
+          this._groupBy[0] += ", [s].MerchantID";
+          this._joinOn[0] += " AND ISNULL(t1.MerchantID, 0) = ISNULL(t2.MerchantID, 0) ";
+          this._revenueGroupBy += ", revenue.MerchantID";
+        }
+        if (group.Contains(Group.Service))
+        {
+          this._select += ", ISNULL(t1.ServiceName, t2.ServiceName) AS 'ServiceName', " +
+                            "COALESCE(t1.GrossPrice, t2.GrossPrice) AS 'GrossPrice', " +
+		                        "COALESCE(t1.PayoutPrice, t2.PayoutPrice) AS 'PayoutPrice' ";
+          this._selectInner[7] += ", [sp].Gross AS 'GrossPrice', [sp].Payout AS 'PayoutPrice'";
+          //this._selectInner[0] += ", [olc].ServiceID";
+          //this._selectInner[1] += ", [olc].ServiceName AS 'ServiceName'";
+          //this._groupBy[0] += ", [olc].ServiceID";
+          //this._groupBy[1] += ", [olc].ServiceName";
+          //this._joinOn[0] += " AND ISNULL(t1.ServiceID, 0) = ISNULL(t2.ServiceID, 0) ";
+          this._revenueGroupBy += ", revenue.ServiceID, revenue.ServiceOfferID, revenue.ServiceName, revenue.GrossPrice, revenue.PayoutPrice ";
+        }
+        if (group.Contains(Group.Provider))
+        {
+          this._select += ", ISNULL(t1.PaymentProviderID, t2.PaymentProviderID) AS 'PaymentProviderID'";
+          this._selectInner[0] += ", [pc].PaymentProviderID";
+          this._filterBy += string.IsNullOrEmpty(this._queryFrom[4]) ? " AND so.IsActive = 1 AND so.IsDefault = 1 " : "";
+          this._queryFrom[4] += string.IsNullOrEmpty(this._queryFrom[4]) ?
+                                "INNER JOIN MobilePaywall.core.ServiceOffer AS so ON olc.ServiceID = so.ServiceID " +
+                                "INNER JOIN MobilePaywall.core.PaymentConfiguration AS pc ON so.PaymentConfigurationID = pc.PaymentConfigurationID " : "";
+          this._groupBy[0] += ", [pc].PaymentProviderID";
+          this._joinOn[0] += " AND ISNULL(t1.PaymentProviderID, 0) = ISNULL(t2.PaymentProviderID, 0) ";
+          this._revenueGroupBy += ", revenue.PaymentProviderID";
+        }
+        if (group.Contains(Group.Country))
+        {
+          this._select += ", ISNULL(t1.CountryCode, t2.CountryCode) AS 'CountryCode', ISNULL(t1.CountryName, t2.CountryName) AS 'CountryName'";
+          this._selectInner[0] += ", [olc].CountryCode";
+          this._selectInner[1] += ", [olc].CountryName AS 'CountryName'";
+          this._groupBy[0] += ", [olc].CountryCode";
+          this._groupBy[1] += ", [olc].CountryName";
+          this._joinOn[0] += " AND ISNULL(t1.CountryCode, 0) = ISNULL(t2.CountryCode, 0)";
+          this._revenueGroupBy += ", revenue.CountryCode, revenue.CountryName";
+        }
+        if (group.Contains(Group.Operator))
+        {
+          //this._select += ", ISNULL(t1.MobileOperatorID, t2.MobileOperatorID) AS 'MobileOperatorID'";
+          //this._selectInner[0] += ", [olc].MobileOperatorID";
+          //this._groupBy[0] += ", [olc].MobileOperatorID";
+          //this._joinOn[0] += " AND ISNULL(t1.MobileOperatorID, 0) = ISNULL(t2.MobileOperatorID, 0) ";
+          this._revenueGroupBy += ", revenue.MobileOperatorID";
+        }
+      }
+
+      //split
+      if (split != Split.None)
+      {
+        this._splitBy =
+          string.Format("{0}",
+                        split == Split.Year ? "DATETIMEFROMPARTS(DATEPART(yyyy, {0}),1,1,0,0,0,0)" :
+                        split == Split.Month ? "DATETIMEFROMPARTS(DATEPART(yyyy, {0}),DATEPART(mm, {0}),1,0,0,0,0)" :
+                        split == Split.Day ? "DATETIMEFROMPARTS(DATEPART(yyyy, {0}),DATEPART(mm, {0}),DATEPART(dd, {0}),0,0,0,0)" :
+                        split == Split.Week ? "DATEPART(wk, {0}), DATEPART(yyyy, {0})" :
+                        split == Split.Hour ? "DATETIMEFROMPARTS(DATEPART(yyyy, {0}),DATEPART(mm, {0}),DATEPART(dd, {0}),DATEPART(hh, {0}),0,0,0)" : "");
+
+        if (split == Split.Week)
+        {
+          this._select += ", CONVERT(VARCHAR(11), DATEADD(wk, DATEDIFF(wk, 6, CAST(RTRIM(ISNULL(t1.[Year],t2.[Year]) * 10000 + 101) AS DATETIME)) + (ISNULL(t1.[Week],t2.[Week])  - 1 ), 6), 106) + ' - ' + " +
+                         "CONVERT(VARCHAR(11),DATEADD(second, -1, DATEADD(day, DATEDIFF(day, 0, DATEADD(wk, DATEDIFF(wk, 5, CAST(RTRIM(ISNULL(t1.[Year],t2.[Year]) * 10000 + 101) AS DATETIME)) + (ISNULL(t1.[Week],t2.[Week]) + -1 ), 5)) + 1, 0)), 106) AS 'WeekRange' ";
+          this._selectInner[2] = string.Format(", DATEPART(wk, {0}) AS Week, DATEPART(yyyy, {0}) AS Year ", "olc.SessionCreated");
+          this._groupBy[2] = string.Format(", {0} ", string.Format(this._splitBy, "olc.SessionCreated"));
+          //for t2(subsequents)
+          this._selectInner[4] = string.Format(", DATEPART(wk, {0}) AS Week, DATEPART(yyyy, {0}) AS Year ", "t.Created");
+          this._groupBy[4] = string.Format(", {0} ", string.Format(this._splitBy, "t.Created"));
+
+          this._joinOn[0] += " AND t1.Week = t2.Week AND t1.Year = t2.Year";
+
+          this._revenueGroupBy += ", revenue.WeekRange";
+        }
+        else
+        {
+          this._select += ", ISNULL(t1.[Date], t2.[Date]) AS 'Date' ";
+          this._selectInner[2] = string.Format(", {0} AS 'Date' ", string.Format(this._splitBy, "olc.SessionCreated"));
+          this._groupBy[2] = string.Format(", {0} ", string.Format(this._splitBy, "olc.SessionCreated"));
+          this._selectInner[4] = string.Format(", {0} AS 'Date' ", string.Format(this._splitBy, "t.Created"));
+          this._groupBy[4] = string.Format(", {0} ", string.Format(this._splitBy, "t.Created"));
+          this._joinOn[0] += " AND t1.[Date] = t2.[Date]";
+
+          this._revenueGroupBy += ", revenue.Date";
+        }
+      }
+      
+      if (!string.IsNullOrEmpty(this._referrer))
+      {
+        this._queryFrom[7] = "INNER JOIN MobilePaywall.core.UserSession AS us ON olc.UserSessionID = us.UserSessionID";
+        this._filterBy += string.Format("AND us.Referrer LIKE '%{0}%' ", this._referrer);
+      }
+
+    }
+
+    public List<string> GetServiceIDs(List<string> instances, List<string> merchants, List<string> services, List<string> providers, Dictionary<int, Service> allowedServices)
+    {
+      MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+      List<string> serviceIDs = new List<string>();
+      List<string> providerServiceIDs = new List<string>();
+      List<string> allowedServiceIDs = new List<string>();
+
+      allowedServiceIDs = (from serviceID in allowedServices.Keys select serviceID.ToString()).ToList();
+
+      serviceIDs = services;
+
+      if (serviceIDs.Count == 0 && merchants.Count > 0)
+        foreach (string merchant in merchants)
+          serviceIDs.AddRange(from m in runtime.MerchantServiceMap[int.Parse(merchant)] select m.ServiceData.ID.ToString());
+
+      if (serviceIDs.Count == 0 && instances.Count > 0)
+        foreach (string instance in instances)
+          serviceIDs.AddRange(from ins in runtime.InstanceServiceMap[int.Parse(instance)] select ins.ServiceData.ID.ToString());
+
+      if (providers.Count > 0)
+      {
+        foreach (string provider in providers)
+          providerServiceIDs.AddRange(from p in runtime.ProviderServiceMap[int.Parse(provider)] select p.ServiceData.ID.ToString());
+
+        if (serviceIDs.Count > 0)
+          serviceIDs = providerServiceIDs.Intersect(serviceIDs).ToList();
+        else
+          serviceIDs = providerServiceIDs;
+      }
+
+      serviceIDs = allowedServiceIDs.Intersect(serviceIDs).ToList();
+
+      return serviceIDs;
+    }
+  }
+
+  public class ClientAccessPolicyModel
+  {
+    private List<string> _instancesAllowed = new List<string>();
+    private List<string> _instancesRestricted = new List<string>();
+    private List<string> _applicationsAllowed = new List<string>();
+    private List<string> _applicationsRestricted = new List<string>();
+    private List<string> _merchantsAllowed = new List<string>();
+    private List<string> _merchantsRestricted = new List<string>();
+    private List<string> _productsAllowed = new List<string>();
+    private List<string> _productsRestricted = new List<string>();
+    private List<string> _servicesAllowed = new List<string>();
+    private List<string> _servicesRestricted = new List<string>();
+
+    public List<string> InstancesAllowed { get { return this._instancesAllowed; } set { this._instancesAllowed = value; } }
+    public List<string> InstancesRestricted { get { return this._instancesRestricted; } set { this._instancesRestricted = value; } }
+    public List<string> ApplicationsAllowed { get { return this._applicationsAllowed; } set { this._applicationsAllowed = value; } }
+    public List<string> ApplicationsRestricted { get { return this._applicationsRestricted; } set { this._applicationsRestricted = value; } }
+    public List<string> MerchantsAllowed { get { return this._merchantsAllowed; } set { this._merchantsAllowed = value; } }
+    public List<string> MerchantsRestricted { get { return this._merchantsRestricted; } set { this._merchantsRestricted = value; } }
+    public List<string> ProductsAllowed { get { return this._productsAllowed; } set { this._productsAllowed = value; } }
+    public List<string> ProductsRestricted { get { return this._productsRestricted; } set { this._productsRestricted = value; } }
+    public List<string> ServicesAllowed { get { return this._servicesAllowed; } set { this._servicesAllowed = value; } }
+    public List<string> ServicesRestricted { get { return this._servicesRestricted; } set { this._servicesRestricted = value; } }
+  }
+
+
+}

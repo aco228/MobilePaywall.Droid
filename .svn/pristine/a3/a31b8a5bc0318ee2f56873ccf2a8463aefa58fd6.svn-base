@@ -1,0 +1,96 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using MobilePaywall.Data;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IShortMessageManager : IDataManager<ShortMessage> 
+  {
+	
+
+  }
+
+  public partial class ShortMessage : MobilePaywallObject<IShortMessageManager> 
+  {
+		private Guid _guid;
+		private ShortMessageProvider _shortMessageProvider;
+		private Customer _customer;
+		private string _text = String.Empty;
+		private string _referenceID = String.Empty;
+		private ShortMessageStatus _shortMessageStatus;
+		
+
+		public Guid Guid { get { return this._guid; } set { _guid = value; } }
+		public ShortMessageProvider ShortMessageProvider 
+		{
+			get
+			{
+				if (this._shortMessageProvider != null &&
+						this._shortMessageProvider.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._shortMessageProvider = ShortMessageProvider.CreateManager().LazyLoad(this.ConnectionContext, this._shortMessageProvider.ID) as ShortMessageProvider;
+					else
+						this._shortMessageProvider = ShortMessageProvider.CreateManager().LazyLoad(this._shortMessageProvider.ID) as ShortMessageProvider;
+				return this._shortMessageProvider;
+			}
+			set { _shortMessageProvider = value; }
+		}
+
+		public Customer Customer 
+		{
+			get
+			{
+				if (this._customer != null &&
+						this._customer.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._customer = Customer.CreateManager().LazyLoad(this.ConnectionContext, this._customer.ID) as Customer;
+					else
+						this._customer = Customer.CreateManager().LazyLoad(this._customer.ID) as Customer;
+				return this._customer;
+			}
+			set { _customer = value; }
+		}
+
+		public string Text{ get {return this._text; } set { this._text = value;} }
+		public string ReferenceID{ get {return this._referenceID; } set { this._referenceID = value;} }
+		public ShortMessageStatus ShortMessageStatus  { get { return this._shortMessageStatus; } set { this._shortMessageStatus = value; } }
+		
+
+    public override bool IsInsertable { get { return true;} }
+
+    public override bool IsDeletable { get { return false;} }
+
+    public override bool IsUpdatable { get { return true;} }
+
+    public ShortMessage()
+    { 
+    }
+
+    public ShortMessage(int id): base(id, DateTime.Now, DateTime.Now, true)
+    {
+    }
+
+    public ShortMessage(int id,  Guid guid, ShortMessageProvider shortMessageProvider, Customer customer, string text, string referenceID, ShortMessageStatus shortMessageStatus, DateTime updated, DateTime created): base(id, updated, created, false)
+    {
+			this._guid = guid;
+			this._shortMessageProvider = shortMessageProvider;
+			this._customer = customer;
+			this._text = text;
+			this._referenceID = referenceID;
+			this._shortMessageStatus = shortMessageStatus;
+			
+    }
+
+    public override object Clone(bool deepClone)
+    {
+      return new ShortMessage(-1, this.Guid, this.ShortMessageProvider, this.Customer,this.Text,this.ReferenceID, this.ShortMessageStatus, DateTime.Now, DateTime.Now);
+    }
+  }
+}
+

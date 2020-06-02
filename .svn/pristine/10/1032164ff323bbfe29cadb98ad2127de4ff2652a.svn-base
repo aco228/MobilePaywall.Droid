@@ -1,0 +1,70 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using MobilePaywall.Data;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IUserSessionHeadersManager : IDataManager<UserSessionHeaders> 
+  {
+	
+
+  }
+
+  public partial class UserSessionHeaders : MobilePaywallObject<IUserSessionHeadersManager> 
+  {
+		private UserSession _userSession;
+		private string _data = String.Empty;
+		
+
+		public UserSession UserSession 
+		{
+			get
+			{
+				if (this._userSession != null &&
+						this._userSession.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._userSession = UserSession.CreateManager().LazyLoad(this.ConnectionContext, this._userSession.ID) as UserSession;
+					else
+						this._userSession = UserSession.CreateManager().LazyLoad(this._userSession.ID) as UserSession;
+				return this._userSession;
+			}
+			set { _userSession = value; }
+		}
+
+		public string Data{ get {return this._data; } set { this._data = value;} }
+		
+
+    public override bool IsInsertable { get { return true;} }
+
+    public override bool IsDeletable { get { return false;} }
+
+    public override bool IsUpdatable { get { return true;} }
+
+    public UserSessionHeaders()
+    { 
+    }
+
+    public UserSessionHeaders(int id): base(id, DateTime.Now, DateTime.Now, true)
+    {
+    }
+
+    public UserSessionHeaders(int id,  UserSession userSession, string data, DateTime updated, DateTime created): base(id, updated, created, false)
+    {
+			this._userSession = userSession;
+			this._data = data;
+			
+    }
+
+    public override object Clone(bool deepClone)
+    {
+      return new UserSessionHeaders(-1,  this.UserSession,this.Data, DateTime.Now, DateTime.Now);
+    }
+  }
+}
+

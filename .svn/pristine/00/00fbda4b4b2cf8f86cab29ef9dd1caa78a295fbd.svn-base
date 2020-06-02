@@ -1,0 +1,170 @@
+﻿@{
+  ViewBag.Title = "Statistics Chart";
+  MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+  Client client = PaywallHttpContext.Current.ClientSession.Client;
+  bool isMerchant = client.ClientType.Name.Equals("Merchant") || client.ClientType.Name.Equals("MerchantUser");
+}
+<div class="page-bar">
+  <ul class="page-breadcrumb">
+    <li>
+      <i class="icon-bar-chart"></i>
+      <a href="javascript:;">Statistics</a>
+      <i class="fa fa-angle-right"></i>
+    </li>
+    <li>
+      <a href="#">@ViewBag.Title</a>
+    </li>
+  </ul>
+  <div class="page-toolbar">
+    <div id="dashboard-report-range" class="tooltips btn btn-sm btn-default" data-container="body" data-placement="bottom" data-original-title="Change statistics date range">
+      <i class="icon-calendar"></i>&nbsp; <span class="thin uppercase visible-lg-inline-block"></span>&nbsp; <i class="fa fa-angle-down"></i>
+    </div>
+  </div>
+</div>
+<div class="chart-wrapper">
+  <div class="col-md-12 filters">
+    <div class="row">
+      @if (!isMerchant)
+      {
+        <div class="col-sm-6 col-md-4 col-lg-2 filter">
+          @Html.DropDownList("Instance", MerchantHelper.SupportedInstances, "", new { id = "select_instance", @class = "form-control select2", placeholder = "Instance"})
+        </div>
+      }
+      <div class="col-sm-6 col-md-4 col-lg-2 filter">
+        <select id="select_merchant" class="form-control select2 purple-studio" placeholder="Merchant">
+          <option value=""></option>
+          @{
+            foreach (KeyValuePair<int, List<Merchant>> kv in runtime.InstanceMerchantMap)
+            {
+              Instance instance = runtime.GetInstanceByID(kv.Key);
+              if (client.SupportedInstances().Contains(instance))
+              {
+                <optgroup value="@kv.Key" label="@instance.Name">
+                  @foreach (Merchant merchant in kv.Value)
+                  {
+                    if (client.SupportedMerchants().Contains(merchant))
+                    {
+                      <option value="@merchant.ID">@merchant.Name</option>
+                    }
+                  }
+                </optgroup>
+              }
+            }
+          }
+        </select>
+      </div>
+      <div class="col-sm-6 col-md-4 col-lg-2 filter">
+        <select id="select_service" class="form-control select2">
+          <option value=""></option>
+          @{
+            foreach (KeyValuePair<int, List<IService>> kv in runtime.MerchantServiceMap)
+            {
+              Merchant merchant = runtime.GetMerchantByID(kv.Key);
+              if (client.SupportedMerchants().Contains(merchant))
+              {
+                <optgroup value="@kv.Key" label="@merchant.Name">
+                  @foreach (IService service in kv.Value)
+                  {
+                    if (client.AllowedServices.Values.Contains(service.ServiceData))
+                    {
+                      <option value="@service.ServiceData.ID">@service.ServiceData.Name</option>
+                    }
+                  }
+                </optgroup>
+              }
+            }
+          }          
+        </select>
+      </div>
+      <div class="col-sm-6 col-md-4 col-lg-2 filter">
+        <select id="select_provider" class="form-control select2">
+          <option value=""></option>
+          @{
+            foreach (PaymentProvider provider in runtime.Providers)
+            {
+              <option value="@provider.ID">@provider.Name</option>
+            }
+          }
+        </select>
+      </div>
+      <div class="col-sm-6 col-md-4 col-lg-2 filter">
+        <select id="select_country" class="form-control select2">
+          <option value=""></option>
+          @{
+            foreach (Country country in runtime.Countries)
+            {
+              <option value="@country.ID" data-ccode="@country.CountryCode">@country.GlobalName</option>
+            }
+          }
+        </select>
+      </div>
+      <div class="col-sm-6 col-md-4 col-lg-2 filter">
+        <select id="select_operator" class="form-control select2">
+          <option value=""></option>
+          @foreach (KeyValuePair<int, List<MobileOperator>> kv in runtime.CountryOperatorMap)
+          {
+            <optgroup value="@kv.Key" label="@runtime.GetCountryByID(kv.Key).GlobalName">
+
+              @foreach (MobileOperator mobileOperator in kv.Value)
+              {
+                <option value="@mobileOperator.ID">@mobileOperator.Name</option>
+              }
+            </optgroup>
+          }
+        </select>
+      </div>
+
+      <div class="@(isMerchant ? "col-sm-6 col-md-4 col-lg-2" : "col-sm-12") filter actions">
+        <button id="reset_btn" class="btn rich-electric-blue" style="cursor: pointer;">Reset</button>
+        <button id="refresh_btn" class="btn yellow-casablanca" style="cursor: pointer;">Refresh</button>
+      </div>
+
+    </div>
+  </div>
+
+
+  <div class="col-md-12" style="position:relative;">
+    <div id="stockEmpty"> The chart contains no data </div>
+    <div id="chart_container" class="row">
+      @Html.Partial("_Chart")
+    </div>
+  </div>
+
+  <div class="clearfix">
+  </div>
+
+</div>
+
+
+@section PageStyles{
+  @Styles.Render("~/pages/statistic/css")
+}
+
+
+<style>
+  #chartdiv {
+    width: 100%;
+    height: 500px;
+  }
+
+  #stockEmpty {
+    display: none;
+    position: absolute;
+    width: 90%;
+    /* height: 100%; */
+    text-align: center;
+    z-index: 5000;
+    top: 45%;
+    pointer-events: none;
+  }
+</style>
+
+@section PageScripts{
+  @Scripts.Render("~/pages/statistic-chart/js")
+}
+
+@section CustomScripts {
+  @*<script>
+       @Html.Raw(Server.HtmlDecode(Model.GetChartData()))
+    </script>*@
+}

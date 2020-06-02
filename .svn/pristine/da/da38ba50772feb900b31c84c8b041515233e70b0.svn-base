@@ -1,0 +1,81 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
+using System.Text;
+
+
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IIPRangeManager 
+  {
+    List<IPRange> Load(MobileOperator mno);
+    List<IPRange> Load(IConnectionInfo connection, MobileOperator mno);
+
+    List<IPRange> Load(Country country);
+    List<IPRange> Load(IConnectionInfo connection, Country country);
+  }
+
+  public partial class IPRange
+  {
+    public static MobileOperator GetMobileOperator(IUserSession us)
+    {
+      List<IPRange> ipRanges = IPRange.CreateManager().Load(us.SessionData.Service.FallbackCountry);
+      foreach (IPRange range in ipRanges)
+        if (IPRange.IsInTheRange(range.Value, us.SessionData.IPAddress))
+          return range.MobileOperator;
+      return null;
+    }
+
+    private static bool IsInTheRange(string iprange, string address)
+    {
+      string[] splitBits = iprange.Split('/');
+      if (splitBits.Length != 2)
+        return false;
+
+      int bits;
+      if (!Int32.TryParse(splitBits[1], out bits))
+        return false;
+
+      IPAddress ip;
+      if (!IPAddress.TryParse(splitBits[0], out ip))
+        return false;
+
+      uint mask = ~(uint.MaxValue >> bits);
+
+      // Convert the IP address to bytes.
+      byte[] ipBytes = ip.GetAddressBytes();
+
+      // BitConverter gives bytes in opposite order to GetAddressBytes().
+      byte[] maskBytes = BitConverter.GetBytes(mask).Reverse().ToArray();
+
+      byte[] startIPBytes = new byte[ipBytes.Length];
+      byte[] endIPBytes = new byte[ipBytes.Length];
+
+      // Calculate the bytes of the start and end IP addresses.
+      for (int i = 0; i < ipBytes.Length; i++)
+      {
+        startIPBytes[i] = (byte)(ipBytes[i] & maskBytes[i]);
+        endIPBytes[i] = (byte)(ipBytes[i] | ~maskBytes[i]);
+      }
+
+      // Convert the bytes to IP addresses.
+      IPAddress startIP = new IPAddress(startIPBytes);
+      IPAddress endIP = new IPAddress(endIPBytes);
+
+      return IPRange.IsInRange(startIP, endIP, address);
+    }
+
+    private static bool IsInRange(IPAddress startIpAddr, IPAddress endIpAddr, string address)
+    {
+      long ipStart = BitConverter.ToInt32(startIpAddr.GetAddressBytes().Reverse().ToArray(), 0);
+      long ipEnd = BitConverter.ToInt32(endIpAddr.GetAddressBytes().Reverse().ToArray(), 0);
+      long ip = BitConverter.ToInt32(IPAddress.Parse(address).GetAddressBytes().Reverse().ToArray(), 0);
+      return ip >= ipStart && ip <= ipEnd; //edited
+    }
+
+  }
+}
+

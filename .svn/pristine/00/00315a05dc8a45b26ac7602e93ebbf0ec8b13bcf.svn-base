@@ -1,0 +1,113 @@
+﻿using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers._Specific.HU.Dimoco
+{
+  public class HUDimocoController : Controller
+  {
+    // GET: HUDimoco
+    public ActionResult Index()
+    {
+      string msisdn = Request["msisdn"] != null ? this.FixNumber(Request["msisdn"].ToString()) : "";
+      string returnUrl = Request["returnUrl"] != null ? Request["returnUrl"].ToString() : "http://" + PaywallHttpContext.Current.Service.ServiceData.Name + "/";
+      char continueChar = returnUrl.Contains('?') ? '&' : '?';
+      
+      if (string.IsNullOrEmpty(msisdn))
+      {
+        returnUrl +=
+          continueChar + "sessionID=" + PaywallHttpContext.Current.Session.SessionData.Guid +
+          "&sessionIntID=" + PaywallHttpContext.Current.Session.SessionData.ID +
+          "&lang=" + PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode +
+          "&err=true";
+        return Redirect(returnUrl);
+      }
+
+      PaywallHttpContext.Current.Session.SessionData.Referrer = Request.UrlReferrer != null ? Request.UrlReferrer.ToString() : null;
+      PaywallHttpContext.Current.Session.SessionData.Update();
+
+      //Customer customer = Customer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData, msisdn, CustomerIdentifier.Msisdn).FirstOrDefault();
+      Customer customer = Customer.LoadCustomerByServiceMsisdn(PaywallHttpContext.Current.Service.ServiceData, msisdn);
+      if (customer == null)
+      {
+        customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Pending, PaywallHttpContext.Current.Service.ServiceData,
+          PaywallHttpContext.Current.Service.ServiceData.FallbackCountry, null, null, msisdn, "", "", new byte[] { 0 }, DateTime.Now, DateTime.Now);
+        customer.Insert();
+        customer.SetUsernameAndPassword();
+      }
+
+      else if (customer.CustomerStatus == CustomerStatus.Active)
+        return this.Redirect("/");
+
+      PaywallHttpContext.Current.Session.SessionData.Customer = customer;
+      PaywallHttpContext.Current.Session.SessionData.Update();
+      (new OLCacher()).Synchronize(PaywallHttpContext.Current.Session.SessionData);
+
+      returnUrl +=
+        continueChar + "sessionID=" + PaywallHttpContext.Current.Session.SessionData.Guid +
+        "&sessionIntID=" + PaywallHttpContext.Current.Session.SessionData.ID +
+        "&lang=" + PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode +
+        "&customerID=" + customer.ID +
+        "&err=false";
+
+      return Redirect(returnUrl);
+    }
+
+    public ActionResult Setup()
+    {
+      string msisdn = Request["msisdn"] != null ? this.FixNumber(Request["msisdn"].ToString()) : "";
+      string sessionID = Request["sessionID"] != null ? Request["sessionID"].ToString() : "";
+      if (string.IsNullOrEmpty(msisdn))
+        return this.Json(new { status = false, message = "no msisdn" }, JsonRequestBehavior.AllowGet);
+
+      int _sessionID;
+      if(!Int32.TryParse(sessionID, out _sessionID))
+        return this.Json(new { status = false, message = "no sessionID" }, JsonRequestBehavior.AllowGet);
+
+      UserSession us = UserSession.CreateManager().Load(_sessionID);
+      if(us == null)
+        return this.Json(new { status = false, message = "no US with id:" + _sessionID }, JsonRequestBehavior.AllowGet);
+
+      PaywallHttpContext.Current.SetTemplateSession(us.Instantiate(PaywallHttpContext.Current.Service));
+
+      //Customer customer = Customer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData, msisdn, CustomerIdentifier.Msisdn).FirstOrDefault();
+      Customer customer = Customer.LoadCustomerByServiceMsisdn(PaywallHttpContext.Current.Service.ServiceData, msisdn);
+      if (customer == null)
+      {
+        customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Pending, PaywallHttpContext.Current.Service.ServiceData,
+          PaywallHttpContext.Current.Service.ServiceData.FallbackCountry, null, null, msisdn, "", "", new byte[] { 0 }, DateTime.Now, DateTime.Now);
+        customer.Insert();
+        customer.SetUsernameAndPassword();
+      }
+
+      else if (customer.CustomerStatus == CustomerStatus.Active)
+        return this.Json(new { status = false, message = "active customer" }, JsonRequestBehavior.AllowGet);
+      
+      PaywallHttpContext.Current.Session.SessionData.Customer = customer;
+      PaywallHttpContext.Current.Session.SessionData.Update();
+      (new OLCacher()).Synchronize(PaywallHttpContext.Current.Session.SessionData);
+
+      return this.Json(new { status = true, message = "succ" }, JsonRequestBehavior.AllowGet);
+    }
+
+
+    public string FixNumber(string msisdn)
+    {
+      msisdn = Regex.Replace(msisdn, "[^0-9]", "");
+      if (string.IsNullOrEmpty(msisdn))
+        return msisdn;
+
+      if (msisdn.StartsWith("00"))
+        msisdn = msisdn.Substring(2);
+      if (msisdn[0] == '0')
+        msisdn = msisdn.Substring(1);
+      if (!msisdn.StartsWith("36"))
+        msisdn = "36" + msisdn;
+      return msisdn;
+    }
+  }
+}

@@ -1,0 +1,611 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(TemplateModification))] 
+  public partial class TemplateModificationManager : MobilePaywall.Data.Sql.SqlManagerBase<TemplateModification>, ITemplateModificationManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override TemplateModification LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							TemplateModificationTable.GetColumnNames("[tm]") + 
+							(this.Depth > 0 ? "," + TemplateTable.GetColumnNames("[tm_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentProviderTable.GetColumnNames("[tm_pp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[tm_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[tm_c_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CurrencyTable.GetColumnNames("[tm_c_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[tm_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[tm_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[tm_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[tm_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[tm_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[tm_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[tm_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[tm_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[tm_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[tm_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[tm_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[tm_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[tm_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[tm_mo_c]") : string.Empty) + 
+					" FROM [core].[TemplateModification] AS [tm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [tm_t] ON [tm].[TemplateID] = [tm_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentProvider] AS [tm_pp] ON [tm].[PaymentProviderID] = [tm_pp].[PaymentProviderID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tm_c] ON [tm].[CountryID] = [tm_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [tm_c_l] ON [tm_c].[LanguageID] = [tm_c_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Currency] AS [tm_c_c] ON [tm_c].[CurrencyID] = [tm_c_c].[CurrencyID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [tm_s] ON [tm].[ServiceID] = [tm_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [tm_s_a] ON [tm_s].[ApplicationID] = [tm_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [tm_s_p] ON [tm_s].[ProductID] = [tm_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [tm_s_m] ON [tm_s].[MerchantID] = [tm_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [tm_s_st] ON [tm_s].[ServiceTypeID] = [tm_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [tm_s_ust] ON [tm_s].[UserSessionTypeID] = [tm_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tm_s_c] ON [tm_s].[FallbackCountryID] = [tm_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [tm_s_l] ON [tm_s].[FallbackLanguageID] = [tm_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [tm_s_ar] ON [tm_s].[FallbackAgeRatingID] = [tm_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [tm_s_sc] ON [tm_s].[ServiceConfigurationID] = [tm_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [tm_s_bm] ON [tm_s].[BusinessModelID] = [tm_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [tm_s_t] ON [tm_s].[TemplateID] = [tm_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [tm_mo] ON [tm].[MobileOperatorID] = [tm_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tm_mo_c] ON [tm_mo].[CountryID] = [tm_mo_c].[CountryID] ";
+				sqlCmdText += "WHERE [tm].[TemplateModificationID] = @TemplateModificationID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@TemplateModificationID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tm", "loadinternal", "notfound"), "TemplateModification could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				TemplateModificationTable tmTable = new TemplateModificationTable(query);
+				TemplateTable tm_tTable = (this.Depth > 0) ? new TemplateTable(query) : null;
+				PaymentProviderTable tm_ppTable = (this.Depth > 0) ? new PaymentProviderTable(query) : null;
+				CountryTable tm_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable tm_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				CurrencyTable tm_c_cTable = (this.Depth > 1) ? new CurrencyTable(query) : null;
+				ServiceTable tm_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable tm_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable tm_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable tm_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable tm_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable tm_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable tm_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable tm_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable tm_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable tm_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable tm_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable tm_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				MobileOperatorTable tm_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable tm_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+
+        
+				Template tm_tObject = (this.Depth > 0) ? tm_tTable.CreateInstance() : null;
+				PaymentProvider tm_ppObject = (this.Depth > 0) ? tm_ppTable.CreateInstance() : null;
+				Language tm_c_lObject = (this.Depth > 1) ? tm_c_lTable.CreateInstance() : null;
+				Currency tm_c_cObject = (this.Depth > 1) ? tm_c_cTable.CreateInstance() : null;
+				Country tm_cObject = (this.Depth > 0) ? tm_cTable.CreateInstance(tm_c_lObject, tm_c_cObject) : null;
+				Application tm_s_aObject = (this.Depth > 1) ? tm_s_aTable.CreateInstance() : null;
+				Product tm_s_pObject = (this.Depth > 1) ? tm_s_pTable.CreateInstance() : null;
+				Merchant tm_s_mObject = (this.Depth > 1) ? tm_s_mTable.CreateInstance() : null;
+				ServiceType tm_s_stObject = (this.Depth > 1) ? tm_s_stTable.CreateInstance() : null;
+				UserSessionType tm_s_ustObject = (this.Depth > 1) ? tm_s_ustTable.CreateInstance() : null;
+				Country tm_s_cObject = (this.Depth > 1) ? tm_s_cTable.CreateInstance() : null;
+				Language tm_s_lObject = (this.Depth > 1) ? tm_s_lTable.CreateInstance() : null;
+				AgeRating tm_s_arObject = (this.Depth > 1) ? tm_s_arTable.CreateInstance() : null;
+				ServiceConfiguration tm_s_scObject = (this.Depth > 1) ? tm_s_scTable.CreateInstance() : null;
+				BusinessModel tm_s_bmObject = (this.Depth > 1) ? tm_s_bmTable.CreateInstance() : null;
+				Template tm_s_tObject = (this.Depth > 1) ? tm_s_tTable.CreateInstance() : null;
+				Service tm_sObject = (this.Depth > 0) ? tm_sTable.CreateInstance(tm_s_aObject, tm_s_pObject, tm_s_mObject, tm_s_stObject, tm_s_ustObject, tm_s_cObject, tm_s_lObject, tm_s_arObject, tm_s_scObject, tm_s_bmObject, tm_s_tObject) : null;
+				Country tm_mo_cObject = (this.Depth > 1) ? tm_mo_cTable.CreateInstance() : null;
+				MobileOperator tm_moObject = (this.Depth > 0) ? tm_moTable.CreateInstance(tm_mo_cObject) : null;
+				TemplateModification tmObject = tmTable.CreateInstance(tm_tObject, tm_ppObject, tm_cObject, tm_sObject, tm_moObject);
+				sqlReader.Close();
+
+				return tmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tm", "loadinternal", "exception"), "TemplateModification could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "TemplateModification", "Exception while loading TemplateModification object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public TemplateModification Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							TemplateModificationTable.GetColumnNames("[tm]") + 
+							(this.Depth > 0 ? "," + TemplateTable.GetColumnNames("[tm_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentProviderTable.GetColumnNames("[tm_pp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[tm_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[tm_c_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CurrencyTable.GetColumnNames("[tm_c_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[tm_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[tm_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[tm_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[tm_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[tm_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[tm_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[tm_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[tm_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[tm_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[tm_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[tm_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[tm_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[tm_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[tm_mo_c]") : string.Empty) +  
+					" FROM [core].[TemplateModification] AS [tm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [tm_t] ON [tm].[TemplateID] = [tm_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentProvider] AS [tm_pp] ON [tm].[PaymentProviderID] = [tm_pp].[PaymentProviderID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tm_c] ON [tm].[CountryID] = [tm_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [tm_c_l] ON [tm_c].[LanguageID] = [tm_c_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Currency] AS [tm_c_c] ON [tm_c].[CurrencyID] = [tm_c_c].[CurrencyID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [tm_s] ON [tm].[ServiceID] = [tm_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [tm_s_a] ON [tm_s].[ApplicationID] = [tm_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [tm_s_p] ON [tm_s].[ProductID] = [tm_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [tm_s_m] ON [tm_s].[MerchantID] = [tm_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [tm_s_st] ON [tm_s].[ServiceTypeID] = [tm_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [tm_s_ust] ON [tm_s].[UserSessionTypeID] = [tm_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tm_s_c] ON [tm_s].[FallbackCountryID] = [tm_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [tm_s_l] ON [tm_s].[FallbackLanguageID] = [tm_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [tm_s_ar] ON [tm_s].[FallbackAgeRatingID] = [tm_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [tm_s_sc] ON [tm_s].[ServiceConfigurationID] = [tm_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [tm_s_bm] ON [tm_s].[BusinessModelID] = [tm_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [tm_s_t] ON [tm_s].[TemplateID] = [tm_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [tm_mo] ON [tm].[MobileOperatorID] = [tm_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tm_mo_c] ON [tm_mo].[CountryID] = [tm_mo_c].[CountryID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tm", "customload", "notfound"), "TemplateModification could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				TemplateModificationTable tmTable = new TemplateModificationTable(query);
+				TemplateTable tm_tTable = (this.Depth > 0) ? new TemplateTable(query) : null;
+				PaymentProviderTable tm_ppTable = (this.Depth > 0) ? new PaymentProviderTable(query) : null;
+				CountryTable tm_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable tm_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				CurrencyTable tm_c_cTable = (this.Depth > 1) ? new CurrencyTable(query) : null;
+				ServiceTable tm_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable tm_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable tm_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable tm_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable tm_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable tm_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable tm_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable tm_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable tm_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable tm_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable tm_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable tm_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				MobileOperatorTable tm_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable tm_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+
+        
+				Template tm_tObject = (this.Depth > 0) ? tm_tTable.CreateInstance() : null;
+				PaymentProvider tm_ppObject = (this.Depth > 0) ? tm_ppTable.CreateInstance() : null;
+				Language tm_c_lObject = (this.Depth > 1) ? tm_c_lTable.CreateInstance() : null;
+				Currency tm_c_cObject = (this.Depth > 1) ? tm_c_cTable.CreateInstance() : null;
+				Country tm_cObject = (this.Depth > 0) ? tm_cTable.CreateInstance(tm_c_lObject, tm_c_cObject) : null;
+				Application tm_s_aObject = (this.Depth > 1) ? tm_s_aTable.CreateInstance() : null;
+				Product tm_s_pObject = (this.Depth > 1) ? tm_s_pTable.CreateInstance() : null;
+				Merchant tm_s_mObject = (this.Depth > 1) ? tm_s_mTable.CreateInstance() : null;
+				ServiceType tm_s_stObject = (this.Depth > 1) ? tm_s_stTable.CreateInstance() : null;
+				UserSessionType tm_s_ustObject = (this.Depth > 1) ? tm_s_ustTable.CreateInstance() : null;
+				Country tm_s_cObject = (this.Depth > 1) ? tm_s_cTable.CreateInstance() : null;
+				Language tm_s_lObject = (this.Depth > 1) ? tm_s_lTable.CreateInstance() : null;
+				AgeRating tm_s_arObject = (this.Depth > 1) ? tm_s_arTable.CreateInstance() : null;
+				ServiceConfiguration tm_s_scObject = (this.Depth > 1) ? tm_s_scTable.CreateInstance() : null;
+				BusinessModel tm_s_bmObject = (this.Depth > 1) ? tm_s_bmTable.CreateInstance() : null;
+				Template tm_s_tObject = (this.Depth > 1) ? tm_s_tTable.CreateInstance() : null;
+				Service tm_sObject = (this.Depth > 0) ? tm_sTable.CreateInstance(tm_s_aObject, tm_s_pObject, tm_s_mObject, tm_s_stObject, tm_s_ustObject, tm_s_cObject, tm_s_lObject, tm_s_arObject, tm_s_scObject, tm_s_bmObject, tm_s_tObject) : null;
+				Country tm_mo_cObject = (this.Depth > 1) ? tm_mo_cTable.CreateInstance() : null;
+				MobileOperator tm_moObject = (this.Depth > 0) ? tm_moTable.CreateInstance(tm_mo_cObject) : null;
+				TemplateModification tmObject = tmTable.CreateInstance(tm_tObject, tm_ppObject, tm_cObject, tm_sObject, tm_moObject);
+				sqlReader.Close();
+
+				return tmObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tm", "customload", "exception"), "TemplateModification could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "TemplateModification", "Exception while loading (custom/single) TemplateModification object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<TemplateModification> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							TemplateModificationTable.GetColumnNames("[tm]") + 
+							(this.Depth > 0 ? "," + TemplateTable.GetColumnNames("[tm_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentProviderTable.GetColumnNames("[tm_pp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + CountryTable.GetColumnNames("[tm_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[tm_c_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CurrencyTable.GetColumnNames("[tm_c_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[tm_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[tm_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[tm_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[tm_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[tm_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[tm_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[tm_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[tm_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[tm_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[tm_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[tm_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[tm_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[tm_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[tm_mo_c]") : string.Empty) +  
+					" FROM [core].[TemplateModification] AS [tm] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [tm_t] ON [tm].[TemplateID] = [tm_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentProvider] AS [tm_pp] ON [tm].[PaymentProviderID] = [tm_pp].[PaymentProviderID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tm_c] ON [tm].[CountryID] = [tm_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [tm_c_l] ON [tm_c].[LanguageID] = [tm_c_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Currency] AS [tm_c_c] ON [tm_c].[CurrencyID] = [tm_c_c].[CurrencyID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [tm_s] ON [tm].[ServiceID] = [tm_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [tm_s_a] ON [tm_s].[ApplicationID] = [tm_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [tm_s_p] ON [tm_s].[ProductID] = [tm_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [tm_s_m] ON [tm_s].[MerchantID] = [tm_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [tm_s_st] ON [tm_s].[ServiceTypeID] = [tm_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [tm_s_ust] ON [tm_s].[UserSessionTypeID] = [tm_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tm_s_c] ON [tm_s].[FallbackCountryID] = [tm_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [tm_s_l] ON [tm_s].[FallbackLanguageID] = [tm_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [tm_s_ar] ON [tm_s].[FallbackAgeRatingID] = [tm_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [tm_s_sc] ON [tm_s].[ServiceConfigurationID] = [tm_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [tm_s_bm] ON [tm_s].[BusinessModelID] = [tm_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [tm_s_t] ON [tm_s].[TemplateID] = [tm_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [tm_mo] ON [tm].[MobileOperatorID] = [tm_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [tm_mo_c] ON [tm_mo].[CountryID] = [tm_mo_c].[CountryID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tm", "customloadmany", "notfound"), "TemplateModification list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<TemplateModification>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				TemplateModificationTable tmTable = new TemplateModificationTable(query);
+				TemplateTable tm_tTable = (this.Depth > 0) ? new TemplateTable(query) : null;
+				PaymentProviderTable tm_ppTable = (this.Depth > 0) ? new PaymentProviderTable(query) : null;
+				CountryTable tm_cTable = (this.Depth > 0) ? new CountryTable(query) : null;
+				LanguageTable tm_c_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				CurrencyTable tm_c_cTable = (this.Depth > 1) ? new CurrencyTable(query) : null;
+				ServiceTable tm_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable tm_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable tm_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable tm_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable tm_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable tm_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable tm_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable tm_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable tm_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable tm_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable tm_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable tm_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				MobileOperatorTable tm_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable tm_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+
+        List<TemplateModification> result = new List<TemplateModification>();
+        do
+        {
+          
+					Template tm_tObject = (this.Depth > 0) ? tm_tTable.CreateInstance() : null;
+					PaymentProvider tm_ppObject = (this.Depth > 0) ? tm_ppTable.CreateInstance() : null;
+					Language tm_c_lObject = (this.Depth > 1) ? tm_c_lTable.CreateInstance() : null;
+					Currency tm_c_cObject = (this.Depth > 1) ? tm_c_cTable.CreateInstance() : null;
+					Country tm_cObject = (this.Depth > 0) ? tm_cTable.CreateInstance(tm_c_lObject, tm_c_cObject) : null;
+					Application tm_s_aObject = (this.Depth > 1) ? tm_s_aTable.CreateInstance() : null;
+					Product tm_s_pObject = (this.Depth > 1) ? tm_s_pTable.CreateInstance() : null;
+					Merchant tm_s_mObject = (this.Depth > 1) ? tm_s_mTable.CreateInstance() : null;
+					ServiceType tm_s_stObject = (this.Depth > 1) ? tm_s_stTable.CreateInstance() : null;
+					UserSessionType tm_s_ustObject = (this.Depth > 1) ? tm_s_ustTable.CreateInstance() : null;
+					Country tm_s_cObject = (this.Depth > 1) ? tm_s_cTable.CreateInstance() : null;
+					Language tm_s_lObject = (this.Depth > 1) ? tm_s_lTable.CreateInstance() : null;
+					AgeRating tm_s_arObject = (this.Depth > 1) ? tm_s_arTable.CreateInstance() : null;
+					ServiceConfiguration tm_s_scObject = (this.Depth > 1) ? tm_s_scTable.CreateInstance() : null;
+					BusinessModel tm_s_bmObject = (this.Depth > 1) ? tm_s_bmTable.CreateInstance() : null;
+					Template tm_s_tObject = (this.Depth > 1) ? tm_s_tTable.CreateInstance() : null;
+					Service tm_sObject = (this.Depth > 0) ? tm_sTable.CreateInstance(tm_s_aObject, tm_s_pObject, tm_s_mObject, tm_s_stObject, tm_s_ustObject, tm_s_cObject, tm_s_lObject, tm_s_arObject, tm_s_scObject, tm_s_bmObject, tm_s_tObject) : null;
+					Country tm_mo_cObject = (this.Depth > 1) ? tm_mo_cTable.CreateInstance() : null;
+					MobileOperator tm_moObject = (this.Depth > 0) ? tm_moTable.CreateInstance(tm_mo_cObject) : null;
+					TemplateModification tmObject = (this.Depth > -1) ? tmTable.CreateInstance(tm_tObject, tm_ppObject, tm_cObject, tm_sObject, tm_moObject) : null;
+					result.Add(tmObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tm", "customloadmany", "exception"), "TemplateModification list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "TemplateModification", "Exception while loading (custom/many) TemplateModification object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, TemplateModification data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[TemplateModification] ([TemplateID],[PaymentProviderID],[CountryID],[ServiceID],[MobileOperatorID],[Data],[Description],[IsActive]) VALUES(@TemplateID,@PaymentProviderID,@CountryID,@ServiceID,@MobileOperatorID,@Data,@Description,@IsActive); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@TemplateID", data.Template.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentProviderID", data.PaymentProvider == null ? DBNull.Value : (object)data.PaymentProvider.ID);
+				sqlCmd.Parameters.AddWithValue("@CountryID", data.Country == null ? DBNull.Value : (object)data.Country.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service == null ? DBNull.Value : (object)data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@MobileOperatorID", data.MobileOperator == null ? DBNull.Value : (object)data.MobileOperator.ID);
+				sqlCmd.Parameters.AddWithValue("@Data", data.Data).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@IsActive", data.IsActive).SqlDbType = SqlDbType.Bit;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tm", "insert", "noprimarykey"), "TemplateModification could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "TemplateModification", "Exception while inserting TemplateModification object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tm", "insert", "exception"), "TemplateModification could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "TemplateModification", "Exception while inserting TemplateModification object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, TemplateModification data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[TemplateModification] SET " +
+												"[TemplateID] = @TemplateID, " + 
+												"[PaymentProviderID] = @PaymentProviderID, " + 
+												"[CountryID] = @CountryID, " + 
+												"[ServiceID] = @ServiceID, " + 
+												"[MobileOperatorID] = @MobileOperatorID, " + 
+												"[Data] = @Data, " + 
+												"[Description] = @Description, " + 
+												"[IsActive] = @IsActive, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [TemplateModificationID] = @TemplateModificationID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@TemplateID", data.Template.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentProviderID", data.PaymentProvider == null ? DBNull.Value : (object)data.PaymentProvider.ID);
+				sqlCmd.Parameters.AddWithValue("@CountryID", data.Country == null ? DBNull.Value : (object)data.Country.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service == null ? DBNull.Value : (object)data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@MobileOperatorID", data.MobileOperator == null ? DBNull.Value : (object)data.MobileOperator.ID);
+				sqlCmd.Parameters.AddWithValue("@Data", data.Data).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@IsActive", data.IsActive).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@TemplateModificationID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tm", "update", "norecord"), "TemplateModification could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "TemplateModification", "Exception while updating TemplateModification object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tm", "update", "morerecords"), "TemplateModification was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "TemplateModification", "Exception while updating TemplateModification object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tm", "update", "exception"), "TemplateModification could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "TemplateModification", "Exception while updating TemplateModification object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, TemplateModification data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[TemplateModification] WHERE TemplateModificationID = @TemplateModificationID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@TemplateModificationID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tm", "delete", "norecord"), "TemplateModification could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "TemplateModification", "Exception while deleting TemplateModification object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("tm", "delete", "exception"), "TemplateModification could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "TemplateModification", "Exception while deleting TemplateModification object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

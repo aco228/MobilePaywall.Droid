@@ -1,0 +1,506 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Direct;
+using Senti.Diagnostics.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall
+{
+  public abstract class CacheBase : ICache
+  {
+    #region #log#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (CacheBase._log == null)
+          CacheBase._log = LogManager.GetLogger(typeof(CacheBase));
+        return CacheBase._log;
+      }
+    }
+    #endregion
+
+    protected static readonly object CacheLockObject = new object();
+
+    protected Data.Application _applicationData = null;
+    protected List<IContentGroup> _groups = null;
+    protected List<IContent> _items = null;
+    protected SortedDictionary<int, IContent> _contentMap = null;
+    protected SortedDictionary<int, Dictionary<int, IContent>> _serviceContentMap = null;
+    protected SortedDictionary<ThumbnailKey, ContentThumbnailData> _thumbnails = null;
+    protected SortedDictionary<int, List<ContentThumbnailData>> _contentThumbnailMap = null;
+
+    public Data.Application ApplicationData { get { return this._applicationData; } set { this._applicationData = value; } }
+    public List<IContentGroup> Groups { get { return this._groups; } set { this._groups = value; } }
+    public List<IContent> Items { get { return this._items; } set { this._items = value; } }
+    public SortedDictionary<int, IContent> ContentMap { get { return this._contentMap; } set { this._contentMap = value; } }
+    public SortedDictionary<int, Dictionary<int, IContent>> ServiceContentMap { get { return this._serviceContentMap; } set { this._serviceContentMap = value; } }
+    public SortedDictionary<ThumbnailKey, ContentThumbnailData> Thumbnails { get { return this._thumbnails; } set { this._thumbnails = value; } }
+    public SortedDictionary<int, List<ContentThumbnailData>> ContentThumbnailMap { get { return this._contentThumbnailMap; } set { this._contentThumbnailMap = value; } }
+
+    public CacheBase()
+    {
+      this.Initialize();
+    }
+
+    public CacheBase(Data.Application application)
+    {
+      this._applicationData = application;
+      this.Initialize();
+    }
+
+    private void Initialize()
+    {
+      this.LoadGroups();
+      this.LoadItems();
+      this.LoadThumbnails();
+      this.MapContent();
+    }
+
+    protected virtual void LoadGroups()
+    {
+      List<ContentGroup> groups = null;
+      if (this._applicationData == null)
+        groups = (from cg in ContentGroup.LoadAll() where cg.IsEnabled select cg).ToList();
+      else
+        groups = (from scg in ServiceContentGroupMap.LoadByApplication(this.ApplicationData) where scg.ContentGroup.IsEnabled select scg.ContentGroup).ToList();
+
+      if (groups == null)
+        Log.Debug(new LogMessageBuilder(new LogErrorCode("paywall.core", "cache", "groups"), "Groups was not loaded.", this.ApplicationData));
+
+      this._groups = new List<IContentGroup>();
+      foreach (ContentGroup group in groups)
+        this._groups.Add(group.Instantiate());
+    }
+
+    protected virtual void LoadItems()
+    {
+      if (this._groups == null)
+        return;
+
+      this._items = new List<IContent>();
+      this._contentMap = new SortedDictionary<int, IContent>();
+
+      foreach (IContentGroup group in this._groups)
+      {
+        List<IContent> items = group.LoadContent();
+        this._items.AddRange(items);
+        foreach (IContent item in items)
+        {
+          if (!this._contentMap.ContainsKey(item.ContentData.ID))
+            this._contentMap.Add(item.ContentData.ID, item);
+        }
+      }
+    }
+
+    protected virtual void LoadThumbnails()
+    {
+      if (this._thumbnails == null)
+      {
+        lock (CacheLockObject)
+        {
+          this._thumbnails = new SortedDictionary<ThumbnailKey, ContentThumbnailData>();
+          this._contentThumbnailMap = new SortedDictionary<int, List<ContentThumbnailData>>();
+
+          IContentThumbnailDataManager ctdmanager = ContentThumbnailData.CreateManager();
+          MobilePaywallDirect db = MobilePaywallDirect.Instance;
+
+          DirectContainer contentThumbnails = db.LoadContainer(string.Format(@"            
+            SELECT ctd.ContentThumbnailDataID FROM MobilePaywall.core.ContentThumbnail AS ct
+            LEFT OUTER JOIN MobilePaywall.core.ContentThumbnailData AS ctd ON ctd.ContentThumbnailID=ct.ContentThumbnailID
+            LEFT OUTER JOIN MobilePaywall.core.ThumbnailConversionProfileEntry AS pe ON ctd.ThumbnailConversionProfileEntryID=pe.ThumbnailConversionProfileEntryID
+            LEFT OUTER JOIN MobilePaywall.core.Content AS c ON ct.ContentID=c.ContentID
+            LEFT OUTER JOIN MobilePaywall.core.ContentGroup AS cg ON c.ContentGroupID=cg.ContentGroupID
+            LEFT OUTER JOIN MobilePaywall.core.ServiceContentGroupMap AS scgm ON scgm.ContentGroupID=cg.ContentGroupID
+            LEFT OUTER JOIN MobilePaywall.core.Service AS s ON scgm.ServiceID=s.ServiceID
+            WHERE ct.IsDefault=1 AND pe.VisualMediaDimensionsID=16 AND ctd.IsOriginal=0 AND s.ApplicationID={0}
+            GROUP BY ctd.ContentThumbnailDataID", this._applicationData.ID));
+
+          if (!contentThumbnails.HasValue)
+            return;
+          
+          foreach(DirectContainerRow row in contentThumbnails.Rows)
+          {
+            if (!row.HasValue)
+              continue;
+
+            int? ctdid = row.GetInt("ContentThumbnailDataID");
+            if (!ctdid.HasValue)
+              continue;
+
+            ContentThumbnailData ctd = ctdmanager.Load(ctdid.Value);
+            if (ctd == null) continue;
+            
+            ThumbnailKey key = new ThumbnailKey(ctd.ContentThumbnail.Content.ID, ctd.ContentThumbnail.ID, ctd.ThumbnailConversionProfileEntry.ID);
+            if (this._thumbnails.ContainsKey(key))
+              continue;
+
+            this._thumbnails.Add(key, ctd);
+            if (!this._contentThumbnailMap.ContainsKey(ctd.ContentThumbnail.Content.ID))
+              this._contentThumbnailMap.Add(ctd.ContentThumbnail.Content.ID, new List<ContentThumbnailData>());
+
+            this._contentThumbnailMap[ctd.ContentThumbnail.Content.ID].Add(ctd);
+          }
+        }
+      }
+    }
+
+    // SUMMARY: Add custom thumbnail for content in cache (Example: html5 applications who have thumbanils in project folder)
+    public virtual void AddCustomThumbnail(IContent content, byte[] data)
+    {
+      if (this.ContentThumbnailMap.ContainsKey(content.ContentData.ID))
+        return;
+
+      ContentThumbnailData thumbnail = new ContentThumbnailData(-1, null, null, false, data, DateTime.Now, DateTime.Now);
+      thumbnail.CacheData = true;
+      ThumbnailKey key = new ThumbnailKey(content.ContentData.ID, -1, 16);
+
+      if (this._thumbnails.ContainsKey(key))
+        return;
+
+      this._thumbnails.Add(key, thumbnail);
+      this._contentThumbnailMap.Add(content.ContentData.ID, new List<ContentThumbnailData>());
+      this._contentThumbnailMap[content.ContentData.ID].Add(thumbnail);
+    }
+
+    // SUMMARY: Take number of random content from this._items
+    public virtual List<IContent> TakeRandom(int number)
+    {
+      List<IContent> returnContent = new List<IContent>();
+      Random rand = new Random();
+      List<int> selectedNumbers = new List<int>();
+
+      for(int i = 0; i < number; i++)
+      {
+        int index = rand.Next(0, this._items.Count);
+        if(selectedNumbers.Contains(index))
+        {
+          i--;
+          continue;
+        }
+
+        returnContent.Add(this._items.ElementAt(index));
+        selectedNumbers.Add(index);
+      }
+
+      return returnContent;
+    }
+
+    protected virtual void MapContent()
+    {
+      List<ServiceContentGroupMap> serviceContentGroupMap = new List<ServiceContentGroupMap>();
+      if (this._applicationData == null)
+        serviceContentGroupMap = ServiceContentGroupMap.LoadAll();
+      else
+        serviceContentGroupMap = ServiceContentGroupMap.LoadByApplication(this._applicationData);
+
+      this._serviceContentMap = new SortedDictionary<int, Dictionary<int, IContent>>();
+      ITemplateServiceContentSortManager tscsManager = TemplateServiceContentSort.CreateManager();
+
+      foreach (ServiceContentGroupMap scgm in serviceContentGroupMap)
+      {
+        Dictionary<int, IContent> current = null;
+        if (this._serviceContentMap.ContainsKey(scgm.Service.ID))
+          current = this._serviceContentMap[scgm.Service.ID];
+        else
+          current = new Dictionary<int, IContent>();
+
+        List<IContent> contents = new List<IContent>();
+        foreach (KeyValuePair<int, IContent> kv in this._contentMap)
+          if (kv.Value.ContentData.ContentGroup.ID == scgm.ContentGroup.ID)
+            contents.Add(kv.Value);
+
+        TemplateServiceContentSort sortedContent = tscsManager.Load(scgm.Service, scgm.ContentGroup);
+        if (sortedContent != null)
+          contents = sortedContent.SortContent(contents);
+
+        foreach (IContent c in contents)
+          if(!current.ContainsKey(c.ContentData.ID))
+            current.Add(c.ContentData.ID, c);
+        
+        //foreach (KeyValuePair<int, IContent> kv in this._contentMap)
+        //  if (kv.Value.ContentData.ContentGroup.ID == scgm.ContentGroup.ID)
+        //    current.Add(kv.Key, kv.Value);
+        
+        if (!this._serviceContentMap.ContainsKey(scgm.Service.ID))
+          this._serviceContentMap.Add(scgm.Service.ID, current);
+      }
+    }
+
+    public virtual IContent GetContent(int contentID)
+    {
+      if (this._contentMap.ContainsKey(contentID))
+        return this._contentMap[contentID];
+
+      Log.Warn(new LogMessageBuilder(new LogErrorCode("paywall.core", "contentcache", "getcontent"),
+        string.Format("Content (ID: {0}) was not found in cache.", contentID)));
+      return null;
+    }
+
+    public virtual IContent GetContent(Guid contentGuid)
+    {
+      //TODO: Add ContentGuid column in Content table after ContentID!
+      throw new NotImplementedException();
+    }
+
+    public virtual IContent GetContent(Data.VideoContent videoContent)
+    {
+      if (this._contentMap.ContainsKey(videoContent.Content.ID))
+        return this._contentMap[videoContent.Content.ID];
+
+      Log.Warn(new LogMessageBuilder(new LogErrorCode("paywall.core", "contentcache", "getcontent"),
+        string.Format("Content (ID: {0}) for VideoContent (ID: {1}), was not found in cache.", videoContent.Content.ID, videoContent.ID)));
+      return null;
+    }
+
+    public virtual List<Category> FilterCategory(int serviceID, int configurationID)
+    {
+      IServiceManager sManager = Service.CreateManager();
+      Service service = sManager.Load(serviceID);
+      if (service == null)
+        return null;
+
+      IServiceConfigurationEntryManager sceManager = ServiceConfigurationEntry.CreateManager();
+      ServiceConfigurationEntry configuration = sceManager.Load(configurationID);
+      if (configuration == null)
+        return null;
+
+      return this.FilterCategory(service, configuration);
+    }
+
+    //INFO: FilterCategory will return list of categories which has for specified service and allowed for provided configuration.
+    public virtual List<Category> FilterCategory(Service service, ServiceConfigurationEntry configuration)
+    {
+      List<Category> categories = new List<Category>();
+      if (!this._serviceContentMap.ContainsKey(service.ID))
+      {
+        Log.Error("CacheBase.FilterCategory:: In _serviceContentMap there is no entry with serviceID:" + service.ID);
+        return null;
+      }
+
+      AgeRating ageRating = configuration != null ? configuration.AgeRating : service.FallbackAgeRating;
+      AgeRatingSelectionMode selectionMode = configuration != null ? configuration.AgeRatingSelectionMode : service.FallbackAgeRatingSelectionMode;
+      
+      foreach (KeyValuePair<int, IContent> kv in this._serviceContentMap[service.ID])
+      {
+        foreach (Category category in kv.Value.Categories)
+        {
+          if (categories.Contains(category))
+            continue;
+          else
+            switch (selectionMode)
+            {
+              case AgeRatingSelectionMode.Unknown:
+                categories.Add(category);
+                break;
+              case AgeRatingSelectionMode.Lower:
+                if (kv.Value.ContentData.AgeRating.Index <= ageRating.Index)
+                {
+                  categories.Add(category);
+                  continue;
+                }
+                break;
+              case AgeRatingSelectionMode.Greater:
+                if (kv.Value.ContentData.AgeRating.Index >= ageRating.Index)
+                {
+                  categories.Add(category);
+                  continue;
+                }
+                break;
+              case AgeRatingSelectionMode.Exact:
+                if (kv.Value.ContentData.AgeRating.Index == ageRating.Index)
+                {
+                  categories.Add(category);
+                  continue;
+                }
+                break;
+              default:
+                continue;
+            }
+        }
+      }
+      
+      return categories;
+    }
+
+    public virtual List<IContent> FilterContent(int serviceID, int configurationID, int? categoryID, int? page, int items)
+    {
+      IServiceManager sManager = Service.CreateManager();
+      Service service = sManager.Load(serviceID);
+      if (service == null)
+        return null;
+
+      IServiceConfigurationEntryManager sceManager = ServiceConfigurationEntry.CreateManager();
+      ServiceConfigurationEntry serviceConfigurationEntry = sceManager.Load(configurationID);
+      if (serviceConfigurationEntry == null)
+        return null;
+
+      ICategoryManager cManager = Category.CreateManager();
+      Category category = categoryID.HasValue ? cManager.Load(categoryID.Value) : null;
+
+      return this.FilterContent(service, serviceConfigurationEntry, category, page, items);
+    }
+
+    public virtual List<IContent> FilterContent(Data.Service service, Data.ServiceConfigurationEntry configuration, Data.Category category, int? page, int? items)
+    {
+      List<IContent> temporary = new List<IContent>();
+
+      if (!this._serviceContentMap.ContainsKey(service.ID))
+      {
+        Log.Error(new LogMessageBuilder(new LogErrorCode("paywall.core", "contentcache", "getcontent"), " -- CACHE -- Service Content map does not exists  "));
+        return null;
+      }
+
+      AgeRating ageRating = configuration != null ? configuration.AgeRating : service.FallbackAgeRating;
+      AgeRatingSelectionMode selectionMode = configuration != null ? configuration.AgeRatingSelectionMode : service.FallbackAgeRatingSelectionMode;
+
+      Dictionary<int, IContent> current = this._serviceContentMap[service.ID];
+      if(category == null)
+        temporary.AddRange(current.Values);
+      else
+        temporary.AddRange((from v in current.Values
+                            where v.Categories.Contains(category)
+                            select v).ToList());
+
+      /*
+      switch (selectionMode)
+      {
+        case AgeRatingSelectionMode.Unknown:
+          break;
+        case AgeRatingSelectionMode.Lower:
+          temporary = (from t in temporary where t.ContentData.AgeRating.Index <= ageRating.Index select t).ToList();
+          break;
+        case AgeRatingSelectionMode.Greater:
+          temporary = (from t in temporary where t.ContentData.AgeRating.Index >= ageRating.Index select t).ToList();
+          break;
+        case AgeRatingSelectionMode.Exact:
+          temporary = (from t in temporary where t.ContentData.AgeRating.Index == ageRating.Index select t).ToList();
+          break;
+        default: break;
+      }
+      */
+            
+      if (temporary == null || temporary.Count == 0)
+      {
+        Log.Error(new LogMessageBuilder(new LogErrorCode("paywall.core", "contentcache", "getcontent"), " -- CACHE -- Temporary content are NULL or there are none "));
+        return null;
+      }
+
+      if (!page.HasValue)
+        page = 0;
+
+      if (!items.HasValue)
+        items = 0;
+
+      int skip = page.Value * items.Value;
+      skip = skip % temporary.Count;
+
+      int limit = skip + items.Value;
+      if (temporary.Count < limit)
+        items = temporary.Count - skip;
+
+      List<IContent> filtered = new List<IContent>();
+      filtered = temporary.Skip(skip).Take(items.Value).ToList();
+      if (filtered.Count < items.Value)
+        filtered.AddRange(temporary.Skip(items.Value - filtered.Count).Take(items.Value - filtered.Count));
+      
+      Log.Debug(new LogMessageBuilder(new LogErrorCode("paywall.core", "contentcache", "getcontent"), " -- CACHE -- Filtrer "));
+      return filtered;
+    }
+
+    public virtual ContentThumbnailData GetThumbnail(int contentID, int contentThumbnailID, int thumbnailConversionProfileEntryID)
+    {
+      Content content = Data.Content.LoadByContentID(contentID);
+      ContentThumbnail contentThumbnail = ContentThumbnail.LoadByContent<ContentThumbnail>(content);
+      ThumbnailConversionProfileEntry thumbnailConversionProfileEntry = ThumbnailConversionProfileEntry.LoadByThumbnailConversionProfileEntryID(thumbnailConversionProfileEntryID);
+      return this.LoadThumbnail(content, contentThumbnail, thumbnailConversionProfileEntry);
+    }
+
+    public virtual ContentThumbnailData GetThumbnail(Content content, ContentThumbnail contentThumbnail, ThumbnailConversionProfileEntry thumbnailConversionProfileEntry)
+    {
+      return this.LoadThumbnail(content, contentThumbnail, thumbnailConversionProfileEntry);
+    }
+    
+    protected virtual ContentThumbnailData LoadThumbnail(Content content, ContentThumbnail contentThumbnail, ThumbnailConversionProfileEntry thumbnailConversionProfileEntry)
+    {
+      if ((content == null || contentThumbnail == null || thumbnailConversionProfileEntry == null))
+        return null;
+
+      ThumbnailKey thumbnailKey = new ThumbnailKey(content.ID, contentThumbnail.ID, thumbnailConversionProfileEntry.ID);
+
+      if (this._thumbnails == null)
+        this._thumbnails = new SortedDictionary<ThumbnailKey, ContentThumbnailData>();
+
+      if (this._thumbnails.ContainsKey(thumbnailKey))
+        return this._thumbnails[thumbnailKey];
+
+      lock (CacheLockObject)
+      {
+        if (this._thumbnails.ContainsKey(thumbnailKey))
+          return this._thumbnails[thumbnailKey];
+
+        List<ContentThumbnailData> contentThumbnailDataList = ContentThumbnailData.LoadByContent(content, true);
+        foreach (ContentThumbnailData tcd in contentThumbnailDataList)
+        {
+          ThumbnailKey thumbnailKeyTemporary = new ThumbnailKey(content.ID, tcd.ContentThumbnail.ID, tcd.ThumbnailConversionProfileEntry.ID);
+          if (this._thumbnails.ContainsKey(thumbnailKeyTemporary)) continue;
+          this._thumbnails.Add(thumbnailKeyTemporary, tcd);
+        }
+      }
+      
+      ContentThumbnailData thumbnail = this._thumbnails[thumbnailKey];
+      if (thumbnail != null)
+        return thumbnail;
+
+      return this._thumbnails[thumbnailKey];
+    }
+
+    public virtual ContentThumbnail GetDefaultThumbnail(Content content)
+    {
+      if (content == null)
+        throw new ArgumentNullException("content");
+
+      ContentThumbnailData ctd = this.GetDefaultThumbnailData(content.ID);
+      if (ctd != null)
+        return ctd.ContentThumbnail;
+
+      return null;
+    }
+
+    public virtual ContentThumbnail GetDefaultThumbnail(int contentID)
+    {
+      ContentThumbnailData ctd = this.GetDefaultThumbnailData(contentID);
+      return (ctd != null) ? ctd.ContentThumbnail : null;
+    }
+
+    public virtual ContentThumbnailData GetDefaultThumbnailData(Content content)
+    {
+      if (content == null)
+        throw new ArgumentNullException("content");
+      return this.GetDefaultThumbnailData(content.ID);
+    }
+
+    public virtual ContentThumbnailData GetDefaultThumbnailData(int contentID)
+    {
+      if (!this.ContentThumbnailMap.ContainsKey(contentID))
+      {
+        //Log.Error(new LogMessageBuilder(new LogErrorCode("paywall.core", "contentcache", "getcontent"),
+        //  " - ContentThumbnailMap does not contain ContentID. Please check this as soon as posible. ContetnID= "+ contentID));
+        return null;
+      }
+
+      // TODO: (ctd.ThumbnailConversionProfileEntry.VisualMediaDimensions.ID = 1) because of Local testing. Find better way!
+      ContentThumbnailData result = (from ContentThumbnailData ctd in this.ContentThumbnailMap[contentID]
+                                     where (ctd.CacheData) || (ctd.ContentThumbnail.IsDefault && ctd.ThumbnailConversionProfileEntry.VisualMediaDimensions.ID == 16)
+                                     select ctd).FirstOrDefault();
+
+      return result;
+    }
+  }
+}

@@ -1,0 +1,213 @@
+﻿function ClientEdit()
+{
+  this._username = '';
+  this._email = '';
+
+  this._init = function () {
+    this._componentOnClick();
+    this._username = $('#inputUsername').val();
+    this._email = $('#inputEmail').val();
+
+    if (this._editMode())
+    {
+      $('#inputUsername').attr('disabled', 'disabled');
+      $('#inputEmail').attr('disabled', 'disabled');
+      $('#inputType option[value=' + $('#inputType').attr('initial') + ']').prop('selected', true);
+      $('#inputStatus option[value=' + $('#inputStatus').attr('initial') + ']').prop('selected', true);
+    }
+
+    this._submitListener();
+    this._customerCloseListener();
+  };
+
+  this._editMode = function () {
+    if (this._username != '' && this._email != '')
+      return true;
+    return false;
+  };
+
+  this._submitListener = function () {
+    var self = this;
+    $('#customerSubmit').click(function ()
+    {
+      var elem = $(this);
+      var data = self._validate(elem);
+      if (data == null) return;
+
+      _clientManager._ajax('update',
+          '&username=' + data.username + '&email=' + data.email + '&password=' + data.password + '&typeID=' + data.type + '&status=' + data.status,
+          function (response) {
+
+            if (!response.status) {
+              _application.BoxMessage('Client is successfully updated!', elem, true);
+              return;
+            }
+
+            if (response.method != 'Insert'){
+              self._updateClientTable(response);
+              _application.BoxMessage('Client is successfully updated!', elem, false);
+            }
+            else{
+              self._addClientToTable(response);
+              _application.BoxMessage('New client is created!', elem, false);
+            }
+
+          }, elem);
+    });
+  };
+
+  this._customerCloseListener = function () {
+    var self = this;
+    $('#customerClose').click(function () {
+      $('#ajax_append').html('');
+      delete self;
+    });
+  };
+
+  // SUMMARY: Check input data.
+  this._validate = function (elem) {
+    var username = this._username;
+    var email = this._email;;
+    var password = $('#inputNewPassword').val();
+    var type = $('#inputType option:selected').attr('value');
+    var status = $('#inputStatus option:selected').attr('value');
+
+    if (!this._editMode())
+    {
+      // ADD NEW CLIENT
+      username = $('#inputUsername').val();
+      if (username == '') {
+        _application.BoxMessage('You did not entered username!', elem, true);
+        return null;
+      }
+
+      if (this._checkUsername(username)){
+        _application.BoxMessage('Provided username allready exists!', elem, true);
+        return null;
+      }
+
+      email = $('#inputEmail').val();
+      if (email == '') {
+        _application.BoxMessage('You did not entered email!', elem, true);
+        return null;
+      }
+
+      if (this._checkEmail(email)){
+        _application.BoxMessage('Provided email allready exists!', elem, true);
+        return null;
+      }
+
+      if(password == '' || password != $('#inputRepeatPassword').val()){
+        _application.BoxMessage('You did not entered password or your passwords do not match!', elem, true);
+        return null;
+      }
+    }
+    else
+    {
+      // EDIT CLIENT
+      if (password != '' && password != $('#inputRepeatPassword').val()) {
+        _application.BoxMessage('Your passwords do not match!', elem, true);
+        return null;
+      }
+    }
+    
+    return {username: username,
+            password: password,
+            email: email,
+            type: type,
+            status: status};
+  };
+
+  // SUMMARY: Update informations about client after client update
+  this._updateClientTable = function (data) {
+    var row = $('#tr_' + data.ClientID);
+    console.log(data);
+    row.find('.tdUsername').html(data.Username);
+    row.find('.tdEmail').html(data.MailAddress);
+    row.find('.tdType').html(data.Type);
+    row.find('.tdStatus').html(data.Status);
+    row.find('.tdCreated').html(data.Created);
+
+    // Update client status label color
+    var tdStatusClass = (data.Status == 'Inactive') ? 'danger' : 'success';
+    row.find('.tdStatusWrapper').removeClass('label-success'); row.find('.tdStatusWrapper').removeClass('label-danger');
+    row.find('.tdStatusWrapper').addClass('label-' + tdStatusClass);
+  };
+
+  // SUMMARY: Add new client (inserted) to table of clients
+  this._addClientToTable = function (data) {
+    var html = '<tr role="row" class="even" id="tr_'+ data.ClientID +'">'+
+                  '<td class="sorting_1">'+
+                      '<a href="#" class="usernameList"><span class="tdUsername">' + data.Username + '</span></a>'+
+                   '</td>'+
+                   '<td>'+
+                      '<span class="emailList"><span class="tdEmail">' + data.MailAddress + '</span></span>' +
+                   '</td>'+
+                   '<td><span class="tdType"> ' + data.Type + ' </span></td>' +
+                   '<td>'+
+                      '<span class="label label-success"><span class="tdStatus">' + data.Status + '</span></span>' +
+                   '</td>'+
+                   '<td><span class="tdCreated">' + data.Created + '</span></td>' +
+                    '<td>'+
+                        '<button class="btn btn-block btn-default btn-flat btn-xs button_transaction_refund buttonEditClient" style="width:50px; height:30px; margin-top:0px;" clientguid="'+ data.ClientGuid +'">'+
+                            '<i class="fa fa-edit"></i>'+
+                        '</button>'+
+                    '</td>'+
+                '</tr>'
+    $('#clientAppend').append(html);
+  };
+
+  this._checkUsername = function (username) {
+    var returnValue = false;
+    $('.usernameList').each(function () {
+      if ($(this).text() == username)
+        returnValue = true;
+    });
+    return returnValue;
+  };
+
+  this._checkEmail = function (email) {
+    var returnValue = false;
+    $('.emailList').each(function () {
+      if ($(this).text() == email)
+        returnValue = true;
+    });
+    return returnValue;
+  };
+
+  this._componentOnClick = function () {
+    $('.inputComponent').click(function () {
+      if ($(this).attr('inuse') == 'true')
+        return;
+
+      var elem = $(this);
+      var checkbox = $(this).find('.inputComponentCheckbox');
+
+      checkbox.attr('disabled', 'disabled');
+      elem.attr('inuse', 'true');
+
+      var id = $(this).attr('componentid');
+      var clientID = $('#tbodyAccessPolicy').attr('clientid');
+
+      var accessMode = checkbox.is(':checked') == true ? false : true;
+      checkbox.prop('checked', accessMode);
+
+      _clientManager._ajax('AddComponent',
+        '&componentID=' + id + '&clientID=' + clientID + '&accessMode=' + accessMode,
+        function (response) {
+          elem.attr('inuse', 'false');
+          checkbox.removeAttr('disabled');
+
+          if (!response.status) {
+            _application.BoxMessage('There was error!', elem, true);
+            alert(response.message + " ");
+            checkbox.prop('checked', accessMode == 'true' ? 'false' : 'true');
+          }
+          else
+            _application.BoxMessage('Component saved!', elem, false);
+        }, elem);
+    });
+  };
+
+  this._init();
+}

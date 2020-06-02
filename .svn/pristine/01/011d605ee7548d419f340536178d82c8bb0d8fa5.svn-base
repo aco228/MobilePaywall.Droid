@@ -1,0 +1,65 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class VersionManager : IVersionManager
+  {
+    
+    public List<Version> Load()
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection);
+    }
+
+    public List<Version> Load(IConnectionInfo connection)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection);
+    }
+
+    public List<Version> Load(ISqlConnectionInfo connection)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      return this.LoadMany(connection, parameters);
+    }
+
+    public List<Version> Load(Vendor vendor)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, vendor);
+    }
+
+    public List<Version> Load(IConnectionInfo connection, Vendor vendor)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, vendor);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, vendor);
+    }
+
+    public List<Version> Load(ISqlConnectionInfo connection, Vendor vendor)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[v_p].VendorID = @VendorID";
+      parameters.Arguments.Add("VendorID", vendor.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+
+  }
+}
+

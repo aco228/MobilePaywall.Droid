@@ -1,0 +1,95 @@
+﻿using MobilePaywall.Direct;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Text;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Service.Callback.Controllers
+{
+	public class CCSubmitController : Controller
+	{
+		[Route("callback")]
+		public ActionResult Index()
+		{
+			string txid = Request["txid"] != null ? Request["txid"].ToString().ToLower() : "";
+			if (string.IsNullOrEmpty(txid))
+				return new HttpStatusCodeResult(500);
+
+			string iEvent = Request["event"] != null ? Request["event"].ToString().ToLower() : "subscribed";
+			if(iEvent.Equals("subscribed"))
+			{
+				string email = Request["email"] != null ? Request["email"].ToString() : string.Empty;
+				string username = Request["username"] != null ? Request["username"].ToString() : string.Empty;
+				string password = Request["password"] != null ? Request["password"].ToString() : string.Empty;
+				this.SendLoginToSportCallback(txid, username, password, email);
+			}
+
+			if (iEvent.ToLower().Equals("initial") && iEvent.ToLower().Equals("rebill") && iEvent.ToLower().Equals("subscribed"))
+				this.SendPostbackToSportCallback(txid, iEvent);
+
+			if (iEvent.ToLower().Equals("initial"))
+				this.SendPostbackToBananaclicks(txid);
+
+			return new HttpStatusCodeResult(200);
+		}
+
+		private void SendPostbackToBananaclicks(string transaction_id)
+		{
+			string postbackLink = "http://conversions.bananaclicks.com/?transaction_id=" + transaction_id;
+			HttpWebRequest webRequest = (HttpWebRequest)WebRequest.Create(postbackLink);
+			webRequest.AllowAutoRedirect = false;
+			HttpWebResponse response;
+			HttpStatusCode statusCode;
+
+			try
+			{
+				response = (HttpWebResponse)webRequest.GetResponse();
+			}
+			catch (WebException we)
+			{
+				return;
+			}
+		}
+
+		private void SendPostbackToSportCallback(string transaction_id, string type)
+		{
+			string postbackLink = "https://welcome.livesports.click/callback.php?lxid=" + transaction_id + "&type=" + type;
+			HttpWebRequest webRequest = (HttpWebRequest)WebRequest.Create(postbackLink);
+			webRequest.AllowAutoRedirect = false;
+			HttpWebResponse response;
+			HttpStatusCode statusCode;
+
+			try
+			{
+				response = (HttpWebResponse)webRequest.GetResponse();
+			}
+			catch (WebException we)
+			{
+				return;
+			}
+		}
+
+		private void SendLoginToSportCallback(string transaction_id, string username, string password, string email)
+		{
+			string postbackLink = "https://welcome.livesports.click/subscribe.php?set=" + string.Format("&lxid={0}&email={1}&username={2}&password={3}", transaction_id, email, username, password);
+			HttpWebRequest webRequest = (HttpWebRequest)WebRequest.Create(postbackLink);
+			webRequest.AllowAutoRedirect = false;
+			HttpWebResponse response;
+			HttpStatusCode statusCode;
+
+			try
+			{
+				response = (HttpWebResponse)webRequest.GetResponse();
+			}
+			catch (WebException we)
+			{
+				return;
+			}
+		}
+		
+	}
+}

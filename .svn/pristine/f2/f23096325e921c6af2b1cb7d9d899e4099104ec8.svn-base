@@ -1,0 +1,385 @@
+﻿using log4net;
+using MobilePaywall.MobilePaywallDirect;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Data
+{
+  public class OLCacher
+  {
+
+    #region #logging#
+
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (OLCacher._log == null)
+          OLCacher._log = LogManager.GetLogger(typeof(OLCacher));
+        return OLCacher._log;
+      }
+    }
+
+    #endregion #logging#
+
+    private OLCache _data = null;
+
+    public OLCache Data { get { return this._data; } }
+
+    public OLCacher()
+    {
+
+    }
+
+    public void Synchronize(UserSession userSession, bool tryFoundLookup = true)
+    {
+      if (userSession == null)
+      {
+        Log.Error("OlCache: UserSession provided is null");
+        return;
+      }
+
+      if (this._data == null)
+        this._data = OLCache.CreateManager().Load(userSession);
+
+      if (this._data != null)
+      {
+        bool update = false;
+
+        // Try to update MobileOperator data
+        if (userSession.MobileOperator != null)
+        {
+          this._data.MobileOperatorID = userSession.MobileOperator.ID; 
+          this._data.MobileOperatorName = userSession.MobileOperator.Name; 
+          update = true;
+        }
+
+        // try to update MobileOperator if UserSession has no MobileOperator
+        if(userSession.Customer != null && userSession.Customer.MobileOperator != null && userSession.MobileOperator == null)
+        {
+          userSession.MobileOperator = userSession.Customer.MobileOperator;
+          userSession.Update();
+          this._data.MobileOperatorName = userSession.MobileOperator.Name;
+          this._data.MobileOperatorID = userSession.MobileOperator.ID;
+          update = true;
+        }
+
+        // Try to update values that dont match
+        if ( !this._data.SessionCreated.HasValue ) { this._data.SessionCreated = userSession.Created; update = true; }
+        if ( this._data.SessionCreated != userSession.Created ) { this._data.SessionCreated = userSession.Created; update = true; }
+        if ( this._data.IPAddress != userSession.IPAddress) { this._data.IPAddress = userSession.IPAddress; update = true; }
+        if ( userSession.Customer != null && !string.IsNullOrEmpty(userSession.Customer.Msisdn) && !userSession.Customer.Msisdn.Equals(this._data.Msisdn)) { this._data.Msisdn = userSession.Customer.Msisdn; update = true; }
+        if ( string.IsNullOrEmpty(this._data.Msisdn) && userSession.Customer != null && !string.IsNullOrEmpty(userSession.Customer.Msisdn)) { this._data.Msisdn = userSession.Customer.Msisdn; update = true; }
+        if ( userSession.Country != null && this._data.CountryCode != userSession.Country.TwoLetterIsoCode) { this._data.CountryCode = userSession.Country.TwoLetterIsoCode; this._data.CountryName = userSession.Country.GlobalName; update = true; }
+        if ( string.IsNullOrEmpty(this._data.Pxid) && !string.IsNullOrEmpty(userSession.Pxid)) { this._data.Pxid = userSession.Pxid; update = true; }
+
+        // Try to update IdentificationSessionGuid data
+        if (!this._data.IdentificationSessionGuid.HasValue && tryFoundLookup)
+        {
+          LookupSession lsu = LookupSession.CreateManager().Load(userSession);
+          if (lsu != null && lsu.IdentificationSessionGuid.HasValue) { this._data.IdentificationSessionGuid = lsu.IdentificationSessionGuid; update = true; }
+        }
+
+        if (update)
+          this._data.Update();
+
+        return;
+      }
+
+      this._data = new OLCache(-1,
+        userSession.ID,
+        userSession.Service.ID,
+        userSession.Pxid,
+        userSession.IPAddress,
+        userSession.Domain.DomainName,
+        userSession.Service.FallbackCountry.TwoLetterIsoCode,
+        (userSession.Country != null ? userSession.Country.GlobalName : ""),
+        (userSession.Country != null ? userSession.Country.TwoLetterIsoCode : ""),
+        (userSession.MobileOperator != null) ? userSession.MobileOperator.ID : (int?)null,
+        (userSession.MobileOperator != null) ? userSession.MobileOperator.Name : (string)null,
+        null,
+        string.Empty,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        false,
+        userSession.Created,
+        DateTime.Now, DateTime.Now);
+      this._data.Insert();
+
+      if (!tryFoundLookup)
+        return;
+
+      LookupSession ls = LookupSession.CreateManager().Load(userSession);
+      if (ls != null)
+        this.Synchronize(ls);
+    }
+
+    public void Synchronize(LookupSession lookupSession)
+    {
+      if (lookupSession == null) return;
+      if (!lookupSession.IdentificationSessionGuid.HasValue) return;
+      this.Synchronize(lookupSession.UserSession, false);
+      if (this._data == null) return;
+
+      if (this._data.IdentificationSessionGuid.HasValue) return;
+      this._data.IdentificationSessionGuid = lookupSession.IdentificationSessionGuid;
+      this._data.Update();
+    }
+
+    public void Synchronize(Customer customer, UserSession userSession = null)
+    {
+      if (customer == null) return;
+      if (userSession == null)  
+        this.LoadByCustomer(customer);
+      else                      
+        this.Synchronize(userSession);
+
+      if (this._data == null) return;
+
+      if (customer.MobileOperator != null)
+      {
+        if (!this._data.MobileOperatorID.HasValue) this._data.MobileOperatorID = customer.MobileOperator.ID;
+        if (string.IsNullOrEmpty(this._data.MobileOperatorName)) this._data.MobileOperatorName = customer.MobileOperator.Name;
+      }
+
+      this._data.Msisdn = customer.Msisdn;
+      this._data.Update();
+    }
+
+    public void Synchronize(PaymentRequest paymentRequest)
+    {
+      if (paymentRequest == null) return;
+      this.LoadCacheByPaymentRequest(paymentRequest);
+      if (this._data == null) return;
+
+      if(string.IsNullOrEmpty(this._data.Msisdn) && paymentRequest.Customer != null)
+        this._data.Msisdn = paymentRequest.Customer.Msisdn;
+      if(!this._data.MobileOperatorID.HasValue && paymentRequest.MobileOperator != null)
+      {
+        this._data.MobileOperatorID = paymentRequest.MobileOperator.ID;
+        this._data.MobileOperatorName = paymentRequest.MobileOperator.Name;
+      }
+
+      this._data.PaymentRequestID = paymentRequest.ID;
+      this._data.Update();
+    }
+
+    public void Synchronize(Payment payment)
+    {
+      if (payment == null) return;
+      this.LoadCacheByPayment(payment);
+      if (this._data == null) return;
+
+      if (!this._data.PaymentRequestID.HasValue)
+        this._data.PaymentRequestID = payment.PaymentRequest.ID;
+
+      this._data.PaymentID = payment.ID;
+      this._data.PaymentCreated = payment.Created;
+      this._data.Update();
+    }
+
+    public void Synchronize(PaymentContentAccessPolicyMap map )
+    {
+      if (map == null) return;
+      this.LoadByPaymentContentMap(map);
+      if (this._data == null) return;
+
+      if (!this._data.PaymentID.HasValue)
+        this._data.PaymentID = map.Payment.ID;
+
+      this._data.PaymentContentAccessPolicyID = map.ID;
+      this._data.Update();
+    }
+
+    public void Synchronize(Transaction transaction)
+    {
+      if (transaction == null) return;
+      this.LoadByTransaction(transaction);
+      if (this._data == null) return;
+
+      if (!this._data.PaymentID.HasValue)
+        this._data.PaymentID = transaction.Payment.ID;
+
+      bool isSubsequent = false;
+      if ( (transaction.Created - this._data.SessionCreated.Value).Days > 1 )
+        isSubsequent = true;
+      else
+        isSubsequent = this.IsSubsequent(transaction);
+
+      if (!isSubsequent)
+      {
+        this._data.TransactionID = transaction.ID;
+        this._data.TransactionCreated = transaction.Created;
+        this._data.IsSubseguent = isSubsequent;
+        this._data.Update();
+      }
+      else
+        this.SynchronizeSubsequent(transaction);
+    }
+
+    private void SynchronizeSubsequent(Transaction transaction)
+    {
+      int? userSessionID = (new PaywallDirect()).LoadInt(@"SELECT pr.UserSessionID FROM MobilePaywall.core.[Transaction] as t
+                                                                  LEFT OUTER JOIN MobilePaywall.core.Payment AS p ON t.PaymentID=p.PaymentID
+                                                                  LEFT OUTER JOIN MobilePaywall.core.PaymentRequest AS pr ON p.PaymentRequestID=pr.PaymentRequestID
+                                                                  WHERE t.TransactionID=" + transaction.ID);
+      if (!userSessionID.HasValue)
+        return;
+
+      UserSession us = UserSession.CreateManager().Load(userSessionID.Value);
+      if (us == null)
+        return;
+
+      LookupSession ls = LookupSession.CreateManager().Load(us);
+
+      #region # AU FIX for Optus #
+
+      if (us.Country.TwoLetterIsoCode.Equals("AU") && (us.MobileOperator == null || us.Customer.MobileOperator == null))
+      {
+        MobileOperator optusOperator = MobileOperator.CreateManager().Load(394);
+        us.MobileOperator = optusOperator;
+        us.Update();
+
+        us.Customer.MobileOperator = optusOperator;
+        us.Customer.Update();
+      }
+
+      #endregion
+
+      this._data = new OLCache(-1,
+        userSessionID.Value,
+        us.Service.ID,
+        us.Pxid,
+        us.IPAddress,
+        us.Service.Name,
+        us.Service.FallbackCountry.TwoLetterIsoCode,
+        us.Country.GlobalName,
+        us.Country.TwoLetterIsoCode,
+        (us.MobileOperator != null) ? (int?)us.MobileOperator.ID : null,
+        (us.MobileOperator != null) ? us.MobileOperator.Name : null,
+        (ls != null) ? ls.IdentificationSessionGuid : null,
+        (us.Customer != null) ? us.Customer.Msisdn : null,
+        transaction.Payment.PaymentRequest.ID, //pr
+        transaction.Payment.ID, //p,
+        transaction.Payment.Created, // pCreated
+        null, // pcap
+        transaction.ID,
+        transaction.Created,
+        true,
+        us.Created,
+        DateTime.Now, DateTime.Now);
+      this._data.Insert();
+    }
+
+    public bool IsLookupSuccess(UserSession us)
+    {
+      this.Synchronize(us);
+      if (this._data == null || !this._data.IdentificationSessionGuid.HasValue)
+        return false;
+
+      int? value = new PaywallDirect().LoadInt(@"SELECT COUNT(*) AS br FROM MobilePaywall.core.LookupSessionResult AS lsr
+        LEFT OUTER JOIN MobilePaywall.core.LookupSession AS ls ON lsr.LookupSessionID=ls.LookupSessionID
+        WHERE lsr.IsFinalResult=1 AND lsr.IsSuccessful=1 AND ls.UserSessionID=" + this._data.UserSessionID);
+
+      return (value.HasValue && value.Value > 0);
+    }
+
+    /*
+      LOAD 
+    */
+
+
+    private void LoadCacheByPaymentRequest(PaymentRequest paymentRequest)
+    {
+      this._data = OLCache.CreateManager().Load(paymentRequest.UserSession.ID);
+      if (this._data == null)
+        this.Synchronize(UserSession.CreateManager().Load(paymentRequest.UserSession.ID));
+    }
+
+    private void LoadCacheByPayment(Payment payment)
+    {
+      //Log.Info("Cached: Loading payment:" + payment.ID);
+      DataTable table = new PaywallDirect().
+        Load("SELECT TOP 1 pr.UserSessionID FROM MobilePaywall.core.PaymentRequest AS pr WHERE pr.PaymentRequestID=" + payment.PaymentRequest.ID);
+      if (table == null || table.Rows.Count == 0)
+        return;
+
+      int sessionID = Int32.Parse(table.Rows[0][0].ToString());
+      this._data = OLCache.CreateManager().Load(sessionID);
+      if (this._data == null)
+        this.Synchronize(UserSession.CreateManager().Load(sessionID));
+    }
+
+    private void LoadByCustomer(Customer customer)
+    {
+      //Log.Info("Cached: Loading customer:" + customer.ID);
+      DataTable table = new PaywallDirect().
+        Load(@"SELECT TOP 1 us.UserSessionID 
+              FROM MobilePaywall.core.UserSession AS us 
+              WHERE us.CustomerID=" + customer.ID);
+      if (table == null || table.Rows.Count == 0 )
+        return;
+
+      int sessionID = Int32.Parse(table.Rows[0][0].ToString());
+      this._data = OLCache.CreateManager().Load(sessionID);
+      if (this._data == null)
+        this.Synchronize(UserSession.CreateManager().Load(sessionID));
+    }
+
+    private void LoadByPaymentContentMap(PaymentContentAccessPolicyMap map)
+    {
+      //Log.Info("Cached: Loading PaymentContentAccessPolicyMap:" + map.ID);
+      DataTable table = new PaywallDirect().
+        Load(@"SELECT TOP 1 pr.UserSessionID FROM MobilePaywall.core.PaymentContentAccessPolicyMap AS t 
+                LEFT OUTER JOIN MobilePaywall.core.Payment AS p ON t.PaymentID=p.PaymentID 
+                LEFT OUTER JOIN MObilePaywall.core.PaymentRequest AS pr ON p.PaymentRequestID=pr.PaymentRequestID 
+                WHERE t.PaymentContentAccessPolicyMapID=" + map.ID);
+      if (table == null || table.Rows.Count == 0)
+        return;
+
+      int sessionID = Int32.Parse(table.Rows[0][0].ToString());
+      this._data = OLCache.CreateManager().Load(sessionID);
+      if (this._data == null)
+        this.Synchronize(UserSession.CreateManager().Load(sessionID));
+    }
+
+    private void LoadByTransaction(Transaction transaction)
+    {
+      //Log.Info("Cached: Loading transaction:" + transaction.ID);
+      DataTable table = new PaywallDirect().
+        Load(@"SELECT TOP 1 pr.UserSessionID FROM MobilePaywall.core.[Transaction] AS t
+                LEFT OUTER JOIN MobilePaywall.core.Payment AS p ON t.PaymentID=p.PaymentID
+                LEFT OUTER JOIN MObilePaywall.core.PaymentRequest AS pr ON p.PaymentRequestID=pr.PaymentRequestID
+                WHERE t.TransactionID=" + transaction.ID);
+      if (table == null || table.Rows.Count == 0)
+        return;
+
+      int sessionID = Int32.Parse(table.Rows[0][0].ToString());
+      this._data = OLCache.CreateManager().Load(sessionID);
+      if (this._data == null)
+        this.Synchronize(UserSession.CreateManager().Load(sessionID));
+    }
+
+    private bool IsSubsequent(Transaction transaction)
+    {
+      DataTable table = new PaywallDirect().
+        Load("SELECT COUNT(*) FROM MobilePaywall.core.[Transaction] WHERE TransactionStatusID=5 AND PaymentID=" + transaction.Payment.ID + ";");
+      if (table == null || table.Rows.Count == 0)
+        return false;
+
+
+      return Int32.Parse(table.Rows[0][0].ToString()) > 1;
+    }
+
+  }
+}

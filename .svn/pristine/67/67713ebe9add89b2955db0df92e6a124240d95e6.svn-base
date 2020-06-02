@@ -1,0 +1,90 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using MobilePaywall.Data;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IQuizQuestionManager : IDataManager<QuizQuestion> 
+  {
+	
+
+  }
+
+  public partial class QuizQuestion : MobilePaywallObject<IQuizQuestionManager> 
+  {
+		private QuizContent _quizContent;
+		private Language _language;
+		private string _text = String.Empty;
+		private string _description = String.Empty;
+		
+
+		public QuizContent QuizContent 
+		{
+			get
+			{
+				if (this._quizContent != null &&
+						this._quizContent.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._quizContent = QuizContent.CreateManager().LazyLoad(this.ConnectionContext, this._quizContent.ID) as QuizContent;
+					else
+						this._quizContent = QuizContent.CreateManager().LazyLoad(this._quizContent.ID) as QuizContent;
+				return this._quizContent;
+			}
+			set { _quizContent = value; }
+		}
+
+		public Language Language 
+		{
+			get
+			{
+				if (this._language != null &&
+						this._language.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._language = Language.CreateManager().LazyLoad(this.ConnectionContext, this._language.ID) as Language;
+					else
+						this._language = Language.CreateManager().LazyLoad(this._language.ID) as Language;
+				return this._language;
+			}
+			set { _language = value; }
+		}
+
+		public string Text{ get {return this._text; } set { this._text = value;} }
+		public string Description{ get {return this._description; } set { this._description = value;} }
+		
+
+    public override bool IsInsertable { get { return true;} }
+
+    public override bool IsDeletable { get { return false;} }
+
+    public override bool IsUpdatable { get { return true;} }
+
+    public QuizQuestion()
+    { 
+    }
+
+    public QuizQuestion(int id): base(id, DateTime.Now, DateTime.Now, true)
+    {
+    }
+
+    public QuizQuestion(int id,  QuizContent quizContent, Language language, string text, string description, DateTime updated, DateTime created): base(id, updated, created, false)
+    {
+			this._quizContent = quizContent;
+			this._language = language;
+			this._text = text;
+			this._description = description;
+			
+    }
+
+    public override object Clone(bool deepClone)
+    {
+      return new QuizQuestion(-1,  this.QuizContent, this.Language,this.Text,this.Description, DateTime.Now, DateTime.Now);
+    }
+  }
+}
+

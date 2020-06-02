@@ -1,0 +1,150 @@
+﻿@model GRPaychimpViewModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+}
+
+@Styles.Render("~/Style/Black/Login")
+@*<link href="~/Content/_Specific/gr/disclaimer.css" rel="stylesheet" />*@
+<style>
+  .submitBtn { background: linear-gradient(to right, #86c540, #3db649); border: 1px solid #3db649; text-shadow: 1px 1px 1px rgba(0,0,0,.5); }
+  .checkboxError { color: red; display: none; }
+  #mesaLogo:hover{ background-color:initial !important; }
+  .checkboxHolder { font-size: 10px; margin: 11px auto; text-align: center;  font-weight: bold; padding:10px; }
+  .checkboxHolder input[type=checkbox]{width:30px; height:40px; float:left; margin-right: 10px;}
+</style>
+
+<link href="~/Content/Blank/Paychimp.css" rel="stylesheet" />
+
+<div id="login_section">
+  <div class="step1" style="display:initial">
+    <div class="header">Εισάγετε τον αριθμό του κινητού σας</div>
+    <div class="section_body" id="loginForm">
+      <div class="form_section">
+        <div class="form_label">Αριθμός Κινητού Τηλεφώνου:<span class="login_asterix">*</span></div>
+        <input id="input_number" type="text" name="name" value="" placeholder="69xxxxxxxx" />
+      </div>
+      <div class="submitBtn" id="submitNumber">ΣΥΝΕΧΕΙΑ</div>
+    </div>
+  </div>
+  <div class="step2" style="display:none">
+    <div class="header">Παρακαλούμε συμπληρώστε το PIN που λάβατε με δωρεάν μήνυμα στο κινητό σας</div>
+    <div class="section_body" id="loginForm">
+      <div class="form_section">
+        <div class="form_label">Κωδικός PIN:<span class="login_asterix">*</span></div>
+        <input id="input_pin" type="text" name="name" value="" placeholder="xxxx" maxlength="4" />
+        <div class="checkboxHolder js_hide">
+          <div class='double'> <input type="checkbox" id="checkbox"></div>
+            Αποδέχομαι να ενεργοποιήσω την υπηρεσία INSTANTPRIZE με χρέωση δύο ευρώ και οκτώ λεπτά ανά SMS, τρία sms ανά εβδομάδα και έχω λάβει γνώση των <a href="/terms">όρων χρήσης</a>. <a href="http://paychimp.co/pinakas-ypp/">Τέλική Τιμή Μηνύματος</a>
+          <div class="checkboxError" style="display: none;">Παρακαλούμε αποδεχτείτε τους όρους χρήσης για να προχωρήσετε</div>
+        </div>
+      </div>
+      <div>
+        
+      </div>
+      @*<div class="checkboxError">Παρακαλούμε αποδεχτείτε τους όρους χρήσης για να προχωρήσετε</div>*@
+      <div class="submitBtn" id="submitPin">ΕΠΙΒΕΒΑΙΩΣΗ</div>
+    </div>
+  </div>
+ 
+</div>
+
+<div> @{ Html.RenderPartial("_Dislaimer"); } </div>
+
+
+<script>
+  $(document).ready(function () {
+
+    
+    $('#submitNumber').click(function () {
+      SetupMsisdn();
+    });
+
+    $('#submitPin').click(function () {
+      SetupPin();
+    });  
+   
+  });
+
+  function SetupMsisdn() {
+    
+    var btn = $('#submitNumber');
+      var number = $('#input_number').val();
+
+      if (btn.attr('insue') == 'true')
+        return;
+
+      if (number == '') {
+        _visual.Alert('Πρέπει να πληκτρολογήσετε τον αριθμό!'); // You must enter number!
+        return;
+      }
+
+      var btnOriginalText = btn.text();
+      btn.text('ΠΑΡΑΚΑΛΩ ΠΕΡΙΜΕΝΕΤΕ');
+      btn.attr('inuse', 'true');
+
+      $.ajax({
+        url: '/GRPaychimp/SetupMsisdn',
+        data: { msisdn: number },
+        type: 'POST',
+        success: function (response) {
+
+          if (!response.status) {
+            _visual.Alert(response.message);
+            btn.text(btnOriginalText);
+            btn.attr('inuse', 'false');
+          }
+          else {
+            SetupPin();
+          }
+        }
+      });
+    
+  }
+  function SetupPin() {
+    $('.step1').css('display', 'none');
+    $('.step2').css('display', 'block');
+
+    $('#submitPin').click(function () {
+      var btn = $('#submitPin');
+      var pin = $('#input_pin').val();
+      if (btn.attr('inuse') != 'true') {
+
+        $('.checkboxError').css('display', 'none');
+        if ($('#checkbox').prop('checked') == false) {
+          $('.checkboxError').css('display', 'initial');
+          $('.checkboxError').css('color', 'red');
+          return;
+        }
+
+        if (pin == '') {
+          _visual.Alert('Πρέπει να εισαγάγετε την καρφίτσα!'); // You must enter pin!
+          SetupPin();
+        }
+        else {
+          var btnOriginalText = btn.text();
+          btn.text('ΠΑΡΑΚΑΛΩ ΠΕΡΙΜΕΝΕΤΕ');
+          btn.attr('inuse', 'true');
+
+          $.ajax({
+            url: '/GRPaychimp/SetupPin',
+            data: { pin: pin },
+            type: 'POST',
+            success: function (response) {
+
+              if (!response.status) {
+                _visual.Alert(response.message);
+                btn.text(btnOriginalText);
+                btn.attr('inuse', 'false');
+              }
+              else {
+                window.location = "/";
+              }
+            }
+          });
+        }
+      }
+    });
+
+      
+  }
+</script>

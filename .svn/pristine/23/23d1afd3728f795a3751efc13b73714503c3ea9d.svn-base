@@ -1,0 +1,67 @@
+﻿using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.GeoLocation
+{
+  public class GeoClient
+  {
+    public static GeoResult Get(string ip, string userAgent)
+    {
+      try
+      {
+        var webRequest = System.Net.WebRequest.Create("https://api.ip2id.com/api/lookup");
+        if (webRequest == null)
+          return null;
+
+        webRequest.Method = "POST";
+        webRequest.Timeout = 12000;
+        webRequest.ContentType = "application/json";
+        webRequest.ContentType = "application/json-patch+json";
+
+        string postData = @"
+				{
+					'ipAddress': '{ip}',
+					'userAgent': '{user}',
+					'login': {
+						'application': '4ae43306-dca3-422c-a476-028910e71592',
+						'username': 'markdroid',
+						'password': 'markdroid*123*'
+					}
+				}".Replace("{ip}", ip).Replace("{user}", userAgent).Replace("'", "\"").Replace("\t", string.Empty).Trim();
+
+        ASCIIEncoding encoding = new ASCIIEncoding();
+        byte[] byte1 = encoding.GetBytes(postData);
+        webRequest.ContentLength = byte1.Length;
+        Stream newStream = webRequest.GetRequestStream();
+        newStream.Write(byte1, 0, byte1.Length);
+
+        using (System.IO.Stream s = webRequest.GetResponse().GetResponseStream())
+        using (System.IO.StreamReader sr = new System.IO.StreamReader(s))
+        {
+          var jsonResponse = sr.ReadToEnd();
+          dynamic json = JsonConvert.DeserializeObject(jsonResponse);
+
+          return new GeoResult()
+          {
+            Country = json.data.geolocationData.countryCode,
+            CountryName = json.data.geolocationData.countryName,
+            MCC = json.data.geolocationData.MCC,
+            MNC = json.data.geolocationData.MNC,
+            DeviceType = json.data.deviceData.deviceType,
+            HardwareVendor = json.data.deviceData.hardwareVendor,
+            HardwareName = json.data.deviceData.hardwareName
+          };
+        }
+      }
+      catch (Exception ex)
+      {
+        return null;
+      }
+    }
+  }
+}

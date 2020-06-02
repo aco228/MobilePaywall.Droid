@@ -1,0 +1,60 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IAuctionContentDetailManager 
+  {
+
+    List<AuctionContentDetail> Load(AuctionContent content);
+    List<AuctionContentDetail> Load(IConnectionInfo connection, AuctionContent content);
+    List<AuctionContentDetail> Load(Service service);
+    List<AuctionContentDetail> Load(IConnectionInfo connection, Service service);
+    List<AuctionContentDetail> Load(Service service, Language language);
+    List<AuctionContentDetail> Load(IConnectionInfo connection, Service service, Language language);
+    AuctionContentDetail Load(AuctionContent content, Language language);
+    AuctionContentDetail Load(IConnectionInfo connection, AuctionContent content, Language language);
+    T Load<T>(AuctionContent content, Service service, Language language);
+    T Load<T>(IConnectionInfo connection, AuctionContent content, Service service, Language language);
+  }
+
+  public partial class AuctionContentDetail
+  {
+
+    public void UpdateWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void UpdateWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void InsertWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void InsertWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void DeleteWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+    public void DeleteWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+
+    public override bool IsDeletable { get { return true; } }
+
+    public static AuctionContentDetail LoadByServiceAndLanguage(AuctionContent content, Service service, Language language)
+    {
+      AuctionContentDetail detail;
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        connection.Transaction.Begin();
+
+        IAuctionContentDetailManager vcdManager = AuctionContentDetail.CreateManager();
+        detail = vcdManager.Load<AuctionContentDetail>(connection, content, service, language);
+        if (detail == null)
+          detail = vcdManager.Load(connection, content, language);
+        if (detail == null)
+          detail = vcdManager.Load(content).FirstOrDefault();
+
+        connection.Transaction.Commit();
+      }
+      return detail;
+    }
+
+  }
+}
+

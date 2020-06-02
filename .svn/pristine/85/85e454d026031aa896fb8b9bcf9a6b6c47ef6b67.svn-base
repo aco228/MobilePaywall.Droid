@@ -1,0 +1,115 @@
+﻿@model MobilePaywall.Web.Models.ContentListViewModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+
+  string smsText = string.Empty;
+  string appKey = string.Empty;
+
+  if(PaywallHttpContext.Current.Session.SessionData.Customer != null)
+  {
+    smsText = PaywallHttpContext.Current.Session.SessionData.Customer.Storage.GetString("sms");
+  }
+
+  if(!string.IsNullOrEmpty(smsText))
+  {
+    appKey = smsText.Split(' ')[0].ToLower();
+  }
+
+  if(Request["appKey"] != null)
+  {
+    appKey = Request["appKey"].ToLower().ToString();
+  }
+
+  if(appKey.ToLower().Equals("scan"))
+  {
+    appKey = "doki";
+  }
+
+}
+
+@Scripts.Render("~/Script/Home")
+<style>
+  .buttonWrapperr {
+    width: 100%;
+    height: 36px !important;
+    line-height: 36px !important;
+    background-color: #FFDF50 !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    color: #333 !important;
+    border: none;
+    margin: 0 auto;
+  }
+
+  #applicationScreenshot {
+    width: 100%;
+    height: 250px;
+    background-position: center;
+    background-size: contain;
+    background-repeat: no-repeat;
+    margin: 10px 0px;
+  }
+</style>
+
+
+@if (!string.IsNullOrEmpty(appKey))
+{
+  <div class="sliderOuterWrapper">
+    <div class="sliderWrapperr">
+      <div class="mainSliderr" id="mainSliderr">
+        <div>
+          <div id="applicationScreenshot" style="@string.Format("background-image: url(http://landing.clickenzi.me/data/MobilePaywall/AndroidContent/AContent/{0}/preview.png);", appKey)"></div>
+          <div>
+            <iframe style="width: 80%; margin: 30px auto;" src="@string.Format("http://landing.clickenzi.me/data/MobilePaywall/AndroidContent/AContent/{0}/", appKey)"></iframe>
+          </div>
+          <div>
+            <input style="width: 80%;" type="submit" class="buttonWrapperr" id="controlLoadMoree" onclick="location.href = '@string.Format("http://landing.clickenzi.me/data/MobilePaywall/AndroidContent/AContent/{0}/app.apk", appKey)';" value="Nyomd meg a lenti gombot a letöltéshez" inuse="true">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<div class="pageWrapper homePageWrapper">
+  <div class="pageContentWrapper servicesPageContent">
+    <div class="pageSpacer"></div>
+    <div id="contentVideoContainer">
+      @{
+        for (int i = 0; i < Model.Content.Count; i++)
+        {
+          MobilePaywall.IContent content = Model.Content.ElementAt(i);
+          string half = i % 2 == 0 ? string.Empty : "lastColumn";
+
+          <div class="columnWrapper serviceWrapper _videoBox oneHalf @half">
+            <a href="@Model.AppendSessionID(content)" class="___clink" data-ajax="false">
+              <div class="playBtn @content.ContentIconClass"></div>
+              <img class="backgroundImage" src="@content.GetThumbnailUrl(this.Request.UserAgent)" alt="" />
+            </a>
+          </div>
+        }
+      }
+    </div>
+    <input type="submit" class="buttonWrapper commentSubmitButton" id="controlLoadMore" value="@Translations.Web.Controls.More">
+  </div>
+</div>
+
+
+<script>
+  var _videoController = null;
+  var _contentHome = null;
+
+  $(document).ready(function () {
+    _videoController = new VideoController();
+    _videoController.TextPending = '@Translations.Web.Pending.PleaseWait';
+
+    @{
+      if(Model.Category != null)
+      {
+        @Html.Raw(Server.HtmlDecode("_homeVideoControler.CategoryID = '" + Model.Category.ID + "';"));
+      }
+    }
+
+    //_contentHome = new ContentHome();
+  });
+</script>

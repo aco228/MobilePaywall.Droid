@@ -1,0 +1,680 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(ContentAccessPolicy))] 
+  public partial class ContentAccessPolicyManager : MobilePaywall.Data.Sql.SqlManagerBase<ContentAccessPolicy>, IContentAccessPolicyManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override ContentAccessPolicy LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							ContentAccessPolicyTable.GetColumnNames("[cap]") + 
+							(this.Depth > 0 ? "," + BusinessModelTable.GetColumnNames("[cap_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[cap_bm_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + BusinessModelEntryTable.GetColumnNames("[cap_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[cap_bme_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[cap_bme_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[cap_bme_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTypeTable.GetColumnNames("[cap_bme_bmt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[cap_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[cap_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[cap_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[cap_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[cap_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[cap_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[cap_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[cap_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[cap_s_bm]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentGroupTable.GetColumnNames("[cap_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[cap_cg_i]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTypeTable.GetColumnNames("[cap_cg_cgt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[cap_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[cap_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[cap_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[cap_c_cs]") : string.Empty) + 
+					" FROM [core].[ContentAccessPolicy] AS [cap] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [cap_bm] ON [cap].[BusinessModelID] = [cap_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [cap_bm_i] ON [cap_bm].[InstanceID] = [cap_bm_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModelEntry] AS [cap_bme] ON [cap].[BusinessModelEntryID] = [cap_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [cap_bme_bm] ON [cap_bme].[BusinessModelID] = [cap_bme_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [cap_bme_c] ON [cap_bme].[CountryID] = [cap_bme_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [cap_bme_mo] ON [cap_bme].[MobileOperatorID] = [cap_bme_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModelType] AS [cap_bme_bmt] ON [cap_bme].[BusinessModelTypeID] = [cap_bme_bmt].[BusinessModelTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [cap_s] ON [cap].[ServiceID] = [cap_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [cap_s_a] ON [cap_s].[ApplicationID] = [cap_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [cap_s_p] ON [cap_s].[ProductID] = [cap_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [cap_s_m] ON [cap_s].[MerchantID] = [cap_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [cap_s_st] ON [cap_s].[ServiceTypeID] = [cap_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [cap_s_ust] ON [cap_s].[UserSessionTypeID] = [cap_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [cap_s_c] ON [cap_s].[FallbackCountryID] = [cap_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [cap_s_sc] ON [cap_s].[ServiceConfigurationID] = [cap_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [cap_s_bm] ON [cap_s].[BusinessModelID] = [cap_s_bm].[BusinessModelID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [cap_cg] ON [cap].[ContentGroupID] = [cap_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Instance] AS [cap_cg_i] ON [cap_cg].[InstanceID] = [cap_cg_i].[InstanceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroupType] AS [cap_cg_cgt] ON [cap_cg].[ContentGroupTypeID] = [cap_cg_cgt].[ContentGroupTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [cap_c] ON [cap].[ContentID] = [cap_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [cap_c_cg] ON [cap_c].[ContentGroupID] = [cap_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentType] AS [cap_c_ct] ON [cap_c].[ContentTypeID] = [cap_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentStorage] AS [cap_c_cs] ON [cap_c].[ContentStorageID] = [cap_c_cs].[ContentStorageID] ";
+				sqlCmdText += "WHERE [cap].[ContentAccessPolicyID] = @ContentAccessPolicyID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ContentAccessPolicyID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cap", "loadinternal", "notfound"), "ContentAccessPolicy could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ContentAccessPolicyTable capTable = new ContentAccessPolicyTable(query);
+				BusinessModelTable cap_bmTable = (this.Depth > 0) ? new BusinessModelTable(query) : null;
+				InstanceTable cap_bm_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				BusinessModelEntryTable cap_bmeTable = (this.Depth > 0) ? new BusinessModelEntryTable(query) : null;
+				BusinessModelTable cap_bme_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				CountryTable cap_bme_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable cap_bme_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				BusinessModelTypeTable cap_bme_bmtTable = (this.Depth > 1) ? new BusinessModelTypeTable(query) : null;
+				ServiceTable cap_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable cap_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable cap_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable cap_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable cap_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable cap_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable cap_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				ServiceConfigurationTable cap_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable cap_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				ContentGroupTable cap_cgTable = (this.Depth > 0) ? new ContentGroupTable(query) : null;
+				InstanceTable cap_cg_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				ContentGroupTypeTable cap_cg_cgtTable = (this.Depth > 1) ? new ContentGroupTypeTable(query) : null;
+				ContentTable cap_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable cap_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable cap_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable cap_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+
+        
+				Instance cap_bm_iObject = (this.Depth > 1) ? cap_bm_iTable.CreateInstance() : null;
+				BusinessModel cap_bmObject = (this.Depth > 0) ? cap_bmTable.CreateInstance(cap_bm_iObject) : null;
+				BusinessModel cap_bme_bmObject = (this.Depth > 1) ? cap_bme_bmTable.CreateInstance() : null;
+				Country cap_bme_cObject = (this.Depth > 1) ? cap_bme_cTable.CreateInstance() : null;
+				MobileOperator cap_bme_moObject = (this.Depth > 1) ? cap_bme_moTable.CreateInstance() : null;
+				BusinessModelType cap_bme_bmtObject = (this.Depth > 1) ? cap_bme_bmtTable.CreateInstance() : null;
+				BusinessModelEntry cap_bmeObject = (this.Depth > 0) ? cap_bmeTable.CreateInstance(cap_bme_bmObject, cap_bme_cObject, cap_bme_moObject, cap_bme_bmtObject) : null;
+				Application cap_s_aObject = (this.Depth > 1) ? cap_s_aTable.CreateInstance() : null;
+				Product cap_s_pObject = (this.Depth > 1) ? cap_s_pTable.CreateInstance() : null;
+				Merchant cap_s_mObject = (this.Depth > 1) ? cap_s_mTable.CreateInstance() : null;
+				ServiceType cap_s_stObject = (this.Depth > 1) ? cap_s_stTable.CreateInstance() : null;
+				UserSessionType cap_s_ustObject = (this.Depth > 1) ? cap_s_ustTable.CreateInstance() : null;
+				Country cap_s_cObject = (this.Depth > 1) ? cap_s_cTable.CreateInstance() : null;
+				ServiceConfiguration cap_s_scObject = (this.Depth > 1) ? cap_s_scTable.CreateInstance() : null;
+				BusinessModel cap_s_bmObject = (this.Depth > 1) ? cap_s_bmTable.CreateInstance() : null;
+				Service cap_sObject = (this.Depth > 0) ? cap_sTable.CreateInstance(cap_s_aObject, cap_s_pObject, cap_s_mObject, cap_s_stObject, cap_s_ustObject, cap_s_cObject, cap_s_scObject, cap_s_bmObject) : null;
+				Instance cap_cg_iObject = (this.Depth > 1) ? cap_cg_iTable.CreateInstance() : null;
+				ContentGroupType cap_cg_cgtObject = (this.Depth > 1) ? cap_cg_cgtTable.CreateInstance() : null;
+				ContentGroup cap_cgObject = (this.Depth > 0) ? cap_cgTable.CreateInstance(cap_cg_iObject, cap_cg_cgtObject) : null;
+				ContentGroup cap_c_cgObject = (this.Depth > 1) ? cap_c_cgTable.CreateInstance() : null;
+				ContentType cap_c_ctObject = (this.Depth > 1) ? cap_c_ctTable.CreateInstance() : null;
+				ContentStorage cap_c_csObject = (this.Depth > 1) ? cap_c_csTable.CreateInstance() : null;
+				Content cap_cObject = (this.Depth > 0) ? cap_cTable.CreateInstance(cap_c_cgObject, cap_c_ctObject, cap_c_csObject) : null;
+				ContentAccessPolicy capObject = capTable.CreateInstance(cap_bmObject, cap_bmeObject, cap_sObject, cap_cgObject, cap_cObject);
+				sqlReader.Close();
+
+				return capObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cap", "loadinternal", "exception"), "ContentAccessPolicy could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ContentAccessPolicy", "Exception while loading ContentAccessPolicy object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public ContentAccessPolicy Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ContentAccessPolicyTable.GetColumnNames("[cap]") + 
+							(this.Depth > 0 ? "," + BusinessModelTable.GetColumnNames("[cap_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[cap_bm_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + BusinessModelEntryTable.GetColumnNames("[cap_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[cap_bme_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[cap_bme_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[cap_bme_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTypeTable.GetColumnNames("[cap_bme_bmt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[cap_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[cap_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[cap_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[cap_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[cap_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[cap_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[cap_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[cap_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[cap_s_bm]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentGroupTable.GetColumnNames("[cap_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[cap_cg_i]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTypeTable.GetColumnNames("[cap_cg_cgt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[cap_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[cap_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[cap_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[cap_c_cs]") : string.Empty) +  
+					" FROM [core].[ContentAccessPolicy] AS [cap] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [cap_bm] ON [cap].[BusinessModelID] = [cap_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [cap_bm_i] ON [cap_bm].[InstanceID] = [cap_bm_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModelEntry] AS [cap_bme] ON [cap].[BusinessModelEntryID] = [cap_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [cap_bme_bm] ON [cap_bme].[BusinessModelID] = [cap_bme_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [cap_bme_c] ON [cap_bme].[CountryID] = [cap_bme_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [cap_bme_mo] ON [cap_bme].[MobileOperatorID] = [cap_bme_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModelType] AS [cap_bme_bmt] ON [cap_bme].[BusinessModelTypeID] = [cap_bme_bmt].[BusinessModelTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [cap_s] ON [cap].[ServiceID] = [cap_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [cap_s_a] ON [cap_s].[ApplicationID] = [cap_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [cap_s_p] ON [cap_s].[ProductID] = [cap_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [cap_s_m] ON [cap_s].[MerchantID] = [cap_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [cap_s_st] ON [cap_s].[ServiceTypeID] = [cap_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [cap_s_ust] ON [cap_s].[UserSessionTypeID] = [cap_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [cap_s_c] ON [cap_s].[FallbackCountryID] = [cap_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [cap_s_sc] ON [cap_s].[ServiceConfigurationID] = [cap_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [cap_s_bm] ON [cap_s].[BusinessModelID] = [cap_s_bm].[BusinessModelID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [cap_cg] ON [cap].[ContentGroupID] = [cap_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Instance] AS [cap_cg_i] ON [cap_cg].[InstanceID] = [cap_cg_i].[InstanceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroupType] AS [cap_cg_cgt] ON [cap_cg].[ContentGroupTypeID] = [cap_cg_cgt].[ContentGroupTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [cap_c] ON [cap].[ContentID] = [cap_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [cap_c_cg] ON [cap_c].[ContentGroupID] = [cap_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentType] AS [cap_c_ct] ON [cap_c].[ContentTypeID] = [cap_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentStorage] AS [cap_c_cs] ON [cap_c].[ContentStorageID] = [cap_c_cs].[ContentStorageID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cap", "customload", "notfound"), "ContentAccessPolicy could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ContentAccessPolicyTable capTable = new ContentAccessPolicyTable(query);
+				BusinessModelTable cap_bmTable = (this.Depth > 0) ? new BusinessModelTable(query) : null;
+				InstanceTable cap_bm_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				BusinessModelEntryTable cap_bmeTable = (this.Depth > 0) ? new BusinessModelEntryTable(query) : null;
+				BusinessModelTable cap_bme_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				CountryTable cap_bme_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable cap_bme_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				BusinessModelTypeTable cap_bme_bmtTable = (this.Depth > 1) ? new BusinessModelTypeTable(query) : null;
+				ServiceTable cap_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable cap_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable cap_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable cap_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable cap_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable cap_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable cap_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				ServiceConfigurationTable cap_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable cap_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				ContentGroupTable cap_cgTable = (this.Depth > 0) ? new ContentGroupTable(query) : null;
+				InstanceTable cap_cg_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				ContentGroupTypeTable cap_cg_cgtTable = (this.Depth > 1) ? new ContentGroupTypeTable(query) : null;
+				ContentTable cap_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable cap_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable cap_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable cap_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+
+        
+				Instance cap_bm_iObject = (this.Depth > 1) ? cap_bm_iTable.CreateInstance() : null;
+				BusinessModel cap_bmObject = (this.Depth > 0) ? cap_bmTable.CreateInstance(cap_bm_iObject) : null;
+				BusinessModel cap_bme_bmObject = (this.Depth > 1) ? cap_bme_bmTable.CreateInstance() : null;
+				Country cap_bme_cObject = (this.Depth > 1) ? cap_bme_cTable.CreateInstance() : null;
+				MobileOperator cap_bme_moObject = (this.Depth > 1) ? cap_bme_moTable.CreateInstance() : null;
+				BusinessModelType cap_bme_bmtObject = (this.Depth > 1) ? cap_bme_bmtTable.CreateInstance() : null;
+				BusinessModelEntry cap_bmeObject = (this.Depth > 0) ? cap_bmeTable.CreateInstance(cap_bme_bmObject, cap_bme_cObject, cap_bme_moObject, cap_bme_bmtObject) : null;
+				Application cap_s_aObject = (this.Depth > 1) ? cap_s_aTable.CreateInstance() : null;
+				Product cap_s_pObject = (this.Depth > 1) ? cap_s_pTable.CreateInstance() : null;
+				Merchant cap_s_mObject = (this.Depth > 1) ? cap_s_mTable.CreateInstance() : null;
+				ServiceType cap_s_stObject = (this.Depth > 1) ? cap_s_stTable.CreateInstance() : null;
+				UserSessionType cap_s_ustObject = (this.Depth > 1) ? cap_s_ustTable.CreateInstance() : null;
+				Country cap_s_cObject = (this.Depth > 1) ? cap_s_cTable.CreateInstance() : null;
+				ServiceConfiguration cap_s_scObject = (this.Depth > 1) ? cap_s_scTable.CreateInstance() : null;
+				BusinessModel cap_s_bmObject = (this.Depth > 1) ? cap_s_bmTable.CreateInstance() : null;
+				Service cap_sObject = (this.Depth > 0) ? cap_sTable.CreateInstance(cap_s_aObject, cap_s_pObject, cap_s_mObject, cap_s_stObject, cap_s_ustObject, cap_s_cObject, cap_s_scObject, cap_s_bmObject) : null;
+				Instance cap_cg_iObject = (this.Depth > 1) ? cap_cg_iTable.CreateInstance() : null;
+				ContentGroupType cap_cg_cgtObject = (this.Depth > 1) ? cap_cg_cgtTable.CreateInstance() : null;
+				ContentGroup cap_cgObject = (this.Depth > 0) ? cap_cgTable.CreateInstance(cap_cg_iObject, cap_cg_cgtObject) : null;
+				ContentGroup cap_c_cgObject = (this.Depth > 1) ? cap_c_cgTable.CreateInstance() : null;
+				ContentType cap_c_ctObject = (this.Depth > 1) ? cap_c_ctTable.CreateInstance() : null;
+				ContentStorage cap_c_csObject = (this.Depth > 1) ? cap_c_csTable.CreateInstance() : null;
+				Content cap_cObject = (this.Depth > 0) ? cap_cTable.CreateInstance(cap_c_cgObject, cap_c_ctObject, cap_c_csObject) : null;
+				ContentAccessPolicy capObject = capTable.CreateInstance(cap_bmObject, cap_bmeObject, cap_sObject, cap_cgObject, cap_cObject);
+				sqlReader.Close();
+
+				return capObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cap", "customload", "exception"), "ContentAccessPolicy could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ContentAccessPolicy", "Exception while loading (custom/single) ContentAccessPolicy object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<ContentAccessPolicy> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							ContentAccessPolicyTable.GetColumnNames("[cap]") + 
+							(this.Depth > 0 ? "," + BusinessModelTable.GetColumnNames("[cap_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[cap_bm_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + BusinessModelEntryTable.GetColumnNames("[cap_bme]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[cap_bme_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[cap_bme_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[cap_bme_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTypeTable.GetColumnNames("[cap_bme_bmt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[cap_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[cap_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[cap_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[cap_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[cap_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[cap_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[cap_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[cap_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[cap_s_bm]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentGroupTable.GetColumnNames("[cap_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[cap_cg_i]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTypeTable.GetColumnNames("[cap_cg_cgt]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ContentTable.GetColumnNames("[cap_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentGroupTable.GetColumnNames("[cap_c_cg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTypeTable.GetColumnNames("[cap_c_ct]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentStorageTable.GetColumnNames("[cap_c_cs]") : string.Empty) +  
+					" FROM [core].[ContentAccessPolicy] AS [cap] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [cap_bm] ON [cap].[BusinessModelID] = [cap_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [cap_bm_i] ON [cap_bm].[InstanceID] = [cap_bm_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModelEntry] AS [cap_bme] ON [cap].[BusinessModelEntryID] = [cap_bme].[BusinessModelEntryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [cap_bme_bm] ON [cap_bme].[BusinessModelID] = [cap_bme_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [cap_bme_c] ON [cap_bme].[CountryID] = [cap_bme_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [cap_bme_mo] ON [cap_bme].[MobileOperatorID] = [cap_bme_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModelType] AS [cap_bme_bmt] ON [cap_bme].[BusinessModelTypeID] = [cap_bme_bmt].[BusinessModelTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [cap_s] ON [cap].[ServiceID] = [cap_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [cap_s_a] ON [cap_s].[ApplicationID] = [cap_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [cap_s_p] ON [cap_s].[ProductID] = [cap_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [cap_s_m] ON [cap_s].[MerchantID] = [cap_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [cap_s_st] ON [cap_s].[ServiceTypeID] = [cap_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [cap_s_ust] ON [cap_s].[UserSessionTypeID] = [cap_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [cap_s_c] ON [cap_s].[FallbackCountryID] = [cap_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [cap_s_sc] ON [cap_s].[ServiceConfigurationID] = [cap_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [cap_s_bm] ON [cap_s].[BusinessModelID] = [cap_s_bm].[BusinessModelID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [cap_cg] ON [cap].[ContentGroupID] = [cap_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Instance] AS [cap_cg_i] ON [cap_cg].[InstanceID] = [cap_cg_i].[InstanceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroupType] AS [cap_cg_cgt] ON [cap_cg].[ContentGroupTypeID] = [cap_cg_cgt].[ContentGroupTypeID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Content] AS [cap_c] ON [cap].[ContentID] = [cap_c].[ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentGroup] AS [cap_c_cg] ON [cap_c].[ContentGroupID] = [cap_c_cg].[ContentGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentType] AS [cap_c_ct] ON [cap_c].[ContentTypeID] = [cap_c_ct].[ContentTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ContentStorage] AS [cap_c_cs] ON [cap_c].[ContentStorageID] = [cap_c_cs].[ContentStorageID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cap", "customloadmany", "notfound"), "ContentAccessPolicy list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<ContentAccessPolicy>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				ContentAccessPolicyTable capTable = new ContentAccessPolicyTable(query);
+				BusinessModelTable cap_bmTable = (this.Depth > 0) ? new BusinessModelTable(query) : null;
+				InstanceTable cap_bm_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				BusinessModelEntryTable cap_bmeTable = (this.Depth > 0) ? new BusinessModelEntryTable(query) : null;
+				BusinessModelTable cap_bme_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				CountryTable cap_bme_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				MobileOperatorTable cap_bme_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+				BusinessModelTypeTable cap_bme_bmtTable = (this.Depth > 1) ? new BusinessModelTypeTable(query) : null;
+				ServiceTable cap_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable cap_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable cap_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable cap_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable cap_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable cap_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable cap_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				ServiceConfigurationTable cap_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable cap_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				ContentGroupTable cap_cgTable = (this.Depth > 0) ? new ContentGroupTable(query) : null;
+				InstanceTable cap_cg_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				ContentGroupTypeTable cap_cg_cgtTable = (this.Depth > 1) ? new ContentGroupTypeTable(query) : null;
+				ContentTable cap_cTable = (this.Depth > 0) ? new ContentTable(query) : null;
+				ContentGroupTable cap_c_cgTable = (this.Depth > 1) ? new ContentGroupTable(query) : null;
+				ContentTypeTable cap_c_ctTable = (this.Depth > 1) ? new ContentTypeTable(query) : null;
+				ContentStorageTable cap_c_csTable = (this.Depth > 1) ? new ContentStorageTable(query) : null;
+
+        List<ContentAccessPolicy> result = new List<ContentAccessPolicy>();
+        do
+        {
+          
+					Instance cap_bm_iObject = (this.Depth > 1) ? cap_bm_iTable.CreateInstance() : null;
+					BusinessModel cap_bmObject = (this.Depth > 0) ? cap_bmTable.CreateInstance(cap_bm_iObject) : null;
+					BusinessModel cap_bme_bmObject = (this.Depth > 1) ? cap_bme_bmTable.CreateInstance() : null;
+					Country cap_bme_cObject = (this.Depth > 1) ? cap_bme_cTable.CreateInstance() : null;
+					MobileOperator cap_bme_moObject = (this.Depth > 1) ? cap_bme_moTable.CreateInstance() : null;
+					BusinessModelType cap_bme_bmtObject = (this.Depth > 1) ? cap_bme_bmtTable.CreateInstance() : null;
+					BusinessModelEntry cap_bmeObject = (this.Depth > 0) ? cap_bmeTable.CreateInstance(cap_bme_bmObject, cap_bme_cObject, cap_bme_moObject, cap_bme_bmtObject) : null;
+					Application cap_s_aObject = (this.Depth > 1) ? cap_s_aTable.CreateInstance() : null;
+					Product cap_s_pObject = (this.Depth > 1) ? cap_s_pTable.CreateInstance() : null;
+					Merchant cap_s_mObject = (this.Depth > 1) ? cap_s_mTable.CreateInstance() : null;
+					ServiceType cap_s_stObject = (this.Depth > 1) ? cap_s_stTable.CreateInstance() : null;
+					UserSessionType cap_s_ustObject = (this.Depth > 1) ? cap_s_ustTable.CreateInstance() : null;
+					Country cap_s_cObject = (this.Depth > 1) ? cap_s_cTable.CreateInstance() : null;
+					ServiceConfiguration cap_s_scObject = (this.Depth > 1) ? cap_s_scTable.CreateInstance() : null;
+					BusinessModel cap_s_bmObject = (this.Depth > 1) ? cap_s_bmTable.CreateInstance() : null;
+					Service cap_sObject = (this.Depth > 0) ? cap_sTable.CreateInstance(cap_s_aObject, cap_s_pObject, cap_s_mObject, cap_s_stObject, cap_s_ustObject, cap_s_cObject, cap_s_scObject, cap_s_bmObject) : null;
+					Instance cap_cg_iObject = (this.Depth > 1) ? cap_cg_iTable.CreateInstance() : null;
+					ContentGroupType cap_cg_cgtObject = (this.Depth > 1) ? cap_cg_cgtTable.CreateInstance() : null;
+					ContentGroup cap_cgObject = (this.Depth > 0) ? cap_cgTable.CreateInstance(cap_cg_iObject, cap_cg_cgtObject) : null;
+					ContentGroup cap_c_cgObject = (this.Depth > 1) ? cap_c_cgTable.CreateInstance() : null;
+					ContentType cap_c_ctObject = (this.Depth > 1) ? cap_c_ctTable.CreateInstance() : null;
+					ContentStorage cap_c_csObject = (this.Depth > 1) ? cap_c_csTable.CreateInstance() : null;
+					Content cap_cObject = (this.Depth > 0) ? cap_cTable.CreateInstance(cap_c_cgObject, cap_c_ctObject, cap_c_csObject) : null;
+					ContentAccessPolicy capObject = (this.Depth > -1) ? capTable.CreateInstance(cap_bmObject, cap_bmeObject, cap_sObject, cap_cgObject, cap_cObject) : null;
+					result.Add(capObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cap", "customloadmany", "exception"), "ContentAccessPolicy list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "ContentAccessPolicy", "Exception while loading (custom/many) ContentAccessPolicy object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, ContentAccessPolicy data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[ContentAccessPolicy] ([BusinessModelID],[BusinessModelEntryID],[ServiceID],[ContentGroupID],[ContentID],[TemporarySetupAccessModeID],[TemporaryAccessInSeconds],[NumberOfItems],[NumberOfItemDownloads],[NumberOfTotalDownloads],[IntervalInSeconds]) VALUES(@BusinessModelID,@BusinessModelEntryID,@ServiceID,@ContentGroupID,@ContentID,@TemporarySetupAccessModeID,@TemporaryAccessInSeconds,@NumberOfItems,@NumberOfItemDownloads,@NumberOfTotalDownloads,@IntervalInSeconds); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@BusinessModelID", data.BusinessModel.ID);
+				sqlCmd.Parameters.AddWithValue("@BusinessModelEntryID", data.BusinessModelEntry == null ? DBNull.Value : (object)data.BusinessModelEntry.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentGroupID", data.ContentGroup == null ? DBNull.Value : (object)data.ContentGroup.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentID", data.Content == null ? DBNull.Value : (object)data.Content.ID);
+				sqlCmd.Parameters.AddWithValue("@TemporarySetupAccessModeID", (int)data.TemporarySetupAccessMode);
+				sqlCmd.Parameters.AddWithValue("@TemporaryAccessInSeconds", data.TemporaryAccessInSeconds.HasValue ? (object)data.TemporaryAccessInSeconds.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@NumberOfItems", data.NumberOfItems.HasValue ? (object)data.NumberOfItems.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@NumberOfItemDownloads", data.NumberOfItemDownloads.HasValue ? (object)data.NumberOfItemDownloads.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@NumberOfTotalDownloads", data.NumberOfTotalDownloads.HasValue ? (object)data.NumberOfTotalDownloads.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@IntervalInSeconds", data.IntervalInSeconds.HasValue ? (object)data.IntervalInSeconds.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cap", "insert", "noprimarykey"), "ContentAccessPolicy could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "ContentAccessPolicy", "Exception while inserting ContentAccessPolicy object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cap", "insert", "exception"), "ContentAccessPolicy could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "ContentAccessPolicy", "Exception while inserting ContentAccessPolicy object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, ContentAccessPolicy data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[ContentAccessPolicy] SET " +
+												"[BusinessModelID] = @BusinessModelID, " + 
+												"[BusinessModelEntryID] = @BusinessModelEntryID, " + 
+												"[ServiceID] = @ServiceID, " + 
+												"[ContentGroupID] = @ContentGroupID, " + 
+												"[ContentID] = @ContentID, " + 
+												"[TemporarySetupAccessModeID] = @TemporarySetupAccessModeID, " + 
+												"[TemporaryAccessInSeconds] = @TemporaryAccessInSeconds, " + 
+												"[NumberOfItems] = @NumberOfItems, " + 
+												"[NumberOfItemDownloads] = @NumberOfItemDownloads, " + 
+												"[NumberOfTotalDownloads] = @NumberOfTotalDownloads, " + 
+												"[IntervalInSeconds] = @IntervalInSeconds, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [ContentAccessPolicyID] = @ContentAccessPolicyID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@BusinessModelID", data.BusinessModel.ID);
+				sqlCmd.Parameters.AddWithValue("@BusinessModelEntryID", data.BusinessModelEntry == null ? DBNull.Value : (object)data.BusinessModelEntry.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentGroupID", data.ContentGroup == null ? DBNull.Value : (object)data.ContentGroup.ID);
+				sqlCmd.Parameters.AddWithValue("@ContentID", data.Content == null ? DBNull.Value : (object)data.Content.ID);
+				sqlCmd.Parameters.AddWithValue("@TemporarySetupAccessModeID", (int)data.TemporarySetupAccessMode);
+				sqlCmd.Parameters.AddWithValue("@TemporaryAccessInSeconds", data.TemporaryAccessInSeconds.HasValue ? (object)data.TemporaryAccessInSeconds.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@NumberOfItems", data.NumberOfItems.HasValue ? (object)data.NumberOfItems.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@NumberOfItemDownloads", data.NumberOfItemDownloads.HasValue ? (object)data.NumberOfItemDownloads.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@NumberOfTotalDownloads", data.NumberOfTotalDownloads.HasValue ? (object)data.NumberOfTotalDownloads.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@IntervalInSeconds", data.IntervalInSeconds.HasValue ? (object)data.IntervalInSeconds.Value : DBNull.Value).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@ContentAccessPolicyID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cap", "update", "norecord"), "ContentAccessPolicy could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ContentAccessPolicy", "Exception while updating ContentAccessPolicy object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cap", "update", "morerecords"), "ContentAccessPolicy was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "ContentAccessPolicy", "Exception while updating ContentAccessPolicy object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cap", "update", "exception"), "ContentAccessPolicy could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "ContentAccessPolicy", "Exception while updating ContentAccessPolicy object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, ContentAccessPolicy data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[ContentAccessPolicy] WHERE ContentAccessPolicyID = @ContentAccessPolicyID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@ContentAccessPolicyID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cap", "delete", "norecord"), "ContentAccessPolicy could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "ContentAccessPolicy", "Exception while deleting ContentAccessPolicy object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cap", "delete", "exception"), "ContentAccessPolicy could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "ContentAccessPolicy", "Exception while deleting ContentAccessPolicy object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

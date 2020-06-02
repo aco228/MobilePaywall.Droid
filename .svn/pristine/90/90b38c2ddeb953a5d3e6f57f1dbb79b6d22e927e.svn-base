@@ -1,0 +1,98 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+using MobilePaywall.Data;
+using Senti.Diagnostics.Log;
+
+
+namespace MobilePaywall.Merchant.Controllers
+{
+  public class ChartController : PaywallController
+  {
+    // GET: Chart
+    public ActionResult Index()
+    {
+      return View();
+    }
+
+    //Chart za statistiku
+    public ActionResult Chart()
+    {
+      Dictionary<int, Service> allowedServices = PaywallHttpContext.Current.ClientSession.Client.AllowedServices;
+      return View(this.Statistics(Split.Hour, new List<Group>(), new QueryBuilder(Split.Hour, allowedServices, true), "chart"));
+    }
+
+    //Ajax na refresh button
+    [HttpPost]
+    public PartialViewResult AjaxChart()
+    {
+      #region #properties#
+      //Filter filter = null;
+      QueryBuilder queryBuilder = null;
+      Dictionary<int, Service> allowedServices = PaywallHttpContext.Current.ClientSession.Client.AllowedServices;
+
+      //List<Group> groupBy = new List<Group>();
+      Split split = Split.None;
+
+      List<string> filterByInstances = null;
+      List<string> filterByMerchants = null;
+      List<string> filterByServices = null;
+      List<string> filterByProviders = null;
+      List<string> filterByCountries = null;
+      List<string> filterByCountryCodes = null;
+      List<string> filterByOperators = null;
+      //List<string> requestedGroupBy = null;
+      string requestedShow = null;
+      DateTime startDate = DateTime.Now;
+      DateTime endDate = DateTime.Now;
+      #endregion
+
+      Merchant.Statistics statistics = null;
+      try
+      {
+        #region #parsing and initialization#
+        filterByInstances = this.Request.Form["rqsInstances"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsInstances"]) ? this.Request.Form["rqsInstances"].Split(',').ToList() : new List<string>();
+        filterByMerchants = this.Request.Form["rqsMerchants"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsMerchants"]) ? this.Request.Form["rqsMerchants"].Split(',').ToList() : new List<string>();
+        filterByServices = this.Request.Form["rqsServices"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsServices"]) ? this.Request.Form["rqsServices"].Split(',').ToList() : new List<string>();
+        filterByProviders = this.Request.Form["rqsProviders"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsProviders"]) ? this.Request.Form["rqsProviders"].Split(',').ToList() : new List<string>();
+        filterByCountries = this.Request.Form["rqsCountries"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsCountries"]) ? this.Request.Form["rqsCountries"].Split(',').ToList() : new List<string>();
+        filterByCountryCodes = this.Request.Form["rqsCountryCodes"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsCountryCodes"]) ? this.Request.Form["rqsCountryCodes"].Split(',').ToList() : new List<string>();
+        filterByOperators = this.Request.Form["rqsOperators"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsOperators"]) ? this.Request.Form["rqsOperators"].Split(',').ToList() : new List<string>();
+        //requestedGroupBy = this.Request.Form["rqsGroupBy"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsGroupBy"]) ? this.Request.Form["rqsGroupBy"].Split(',').ToList() : new List<string>();
+        requestedShow = this.Request.Form["rqsShow"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsShow"]) ? this.Request.Form["rqsShow"] : string.Empty;
+        startDate = this.Request.Form["rqsStart"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsStart"]) ? DateTime.ParseExact(string.Format("{0} 00:00:00", this.Request.Form["rqsStart"]), "dd/MM/yyyy HH:mm:ss", null) : DateTime.Now;
+        endDate = this.Request.Form["rqsEnd"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsEnd"]) ? DateTime.ParseExact(string.Format("{0} 23:59:59", this.Request.Form["rqsEnd"]), "dd/MM/yyyy HH:mm:ss", null) : DateTime.Now;
+
+        if (startDate.Date.Year == endDate.Date.Year &&
+            startDate.Date.Month == endDate.Date.Month &&
+            startDate.Date.Day == endDate.Date.Day)
+          split = Split.Hour;
+        if (startDate.Date.Year == endDate.Date.Year &&
+           startDate.Date.Month == endDate.Date.Month &&
+           startDate.Date.Day < endDate.Date.Day)
+          split = Split.Day;
+        if (startDate.Date.Year == endDate.Date.Year &&
+           startDate.Date.Month < endDate.Date.Month)
+          split = Split.Month;
+        if (startDate.Date.Year < endDate.Date.Year)
+          split = Split.Year;
+
+        bool useOLCache = startDate >= DateTime.ParseExact("29/09/2016 00:00:00", "dd/MM/yyyy HH:mm:ss", null) ? true : false;
+
+        queryBuilder = new QueryBuilder(startDate, endDate, split, null, filterByInstances, filterByMerchants, filterByServices, filterByProviders, filterByCountries, filterByCountryCodes, filterByOperators, allowedServices, useOLCache);
+        #endregion
+       
+        statistics = this.Statistics(split, null, queryBuilder, "chart");
+      }
+      catch (Exception ex)
+      {
+        Log.Fatal(new LogMessageBuilder(new LogErrorCode("statistic", "chart", "data"), "Exception while loading data."));
+        statistics = new Statistics();
+      }
+
+      return PartialView("~/Views/Chart/_Chart.cshtml", statistics);
+    }
+  }
+}

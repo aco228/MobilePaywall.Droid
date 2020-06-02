@@ -1,0 +1,66 @@
+﻿using MobilePaywall.Direct;
+using MobilePaywall.GeoLocation;
+using MobilePaywall.Web.Filters;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers._External
+{
+  public class UfcController : Controller
+  {
+
+		// Get informations aboout which service to market
+    [AllowCrossOriginJsonAttribute]
+    public ActionResult GetInformations()
+    {
+      string ip = HttpContext.Request.UserHostAddress;
+      if (Request["ip"] != null)
+        ip = Request["ip"].ToString();
+
+
+      var geoResult = GeoClient.Get(ip, Request.UserAgent);
+      if(geoResult == null)
+        return this.Json(new { status = false, message = "ip error " + ip }, JsonRequestBehavior.AllowGet);
+      
+      DirectContainer dc = MobilePaywallDirect.Instance.LoadContainer(
+        string.Format(@"SELECT TOP 1 s.Name FROM MobilePaywall.core.Service AS s 
+          LEFT OUTER JOIN MobilePaywall.core.TemplateServiceInfo AS tsi ON tsi.ServiceID=s.ServiceID
+          LEFT OUTER JOIN MobilePaywall.core.Country AS c ON s.FallbackCountryID=c.CountryID
+          WHERE tsi.Progress=5 AND c.TwoLetterIsoCode='{0}' AND tsi.Color IN (1,2)
+          ORDER BY Newid();", geoResult.Country));
+
+      if (!dc.HasValue)
+        return this.Json(new { status = false, message = "no service" }, JsonRequestBehavior.AllowGet);
+
+      var pxid = Request["pxid"] != null ? "?pxid=" + Request["pxid"].ToString() : string.Empty;
+      return this.Json(new { status = true, url = string.Format("http://{0}/landingpage/content" + pxid, dc.GetString("Name")) }, JsonRequestBehavior.AllowGet);
+    }
+
+		// Get informations about country/mno
+		[AllowCrossOriginJsonAttribute]
+		public ActionResult GetInfo()
+		{
+			string ip = HttpContext.Request.UserHostAddress;
+			if (Request["ip"] != null)
+				ip = Request["ip"].ToString();
+			
+			var geoResult = GeoClient.Get(ip, Request.UserAgent);
+			if (geoResult == null)
+				return this.Json(new { status = false, message = "ip error " + ip }, JsonRequestBehavior.AllowGet);
+
+			var mnos = geoResult.MobileOperator;
+			List<string> names = null;
+			if (mnos != null)
+				foreach (var i in mnos)
+					names.Add(i.Name);
+			
+			return this.Json(new { status = true, country = geoResult.Country, mno = names }, JsonRequestBehavior.AllowGet);
+		}
+
+
+
+	}
+}

@@ -1,0 +1,68 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IImageContentDataManager 
+  {
+
+    List<ImageContentData> Load(ImageContent imageContent);
+    List<ImageContentData> Load(IConnectionInfo connection, ImageContent imageContent);
+    List<ImageContentData> LoadWithoutData(ImageContent imageContent);
+    List<ImageContentData> LoadWithoutData(IConnectionInfo connection, ImageContent imageContent);
+
+  }
+
+  public partial class ImageContentData
+  {
+
+    private VideoCodec _videoCodec = null;
+
+    public VideoCodec VideoCodec
+    {
+      get
+      {
+        if (this._videoConversionProfileEntry != null)
+          return this._videoConversionProfileEntry.VideoCodec;
+        if (this._videoCodec != null)
+          return this._videoCodec;
+        this._videoCodec = VideoCodec.CreateManager().Load(17);
+        return this._videoCodec;
+      }
+    }
+
+    public static List<ImageContentData> LoadWithoutDataByImageContent(ImageContent imageContent)
+    {
+      List<ImageContentData> imageContentData = null;
+      using(ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        connection.Transaction.Begin();
+        imageContentData = ImageContentData.CreateManager().LoadWithoutData(imageContent);
+        connection.Transaction.Commit();
+      }
+      return imageContentData;
+    }
+
+    public static List<VideoContentData> LoadWithoutDataByVideoContent(VideoContent videoContent)
+    {
+      List<VideoContentData> videoContentData = null;
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        connection.Transaction.Begin();
+        IVideoContentDataManager vcdManager = VideoContentData.CreateManager(2);
+        videoContentData = vcdManager.LoadWithoutData(connection, videoContent);
+        connection.Transaction.Commit();
+      }
+
+      return videoContentData;
+    }
+
+  }
+}
+

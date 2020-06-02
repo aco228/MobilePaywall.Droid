@@ -1,0 +1,554 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(Html5ContentDetail))] 
+  public partial class Html5ContentDetailManager : MobilePaywall.Data.Sql.SqlManagerBase<Html5ContentDetail>, IHtml5ContentDetailManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override Html5ContentDetail LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							Html5ContentDetailTable.GetColumnNames("[hcd]") + 
+							(this.Depth > 0 ? "," + Html5ContentTable.GetColumnNames("[hcd_hc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[hcd_hc_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[hcd_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[hcd_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[hcd_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[hcd_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[hcd_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[hcd_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[hcd_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[hcd_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[hcd_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[hcd_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[hcd_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[hcd_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + LanguageTable.GetColumnNames("[hcd_l]") : string.Empty) + 
+					" FROM [core].[Html5ContentDetail] AS [hcd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Html5Content] AS [hcd_hc] ON [hcd].[Html5ContentID] = [hcd_hc].[Html5ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [hcd_hc_c] ON [hcd_hc].[ContentID] = [hcd_hc_c].[ContentID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [hcd_s] ON [hcd].[ServiceID] = [hcd_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [hcd_s_a] ON [hcd_s].[ApplicationID] = [hcd_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [hcd_s_p] ON [hcd_s].[ProductID] = [hcd_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [hcd_s_m] ON [hcd_s].[MerchantID] = [hcd_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [hcd_s_st] ON [hcd_s].[ServiceTypeID] = [hcd_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [hcd_s_ust] ON [hcd_s].[UserSessionTypeID] = [hcd_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [hcd_s_c] ON [hcd_s].[FallbackCountryID] = [hcd_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [hcd_s_l] ON [hcd_s].[FallbackLanguageID] = [hcd_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [hcd_s_ar] ON [hcd_s].[FallbackAgeRatingID] = [hcd_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [hcd_s_sc] ON [hcd_s].[ServiceConfigurationID] = [hcd_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [hcd_s_bm] ON [hcd_s].[BusinessModelID] = [hcd_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [hcd_s_t] ON [hcd_s].[TemplateID] = [hcd_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [hcd_l] ON [hcd].[LanguageID] = [hcd_l].[LanguageID] ";
+				sqlCmdText += "WHERE [hcd].[Html5ContentDetailID] = @Html5ContentDetailID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@Html5ContentDetailID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hcd", "loadinternal", "notfound"), "Html5ContentDetail could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				Html5ContentDetailTable hcdTable = new Html5ContentDetailTable(query);
+				Html5ContentTable hcd_hcTable = (this.Depth > 0) ? new Html5ContentTable(query) : null;
+				ContentTable hcd_hc_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				ServiceTable hcd_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable hcd_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable hcd_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable hcd_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable hcd_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable hcd_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable hcd_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable hcd_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable hcd_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable hcd_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable hcd_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable hcd_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				LanguageTable hcd_lTable = (this.Depth > 0) ? new LanguageTable(query) : null;
+
+        
+				Content hcd_hc_cObject = (this.Depth > 1) ? hcd_hc_cTable.CreateInstance() : null;
+				Html5Content hcd_hcObject = (this.Depth > 0) ? hcd_hcTable.CreateInstance(hcd_hc_cObject) : null;
+				Application hcd_s_aObject = (this.Depth > 1) ? hcd_s_aTable.CreateInstance() : null;
+				Product hcd_s_pObject = (this.Depth > 1) ? hcd_s_pTable.CreateInstance() : null;
+				Merchant hcd_s_mObject = (this.Depth > 1) ? hcd_s_mTable.CreateInstance() : null;
+				ServiceType hcd_s_stObject = (this.Depth > 1) ? hcd_s_stTable.CreateInstance() : null;
+				UserSessionType hcd_s_ustObject = (this.Depth > 1) ? hcd_s_ustTable.CreateInstance() : null;
+				Country hcd_s_cObject = (this.Depth > 1) ? hcd_s_cTable.CreateInstance() : null;
+				Language hcd_s_lObject = (this.Depth > 1) ? hcd_s_lTable.CreateInstance() : null;
+				AgeRating hcd_s_arObject = (this.Depth > 1) ? hcd_s_arTable.CreateInstance() : null;
+				ServiceConfiguration hcd_s_scObject = (this.Depth > 1) ? hcd_s_scTable.CreateInstance() : null;
+				BusinessModel hcd_s_bmObject = (this.Depth > 1) ? hcd_s_bmTable.CreateInstance() : null;
+				Template hcd_s_tObject = (this.Depth > 1) ? hcd_s_tTable.CreateInstance() : null;
+				Service hcd_sObject = (this.Depth > 0) ? hcd_sTable.CreateInstance(hcd_s_aObject, hcd_s_pObject, hcd_s_mObject, hcd_s_stObject, hcd_s_ustObject, hcd_s_cObject, hcd_s_lObject, hcd_s_arObject, hcd_s_scObject, hcd_s_bmObject, hcd_s_tObject) : null;
+				Language hcd_lObject = (this.Depth > 0) ? hcd_lTable.CreateInstance() : null;
+				Html5ContentDetail hcdObject = hcdTable.CreateInstance(hcd_hcObject, hcd_sObject, hcd_lObject);
+				sqlReader.Close();
+
+				return hcdObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hcd", "loadinternal", "exception"), "Html5ContentDetail could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Html5ContentDetail", "Exception while loading Html5ContentDetail object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public Html5ContentDetail Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							Html5ContentDetailTable.GetColumnNames("[hcd]") + 
+							(this.Depth > 0 ? "," + Html5ContentTable.GetColumnNames("[hcd_hc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[hcd_hc_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[hcd_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[hcd_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[hcd_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[hcd_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[hcd_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[hcd_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[hcd_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[hcd_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[hcd_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[hcd_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[hcd_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[hcd_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + LanguageTable.GetColumnNames("[hcd_l]") : string.Empty) +  
+					" FROM [core].[Html5ContentDetail] AS [hcd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Html5Content] AS [hcd_hc] ON [hcd].[Html5ContentID] = [hcd_hc].[Html5ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [hcd_hc_c] ON [hcd_hc].[ContentID] = [hcd_hc_c].[ContentID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [hcd_s] ON [hcd].[ServiceID] = [hcd_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [hcd_s_a] ON [hcd_s].[ApplicationID] = [hcd_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [hcd_s_p] ON [hcd_s].[ProductID] = [hcd_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [hcd_s_m] ON [hcd_s].[MerchantID] = [hcd_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [hcd_s_st] ON [hcd_s].[ServiceTypeID] = [hcd_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [hcd_s_ust] ON [hcd_s].[UserSessionTypeID] = [hcd_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [hcd_s_c] ON [hcd_s].[FallbackCountryID] = [hcd_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [hcd_s_l] ON [hcd_s].[FallbackLanguageID] = [hcd_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [hcd_s_ar] ON [hcd_s].[FallbackAgeRatingID] = [hcd_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [hcd_s_sc] ON [hcd_s].[ServiceConfigurationID] = [hcd_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [hcd_s_bm] ON [hcd_s].[BusinessModelID] = [hcd_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [hcd_s_t] ON [hcd_s].[TemplateID] = [hcd_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [hcd_l] ON [hcd].[LanguageID] = [hcd_l].[LanguageID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hcd", "customload", "notfound"), "Html5ContentDetail could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				Html5ContentDetailTable hcdTable = new Html5ContentDetailTable(query);
+				Html5ContentTable hcd_hcTable = (this.Depth > 0) ? new Html5ContentTable(query) : null;
+				ContentTable hcd_hc_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				ServiceTable hcd_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable hcd_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable hcd_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable hcd_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable hcd_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable hcd_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable hcd_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable hcd_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable hcd_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable hcd_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable hcd_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable hcd_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				LanguageTable hcd_lTable = (this.Depth > 0) ? new LanguageTable(query) : null;
+
+        
+				Content hcd_hc_cObject = (this.Depth > 1) ? hcd_hc_cTable.CreateInstance() : null;
+				Html5Content hcd_hcObject = (this.Depth > 0) ? hcd_hcTable.CreateInstance(hcd_hc_cObject) : null;
+				Application hcd_s_aObject = (this.Depth > 1) ? hcd_s_aTable.CreateInstance() : null;
+				Product hcd_s_pObject = (this.Depth > 1) ? hcd_s_pTable.CreateInstance() : null;
+				Merchant hcd_s_mObject = (this.Depth > 1) ? hcd_s_mTable.CreateInstance() : null;
+				ServiceType hcd_s_stObject = (this.Depth > 1) ? hcd_s_stTable.CreateInstance() : null;
+				UserSessionType hcd_s_ustObject = (this.Depth > 1) ? hcd_s_ustTable.CreateInstance() : null;
+				Country hcd_s_cObject = (this.Depth > 1) ? hcd_s_cTable.CreateInstance() : null;
+				Language hcd_s_lObject = (this.Depth > 1) ? hcd_s_lTable.CreateInstance() : null;
+				AgeRating hcd_s_arObject = (this.Depth > 1) ? hcd_s_arTable.CreateInstance() : null;
+				ServiceConfiguration hcd_s_scObject = (this.Depth > 1) ? hcd_s_scTable.CreateInstance() : null;
+				BusinessModel hcd_s_bmObject = (this.Depth > 1) ? hcd_s_bmTable.CreateInstance() : null;
+				Template hcd_s_tObject = (this.Depth > 1) ? hcd_s_tTable.CreateInstance() : null;
+				Service hcd_sObject = (this.Depth > 0) ? hcd_sTable.CreateInstance(hcd_s_aObject, hcd_s_pObject, hcd_s_mObject, hcd_s_stObject, hcd_s_ustObject, hcd_s_cObject, hcd_s_lObject, hcd_s_arObject, hcd_s_scObject, hcd_s_bmObject, hcd_s_tObject) : null;
+				Language hcd_lObject = (this.Depth > 0) ? hcd_lTable.CreateInstance() : null;
+				Html5ContentDetail hcdObject = hcdTable.CreateInstance(hcd_hcObject, hcd_sObject, hcd_lObject);
+				sqlReader.Close();
+
+				return hcdObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hcd", "customload", "exception"), "Html5ContentDetail could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Html5ContentDetail", "Exception while loading (custom/single) Html5ContentDetail object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<Html5ContentDetail> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							Html5ContentDetailTable.GetColumnNames("[hcd]") + 
+							(this.Depth > 0 ? "," + Html5ContentTable.GetColumnNames("[hcd_hc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ContentTable.GetColumnNames("[hcd_hc_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[hcd_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[hcd_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[hcd_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[hcd_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[hcd_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[hcd_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[hcd_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[hcd_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[hcd_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[hcd_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[hcd_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[hcd_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + LanguageTable.GetColumnNames("[hcd_l]") : string.Empty) +  
+					" FROM [core].[Html5ContentDetail] AS [hcd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Html5Content] AS [hcd_hc] ON [hcd].[Html5ContentID] = [hcd_hc].[Html5ContentID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Content] AS [hcd_hc_c] ON [hcd_hc].[ContentID] = [hcd_hc_c].[ContentID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [hcd_s] ON [hcd].[ServiceID] = [hcd_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [hcd_s_a] ON [hcd_s].[ApplicationID] = [hcd_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [hcd_s_p] ON [hcd_s].[ProductID] = [hcd_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [hcd_s_m] ON [hcd_s].[MerchantID] = [hcd_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [hcd_s_st] ON [hcd_s].[ServiceTypeID] = [hcd_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [hcd_s_ust] ON [hcd_s].[UserSessionTypeID] = [hcd_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [hcd_s_c] ON [hcd_s].[FallbackCountryID] = [hcd_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [hcd_s_l] ON [hcd_s].[FallbackLanguageID] = [hcd_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [hcd_s_ar] ON [hcd_s].[FallbackAgeRatingID] = [hcd_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [hcd_s_sc] ON [hcd_s].[ServiceConfigurationID] = [hcd_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [hcd_s_bm] ON [hcd_s].[BusinessModelID] = [hcd_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [hcd_s_t] ON [hcd_s].[TemplateID] = [hcd_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [hcd_l] ON [hcd].[LanguageID] = [hcd_l].[LanguageID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hcd", "customloadmany", "notfound"), "Html5ContentDetail list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<Html5ContentDetail>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				Html5ContentDetailTable hcdTable = new Html5ContentDetailTable(query);
+				Html5ContentTable hcd_hcTable = (this.Depth > 0) ? new Html5ContentTable(query) : null;
+				ContentTable hcd_hc_cTable = (this.Depth > 1) ? new ContentTable(query) : null;
+				ServiceTable hcd_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable hcd_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable hcd_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable hcd_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable hcd_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable hcd_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable hcd_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable hcd_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable hcd_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable hcd_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable hcd_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable hcd_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				LanguageTable hcd_lTable = (this.Depth > 0) ? new LanguageTable(query) : null;
+
+        List<Html5ContentDetail> result = new List<Html5ContentDetail>();
+        do
+        {
+          
+					Content hcd_hc_cObject = (this.Depth > 1) ? hcd_hc_cTable.CreateInstance() : null;
+					Html5Content hcd_hcObject = (this.Depth > 0) ? hcd_hcTable.CreateInstance(hcd_hc_cObject) : null;
+					Application hcd_s_aObject = (this.Depth > 1) ? hcd_s_aTable.CreateInstance() : null;
+					Product hcd_s_pObject = (this.Depth > 1) ? hcd_s_pTable.CreateInstance() : null;
+					Merchant hcd_s_mObject = (this.Depth > 1) ? hcd_s_mTable.CreateInstance() : null;
+					ServiceType hcd_s_stObject = (this.Depth > 1) ? hcd_s_stTable.CreateInstance() : null;
+					UserSessionType hcd_s_ustObject = (this.Depth > 1) ? hcd_s_ustTable.CreateInstance() : null;
+					Country hcd_s_cObject = (this.Depth > 1) ? hcd_s_cTable.CreateInstance() : null;
+					Language hcd_s_lObject = (this.Depth > 1) ? hcd_s_lTable.CreateInstance() : null;
+					AgeRating hcd_s_arObject = (this.Depth > 1) ? hcd_s_arTable.CreateInstance() : null;
+					ServiceConfiguration hcd_s_scObject = (this.Depth > 1) ? hcd_s_scTable.CreateInstance() : null;
+					BusinessModel hcd_s_bmObject = (this.Depth > 1) ? hcd_s_bmTable.CreateInstance() : null;
+					Template hcd_s_tObject = (this.Depth > 1) ? hcd_s_tTable.CreateInstance() : null;
+					Service hcd_sObject = (this.Depth > 0) ? hcd_sTable.CreateInstance(hcd_s_aObject, hcd_s_pObject, hcd_s_mObject, hcd_s_stObject, hcd_s_ustObject, hcd_s_cObject, hcd_s_lObject, hcd_s_arObject, hcd_s_scObject, hcd_s_bmObject, hcd_s_tObject) : null;
+					Language hcd_lObject = (this.Depth > 0) ? hcd_lTable.CreateInstance() : null;
+					Html5ContentDetail hcdObject = (this.Depth > -1) ? hcdTable.CreateInstance(hcd_hcObject, hcd_sObject, hcd_lObject) : null;
+					result.Add(hcdObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hcd", "customloadmany", "exception"), "Html5ContentDetail list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "Html5ContentDetail", "Exception while loading (custom/many) Html5ContentDetail object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, Html5ContentDetail data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[Html5ContentDetail] ([Html5ContentID],[ServiceID],[LanguageID],[Title],[Description],[Rating],[HtmlTitle],[MetaDescription],[MetaKeywords]) VALUES(@Html5ContentID,@ServiceID,@LanguageID,@Title,@Description,@Rating,@HtmlTitle,@MetaDescription,@MetaKeywords); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@Html5ContentID", data.Html5Content.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service == null ? DBNull.Value : (object)data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@LanguageID", data.Language == null ? DBNull.Value : (object)data.Language.ID);
+				sqlCmd.Parameters.AddWithValue("@Title", data.Title).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Rating", data.Rating.HasValue ? (object)data.Rating.Value : DBNull.Value).SqlDbType = SqlDbType.Decimal;
+				sqlCmd.Parameters.AddWithValue("@HtmlTitle", data.HtmlTitle).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@MetaDescription", !string.IsNullOrEmpty(data.MetaDescription) ? (object)data.MetaDescription : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@MetaKeywords", !string.IsNullOrEmpty(data.MetaKeywords) ? (object)data.MetaKeywords : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hcd", "insert", "noprimarykey"), "Html5ContentDetail could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "Html5ContentDetail", "Exception while inserting Html5ContentDetail object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hcd", "insert", "exception"), "Html5ContentDetail could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "Html5ContentDetail", "Exception while inserting Html5ContentDetail object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, Html5ContentDetail data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[Html5ContentDetail] SET " +
+												"[Html5ContentID] = @Html5ContentID, " + 
+												"[ServiceID] = @ServiceID, " + 
+												"[LanguageID] = @LanguageID, " + 
+												"[Title] = @Title, " + 
+												"[Description] = @Description, " + 
+												"[Rating] = @Rating, " + 
+												"[HtmlTitle] = @HtmlTitle, " + 
+												"[MetaDescription] = @MetaDescription, " + 
+												"[MetaKeywords] = @MetaKeywords, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [Html5ContentDetailID] = @Html5ContentDetailID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@Html5ContentID", data.Html5Content.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service == null ? DBNull.Value : (object)data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@LanguageID", data.Language == null ? DBNull.Value : (object)data.Language.ID);
+				sqlCmd.Parameters.AddWithValue("@Title", data.Title).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Rating", data.Rating.HasValue ? (object)data.Rating.Value : DBNull.Value).SqlDbType = SqlDbType.Decimal;
+				sqlCmd.Parameters.AddWithValue("@HtmlTitle", data.HtmlTitle).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@MetaDescription", !string.IsNullOrEmpty(data.MetaDescription) ? (object)data.MetaDescription : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@MetaKeywords", !string.IsNullOrEmpty(data.MetaKeywords) ? (object)data.MetaKeywords : DBNull.Value).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@Html5ContentDetailID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hcd", "update", "norecord"), "Html5ContentDetail could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "Html5ContentDetail", "Exception while updating Html5ContentDetail object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hcd", "update", "morerecords"), "Html5ContentDetail was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "Html5ContentDetail", "Exception while updating Html5ContentDetail object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hcd", "update", "exception"), "Html5ContentDetail could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "Html5ContentDetail", "Exception while updating Html5ContentDetail object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, Html5ContentDetail data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[Html5ContentDetail] WHERE Html5ContentDetailID = @Html5ContentDetailID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@Html5ContentDetailID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hcd", "delete", "norecord"), "Html5ContentDetail could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "Html5ContentDetail", "Exception while deleting Html5ContentDetail object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("hcd", "delete", "exception"), "Html5ContentDetail could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "Html5ContentDetail", "Exception while deleting Html5ContentDetail object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

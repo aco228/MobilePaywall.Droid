@@ -1,0 +1,291 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using MobilePaywall.Data;
+
+using log4net;
+
+namespace MobilePaywall.Merchant
+{
+  public class MerchantPaywallRuntime : PaywallRuntimeBase
+  {
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (MerchantPaywallRuntime._log == null)
+          MerchantPaywallRuntime._log = LogManager.GetLogger(typeof(MerchantPaywallRuntime));
+        return MerchantPaywallRuntime._log;
+      }
+    }
+
+    private static readonly object PaywallRuntimeInitializationLockObject = new object();
+    private static readonly object PaywallStatisticInitializationLockObject = new object();
+    private bool _isInitialized = false;
+
+    private DateTime _updated = DateTime.MinValue;
+    //private List<Statistic> _statistics = new List<Statistic>();
+
+    protected List<Country> _countries = new List<Country>();
+    protected List<Instance> _instances = new List<Instance>();
+    protected List<Data.Merchant> _merchants = new List<Data.Merchant>();
+    protected List<PaymentProvider> _providers = new List<PaymentProvider>();
+    protected List<Data.Application> _applications = new List<Data.Application>();
+    protected List<MobileOperator> _operators = new List<MobileOperator>();
+    protected List<Domain> _domains = new List<Domain>();
+    protected List<ServiceOffer> _serviceOffers = new List<ServiceOffer>();
+    protected Dictionary<int, List<Data.Application>> _instanceApplicationMap = new Dictionary<int, List<Data.Application>>();
+    protected Dictionary<int, List<Data.Merchant>> _instanceMerchantMap = new Dictionary<int, List<Data.Merchant>>();
+    protected Dictionary<int, List<IService>> _instanceServiceMap = new Dictionary<int, List<IService>>();
+    protected Dictionary<int, List<IService>> _applicationServiceMap = new Dictionary<int, List<IService>>();
+    protected Dictionary<int, List<IService>> _merchantServiceMap = new Dictionary<int, List<IService>>();
+    protected Dictionary<int, List<MobileOperator>> _countryOperatorMap = new Dictionary<int, List<MobileOperator>>();
+    protected Dictionary<int, List<Domain>> _serviceDomainMap = new Dictionary<int, List<Domain>>();
+    protected Dictionary<int, List<IService>> _providerServiceMap = new Dictionary<int, List<IService>>();
+
+    public List<Country> Countries { get { return this._countries; } }
+    public List<Instance> Instances { get { return this._instances; } }
+    public List<Data.Merchant> Merchants { get { return this._merchants; } }
+    public List<PaymentProvider> Providers { get { return this._providers; } }
+    public List<Data.Application> Applications { get { return this._applications; } }
+    public List<MobileOperator> Operators { get { return this._operators; } }
+    public List<IService> Services { get { return this._services; } }
+    public List<Domain> Domains { get { return this._domains; } }
+    public List<ServiceOffer> ServiceOffers { get { return this._serviceOffers; } }
+    public Dictionary<int, List<Data.Application>> InstanceApplicationMap { get { return this._instanceApplicationMap; } }
+    public Dictionary<int, List<Data.Merchant>> InstanceMerchantMap { get { return this._instanceMerchantMap; } }
+    public Dictionary<int, List<IService>> InstanceServiceMap { get { return this._instanceServiceMap; } }
+    public Dictionary<int, List<IService>> ApplicationServiceMap { get { return this._applicationServiceMap; } }
+    public Dictionary<int, List<IService>> MerchantServiceMap { get { return this._merchantServiceMap; } }
+    public Dictionary<int, List<MobileOperator>> CountryOperatorMap { get { return this._countryOperatorMap; } }
+    public Dictionary<int, List<Domain>> ServiceDomainMap { get { return this._serviceDomainMap; } }
+    public Dictionary<int, List<IService>> ProviderServiceMap { get { return this._providerServiceMap; } }
+    //public List<StatisticView> Statistics { get { return this._statistics; } }
+
+    public MerchantPaywallRuntime(Data.Application application)
+      : base(application)
+    {
+
+    }
+
+    public override bool Initialize(string siteName)
+    {
+      if (this._isInitialized)
+        return true;
+
+      lock (MerchantPaywallRuntime.PaywallRuntimeInitializationLockObject)
+      {
+        if (this._isInitialized)
+          return true;
+
+        IDomainManager dManager = Domain.CreateManager();
+        this._domains = dManager.Load();
+
+        IServiceManager sManager = Service.CreateManager(2);
+        List<Service> services = sManager.Load();
+
+        if (services == null)
+          return false;
+
+        foreach (Service service in services)
+        {
+          IService iService = service.Instantiate(this);
+          this._serviceMap.Add(service.ID, iService);
+          this._services.Add(iService);
+        }        
+       
+        foreach (IService service in this._services)
+        {
+          if (this._instanceServiceMap.ContainsKey(service.ServiceData.Application.Instance.ID))
+            this._instanceServiceMap[service.ServiceData.Application.Instance.ID].Add(service);
+          else
+            this._instanceServiceMap.Add(service.ServiceData.Application.Instance.ID, new List<IService>() { service });
+
+          if (this._applicationServiceMap.ContainsKey(service.ServiceData.Application.ID))
+            this._applicationServiceMap[service.ServiceData.Application.ID].Add(service);
+          else
+            this._applicationServiceMap.Add(service.ServiceData.Application.ID, new List<IService>() { service });
+
+          if (this._merchantServiceMap.ContainsKey(service.ServiceData.Merchant.ID))
+            this._merchantServiceMap[service.ServiceData.Merchant.ID].Add(service);
+          else
+            this._merchantServiceMap.Add(service.ServiceData.Merchant.ID, new List<IService>() { service });
+
+          List<Domain> domains = (from d in this._domains where service.ServiceData.ID == d.Service.ID select d).ToList();
+          if (domains != null || domains.Count < 1)
+            if (this._serviceDomainMap.ContainsKey(service.ServiceData.ID))
+              this._serviceDomainMap[service.ServiceData.ID].AddRange(domains);
+            else
+            {
+              this._serviceDomainMap.Add(service.ServiceData.ID, new List<Domain>() { });
+              this._serviceDomainMap[service.ServiceData.ID].AddRange(domains);
+            }
+        }
+
+        IInstanceManager iManager = Instance.CreateManager();
+        this._instances = iManager.Load();
+
+        IMerchantManager mManager = Data.Merchant.CreateManager();
+        this._merchants = mManager.Load();
+
+        IPaymentProviderManager ppManager = PaymentProvider.CreateManager();
+        this._providers = ppManager.Load();
+
+        IServiceOfferManager soManager = ServiceOffer.CreateManager();
+        this._serviceOffers = soManager.Load();
+
+        
+        foreach (PaymentProvider provider in this._providers)
+        {
+          List<IService> providerServices = (from so in this._serviceOffers
+                                              where so.PaymentConfiguration.PaymentProvider.ID == provider.ID
+                                              select so.Service.Instantiate(this)).ToList();
+
+          this._providerServiceMap.Add(provider.ID, providerServices);
+        }
+
+        IApplicationManager aManager = Data.Application.CreateManager();
+        this._applications = aManager.Load();
+
+        foreach (Data.Application application in this._applications)
+          if (this._instanceApplicationMap.ContainsKey(application.Instance.ID))
+            this._instanceApplicationMap[application.Instance.ID].Add(application);
+          else
+            this._instanceApplicationMap.Add(application.Instance.ID, new List<Data.Application>() { application });
+
+        foreach (Data.Merchant merchant in this._merchants)
+          if (this._instanceMerchantMap.ContainsKey(merchant.Instance.ID))
+            this._instanceMerchantMap[merchant.Instance.ID].Add(merchant);
+          else
+            this._instanceMerchantMap.Add(merchant.Instance.ID, new List<Data.Merchant>() { merchant });
+
+        ICountryManager cManager = Country.CreateManager();
+        this._countries = cManager.Load();
+
+        IMobileOperatorManager moManager = MobileOperator.CreateManager();
+        this._operators = moManager.Load();
+
+        foreach (MobileOperator mobileOperator in this._operators)
+          if (this._countryOperatorMap.ContainsKey(mobileOperator.Country.ID))
+            this._countryOperatorMap[mobileOperator.Country.ID].Add(mobileOperator);
+          else
+            this._countryOperatorMap.Add(mobileOperator.Country.ID, new List<MobileOperator>() { mobileOperator });
+
+        foreach (Domain domain in this._domains)
+          if (this._domainNameMap.ContainsKey(domain.DomainName))
+            this._domainNameMap[domain.DomainName] = domain;
+          else
+            this._domainNameMap.Add(domain.DomainName, domain);
+      }
+
+      this._isInitialized = true;
+      return true;
+
+    }
+
+    public bool RefreshServices()
+    {
+      _serviceMap = new Dictionary<int, IService>();
+      _services = new List<IService>();
+      _instanceServiceMap = new Dictionary<int, List<IService>>();
+      _applicationServiceMap = new Dictionary<int, List<IService>>();
+      _merchantServiceMap = new Dictionary<int, List<IService>>();
+      _serviceDomainMap = new Dictionary<int, List<Domain>>();
+      _domainNameMap = new Dictionary<string, Domain>();
+
+
+      IDomainManager dManager = Domain.CreateManager();
+      this._domains = dManager.Load();
+
+      IServiceManager sManager = Service.CreateManager(2);
+      List<Service> services = sManager.Load();
+
+      if (services == null)
+        return false;
+
+      foreach (Service service in services)
+      {
+        IService iService = service.Instantiate(this);
+        this._serviceMap.Add(service.ID, iService);
+        this._services.Add(iService);
+      }
+
+      foreach (IService service in this._services)
+      {
+        if (this._instanceServiceMap.ContainsKey(service.ServiceData.Application.Instance.ID))
+          this._instanceServiceMap[service.ServiceData.Application.Instance.ID].Add(service);
+        else
+          this._instanceServiceMap.Add(service.ServiceData.Application.Instance.ID, new List<IService>() { service });
+
+        if (this._applicationServiceMap.ContainsKey(service.ServiceData.Application.ID))
+          this._applicationServiceMap[service.ServiceData.Application.ID].Add(service);
+        else
+          this._applicationServiceMap.Add(service.ServiceData.Application.ID, new List<IService>() { service });
+
+        if (this._merchantServiceMap.ContainsKey(service.ServiceData.Merchant.ID))
+          this._merchantServiceMap[service.ServiceData.Merchant.ID].Add(service);
+        else
+          this._merchantServiceMap.Add(service.ServiceData.Merchant.ID, new List<IService>() { service });
+
+        List<Domain> domains = (from d in this._domains where service.ServiceData.ID == d.Service.ID select d).ToList();
+        if (domains != null || domains.Count < 1)
+          if (this._serviceDomainMap.ContainsKey(service.ServiceData.ID))
+            this._serviceDomainMap[service.ServiceData.ID].AddRange(domains);
+          else
+          {
+            this._serviceDomainMap.Add(service.ServiceData.ID, new List<Domain>() { });
+            this._serviceDomainMap[service.ServiceData.ID].AddRange(domains);
+          }
+      }
+
+      foreach (Domain domain in this._domains)
+        if (this._domainNameMap.ContainsKey(domain.DomainName))
+          this._domainNameMap[domain.DomainName] = domain;
+        else
+          this._domainNameMap.Add(domain.DomainName, domain);
+
+      return true;
+    }
+
+    public bool RefreshMerchants()
+    {
+      IMerchantManager mManager = Data.Merchant.CreateManager();
+      this._merchants = mManager.Load();
+
+      _instanceMerchantMap = new Dictionary<int, List<Data.Merchant>>();
+
+      foreach (Data.Merchant merchant in this._merchants)
+        if (this._instanceMerchantMap.ContainsKey(merchant.Instance.ID))
+          this._instanceMerchantMap[merchant.Instance.ID].Add(merchant);
+        else
+          this._instanceMerchantMap.Add(merchant.Instance.ID, new List<Data.Merchant>() { merchant });
+
+      return true;
+    }
+
+    public override IService GetServiceByName(string name)
+    {
+      return (from service in this._services where service.ServiceData.Name.ToLower().Equals(name.ToLower()) select service).FirstOrDefault();
+    }
+
+    public Instance GetInstanceByID(int id)
+    {
+      return (from ins in this._instances where ins.ID == id select ins).FirstOrDefault();
+    }
+
+    public override Data.Merchant GetMerchantByID(int id)
+    {
+      return (from m in this._merchants where m.ID == id select m).FirstOrDefault();
+    }
+
+    public override Country GetCountryByID(int id)
+    {
+      return (from c in this._countries where c.ID == id select c).FirstOrDefault();
+    }
+  }
+}

@@ -1,0 +1,66 @@
+﻿using MobilePaywall.Service.Callback.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
+using System.Web;
+
+namespace MobilePaywall.Service.Callback.SpecificHandlers.CosmikServices
+{
+  public class CosmikWebRequest
+  {
+    private CallbackLog CLog = null;
+
+    public const string URL = "http://buzz1media.com/routein/productive8.php?key=ycC3nJ9rAMsuZA2B";
+    public string Type { get; set; }
+    public string Hid { get; set; }
+    public string Msisdn { get; set; }
+    public string Network { get; set; }
+    public string Amount { get; set; }
+
+    public string Url
+    {
+      get
+      {
+        string url = URL;
+
+        url += "&type=" + (!string.IsNullOrEmpty(this.Type) ? this.Type : "");
+        url += "&hid=" + (!string.IsNullOrEmpty(this.Hid) ? this.Hid : "");
+        url += "&msisdn=" + (!string.IsNullOrEmpty(this.Msisdn) ? this.Msisdn : "");
+        url += "&network=" + (!string.IsNullOrEmpty(this.Network) ? this.Network : "");
+        url += "&amount=" + (!string.IsNullOrEmpty(this.Amount) ? this.Amount : "");
+
+        return url;
+      }
+    }
+
+    public CosmikWebRequest(CallbackLog log)
+    {
+      this.CLog = log;
+    }
+    
+    public void SendData()
+    {
+      CLog.Debug("CosmikWebRequest:: Url = " + this.Url);
+      HttpWebRequest webRequest = (HttpWebRequest)WebRequest.Create(this.Url);
+      webRequest.AllowAutoRedirect = false;
+      HttpWebResponse response;
+      HttpStatusCode statusCode;
+
+      try
+      {
+        response = (HttpWebResponse)webRequest.GetResponse();
+      }
+      catch (WebException we)
+      {
+        CLog.Error("CosmikWebRequest:: Fatal", we);
+        return;
+      }
+
+      statusCode = response.StatusCode;
+      CLog.Debug("CosmikWebRequest:: ResponseCode = " + statusCode.ToString());
+      
+    }
+    
+  }
+}

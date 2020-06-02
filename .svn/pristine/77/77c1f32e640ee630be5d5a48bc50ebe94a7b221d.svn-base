@@ -1,0 +1,63 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Direct;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web.Helpers
+{
+  public static class PaymentHelper
+  {
+    public static bool HasActivePayment()
+    {
+      BusinessModelEntry businessModelEntry = PaywallHttpContext.Current.GetBusinessModel();
+      IBusinessModel businessModel = businessModelEntry.Instantiate();
+
+      ContentAccessResult accessResult = businessModel.CheckContentAccess(PaywallHttpContext.Current.Session, null);
+      return false;
+    }
+
+    public static bool HasPayment()
+    {
+
+      if (PaywallHttpContext.Current.HttpContext.Request["hasPayment"] != null)
+        return true;
+
+      if (PaywallHttpContext.Current.Session.SessionData.Customer == null)
+        return false;
+
+      int? paymentCount = MobilePaywallDirect.Instance.LoadInt(@"SELECT COUNT(*) FROM MobilePaywall.core.Payment AS p
+          WHERE p.PaymentStatusID IN (3, 5) AND p.CustomerID=" + PaywallHttpContext.Current.Session.SessionData.Customer.ID);
+
+      if (paymentCount.HasValue && paymentCount > 0)
+        return true;
+      return false;
+
+
+      //List<int> excludeOperators = new List<int>() { 220 };
+
+      //if (PaywallHttpContext.Current.Session.SessionData.Customer == null)
+      //  return false;
+
+      //Data.IPaymentManager pManager = Data.Payment.CreateManager();
+      //Data.Payment payment = (from p in pManager.Load<List<Payment>>(PaywallHttpContext.Current.Session.SessionData.Customer)
+      //                        where p.PaymentStatus == PaymentStatus.Successful
+      //                        select p).FirstOrDefault();
+
+      //return payment == null ? false : excludeOperators.Contains(payment.Customer.MobileOperator.ID) ? false : true;
+    }
+
+    public static bool HasPayment(FooterLink fl)
+    {
+      if (fl == null || !fl.IsCheckPaymentRequired)
+        return false;
+
+
+
+      return PaymentHelper.HasPayment();
+    }
+
+  }
+}

@@ -1,0 +1,802 @@
+﻿using Cashflow.Message;
+using Cashflow.Message.Mobile;
+using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Direct;
+using MobilePaywall.Web.Localization;
+using MobilePaywall.Web.Models.Specific.TPay;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers._Specific._ProviderSpecific.TPay
+{
+  public class TPayController : Controller
+  {
+
+    #region #LOG#
+    private static ILog _log = null;
+    protected static ILog Log
+    {
+      get
+      {
+        if (TPayController._log == null)
+          TPayController._log = LogManager.GetLogger(typeof(TPayController));
+        return TPayController._log;
+      }
+    }
+    #endregion
+
+    // GET: TPay
+    public ActionResult Index()
+    {
+      return this.Content("");
+    }
+
+    public ActionResult CheckIfThereIsSubscription()
+    {
+      string sid = Request["sid"] != null ? Request["sid"].ToString() : string.Empty;
+      if(string.IsNullOrEmpty(sid))
+        return this.Json(new { status = false });
+
+      int userSessionID;
+      if(!Int32.TryParse(sid, out userSessionID))
+        return this.Json(new { status = false });
+
+      MobilePaywallDirect db = MobilePaywallDirect.Instance;
+      int? customerID = db.LoadInt("SELECT CustomerID FROM MobilePaywall.core.UserSession WHERE UserSessionID=" + userSessionID);
+
+      if(!customerID.HasValue)
+        return this.Json(new { status = false });
+
+      int? refrenceNumber = db.LoadInt(string.Format(@"
+        SELECT COUNT(*) FROM MobilePaywall.core.PaymentContentAccessPolicyMap AS map
+        LEFT OUTER JOIN MobilePaywall.core.Payment AS p ON map.PaymentID=p.PaymentID
+	      LEFT OUTER JOIN MobilePaywall.core.Customer AS c ON p.CustomerID=c.CustomerID
+	      WHERE c.CustomerID={0} AND map.IsValid=1 AND map.ValidTo<=getdate();", customerID));
+
+      if (!refrenceNumber.HasValue || refrenceNumber.Value == 0)
+        refrenceNumber = db.LoadInt(string.Format(@"
+          SELECT COUNT(*) FROM MobilePaywall.core.PaymentRequest WHERE PaymentRequestStatusID=3 AND UserSessionID={0} AND DATEADD(minute, -3, GETDATE()) > Created", 
+            userSessionID));
+      
+      return this.Json(new { status = (refrenceNumber.HasValue && refrenceNumber.Value > 0) });
+    }
+
+    // SUMMARY: Get MobileOperatorID based on MCC and MNC from TPay api
+    public ActionResult GetMobileOperatorByCode()
+    {
+      string code = Request["code"] != null ? Request["code"].ToString() : string.Empty;
+      if (string.IsNullOrEmpty(code))
+      {
+        Log.Error("TPay.GetMobileOperatorByCode:: Code is not sent");
+        string defaultCatalogName = PaywallHttpContext.Current.Service.Storage.GetString(TPayService.Keys.DefaultCatalogName.ToString());
+        return this.Json(new { status = true, id = -1, catalogName = defaultCatalogName });
+      }
+
+      if(code.Length != 5)
+      {
+        Log.Error("TPay.GetMobileOperatorByCode:: Code length is not 5");
+        string defaultCatalogName = PaywallHttpContext.Current.Service.Storage.GetString(TPayService.Keys.DefaultCatalogName.ToString());
+        return this.Json(new { status = true, id = -1, catalogName = defaultCatalogName });
+      }
+
+      int _mcc = -1, _mnc = -1;
+      if(!Int32.TryParse(code.Substring(0, 3), out _mcc))
+      {
+        Log.Error("TPay.GetMobileOperatorByCode:: Could not get mcc from substring: " + code.Substring(0, 3));
+        return this.Json(new { status = false, id = -1, catalogName = "" });
+      }
+
+      if(!Int32.TryParse(code.Substring(3, 2), out _mnc))
+      {
+        Log.Error("TPay.GetMobileOperatorByCode:: Could not get mnc from substring: " + code.Substring(3, 2));
+        return this.Json(new { status = false, id = -1, catalogName = "" });
+      }
+
+      MobileOperatorCode moc = MobileOperatorCode.CreateManager().Load(_mcc.ToString(), (_mnc < 10 ? "0" + _mnc : _mnc.ToString()));
+      if(moc == null)
+      {
+        Log.Error("TPay.GetMobileOperatorByCode:: Could not get MobileOperatorCode from mcc=" + _mcc + ", mnc=" + _mnc);
+        return this.Json(new { status = false, id = -1, catalogName = "" });
+      }
+
+      // update session with current mno
+      PaywallHttpContext.Current.Session.SessionData.MobileOperator = moc.MobileOperator;
+      PaywallHttpContext.Current.Session.SessionData.Update();
+      return this.Json(new { status = true, id = moc.MobileOperator.ID, catalogName = this.GetCatalogNameByMobileOperator(moc.MobileOperator) });
+    }
+
+    // SUMMARY: Proxy method for GetCatalogNameByMobileOperator (from .js in case there is MobileOperator.ID but not CatalogName)
+    public ActionResult GetCatalogNameByMobileOperatorID()
+    {
+      string mno = Request["mno"] != null ? Request["mno"].ToString() : string.Empty;
+      if (string.IsNullOrEmpty(mno))
+        return this.Json(new { status = false, catalogName = "" });
+
+      int _mobileOperatorID;
+      if (!Int32.TryParse(mno, out _mobileOperatorID))
+        return this.Json(new { status = false, catalogName = "" });
+
+      MobileOperator mobileOperator = MobileOperator.CreateManager().Load(_mobileOperatorID);
+      if (mobileOperator == null)
+        return this.Json(new { status = false, catalogName = "" });
+
+      return this.Json(new { status = true, catalogName = this.GetCatalogNameByMobileOperator(mobileOperator) });
+    }
+
+    // SUMMARY: Get catalog name based on MobileOperator
+    //          catalog name is stored into Service.Storage.. with name convention (CatalogName_[MobileOperator.ID])
+    //          for cache purpose, it will be also stored into Session.Storage
+    public string GetCatalogNameByMobileOperator(MobileOperator mno)
+    {      
+      string catalogKeyName = string.Format("{0}_{1}", TPayService.Keys.CatalogName.ToString(), mno.ID);
+      string catalogName = PaywallHttpContext.Current.Service.Storage.GetString(catalogKeyName);
+
+      if (string.IsNullOrEmpty(catalogName))
+        catalogName = PaywallHttpContext.Current.Service.Storage.GetString(TPayService.Keys.DefaultCatalogName.ToString());
+
+      // check catalog name
+      if (string.IsNullOrEmpty(catalogName))
+      {
+        Log.Error("TPay.GetMobileOperatorByCode:: Catalog name is not set for this service (" + PaywallHttpContext.Current.Service.ServiceData.Name + ")..  in storage default 'DefaultCatalogName' or with name " + catalogKeyName);
+        return string.Empty;
+      }
+
+      PaywallHttpContext.Current.Session.Storage.PutString(TPayService.Keys.CatalogName.ToString(), catalogName);
+      return catalogName;
+    }
+
+    // SUMMARY: After we collected all data within .js, we need to create all lookup data for future use
+    public ActionResult CreateLookupData()
+    {
+      string tpaySessionID = Request["tpaySessionID"] != null ? Request["tpaySessionID"].ToString() : string.Empty;
+      if(!string.IsNullOrEmpty(tpaySessionID))
+        PaywallHttpContext.Current.Session.Storage.PutString(TPayService.Keys.TPaySessionID.ToString(), tpaySessionID);
+      string msisdn = Request["msisdn"] != null ? Request["msisdn"].ToString() : string.Empty;
+
+      Customer customer = null;
+      if (!string.IsNullOrEmpty(msisdn))
+        //customer = Customer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData, msisdn, CustomerIdentifier.Msisdn).FirstOrDefault();
+        customer = Customer.LoadCustomerByServiceMsisdn(PaywallHttpContext.Current.Service.ServiceData, msisdn);
+
+      // Connect customer with current UserSession
+      if(PaywallHttpContext.Current.Session.SessionData.Customer == null && customer == null)
+      {
+        customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Active, PaywallHttpContext.Current.Service.ServiceData, PaywallHttpContext.Current.Service.ServiceData.FallbackCountry, 
+          PaywallHttpContext.Current.Session.SessionData.MobileOperator, null, string.Empty, string.Empty, "", null, DateTime.Now, DateTime.Now);
+        customer.Insert();
+        customer.SetUsernameAndPassword();
+        PaywallHttpContext.Current.Session.SessionData.Customer = customer;
+        PaywallHttpContext.Current.Session.SessionData.Update();
+        Log.Debug(string.Format("TPay.CreateLookupData:: New Customer created with ID: ", customer.ID));
+      }
+      else if(PaywallHttpContext.Current.Session.SessionData.Customer == null && customer != null)
+      {
+        Log.Debug(string.Format("TPay.CreateLookupData:: UserSession had no customer and it was updated with cid:{0} ",
+          customer.ID));
+
+        PaywallHttpContext.Current.Session.SessionData.Customer = customer;
+        PaywallHttpContext.Current.Session.SessionData.Update();
+      }
+      else if(PaywallHttpContext.Current.Session.SessionData.Customer != null && customer != null && PaywallHttpContext.Current.Session.SessionData.Customer.ID != customer.ID)
+      {
+        Log.Debug(string.Format("TPay.CreateLookupData:: UserSession had cid:{0}, and it was updated with cid:{1} ",
+          PaywallHttpContext.Current.Session.SessionData.Customer.ID, customer.ID));
+        PaywallHttpContext.Current.Session.SessionData.Customer = customer;
+        PaywallHttpContext.Current.Session.SessionData.Update();
+      }
+
+      LookupSession ls = LookupSession.CreateManager().Load(PaywallHttpContext.Current.Session.SessionData);
+      if(ls == null)
+      {
+        UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), PaywallHttpContext.Current.Session.SessionData, null, PaywallHttpContext.Current.Service.ServiceData.Name, DateTime.Now, DateTime.Now); uhr.Insert();
+        ls = new LookupSession(-1, Guid.NewGuid(), LookupSessionStatus.Complete, PaywallHttpContext.Current.Session.SessionData, uhr, null, "-nil-", DateTime.Now, DateTime.Now); ls.Insert();
+        LookupSessionResult lsr = new LookupSessionResult(-1, ls, true, true, null, PaywallHttpContext.Current.Session.SessionData.MobileOperator, string.Empty, string.Empty, DateTime.Now, DateTime.Now); lsr.Insert();
+      }
+
+      Log.Debug("TPay.CreateLookupData:: Lookup done");
+      return this.Json(new{status = true});
+    }
+
+    // SUMMARY: Report unsuccessfull payment request
+    public ActionResult ReportUnsuccessfulPaymentRequest()
+    {
+      string reason = Request["refNo"] != null ? Request["refNo"].ToString() : string.Empty;
+      
+      LookupSession ls = LookupSession.CreateManager().Load(PaywallHttpContext.Current.Session.SessionData);
+      UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), PaywallHttpContext.Current.Session.SessionData, null, PaywallHttpContext.Current.Service.ServiceData.Name, DateTime.Now, DateTime.Now); uhr.Insert();
+      PaymentRequest pr = new PaymentRequest(-1, Guid.NewGuid(), PaymentType.Subscription, PaymentRequestStatus.Failure, ls, PaywallHttpContext.Current.Session.SessionData.Customer,
+        PaywallHttpContext.Current.Session.SessionData, PaywallHttpContext.Current.Service.DefaultServiceOffer, PaywallHttpContext.Current.Service.DefaultServiceOffer.BusinessModelEntry,
+        null, uhr, "", DateTime.Now, DateTime.Now);
+      pr.Insert();
+
+      Log.Error("TPay.ReportUnsuccessfulPaymentRequest:: Payment request is not success:" + reason);
+      return this.Json(new { status = true });
+    }
+
+    // SUMMARY: Check if all is set for setup process (we must have MobileOperator, Customer, etc)
+    public ActionResult CheckIfSetupIsReady()
+    {
+      if (PaywallHttpContext.Current.Session.SessionData.Customer == null)
+      {
+        Log.Error("TPay.CheckIfSetupIsReady:: Customer is null for session:" + PaywallHttpContext.Current.Session.SessionData.ID);
+        return this.Json(new { status = false });
+      }
+
+      return this.Json(new { status = true });
+    }
+
+    // SUMMARY: On successfull payment request (msisnd)
+    public ActionResult Setup()
+    {
+      string refNo = Request["refNo"] != null ? Request["refNo"].ToString() : string.Empty;
+      string msisdn = Request["msisdn"] != null ? Request["msisdn"].ToString() : string.Empty;
+      msisdn = this.CheckMsisdn(msisdn);
+
+      if(string.IsNullOrEmpty(msisdn))
+      {
+        Log.Error("TPay.Setup:: Wrong msisdn");
+        string errorMessage = (this.GetCashflowLanguageID() == TpayLanguage.English) ? "Error with provided msisdn." : "خطأ مع مسيسدن المقدمة.";
+        return this.Json(new { status = false, message = errorMessage });
+      }
+
+      if(string.IsNullOrEmpty(refNo))
+      {
+        Log.Error("TPay.Setup:: refNo is not set");
+        return this.Json(new { status = false });
+      }
+
+      if(!string.IsNullOrEmpty(msisdn))
+      {
+        Log.Debug("TPay.Setup:: Msisdn is sent " + msisdn);
+        PaywallHttpContext.Current.Session.SessionData.Customer.Msisdn = msisdn;
+        PaywallHttpContext.Current.Session.SessionData.Customer.Update();
+      }
+      
+      ServiceOffer so = PaywallHttpContext.Current.Service.DefaultServiceOffer;
+      LookupSession ls = LookupSession.CreateManager().Load(PaywallHttpContext.Current.Session.SessionData);
+      UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), PaywallHttpContext.Current.Session.SessionData, null, PaywallHttpContext.Current.Service.ServiceData.Name, DateTime.Now, DateTime.Now); uhr.Insert();
+      PaymentRequest paymentRequest = new PaymentRequest(-1, Guid.NewGuid(), PaymentType.Subscription, PaymentRequestStatus.Pending, ls, PaywallHttpContext.Current.Session.SessionData.Customer,
+        PaywallHttpContext.Current.Session.SessionData, PaywallHttpContext.Current.Service.DefaultServiceOffer, PaywallHttpContext.Current.Service.DefaultServiceOffer.BusinessModelEntry,
+        null, uhr, "", DateTime.Now, DateTime.Now);
+      paymentRequest.Insert();
+      
+      MobileSubscriberArguments argument = new MobileSubscriberArguments();
+      argument.OperatorCode = PaywallHttpContext.Current.Session.SessionData.MobileOperator.ExternalMobileOperatorID.ToString();
+      argument.Msisdn = PaywallHttpContext.Current.Session.SessionData.Customer.Msisdn;
+      argument.ExternalID = refNo;
+      argument.Language = ((int)this.GetCashflowLanguageID()).ToString();
+      
+      InitiateSubscriptionResponse response = CashflowClientPaywallManager.GetInitiateSubscriptionResponse(PaywallHttpContext.Current.Session, string.Empty, argument);
+      
+      if (response.Status.Code != MessageStatusCode.Redirect && response.Status.Code != MessageStatusCode.Success)
+      {
+        paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Failure;
+        paymentRequest.Update();
+
+        if(response.Status.SubCode == MessageStatusSubCode.ActiveSubscriptionExists)
+        {
+          Log.Error("TPay.Setup:: Initiate is NOT success because ActiveSubscriptionExists");
+          string errorMessage = (this.GetCashflowLanguageID() == TpayLanguage.English) ? "You are already subscribed in the service" : "انت بالفعل مشترك فالخدمه للوصل اللى كلمه اسم المستخدمه وكلمه السر يرجي الضغط هنا وللتسجيل الدخول اضغط هنا";
+
+          return this.Json(new { status = false, message = errorMessage });
+        }
+
+        Log.Error("TPay.Setup:: Initiate is NOT success:");
+        return this.Json(new { status = false }); 
+      }
+
+      paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Complete;
+      paymentRequest.ExternalPaymentRequestGuid = response.SubscriptionRequestID;
+      paymentRequest.Update();
+      PaywallHttpContext.Current.Session.SessionData.Customer.ExternalCustomerGuid = response.CustomerID;
+      PaywallHttpContext.Current.Session.SessionData.Customer.Update();
+
+      MobileTanArguments arguments = new MobileTanArguments();
+      arguments.IsTanFlow = "true";
+
+      SetupSubscriptionRequest setupSubscriptionRequest = new SetupSubscriptionRequest(RequestMode.Synchronous,
+        PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+        so.PaymentConfiguration.PaymentCredentials.Username,
+        so.PaymentConfiguration.PaymentCredentials.Password,
+        response.SubscriptionRequestID.Value,
+        response.SubscriptionRequestID.ToString(),
+        arguments.ToMessageArguments());
+      setupSubscriptionRequest.ReferenceIntID = PaywallHttpContext.Current.Session.SessionData.ID;
+      SetupSubscriptionResponse setupSubscriptionResponse = CashflowClientPaywallManager.GetSubscriptionClient(PaywallHttpContext.Current.Service).SetupSubscription(setupSubscriptionRequest);
+
+      if (setupSubscriptionResponse.Status.Code != MessageStatusCode.Redirect && setupSubscriptionResponse.Status.Code != MessageStatusCode.Success)
+      {
+        Log.Error("TPay.Setup:: Setup is not success:");
+        return this.Json(new { status = false });
+      }
+      
+      if(!setupSubscriptionResponse.SubscriptionID.HasValue)
+      {
+        Log.Error("TPay.Setup:: SetupSubscription.SubscriptionID has no value");
+        return this.Json(new { status = false });
+      }
+
+      return this.SendWelcomeMessage(so, setupSubscriptionResponse.SubscriptionID.Value);
+    }
+
+    // SUMMARY: In case that this is Wifi flow on customer side
+    public ActionResult WifiSetup()
+    {
+      string msisdn = Request["msisdn"] != null ? PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.FixNumber(Request["msisdn"].ToString()) : string.Empty;
+      string mno = Request["mno"] != null ? Request["mno"].ToString() : string.Empty;
+      msisdn = this.CheckMsisdn(msisdn);
+
+      if (string.IsNullOrEmpty(msisdn) || string.IsNullOrEmpty(mno))
+      {
+        Log.Error("tpay.wifiSetup:: there is no input of msisdn or mno");
+        return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal });
+      }
+      
+      if (msisdn.Equals("33228"))
+        return this.Json(new { status = true, message = ""});
+
+      int _mnoID;
+      if(!Int32.TryParse(mno, out _mnoID))
+      {
+        Log.Error("tpay.wifiSetup: could not parse _mno:" + _mnoID);
+        return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal });
+      }
+
+      MobileOperator mobileOperator = MobileOperator.CreateManager().Load(_mnoID);
+      if(mobileOperator == null)
+      {
+        Log.Error("tpay.wifiSetup: could not load MobileOperator with id: " + _mnoID);
+        return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal });
+      }
+
+      // Just in case that Customer doues not exists (but it should)
+      if(PaywallHttpContext.Current.Session.SessionData.Customer == null)
+      {
+        PaywallHttpContext.Current.Session.SessionData.Customer = new Customer(-1, Guid.NewGuid(), CustomerStatus.Active, PaywallHttpContext.Current.Service.ServiceData, PaywallHttpContext.Current.Service.ServiceData.FallbackCountry,
+          mobileOperator, null, msisdn, string.Empty, "", null, DateTime.Now, DateTime.Now);
+        PaywallHttpContext.Current.Session.SessionData.Customer.Insert();
+        PaywallHttpContext.Current.Session.SessionData.Customer.SetUsernameAndPassword();
+      }
+
+      ServiceOffer so = PaywallHttpContext.Current.Service.DefaultServiceOffer;
+      LookupSession ls = LookupSession.CreateManager().Load(PaywallHttpContext.Current.Session.SessionData);
+      UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), PaywallHttpContext.Current.Session.SessionData, null, PaywallHttpContext.Current.Service.ServiceData.Name, DateTime.Now, DateTime.Now); uhr.Insert();
+      PaymentRequest paymentRequest = new PaymentRequest(-1, Guid.NewGuid(), PaymentType.Subscription, PaymentRequestStatus.Pending, ls, PaywallHttpContext.Current.Session.SessionData.Customer,
+        PaywallHttpContext.Current.Session.SessionData, PaywallHttpContext.Current.Service.DefaultServiceOffer, PaywallHttpContext.Current.Service.DefaultServiceOffer.BusinessModelEntry,
+        null, uhr, "", DateTime.Now, DateTime.Now);
+      paymentRequest.Insert();
+
+      PaywallHttpContext.Current.Session.SessionData.MobileOperator = mobileOperator;
+      PaywallHttpContext.Current.Session.SessionData.Update();
+      PaywallHttpContext.Current.Session.SessionData.Customer.Msisdn = msisdn;
+      PaywallHttpContext.Current.Session.SessionData.Customer.MobileOperator = mobileOperator;
+      PaywallHttpContext.Current.Session.SessionData.Customer.Update();
+      
+      MobileSubscriberArguments arguments = new MobileSubscriberArguments();
+      arguments.Msisdn = msisdn;
+      arguments.OperatorCode = mobileOperator.ExternalMobileOperatorID.ToString();
+      arguments.Language = ((int)this.GetCashflowLanguageID()).ToString();
+
+      
+      InitiateSubscriptionResponse response = CashflowClientPaywallManager.GetInitiateSubscriptionResponse(PaywallHttpContext.Current.Session, string.Empty, arguments);
+      if (response.Status.Code == MessageStatusCode.Redirect || response.Status.Code == MessageStatusCode.Success)
+      {
+        paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Complete;
+        paymentRequest.ExternalPaymentRequestGuid = response.SubscriptionRequestID;
+        paymentRequest.Update();
+        PaywallHttpContext.Current.Session.SessionData.Customer.ExternalCustomerGuid = response.CustomerID;
+        PaywallHttpContext.Current.Session.SessionData.Customer.Update();
+
+        Log.Debug("TPay.WifiSetup:: Redirect:" + response.RedirectUrl);
+        return this.Json(new { status = true, message = this.GetEnterPinMessage(),  redirectUrl = response.RedirectUrl, guid=response.SubscriptionRequestID.ToString() });
+      }
+      else if (response.Status.SubCode == MessageStatusSubCode.ActiveSubscriptionExists)
+      {
+        Customer customer = Customer.CreateManager().Load(response.CustomerID.Value, GuidType.External);
+        if(customer == null)
+        {
+          Log.Error("TPay.WifiSetup :: Cannot load customer with CustomerGuid from initiate response");
+          return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal });
+        }
+        PaywallHttpContext.Current.Session.SessionData.Customer = customer;
+        PaywallHttpContext.Current.Session.SessionData.Update();
+
+        return this.Json(new { status = false, subscribed = true, message = "" , redirectUrl = "" });
+      }
+      else
+      {
+        paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Failure;
+        paymentRequest.Update();
+
+        Log.Error("TPay.WifiSetup:: Initiate is not success:");
+        //TODO::message to Arabian..
+        return this.Json(new { status = false, message= "Invalid mobile number!", redirectUrl = "" });
+      }
+    }
+
+    public ActionResult WifiSetupPin()
+    {
+      string pin = Request["pin"] != null ? Request["pin"].ToString() : string.Empty;
+      string guid = Request["guid"] != null ? Request["guid"].ToString() : string.Empty;
+
+      if (string.IsNullOrEmpty(pin) || string.IsNullOrEmpty(guid))
+        return this.Json(new { status = false, message = "Internal Error. Data empty" });
+
+      Guid subscriptionRequestGuid;
+      if (!Guid.TryParse(guid, out subscriptionRequestGuid))
+        return this.Json(new { status = false, message = "Internal Error. Guid parse" });
+
+      ServiceOffer so = PaywallHttpContext.Current.Service.DefaultServiceOffer;
+      MobileTanArguments arguments = new MobileTanArguments();
+      arguments.Tan = pin;
+      arguments.IsTanFlow = "true";
+
+      SetupSubscriptionRequest request = new SetupSubscriptionRequest(RequestMode.Synchronous,
+        PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+        so.PaymentConfiguration.PaymentCredentials.Username,
+        so.PaymentConfiguration.PaymentCredentials.Password,
+        subscriptionRequestGuid,
+        subscriptionRequestGuid.ToString(),
+        arguments.ToMessageArguments());
+
+      SetupSubscriptionResponse response = CashflowClientPaywallManager.GetSubscriptionClient(PaywallHttpContext.Current.Service).SetupSubscription(request);
+      if (response.Status.Code != MessageStatusCode.Success)
+      {
+        Log.Error("TPay.WifiSetup:: Setup is not success:");
+        return this.Json(new { status = false, message = this.GetInvalidPinMessage(), redirectUrl = "" });
+      }
+
+      if(!response.SubscriptionID.HasValue)
+      {
+        Log.Error("TPay.WifiSetup:: SetupSubscription.SubscriptionID has no value");
+        return this.Json(new { status = false });
+      }
+      
+      Log.Debug("TPay.WifiSetup:: Setup is success:");
+      return this.SendWelcomeMessage(so, response.SubscriptionID.Value);
+    }
+
+    public ActionResult ApiHasCustomerLogedInAndHasAccess()
+    {
+      string cid = Request["cid"] != null ? Request["cid"].ToString() : string.Empty;
+      if (string.IsNullOrEmpty(cid) || cid.Equals("-1"))
+        return this.Json(new { status = false, message = "cid" }, JsonRequestBehavior.AllowGet);
+
+      int customerID;
+      if (!Int32.TryParse(cid, out customerID))
+        return this.Json(new { status = false, message = "args" }, JsonRequestBehavior.AllowGet);
+
+      int? count = MobilePaywallDirect.Instance.LoadInt(string.Format(@"
+        SELECT COUNT(*) FROM MobilePaywall.core.PaymentContentAccessPolicyMap AS map
+        LEFT OUTER JOIN MobilePaywall.core.Payment AS p ON map.PaymentID=p.PaymentID
+	      LEFT OUTER JOIN MobilePaywall.core.Customer AS c ON p.CustomerID=c.CustomerID
+	      WHERE c.CustomerID={0} AND map.IsValid=1 AND map.ValidTo<=getdate();", customerID));
+
+      if(!count.HasValue || count.Value == 0)
+        return this.Json(new { status = false, message = "no access" }, JsonRequestBehavior.AllowGet);
+      else
+        return this.Json(new { status = true, message = "ok" }, JsonRequestBehavior.AllowGet);
+    }
+
+    private ActionResult SendWelcomeMessage(ServiceOffer so, Guid subscriptionGuid)
+    {
+
+      string msisdn = PaywallHttpContext.Current.Session.SessionData.Customer.Msisdn.ToString(); 
+      
+      TPayService service = PaywallHttpContext.Current.Service as TPayService;
+
+      CustomerSetUserNameAndPasswordResult usernamePasswordResult = PaywallHttpContext.Current.Session.SessionData.Customer.SetUsernameAndPassword();
+      SmsArguments smsArguments = new SmsArguments();
+      smsArguments.SubscriptionRequestID = subscriptionGuid.ToString();
+      smsArguments.Username = usernamePasswordResult.Username;
+      smsArguments.Password = usernamePasswordResult.Password;
+
+      string smsMessage = this.ConstructWelcomeMessage();
+      smsMessage = smsMessage.Replace("[Service.Name]", PaywallHttpContext.Current.Service.ServiceData.Name);
+      smsMessage = smsMessage.Replace("[Service.Price]", service.CashflowPrice);
+      smsMessage = smsMessage.Replace("[Username]", msisdn);
+      smsMessage = smsMessage.Replace("[Password]", usernamePasswordResult.Password);
+      smsMessage = smsMessage.Replace("[Shortcode]", PaywallHttpContext.Current.Service.Storage.GetString(string.Format("Shortcode_{0}", PaywallHttpContext.Current.Session.SessionData.MobileOperator.Name)));
+      smsMessage = smsMessage.Replace("[Keyword]", PaywallHttpContext.Current.Service.Storage.GetString("Keyword"));
+
+
+      SendSmsRequest sendSmsRequest = new SendSmsRequest(RequestMode.Synchronous,
+        PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+        so.PaymentConfiguration.PaymentCredentials.Username,
+        so.PaymentConfiguration.PaymentCredentials.Password,
+        so.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+        so.Service.Product.ExternalProductGuid,
+        so.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+        so.Service.FallbackCountry.TwoLetterIsoCode,
+        so.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid.Value,
+        PaywallHttpContext.Current.Session.SessionData.MobileOperator.ExternalMobileOperatorID.ToString(),
+        msisdn,
+        smsMessage, // smsMessage
+        PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+        "", // notifactionUrl
+        smsArguments.ToMessageArguments());
+      sendSmsRequest.ReferenceIntID = PaywallHttpContext.Current.Session.SessionData.ID;
+
+
+      SendSmsResponse sendSmsResponse = CashflowClientPaywallManager.GetMobileExtensionClient(PaywallHttpContext.Current.Service).SendSms(sendSmsRequest);
+      if (sendSmsResponse.Status.Code != MessageStatusCode.Success && sendSmsResponse.Status.Code != MessageStatusCode.Redirect)
+      {
+        Log.Error("TPay.Setup:: Send sms is not success");
+        return this.Json(new { status = false ,message = Translations.Web.Error.ErrInternal });
+      }
+
+      Log.Debug("TPay.Setup:: Send sms is success");
+      return this.Json(new { status = true, message = "" });
+    }
+
+    public ActionResult ResendCredentials()
+    {
+      string mno = Request["mno"] != null ? Request["mno"].ToString() : string.Empty;
+      string msisdn = Request["msisdn"] != null ? Request["msisdn"].ToString() : string.Empty;
+
+      string _serviceName = PaywallHttpContext.Current.Service.ServiceData.Name;
+      string _merchant = PaywallHttpContext.Current.Service.ServiceData.Merchant.Name;
+      string _price = PaywallHttpContext.Current.Service.Storage.GetString("Currency") + PaywallHttpContext.Current.Service.Storage.GetString("Service_Price");
+      string _url = "eg1.just-fun.mobi";
+      string _user = PaywallHttpContext.Current.Session.SessionData.Customer.Username;
+      string _password = PaywallHttpContext.Current.Session.SessionData.Customer.Storage.GetString("password");
+      string _keyword = PaywallHttpContext.Current.Session.Service.Storage.GetString("Keyword");
+      string _shortcode = "";
+      
+
+      if (string.IsNullOrEmpty(msisdn) || string.IsNullOrEmpty(mno))
+      {
+        Log.Error("tpay.wifiSetup:: there is no input of msisdn or mno");
+        return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal });
+      }
+
+      if (msisdn.Equals("33228"))
+        return this.Json(new { status = true, message = "" });
+
+      int _mnoID;
+      if (!Int32.TryParse(mno, out _mnoID))
+      {
+        Log.Error("tpay.wifiSetup: could not parse _mno:" + _mnoID);
+        return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal });
+      }
+
+      MobileOperator mobileOperator = MobileOperator.CreateManager().Load(_mnoID);
+      if (mobileOperator == null)
+      {
+        Log.Error("tpay.wifiSetup: could not load MobileOperator with id: " + _mnoID);
+        return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal });
+      }
+
+      if (!string.IsNullOrEmpty(mno))
+      {
+        if (mno == "398")
+          _shortcode = PaywallHttpContext.Current.Session.Service.Storage.GetString("Shortcode_Etisalat");
+        else if(mno == "456")
+          _shortcode = PaywallHttpContext.Current.Session.Service.Storage.GetString("Shortcode_Vodafone");
+        else if(mno == "457")
+          _shortcode = PaywallHttpContext.Current.Session.Service.Storage.GetString("Shortcode_Orange");
+      }
+      else
+      {
+        Log.Error("tpay.ResendCredentials:: there is no input of mno");
+        return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal });
+      }
+
+      string message = "";
+
+      string[] items = new string[]
+      {
+        _shortcode, "الى", " "+_keyword,"إلغاء الاشتراك ارسل.", " "+_password+": ", "كلمه السر ", msisdn+": ", "اسم المستخدم", " "+_url, "للوصول الى الخدمة قم بزيارة",
+        "اليومي" ," / "+_price, "بقيمة ", _merchant+" ", "من", " "+_serviceName+" ", "لديك اشتراك مفعل فى"
+      };
+
+      for (int i = 0; i < items.Length; i++)
+        message += items[i];
+
+      message = "You have an active subscription at " + _merchant + ", " + _serviceName + ", " + _price + " / daily - .To access service visit " + _url + " username: " + _user + " password: " + _password + " To unsubscribe send " + _keyword + " to " + _shortcode + ".";
+
+      ServiceOffer so = PaywallHttpContext.Current.Service.DefaultServiceOffer;
+
+      //CustomerSetUserNameAndPasswordResult usernamePasswordResult = PaywallHttpContext.Current.Session.SessionData.Customer.SetUsernameAndPassword();
+      SmsArguments smsArguments = new SmsArguments();
+      smsArguments.IsWelcomeSms = "false";
+      smsArguments.Username = _user;
+      smsArguments.Password = _password;
+
+      SendSmsRequest sendSmsRequest = new SendSmsRequest(RequestMode.Synchronous,
+        PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+        so.PaymentConfiguration.PaymentCredentials.Username,
+        so.PaymentConfiguration.PaymentCredentials.Password,
+        so.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid,
+        so.Service.Product.ExternalProductGuid,
+        so.PaymentConfiguration.PaymentInterface.ExternalPaymentInterfaceGuid,
+        so.Service.FallbackCountry.TwoLetterIsoCode,
+        so.PaymentConfiguration.PaymentProvider.ExternalPaymentProviderGuid.Value,
+        PaywallHttpContext.Current.Session.SessionData.MobileOperator.ExternalMobileOperatorID.ToString(),
+        msisdn,
+        message, // smsMessage
+        PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+        "", // notifactionUrl
+        smsArguments.ToMessageArguments());
+      sendSmsRequest.ReferenceIntID = PaywallHttpContext.Current.Session.SessionData.ID;
+
+
+      SendSmsResponse sendSmsResponse = CashflowClientPaywallManager.GetMobileExtensionClient(PaywallHttpContext.Current.Service).SendSms(sendSmsRequest);
+      if (sendSmsResponse.Status.Code != MessageStatusCode.Success && sendSmsResponse.Status.Code != MessageStatusCode.Redirect)
+      {
+        Log.Error("TPay.ResendCredentiasl:: Send sms is not success");
+        return this.Json(new { status = false, message = Translations.Web.Error.ErrInternal });
+      }
+
+      Log.Debug("TPay.ResendCredentiasl:: Send sms is success");
+      return this.Json(new { status = true, message = "Credentials resent" });
+
+    }
+
+    public ActionResult WifiSetupPinResend()
+    {
+      string msisdn = Request["msisdn"] != null ? Request["msisdn"].ToString() : string.Empty;
+      string guid = Request["guid"] != null ? Request["guid"].ToString() : string.Empty;
+      
+      if(!string.IsNullOrEmpty(msisdn))
+      {
+        Log.Debug("TPay.Setup:: Msisdn is sent " + msisdn);
+        PaywallHttpContext.Current.Session.SessionData.Customer.Msisdn = msisdn;
+        PaywallHttpContext.Current.Session.SessionData.Customer.Update();
+      }
+
+      string message = "لقد تجاوزت الحد الاقصى من ارسال رمز تاكيد الاشتراك يرجى بدأ";
+      if (PaywallHttpContext.Current.Service.ServiceData.ID == 349)
+        message = "You have exceeded the maximum number of sending pin code please try again from beginning";
+
+      string resendPinStorageName = "resendTpayCount";
+      int? resendCount = PaywallHttpContext.Current.Session.SessionData.Customer.Storage.GetInt(resendPinStorageName);
+      if(resendCount.HasValue && resendCount >= 3)
+      {
+        return this.Json(new { status = false, message = message });
+      }
+
+      if (!resendCount.HasValue)
+        resendCount = 1;
+      else
+        resendCount++;
+
+      PaywallHttpContext.Current.Session.SessionData.Customer.Storage.PutInt(resendPinStorageName, resendCount.Value);
+
+
+      ServiceOffer so = PaywallHttpContext.Current.Service.DefaultServiceOffer;
+      LookupSession ls = LookupSession.CreateManager().Load(PaywallHttpContext.Current.Session.SessionData);
+      UserHttpRequest uhr = new UserHttpRequest(-1, Guid.NewGuid(), PaywallHttpContext.Current.Session.SessionData, null, PaywallHttpContext.Current.Service.ServiceData.Name, DateTime.Now, DateTime.Now); uhr.Insert();
+      PaymentRequest paymentRequest = new PaymentRequest(-1, Guid.NewGuid(), PaymentType.Subscription, PaymentRequestStatus.Pending, ls, PaywallHttpContext.Current.Session.SessionData.Customer,
+        PaywallHttpContext.Current.Session.SessionData, PaywallHttpContext.Current.Service.DefaultServiceOffer, PaywallHttpContext.Current.Service.DefaultServiceOffer.BusinessModelEntry,
+        null, uhr, "", DateTime.Now, DateTime.Now);
+      paymentRequest.Insert();
+
+      ResendPinArguments argument = new ResendPinArguments();
+      argument.SubscriptionRequestGuid = guid;
+      argument.OperatorCode = PaywallHttpContext.Current.Session.SessionData.MobileOperator.ExternalMobileOperatorID.ToString();
+
+      InitiateSubscriptionResponse response = CashflowClientPaywallManager.GetInitiateSubscriptionResponse(PaywallHttpContext.Current.Session,string.Empty, argument);
+
+      if (response.Status.Code == MessageStatusCode.Redirect || response.Status.Code == MessageStatusCode.Success)
+      {
+        paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Complete;
+        paymentRequest.ExternalPaymentRequestGuid = response.SubscriptionRequestID;
+        paymentRequest.Update();
+        PaywallHttpContext.Current.Session.SessionData.Customer.ExternalCustomerGuid = response.CustomerID;
+        PaywallHttpContext.Current.Session.SessionData.Customer.Update();
+
+        SetupSubscriptionRequest srequest = new SetupSubscriptionRequest(RequestMode.Synchronous,
+          PaywallHttpContext.Current.Session.SessionData.Guid.ToString(),
+          so.PaymentConfiguration.PaymentCredentials.Username,
+          so.PaymentConfiguration.PaymentCredentials.Password,
+          response.SubscriptionRequestID.Value,
+          response.SubscriptionRequestID.ToString(),
+          null);
+        SetupSubscriptionResponse rresponse = CashflowClientPaywallManager.GetSubscriptionClient(PaywallHttpContext.Current.Service).SetupSubscription(srequest);
+
+        Log.Debug("TPay.Setup:: WifiSetupPinResend is success:");
+        string successMessage = "لقد تم اعاده ارسال رمز تاكيد الاشتراك";
+        if (PaywallHttpContext.Current.Service.ServiceData.ID == 349)
+          successMessage = "Pin code has been resent";
+
+        return this.Json(new { status = true, message = successMessage });
+      }
+      else
+      {
+        paymentRequest.PaymentRequestStatus = PaymentRequestStatus.Failure;
+        paymentRequest.Update();
+
+        Log.Error("TPay.Setup:: Initiate is NOT success:");
+        return this.Json(new { status = false });
+      }      
+      
+    }
+
+    public ActionResult WifiSetupView()
+    {
+      TPayWifiFlowModel model = new TPayWifiFlowModel(PaywallHttpContext.Current);
+      TpayLanguage language = this.GetCashflowLanguageID();
+
+      if(language == TpayLanguage.Arabic)
+        return View("~/Views/_Shared/_Specific/TPay/WifiFlowArabic.cshtml", model);
+      else
+        return View("~/Views/_Shared/_Specific/TPay/WifiFlow.cshtml", model);
+    }
+
+    /*
+      ========================
+      Helper
+    */
+
+    private enum TpayLanguage { English = 1, Arabic = 2, French = 3 }
+
+    private TpayLanguage GetCashflowLanguageID()
+    {
+      switch (PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode)
+      {
+        case "AE": return TpayLanguage.Arabic; 
+        case "EG": return TpayLanguage.English; 
+        case "QA": return TpayLanguage.Arabic; 
+        default: return TpayLanguage.English;
+      }
+    }
+
+    private string ConstructWelcomeMessage()
+    {
+      switch (this.GetCashflowLanguageID())
+      {
+        case TpayLanguage.Arabic: return "شكراَ لإشتراكك فى خدمة [Service.Name] يمكنك الوصول الى حسابك و الإستمتاع بالخدمة من خلال زيارة موقعنا [Service.Name]/login اسم المستخدم : '[Username]' , كلمة المرور: '[Password]' سوف يتم خصم [Service.Price] /يوم لكى تتمكن من إلغاء الإشتراك الخاص بكم الرجاء تسجيل الدخول على الحساب الخاص بك و الضغط على إلغاء الإشتراك أو أرسل كلمة [Keyword] إلى [Shortcode] لاى استفسار تواصل معنا على cc@[Service.Name]";
+        case TpayLanguage.French: return "Souscription réussie.Prix-[Service.Price]/jour. Accédez au contenu via [Service.Name]/login, credentals-[Username]:[Password]. Pour terminer l'abonnement, envoyez [Shortcode] à [Keyword]";
+        default: return "Thanks for your subscribing to [Service.Name] to enjoy your subscription visit [Service.Name]/login your credentials are username: [Username], password: [Password]. You will be charged for [Service.Price] /day, to unsubscribe please login to your account and click unsubscribe, or send [Keyword] to [Shortcode] For any inquires please contact us on cc@[Service.Name]";
+      }
+    }
+    
+    private string GetInvalidPinMessage()
+    {
+      switch (this.GetCashflowLanguageID())
+      {
+        case TpayLanguage.Arabic: return "رمز تأكيد الاشتراك غير صحيح";
+        default: return "Invalid pin. Please try again.";
+      }
+    }
+
+    private string GetEnterPinMessage()
+    {
+      switch (this.GetCashflowLanguageID())
+      {
+        case TpayLanguage.Arabic: return "يرجى إدخال رمز رقم التعريف الشخصي الذي تلقيته في رسالة قصيرة سمز";
+        default: return "Please enter PIN code you received in SMS";
+      }
+    }
+
+    private string CheckMsisdn(string msisdn)
+    {
+      msisdn = PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.FixNumber(msisdn);
+      if (string.IsNullOrEmpty(msisdn))
+        return string.Empty;
+      
+      switch (PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode)
+      {
+        case "EG":
+          return msisdn;
+        case "AE":
+          if (!Regex.Match(msisdn.Substring(3), @"^(5)\d{8}\b", RegexOptions.IgnoreCase).Success)
+            return string.Empty;
+          return msisdn;
+        case "QA":
+          if (!Regex.Match(msisdn.Substring(3), @"^(3|5|6|7)\d{7}\b", RegexOptions.IgnoreCase).Success)
+            return string.Empty;
+          return msisdn;
+        default:
+          return string.Empty;
+      }
+    }
+    
+  }
+}

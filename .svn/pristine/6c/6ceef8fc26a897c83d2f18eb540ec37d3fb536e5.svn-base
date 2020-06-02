@@ -1,0 +1,258 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Data.SqlClient;
+using log4net;
+using MobilePaywall.MobilePaywallDirect;
+using MobilePaywall.Implementation.Session;
+using Direct.Core;
+
+namespace MobilePaywall.Data
+{
+	public partial interface IUserSessionManager
+	{
+		List<UserSession> Load(DateTime? from, DateTime? to);
+		List<UserSession> Load(IConnectionInfo connection, DateTime? from, DateTime? to);
+		UserSession Load(Service service, Guid userSessionGuid);
+		UserSession Load(IConnectionInfo connection, Service service, Guid userSessionGuid);
+    //UserSession Load(Customer customer);
+    //UserSession Load(IConnectionInfo connection, Customer customer);
+		List<UserSession> Load(Customer customer, Service service);
+		List<UserSession> Load(IConnectionInfo connection, Customer customer, Service service);
+    
+    UserSession Load(Guid guid);
+    UserSession Load(IConnectionInfo connection, Guid guid);
+
+
+
+
+
+    UserSession Load(string ip, string pxid);
+    UserSession Load(IConnectionInfo connection, string ip, string pxid);
+
+	}
+
+	public partial class UserSession
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (UserSession._log == null)
+          UserSession._log = LogManager.GetLogger(typeof(UserSession));
+        return UserSession._log;
+      }
+    }
+		#endregion
+
+		private UserSessionStorageManager _storageManager = null;
+
+		public UserSessionStorageManager Storage
+		{
+			get
+			{
+				if (this._storageManager != null)
+					return this._storageManager;
+				this._storageManager = new UserSessionStorageManager(this);
+				return this._storageManager;
+			}
+		}
+
+
+		// SUMMARY: Get pxid from entrance url
+		public string Pxid
+    {
+      get
+      {
+        if (string.IsNullOrEmpty(this._entranceUrl))
+          return string.Empty;
+
+        Regex regex = new Regex("(pxid=)([0-9]+)");
+        Match match = regex.Match(this._entranceUrl);
+        if (match.Success)
+          return match.Groups[2].Value;
+        return string.Empty;
+      }
+    }
+
+    public LookupSession LastLookupSession
+    {
+      get
+      {
+        int? lookupSessionID = PaywallDirect.Instance.LoadInt(string.Format(@"
+          SELECT TOP 1 LookupSessionID FROM MobilePaywall.core.LookupSession WHERE UserSessionID={0}
+          ORDER BY LookupSessionID DESC", this.ID));
+        if (!lookupSessionID.HasValue)
+          return null;
+        return LookupSession.CreateManager().Load(lookupSessionID.Value);
+      }
+    }
+        
+    // SUMMARY: Return MobileOperatorID if MobileOperator exists (if not, return -1)
+    public int MobileOperatorID
+    {
+      get
+      {
+        return this._mobileOperator != null ? this._mobileOperator.ID : -1;
+      }
+    }
+
+    // SUMMARY: Get value from entrance url parameter
+    public string GetEntranceParameter(string parameterName)
+    {
+      Match match = new Regex(string.Format(@"(\?{0}=([A-Za-z0-9]+))|(\&{0}=([A-Za-z0-9]+))", parameterName)).Match(this._entranceUrl);
+      string result = string.Empty;
+      if (!string.IsNullOrEmpty(match.Groups[2].Value.ToString()))
+        result = match.Groups[2].Value.ToString();
+      else if (string.IsNullOrEmpty(result) && !string.IsNullOrEmpty(match.Groups[4].Value.ToString()))
+        result = match.Groups[4].Value.ToString();
+      return result;
+    }
+
+    // SUMMARY: Get value from referer url parameter
+    public string GetRefererParameter(string parameterName)
+    {
+      Match match = new Regex(string.Format(@"(\?{0}=([A-Za-z0-9]+))|(\&{0}=([A-Za-z0-9]+))", parameterName)).Match(this._referrer);
+      string result = string.Empty;
+      if (!string.IsNullOrEmpty(match.Groups[2].Value.ToString()))
+        result = match.Groups[2].Value.ToString();
+      else if (string.IsNullOrEmpty(result) && !string.IsNullOrEmpty(match.Groups[4].Value.ToString()))
+        result = match.Groups[4].Value.ToString();
+      return result;
+    }
+
+    // SUMMARY: Does parametername exists in EntranceUrl
+    public bool EntranceParameterExists(string parameterName)
+    {
+      if(this._entranceUrl.Contains("&" + parameterName + "=") || 
+        this._entranceUrl.Contains("?" + parameterName + "="))
+        return true;
+      return false;
+    }
+
+		public IUserSession Instantiate(IService service)
+		{
+			return this.UserSessionType.Instantiate(service, this);
+		}
+    
+		public UserSession Reload()
+		{
+			IUserSessionManager usManager = UserSession.CreateManager();
+			return usManager.Load(this.ID);
+		}
+
+    // SUMMARY: Used after login to copy all neceseary data
+    public void Copy(UserSession us)
+    {
+      if(us == null)
+      {
+        Log.Error("UserSession.Copy:: There is no UserSession for copy");
+        return;
+      }
+
+      Log.Debug(string.Format("UserSession.Copy:: Copy uid:{0} to {1}", us.ID, this.ID));
+
+      this.MobileOperator = us.MobileOperator;
+      this.Customer = us.Customer;
+      this.Update();
+      
+      DirectContainer lookupContainer = PaywallDirect.Instance.LoadContainer(string.Format(@"
+        SELECT lsr.LookupSessionResultID AS lsr, ls.LookupSessionID AS ls FROM MobilePaywall.core.LookupSession AS ls
+        LEFT OUTER JOIN MobilePaywall.core.LookupSessionResult AS lsr ON lsr.LookupSessionID=ls.LookupSessionID
+        WHERE ls.UserSessionID={0} AND lsr.LookupSessionResultID IS NOT NULL ORDER BY lsr.IsSuccessful, lsr.IsFinalResult;", us.ID));
+
+      if(!lookupContainer.HasValue)
+      {
+        Log.Error("Could not load lookup results");
+        return;
+      }
+
+      LookupSession ls = (lookupContainer.GetInt("ls").HasValue ? LookupSession.CreateManager().Load(lookupContainer.GetInt("ls").Value) : null);
+      LookupSession newLs = null;
+      LookupSessionResult lsr = (lookupContainer.GetInt("lsr").HasValue ? LookupSessionResult.CreateManager().Load(lookupContainer.GetInt("lsr").Value) : null);
+      LookupSessionResult newLsr = null;
+
+      if (ls != null)
+      {
+        newLs = new LookupSession(-1, Guid.NewGuid(), ls.LookupSessionStatus, this, ls.UserHttpRequest, ls.IdentificationSessionGuid, ls.LookupUrl, ls.Updated, ls.Created);
+        newLs.Insert();
+        Log.Debug(string.Format("UserSession.Copy:: LookupSession:{0} copied to LookupSession:{1}", ls.ID, newLs.ID));
+      }
+      else
+      {
+        Log.Error(string.Format("UserSession.Copy:: Could not load LookupSession with ID", lookupContainer.GetInt("ls").Value.ToString()));
+        return;
+      }
+
+      if(lsr != null)
+      {
+        newLsr = new LookupSessionResult(-1, newLs, lsr.IsSuccessful, lsr.IsFinalResult, lsr.IdentificationResultGuid, lsr.MobileOperator, lsr.Msisdn, lsr.EncryptedMsisdn, lsr.Updated, lsr.Created);
+        newLsr.Insert();
+        Log.Debug(string.Format("UserSession.Copy:: LookupSessionResult:{0} copied to LookupSessionResult:{1}", lsr.ID, newLsr.ID));
+      }
+      else
+      {
+        Log.Error(string.Format("UserSession.Copy:: Could not load LookupSessionResult with ID", lookupContainer.GetInt("lsr").Value.ToString()));
+        return;
+      }
+
+    }
+    
+		public static List<UserSession> Load(DateTime? from, DateTime? to)
+		{
+			List<UserSession> sessions = null;
+
+			using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+			{
+				try
+				{
+					connection.Transaction.Begin();
+					IUserSessionManager usManager = UserSession.CreateManager(0);
+					sessions = usManager.Load(connection, from, to);
+					connection.Transaction.Commit();
+				}
+				catch (Exception ex)
+				{
+					connection.Transaction.Rollback();
+				}
+			}
+
+			return sessions;
+		}
+
+    public override bool Update()
+    {
+      bool result = base.Update();
+      
+      try
+      { new OLCacher().Synchronize(this, true); }
+      catch(Exception e)
+      { Log.Fatal("OLCacher.UserSession FATAL: ", e); }
+
+      return result;
+    }
+
+    public override bool Insert()
+    {
+      bool result = base.Insert();
+
+      try
+      { new OLCacher().Synchronize(this, true); }
+      catch (Exception e)
+      { Log.Fatal("OLCacher.UserSession FATAL: ", e); }
+
+      return result;
+    }
+    
+    
+	}
+}
+

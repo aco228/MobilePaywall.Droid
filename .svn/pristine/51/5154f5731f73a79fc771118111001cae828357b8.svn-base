@@ -1,0 +1,42 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class VideoSceneManager : IVideoSceneManager
+  {
+		public List<VideoScene> Load(VideoContent videoContent)
+		{
+			using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+				return this.Load(connection, videoContent);
+		}
+
+		public List<VideoScene> Load(IConnectionInfo connection, VideoContent videoContent)
+		{
+			ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+			if (sqlConnection != null)
+				return this.Load(sqlConnection, videoContent);
+			using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+				return this.Load(sqlConnection, videoContent);
+		}
+
+		public List<VideoScene> Load(ISqlConnectionInfo connection, VideoContent videoContent)
+		{
+			SqlQueryParameters parameters = new SqlQueryParameters();
+			parameters.Where = "[vs].VideoContentID = @VideoContentID";
+			parameters.OrderBy = "[vs].SortIndex ASC";
+			parameters.Arguments.Add("VideoContentID", videoContent.ID);
+			return this.LoadMany(connection, parameters);
+		}
+  }
+}
+

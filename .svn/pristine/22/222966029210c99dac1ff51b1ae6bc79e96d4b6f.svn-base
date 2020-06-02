@@ -1,0 +1,119 @@
+﻿jQuery(document).ready(function () {
+  ComponentsDropdowns.init();
+  loadReports();
+});
+
+$('#collapse_all').click(function () {
+  $('.reports-wrapper .portlet-body').css('display', 'none');
+  $('.report-box .tools .collapse').addClass('expand').removeClass('collapse');
+});
+
+$('#expand_all').click(function () {
+  $('.reports-wrapper .portlet-body').css('display', 'block');
+  $('.report-box .tools .expand').addClass('collapse').removeClass('expand');
+});
+
+$('.date-picker').datepicker({
+  rtl: Metronic.isRTL(),
+  orientation: 'left',
+  autoclose: true,
+  todayBtn: 'linked',
+  format: 'MM dd, yyyy'
+});
+
+$('#refresh').click(function () {
+  loadReports();
+});
+
+$('#reset').click(function () {
+  reset();
+  loadReports();
+});
+
+function loadReports() {
+  Metronic.blockUI({
+    animate: true
+  });
+
+  $.ajax({
+    url: '/qa/list',
+    cache: false,
+    data: {
+      rqsOperators: getValues('#select_operator'),
+      rqsDate: $('#select_date').val(),
+      rqsService: $('#service_id').val()
+    },
+    method: 'POST',
+    success: function (response) {
+      $('#reports_list').html(response);
+      slimScrollInit('.scr-scroller');
+      $('#collapse_all').click();
+      Metronic.unblockUI();
+    },
+    error: function () {
+      Metronic.unblockUI();
+      errorNotification('error msg here');
+    }
+  });
+}
+
+function getValues(select) {
+  var data = '';
+
+  if ($(select).val() == null)
+    return data;
+  $.each($(select).val(), function (i, v) {
+    if (data != '')
+      data += ',' + v;
+    else
+      data += v;
+  });
+  return data;
+}
+
+function reset() {
+  $('#select_operator').select2('val', '');
+  $('#select_date').val('').datepicker('update');;
+}
+
+function isEventSupported(eventName) {
+  var el = document.createElement('div');
+  eventName = 'on' + eventName;
+  var isSupported = (eventName in el);
+  if (!isSupported) {
+    el.setAttribute(eventName, 'return;');
+    isSupported = typeof el[eventName] == 'function';
+  }
+  el = null;
+  return isSupported;
+}
+
+function slimScrollInit(el) {
+  $(el).each(function () {
+    if ($(this).attr("data-initialized")) {
+      return; // exit
+    }
+
+    var height;
+
+    if ($(this).attr("data-height")) {
+      height = $(this).attr("data-height");
+    } else {
+      height = $(this).css('height');
+    }
+
+    $(this).slimScroll({
+      allowPageScroll: false, // allow page scroll when the element scroll is ended
+      size: '7px',
+      color: ($(this).attr("data-handle-color") ? $(this).attr("data-handle-color") : '#bbb'),
+      wrapperClass: ($(this).attr("data-wrapper-class") ? $(this).attr("data-wrapper-class") : 'slimScrollDiv'),
+      railColor: ($(this).attr("data-rail-color") ? $(this).attr("data-rail-color") : '#eaeaea'),
+      height: height,
+      alwaysVisible: ($(this).attr("data-always-visible") == "1" ? true : false),
+      railVisible: ($(this).attr("data-rail-visible") == "1" ? true : false),
+      disableFadeOut: true
+    });
+
+    $(this).attr("data-initialized", "1");
+  });
+}

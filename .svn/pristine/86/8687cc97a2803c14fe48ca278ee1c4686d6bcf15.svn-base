@@ -1,0 +1,64 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface ITemplateProviderNoteManager 
+  {
+    
+    TemplateProviderNote Load(Country country, PaymentProvider paymentProvider);
+    TemplateProviderNote Load(IConnectionInfo connection, Country country, PaymentProvider paymentProvider);
+    
+  }
+
+  public partial class TemplateProviderNote
+  {
+    private List<TemplateProviderNoteEntry> _items = null;
+
+    public void InsertWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, "TemplateProviderNote", "core", this); }
+    public void UpdateWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, "TemplateProviderNote", "core", this); }
+
+    public List<TemplateProviderNoteEntry> Items
+    {
+      get
+      {
+        if (this._items != null || string.IsNullOrEmpty(this._data))
+          return this._items;
+
+        string[] rows = this._data.Split('|');
+        this._items = new List<TemplateProviderNoteEntry>();
+        foreach(string line in rows)
+        {
+          if (line.Equals("-"))
+            this._items.Add(new TemplateProviderNoteEntry() { IsSeparator = true });
+          else
+          {
+            string[] info = line.Split('#');
+            this._items.Add(new TemplateProviderNoteEntry() { Title = info[0], Description = info[1] });
+          }
+        }
+
+        return this._items;
+      }
+      set { this._items = value; }
+    }
+
+  }
+
+  public class TemplateProviderNoteEntry
+  {
+    private string _title = string.Empty;
+    private string _description = string.Empty;
+    private bool _isSeparator = false;
+
+    public string Title { get { return this._title; } set { this._title = value; } }
+    public string Description { get { return this._description; } set { this._description = value; } }
+    public bool IsSeparator { get { return this._isSeparator; } set { this._isSeparator = value; } }
+  }
+}
+

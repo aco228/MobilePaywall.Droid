@@ -1,0 +1,73 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using MobilePaywall.Data;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IShortMessageStatusHistoryManager : IDataManager<ShortMessageStatusHistory> 
+  {
+	
+
+  }
+
+  public partial class ShortMessageStatusHistory : MobilePaywallObject<IShortMessageStatusHistoryManager> 
+  {
+		private ShortMessage _shortMessage;
+		private ShortMessageStatus _oldShortMessageStatus;
+		private ShortMessageStatus _newShortMessageStatus;
+		
+
+		public ShortMessage ShortMessage 
+		{
+			get
+			{
+				if (this._shortMessage != null &&
+						this._shortMessage.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._shortMessage = ShortMessage.CreateManager().LazyLoad(this.ConnectionContext, this._shortMessage.ID) as ShortMessage;
+					else
+						this._shortMessage = ShortMessage.CreateManager().LazyLoad(this._shortMessage.ID) as ShortMessage;
+				return this._shortMessage;
+			}
+			set { _shortMessage = value; }
+		}
+
+		public ShortMessageStatus OldShortMessageStatus  { get { return this._oldShortMessageStatus; } set { this._oldShortMessageStatus = value; } }
+		public ShortMessageStatus NewShortMessageStatus  { get { return this._newShortMessageStatus; } set { this._newShortMessageStatus = value; } }
+		
+
+    public override bool IsInsertable { get { return true;} }
+
+    public override bool IsDeletable { get { return false;} }
+
+    public override bool IsUpdatable { get { return true;} }
+
+    public ShortMessageStatusHistory()
+    { 
+    }
+
+    public ShortMessageStatusHistory(int id): base(id, DateTime.Now, DateTime.Now, true)
+    {
+    }
+
+    public ShortMessageStatusHistory(int id,  ShortMessage shortMessage, ShortMessageStatus oldShortMessageStatus, ShortMessageStatus newShortMessageStatus, DateTime updated, DateTime created): base(id, updated, created, false)
+    {
+			this._shortMessage = shortMessage;
+			this._oldShortMessageStatus = oldShortMessageStatus;
+			this._newShortMessageStatus = newShortMessageStatus;
+			
+    }
+
+    public override object Clone(bool deepClone)
+    {
+      return new ShortMessageStatusHistory(-1,  this.ShortMessage, this.OldShortMessageStatus, this.NewShortMessageStatus, DateTime.Now, DateTime.Now);
+    }
+  }
+}
+

@@ -1,0 +1,89 @@
+﻿using Senti.Diagnostics.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Web.Mvc;
+using log4net;
+using MobilePaywall.Web.Log;
+using MobilePaywall.Web.Models;
+using MobilePaywall.Data;
+using MobilePaywall.Web.Localization;
+
+namespace MobilePaywall.Web.Filters
+{
+  [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, Inherited = true, AllowMultiple = false)]
+  public class AuctionAttribute : PaywallActionFilterAttributeBase
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (AuctionAttribute._log == null)
+          AuctionAttribute._log = LogManager.GetLogger(typeof(AuctionAttribute));
+        return AuctionAttribute._log;
+      }
+    }
+
+    #endregion #logging#
+    
+    public override void OnActionExecuting(ActionExecutingContext filterContext)
+    {
+
+      base.OnActionExecuting(filterContext);
+
+      if(this.PaywallContext.Session.SessionData.Customer == null)
+      {
+        UserHttpRequest originalRequest = new UserHttpRequest(-1,
+                                                              Guid.NewGuid(),
+                                                              this.PaywallContext.Session.SessionData,
+                                                              null,
+                                                              filterContext.RequestContext.HttpContext.Request.RawUrl,
+                                                              DateTime.Now,
+                                                              DateTime.Now);
+        originalRequest.Insert();
+        this.LoginView(filterContext, originalRequest);
+        return;
+      }
+
+    }
+
+
+    private void LoginView(ActionExecutingContext filterContext, UserHttpRequest request)
+    {
+      if(filterContext.HttpContext.Request.IsAjaxRequest())
+      {
+        JsonResult jsonResutl = new JsonResult();
+        jsonResutl.Data = new { status = false, message = Translations.Web.Auction.SessionExpired }; 
+        filterContext.Result = jsonResutl;
+        return;          
+      }
+
+      CustomerModel cModel = new CustomerModel(this.PaywallContext, request.RequestedUrl);
+      ViewResult viewResult = new ViewResult();
+      viewResult.ViewName = "Login";
+      viewResult.ViewData.Model = cModel;
+
+      filterContext.Result = viewResult;
+    }
+
+    // SUMMARY: Generic function for displaying Error View and logging error message
+    private void ErrorView(ActionExecutingContext filterContext, string message)
+    {
+      Log.Error(new LogMessageBuilder(
+        new PaywallLogErrorCode("restricteaccessattribute", "request", "none"),
+        "ERROR VIEW!!! " + message));
+
+      ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Internal, "", Translations.Web.Error.ErrInternal);
+      ViewResult viewResult = new ViewResult() { ViewName = "Error" };
+      viewResult.ViewData.Model = errorModel;
+      filterContext.Result = viewResult;
+    }
+
+  }
+}

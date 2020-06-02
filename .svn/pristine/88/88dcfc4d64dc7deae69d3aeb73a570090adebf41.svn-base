@@ -1,0 +1,359 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(CategoryDetail))] 
+  public partial class CategoryDetailManager : MobilePaywall.Data.Sql.SqlManagerBase<CategoryDetail>, ICategoryDetailManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override CategoryDetail LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							CategoryDetailTable.GetColumnNames("[cd]") + 
+							(this.Depth > 0 ? "," + CategoryTable.GetColumnNames("[cd_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[cd_c_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + LanguageTable.GetColumnNames("[cd_l]") : string.Empty) + 
+					" FROM [core].[CategoryDetail] AS [cd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Category] AS [cd_c] ON [cd].[CategoryID] = [cd_c].[CategoryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [cd_c_i] ON [cd_c].[InstanceID] = [cd_c_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [cd_l] ON [cd].[LanguageID] = [cd_l].[LanguageID] ";
+				sqlCmdText += "WHERE [cd].[CategoryDetailID] = @CategoryDetailID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@CategoryDetailID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cd", "loadinternal", "notfound"), "CategoryDetail could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				CategoryDetailTable cdTable = new CategoryDetailTable(query);
+				CategoryTable cd_cTable = (this.Depth > 0) ? new CategoryTable(query) : null;
+				InstanceTable cd_c_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				LanguageTable cd_lTable = (this.Depth > 0) ? new LanguageTable(query) : null;
+
+        
+				Instance cd_c_iObject = (this.Depth > 1) ? cd_c_iTable.CreateInstance() : null;
+				Category cd_cObject = (this.Depth > 0) ? cd_cTable.CreateInstance(cd_c_iObject) : null;
+				Language cd_lObject = (this.Depth > 0) ? cd_lTable.CreateInstance() : null;
+				CategoryDetail cdObject = cdTable.CreateInstance(cd_cObject, cd_lObject);
+				sqlReader.Close();
+
+				return cdObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cd", "loadinternal", "exception"), "CategoryDetail could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "CategoryDetail", "Exception while loading CategoryDetail object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public CategoryDetail Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							CategoryDetailTable.GetColumnNames("[cd]") + 
+							(this.Depth > 0 ? "," + CategoryTable.GetColumnNames("[cd_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[cd_c_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + LanguageTable.GetColumnNames("[cd_l]") : string.Empty) +  
+					" FROM [core].[CategoryDetail] AS [cd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Category] AS [cd_c] ON [cd].[CategoryID] = [cd_c].[CategoryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [cd_c_i] ON [cd_c].[InstanceID] = [cd_c_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [cd_l] ON [cd].[LanguageID] = [cd_l].[LanguageID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cd", "customload", "notfound"), "CategoryDetail could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				CategoryDetailTable cdTable = new CategoryDetailTable(query);
+				CategoryTable cd_cTable = (this.Depth > 0) ? new CategoryTable(query) : null;
+				InstanceTable cd_c_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				LanguageTable cd_lTable = (this.Depth > 0) ? new LanguageTable(query) : null;
+
+        
+				Instance cd_c_iObject = (this.Depth > 1) ? cd_c_iTable.CreateInstance() : null;
+				Category cd_cObject = (this.Depth > 0) ? cd_cTable.CreateInstance(cd_c_iObject) : null;
+				Language cd_lObject = (this.Depth > 0) ? cd_lTable.CreateInstance() : null;
+				CategoryDetail cdObject = cdTable.CreateInstance(cd_cObject, cd_lObject);
+				sqlReader.Close();
+
+				return cdObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cd", "customload", "exception"), "CategoryDetail could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "CategoryDetail", "Exception while loading (custom/single) CategoryDetail object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<CategoryDetail> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							CategoryDetailTable.GetColumnNames("[cd]") + 
+							(this.Depth > 0 ? "," + CategoryTable.GetColumnNames("[cd_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + InstanceTable.GetColumnNames("[cd_c_i]") : string.Empty) + 
+							(this.Depth > 0 ? "," + LanguageTable.GetColumnNames("[cd_l]") : string.Empty) +  
+					" FROM [core].[CategoryDetail] AS [cd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Category] AS [cd_c] ON [cd].[CategoryID] = [cd_c].[CategoryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [cd_c_i] ON [cd_c].[InstanceID] = [cd_c_i].[InstanceID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [cd_l] ON [cd].[LanguageID] = [cd_l].[LanguageID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cd", "customloadmany", "notfound"), "CategoryDetail list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<CategoryDetail>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				CategoryDetailTable cdTable = new CategoryDetailTable(query);
+				CategoryTable cd_cTable = (this.Depth > 0) ? new CategoryTable(query) : null;
+				InstanceTable cd_c_iTable = (this.Depth > 1) ? new InstanceTable(query) : null;
+				LanguageTable cd_lTable = (this.Depth > 0) ? new LanguageTable(query) : null;
+
+        List<CategoryDetail> result = new List<CategoryDetail>();
+        do
+        {
+          
+					Instance cd_c_iObject = (this.Depth > 1) ? cd_c_iTable.CreateInstance() : null;
+					Category cd_cObject = (this.Depth > 0) ? cd_cTable.CreateInstance(cd_c_iObject) : null;
+					Language cd_lObject = (this.Depth > 0) ? cd_lTable.CreateInstance() : null;
+					CategoryDetail cdObject = (this.Depth > -1) ? cdTable.CreateInstance(cd_cObject, cd_lObject) : null;
+					result.Add(cdObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cd", "customloadmany", "exception"), "CategoryDetail list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "CategoryDetail", "Exception while loading (custom/many) CategoryDetail object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, CategoryDetail data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[CategoryDetail] ([CategoryID],[LanguageID],[Title],[Description]) VALUES(@CategoryID,@LanguageID,@Title,@Description); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@CategoryID", data.Category.ID);
+				sqlCmd.Parameters.AddWithValue("@LanguageID", data.Language == null ? DBNull.Value : (object)data.Language.ID);
+				sqlCmd.Parameters.AddWithValue("@Title", data.Title).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", data.Description).SqlDbType = SqlDbType.NText;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cd", "insert", "noprimarykey"), "CategoryDetail could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "CategoryDetail", "Exception while inserting CategoryDetail object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cd", "insert", "exception"), "CategoryDetail could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "CategoryDetail", "Exception while inserting CategoryDetail object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, CategoryDetail data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[CategoryDetail] SET " +
+												"[CategoryID] = @CategoryID, " + 
+												"[LanguageID] = @LanguageID, " + 
+												"[Title] = @Title, " + 
+												"[Description] = @Description, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [CategoryDetailID] = @CategoryDetailID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@CategoryID", data.Category.ID);
+				sqlCmd.Parameters.AddWithValue("@LanguageID", data.Language == null ? DBNull.Value : (object)data.Language.ID);
+				sqlCmd.Parameters.AddWithValue("@Title", data.Title).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Description", data.Description).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@CategoryDetailID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cd", "update", "norecord"), "CategoryDetail could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "CategoryDetail", "Exception while updating CategoryDetail object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cd", "update", "morerecords"), "CategoryDetail was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "CategoryDetail", "Exception while updating CategoryDetail object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cd", "update", "exception"), "CategoryDetail could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "CategoryDetail", "Exception while updating CategoryDetail object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, CategoryDetail data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[CategoryDetail] WHERE CategoryDetailID = @CategoryDetailID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@CategoryDetailID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cd", "delete", "norecord"), "CategoryDetail could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "CategoryDetail", "Exception while deleting CategoryDetail object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cd", "delete", "exception"), "CategoryDetail could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "CategoryDetail", "Exception while deleting CategoryDetail object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

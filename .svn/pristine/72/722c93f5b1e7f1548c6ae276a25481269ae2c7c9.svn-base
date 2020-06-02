@@ -1,0 +1,80 @@
+using log4net;
+using MobilePaywall.Direct;
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface ITransactionManager 
+  {
+
+		List<Transaction> Load(DateTime? from, DateTime? to);
+		List<Transaction> Load(IConnectionInfo connection, DateTime? from, DateTime? to);
+    
+    Transaction Load(Guid transactionGuid, GuidType guidType);
+    Transaction Load(IConnectionInfo connection, Guid transactionGuid, GuidType guidType);
+    Transaction Load(Guid transactionGroupGuid, Guid transactionGuid, GuidType guidType);
+    Transaction Load(IConnectionInfo connection, Guid transactionGroupGuid, Guid transactionGuid, GuidType guidType);
+    List<Transaction> Load(Payment payment);
+    List<Transaction> Load(IConnectionInfo connection, Payment payment);
+  }
+
+  public partial class Transaction
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (Transaction._log == null)
+          Transaction._log = LogManager.GetLogger(typeof(Transaction));
+        return Transaction._log;
+      }
+    }
+    #endregion
+
+		public static List<Transaction> Load(DateTime? from, DateTime? to)
+		{
+			List<Transaction> transactions = null;
+
+			using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+			{
+				try
+				{
+					connection.Transaction.Begin();
+					ITransactionManager tManager = Transaction.CreateManager(0);
+					transactions = tManager.Load(connection, from, to);
+					connection.Transaction.Commit();
+				}
+				catch (Exception ex)
+				{
+					connection.Transaction.Rollback();
+				}
+			}
+
+			return transactions;
+		}
+
+    public override bool Insert()
+    {
+      bool result = base.Insert();
+
+      try
+      { new OLCacher().Synchronize(this); }
+      catch(Exception e)
+      { Log.Fatal("OLCacher.UserSession FATAL: ", e); }
+
+      return result;
+    }
+  }
+}
+

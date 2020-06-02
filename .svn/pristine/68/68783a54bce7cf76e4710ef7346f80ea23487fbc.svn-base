@@ -1,0 +1,77 @@
+﻿@model MobilePaywall.Web.Models.ContentListViewModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+  int sessionID = PaywallHttpContext.Current.Session.SessionData.ID;
+
+  string sql = @"SELECT COUNT(*) FROM MobilePaywall.core.OLCache ol WHERE ol.UserSessionID = " + sessionID + " AND ol.PaymentContentAccessPolicyID IS NOT NULL";
+
+  MobilePaywall.Direct.MobilePaywallDirect direct = new MobilePaywall.Direct.MobilePaywallDirect();
+  int? count = direct.LoadInt(sql);
+
+}
+
+@Scripts.Render("~/Script/Home")
+<style>
+  #templateHeader h3{
+    text-transform:initial;
+  }
+</style>
+
+<div id="_sys_ignoreFooter"></div>
+<div id="contentVideoContainer">
+  @foreach (MobilePaywall.IContent item in Model.Content)
+  {
+    MobilePaywall.ContentInformations info = item.GetInformations(PaywallHttpContext.Current.Service.ServiceData, PaywallHttpContext.Current.Service.ServiceData.FallbackLanguage);
+
+    <div class="expose-item fullwidth">
+      <a href="@Model.AppendSessionID(item)" class="expose-title toggle ___clink" data-ajax="false" data-theme="a">
+        @if (count.HasValue && count.Value > 0)
+        {
+          <div class="playIcon @item.ContentIconClass"></div>
+        }
+        else
+        {
+          <button>Abonnieren</button>
+        }
+
+        <img class="expose-icon" src="~/Images/Theia/plus.png" />
+        <span>@info.Title</span>
+      </a>
+
+      <a href="@Model.AppendSessionID(item)" class="___clink" data-ajax="false">
+        <img class="expose-image" src="@item.GetThumbnailUrl(this.Request.UserAgent)" alt="Old Temple" />
+      </a>
+    </div>
+  }
+</div>
+
+@*<div class="expose-item fullwidth">
+    <a href="#" class="expose-title toggle" data-theme="a"><img class="expose-icon" src="~/Images/Theia/plus.png" /><span>Corporate Identity</span></a>
+    <div class="container">
+      <p>Nullam id dolor id nibh ultricies vehicula ut id elit. Donec ullamcorper nulla non metus auctor fringilla. Praesent commodo cursus magna, vel scelerisque nisl consectetur et. Etiam porta sem malesuada magna mollis euismod.</p>
+      <p>Price: <strong>$15</strong></p>
+      <p><a href="#"><button data-role="none" class="theia-button"><i class="fa fa-shopping-cart"></i>Purchase</button></a></p>
+    </div>
+    <img class="expose-image" src="http://lyfstylmusic.com/wp-content/uploads/2014/06/340544.jpg" alt="Old Temple" />
+  </div>*@
+
+<button class="ui-btn" id="controlLoadMore">@Translations.Web.Controls.More</button>
+
+<script>
+  var _videoController = null;
+  var _contentHome = null;
+
+  $(document).ready(function () {
+    _videoController = new VideoController();
+    _videoController.TextPending = '@Translations.Web.Pending.PleaseWait';
+
+    @{
+      if(Model.Category != null)
+      {
+        @Html.Raw(Server.HtmlDecode("_homeVideoControler.CategoryID = '" + Model.Category.ID + "';"));
+      }
+    }
+
+    //_contentHome = new ContentHome();
+  });
+</script>

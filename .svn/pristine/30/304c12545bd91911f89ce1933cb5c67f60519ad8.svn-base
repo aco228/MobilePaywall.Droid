@@ -1,0 +1,57 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class ContentAccessViewManager : IContentAccessViewManager
+  {
+
+    public ContentAccessView Load(Instance instance, ContentType contentType, Application application, Service service, ServiceConfigurationEntry serviceConfigurationEntry)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, instance, contentType, application, service, serviceConfigurationEntry);
+    }
+
+    public ContentAccessView Load(IConnectionInfo connection, Instance instance, ContentType contentType, Application application, Service service, ServiceConfigurationEntry serviceConfigurationEntry)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, instance, contentType, application, service, serviceConfigurationEntry);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, instance, contentType, application, service, serviceConfigurationEntry);
+    }
+
+    public ContentAccessView Load(ISqlConnectionInfo connection, Instance instance, ContentType contentType, Application application, Service service, ServiceConfigurationEntry serviceConfigurationEntry)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+			
+      /*parameters.Where = "[cav].InstanceID = @InstanceID AND [cav].ContentTypeID = @ContentTypeID AND " +
+												 "(cav.ApplicationID IS NULL AND @ApplicationID IS NULL) OR (cav.ApplicationID = @ApplicationID OR cav.ApplicationID IS NULL) AND " +
+												 "(cav.ServiceID IS NULL AND @ServiceID IS NULL) OR (cav.ServiceID = @ServiceID OR cav.ServiceID IS NULL) AND " +
+												 "(cav.ServiceConfigurationEntryID IS NULL AND @ServiceConfigurationEntryID IS NULL) OR (cav.ServiceConfigurationEntryID = @ServiceConfigurationEntryID OR cav.ServiceConfigurationEntryID IS NULL)";*/
+
+      // TODO: find bug in code above
+      parameters.Where = " [cav].ContentTypeID = @ContentTypeID ";
+
+      
+
+      parameters.Arguments.Add("InstanceID", instance.ID);
+			parameters.Arguments.Add("ContentTypeID", contentType.ID);
+			parameters.Arguments.Add("ApplicationID", application == null ? DBNull.Value : (object)application.ID);
+			parameters.Arguments.Add("ServiceID", service == null ? DBNull.Value : (object)service.ID);
+			parameters.Arguments.Add("ServiceConfigurationEntryID", serviceConfigurationEntry == null ? DBNull.Value : (object)serviceConfigurationEntry.ID);
+			parameters.OrderBy = "cav.ServiceConfigurationEntryID DESC, cav.ServiceID DESC, cav.ApplicationID DESC";
+      return this.Load(connection, parameters);
+    }
+  }
+}
+

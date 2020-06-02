@@ -1,0 +1,87 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Web.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers._Specific.GR
+{
+  public class GreeceLandingController : Controller
+  {
+
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (GreeceLandingController._log == null)
+          GreeceLandingController._log = LogManager.GetLogger(typeof(GreeceLandingController));
+        return GreeceLandingController._log;
+      }
+    }
+    #endregion
+
+    // GET: GreeceLanding
+    public ActionResult Index()
+    {
+      string msisdn = Request["msisdn"] != null ? Request["msisdn"].ToString() : string.Empty;
+      string ipAddress = Request["ip"] != null ? Request["ip"].ToString() : string.Empty;
+
+      msisdn = this.FixNumber(msisdn);
+      if (string.IsNullOrEmpty(msisdn))
+      {
+        Log.Error("GreeceLandingFatal:: Msisdn is not provided");
+        ErrorViewModel errorModel1 = new ErrorViewModel(PaywallHttpContext.Current, ErrorCode.Internal);
+        return View("Error", errorModel1);
+      }
+      
+      Customer customer = Customer.CreateManager().Load(msisdn, CustomerIdentifier.Msisdn).FirstOrDefault();
+      if (customer == null)
+      {
+        Log.Error("GreeceLandingFatal:: Customer could not be loaded by msisnd=" + msisdn);
+        ErrorViewModel errorModel2 = new ErrorViewModel(PaywallHttpContext.Current, ErrorCode.Internal);
+        return View("Error", errorModel2);
+      }
+
+      PaywallHttpContext.Current.Session.SessionData.Customer = customer;
+      PaywallHttpContext.Current.Session.SessionData.MobileOperator = customer.MobileOperator;
+      PaywallHttpContext.Current.Session.SessionData.Update();
+
+      // override ip address server to customer ip address
+      if(!string.IsNullOrEmpty(ipAddress))
+      {
+        IPCountryMap countryMap = IPCountryMap.CreateManager().Load(ipAddress);
+        if(countryMap != null && countryMap.Country != null)
+        {
+          PaywallHttpContext.Current.Session.SessionData.IPAddress = ipAddress;
+          PaywallHttpContext.Current.Session.SessionData.Country = countryMap.Country;
+          PaywallHttpContext.Current.Session.SessionData.Update();
+        }
+      }
+
+      WelcomeViewModel welcomeModel = new WelcomeViewModel(PaywallHttpContext.Current);
+      return View("Welcome", welcomeModel);
+    }
+        
+    public string FixNumber(string msisdn)
+    {
+      msisdn = Regex.Replace(msisdn, "[^0-9]", "");
+      if (string.IsNullOrEmpty(msisdn))
+        return msisdn;
+
+      if (msisdn.StartsWith("00"))
+        msisdn = msisdn.Substring(2);
+      if (msisdn[0] == '0')
+        msisdn = msisdn.Substring(1);
+      if (!msisdn.StartsWith("30"))
+        msisdn = "30" + msisdn;
+      return msisdn;
+    }
+  }
+}

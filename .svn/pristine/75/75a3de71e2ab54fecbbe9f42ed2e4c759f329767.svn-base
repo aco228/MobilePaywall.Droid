@@ -1,0 +1,348 @@
+﻿jQuery(document).ready(function () {
+  Metronic.init(); // init metronic core components
+  //Layout.init(); // init current layout
+  //QuickSidebar.init(); // init quick sidebar
+  //Demo.init(); // init demo features
+  ComponentsDropdowns.init();
+
+
+  if (page == 'index')
+    Index.initDashboardDaterange();
+  else
+    initDaterange();
+
+  refresh(page);
+
+  $(function () {
+    $('[data-toggle="popover"]').popover({
+      html: true,
+      content: function () {
+        return $('#popover_content_wrapper').html();
+      }
+    });
+  });
+
+  $('#mptable-portlet-title').on('click', '#filters_save, #filters_cancel', function () {
+    $('#save_filters_btn').popover('hide');
+  });
+
+});
+
+$('#refresh_btn').on('click', function () {
+  refresh($(this).data('page'));
+});
+
+$('#reset_btn').on('click', function () {
+  reset();
+});
+
+function refresh(page) {
+  Metronic.blockUI({
+    target: '.page-content',
+    animate: true
+  });
+
+  $.ajax({
+    url: '/statistic/table',
+    cache: false,
+    data: {
+      rqsInstances: getValues('#select_instance'),
+      rqsMerchants: getValues('#select_merchant'),
+      rqsServices: getValues('#select_service'),
+      rqsProviders: getValues('#select_provider'),
+      rqsCountries: getValues('#select_country'),
+      rqsCountryCodes: getCCodes('#select_country'),
+      rqsOperators: getValues('#select_operator'),
+      rqsGroupBy: getValues('#bs-select-group'),
+      rqsShow: $('#bs-select-show').attr('value'),
+      rqsStart: $('input[name=daterangepicker_start]').val(),
+      rqsEnd: $('input[name=daterangepicker_end]').val(),
+      rqsSearch: $('#search').val(),
+      page: page
+    },
+    method: 'POST',
+    success: function (response) {
+      var setPageLength = $('#mptable-portlet-body').find('#statistics_table_length .select2-chosen').text();
+      $('.portlet-body').html(response);
+
+      if (page == 'revenue') {
+        var dateTo = $('input[name=daterangepicker_end]').val().split('/');
+        var currencyDate = dateTo[2] + '-' + dateTo[1] + '-' + dateTo[0];
+        $.getJSON(
+         // NB: using fixer.io here, but you can use any source!
+           'http://api.fixer.io/' + currencyDate,
+           function (data) {
+             data.rates.IRR = '34345.24'; // currency rate for IRR doesn-t exist in api.fixer.io
+
+             // Check money.js has finished loading:
+             if (typeof fx !== "undefined" && fx.rates) {
+               fx.rates = data.rates;
+               fx.base = data.base;
+             } else {
+               // If not, apply to fxSetup global:
+               var fxSetup = {
+                 rates: data.rates,
+                 base: data.base
+               }
+             }
+             convertPrice();
+             $('[data-toggle="tooltip"]').tooltip();
+             sumGrossTrans();
+             sumPayoutTrans();
+             sumGrossSubs();
+             sumPayoutSubs();
+             sumGrossTotal();
+             sumPayoutTotal();
+             StatisticTableAdvanced.init(page, setPageLength);
+             Metronic.unblockUI('.page-content');
+            
+           }
+       );
+      }
+      else {
+        StatisticTableAdvanced.init(page, setPageLength);
+        Metronic.unblockUI('.page-content');
+      }
+    },
+    error: function (ex) {
+      $('.portlet-body').html('Some error occurred. Please refresh page.');
+      Metronic.unblockUI('.page-content');
+      errorNotification('Error while retrieving data ' + ex);
+    }
+  });
+
+  //Metronic.unblockUI('#mptable-portlet-body');
+}
+
+
+
+function getValues(select) {
+  var data = '';
+
+  if ($(select).val() == null)
+    return data;
+  $.each($(select).val(), function (i, v) {
+    if (data != '')
+      data += ',' + v;
+    else
+      data += v;
+  });
+  return data;
+}
+
+function getCCodes(select) {
+  var data = '';
+
+  if ($(select).val() == null)
+    return data;
+  $.each($(select).val(), function (i, v) {
+    var code = $('#select_country option[value="' + v + '"]').attr('data-ccode');
+
+    if (data != '')
+      data += ',' + code;
+    else
+      data += code;
+  });
+
+  console.log(data);
+  return data;
+}
+
+$('#select_instance').on("change", function (e) { change(e, "#select_merchant"); });
+$('#select_merchant').on("change", function (e) { change(e, "#select_service"); });
+$('#select_country').on("change", function (e) { change(e, "#select_operator"); });
+
+function change(e, id) {
+  if (!e) {
+    var args = "{}";
+  } else {
+    if (e.val.length > 0) {
+
+      //Set all to hidden up front
+      $(id + " optgroup").each(function () {
+        if (!$(this).hasClass('hidden')) {
+          $(this).addClass('hidden');
+        }
+      });
+
+      //Remove hidden if match
+      $.each(e.val, function (key, value) {
+        $(id + " optgroup").each(function () {
+          if (value == $(this).attr('value') && $(this).hasClass('hidden')) {
+            $(this).removeClass('hidden');
+          }
+        });
+      });
+    } else {
+      $(id + " optgroup").each(function () {
+        if ($(this).hasClass('hidden')) {
+          $(this).removeClass('hidden');
+        }
+      });
+    }
+  }
+}
+
+function reset() {
+  $('.filters select.select2').select2('val', '');
+  $('#bs-select-group').selectpicker('val', '');
+  $('#bs-select-show').selectpicker('val', '0');
+  $('#search').val('');
+}
+
+function errorNotification(error) {
+  toastr["error"](error, 'Error');
+
+  toastr.options = {
+    showDuration: 100,
+    hideDuration: 1000,
+    timeOut: 8000,
+    extendedTimeOut: 1000,
+    showEasing: 'swing',
+    hideEasing: 'linear',
+    showMethod: 'fadeIn',
+    hideMethod: 'fadeOut',
+    closeButton: true,
+    positionClass: 'toast-top-right',
+    onclick: null
+  };
+}
+
+
+
+function initDaterange() {
+
+  if (!jQuery().daterangepicker) {
+    return;
+  }
+
+  $('#dashboard-report-range').daterangepicker({
+    opens: (Metronic.isRTL() ? 'right' : 'left'),
+    startDate: moment(), //.subtract('days', 29),
+    endDate: moment(),
+    minDate: '01/10/2016',
+    maxDate: moment(),
+    showDropdowns: false,
+    showWeekNumbers: true,
+    timePicker: false,
+    timePickerIncrement: 1,
+    timePicker24Hour: true,
+    minuteStep: 5,
+    showSeconds: false,
+    showMeridian: false,
+    ranges: {
+      'Today': [moment(), moment()],
+      'Yesterday': [moment().subtract('days', 1), moment().subtract('days', 1)],
+      'Last 7 Days': [moment().subtract('days', 6), moment()],
+      'Last 30 Days': [moment().subtract('days', 29), moment()],
+      'This Month': [moment().startOf('month'), moment().endOf('month')],
+      'Last Month': [moment().subtract('month', 1).startOf('month'), moment().subtract('month', 1).endOf('month')]
+    },
+    buttonClasses: ['btn btn-sm'],
+    applyClass: ' blue',
+    cancelClass: 'default',
+    format: 'DD/MM/YYYY',
+    separator: ' to ',
+    locale: {
+      applyLabel: 'Apply',
+      fromLabel: 'From',
+      toLabel: 'To',
+      customRangeLabel: 'Custom Range',
+      daysOfWeek: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+      monthNames: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+      firstDay: 1
+    },
+    autoApply: true
+  },
+      function (start, end) {
+        $('#dashboard-report-range span').html(start.format('MMMM D, YYYY') + ' - ' + end.format('MMMM D, YYYY'));
+      }
+  );
+
+
+  $('#dashboard-report-range span').html(moment().format('MMMM D, YYYY') + ' - ' + moment().format('MMMM D, YYYY'));
+  $('#dashboard-report-range').show();
+}
+
+
+
+function convertPrice() {
+  $('.converted-price').each(function () {
+    var price = $(this).attr('data-price');
+    var abbr = $(this).attr('data-abbreviation');
+    fx.settings = { from: abbr, to: "EUR" };
+    $(this).attr('title', parseFloat(fx.convert(price), 10).toFixed(2).replace(/(\d)(?=(\d{3})+\.)/g, "$1,") + " €");
+  });
+}
+
+//$('.totalTransactions').each(function () {
+//  $(this).val()
+//});
+
+
+function sumGrossTrans() {
+  var sum = parseFloat(0);
+  $('.convertedTotalGrossTrans').each(function () {
+    var abbr = $(this).attr('data-abbreviation');
+    fx.settings = { from: abbr, to: "EUR" };
+    sum += parseFloat(fx.convert($(this).attr('data-price')), 10);
+  });
+
+  $('.totalGrossTrans').text(sum.toFixed(2).replace(/(\d)(?=(\d{3})+\.)/g, "$1,") + " €");
+}
+
+function sumPayoutTrans() {
+  var sum = parseFloat(0);
+  $('.convertedTotalPayoutTrans').each(function () {
+    var abbr = $(this).attr('data-abbreviation');
+    fx.settings = { from: abbr, to: "EUR" };
+    sum += parseFloat(fx.convert($(this).attr('data-price')), 10);
+  });
+
+  $('.totalPayoutTrans').text(sum.toFixed(2).replace(/(\d)(?=(\d{3})+\.)/g, "$1,") + " €");
+}
+
+
+function sumGrossSubs() {
+  var sum = parseFloat(0);
+  $('.convertedTotalGrossSubs').each(function () {
+    var abbr = $(this).attr('data-abbreviation');
+    fx.settings = { from: abbr, to: "EUR" };
+    sum += parseFloat(fx.convert($(this).attr('data-price')), 10);
+  });
+
+  $('.totalGrossSubs').text(sum.toFixed(2).replace(/(\d)(?=(\d{3})+\.)/g, "$1,") + " €");
+}
+
+function sumPayoutSubs() {
+  var sum = parseFloat(0);
+  $('.convertedTotalPayoutSubs').each(function () {
+    var abbr = $(this).attr('data-abbreviation');
+    fx.settings = { from: abbr, to: "EUR" };
+    sum += parseFloat(fx.convert($(this).attr('data-price')), 10);
+  });
+
+  $('.totalPayoutSubs').text(sum.toFixed(2).replace(/(\d)(?=(\d{3})+\.)/g, "$1,") + " €");
+}
+
+function sumGrossTotal() {
+  var sum = parseFloat(0);
+  $('.convertedGrossTotal').each(function () {
+    var abbr = $(this).attr('data-abbreviation');
+    fx.settings = { from: abbr, to: "EUR" };
+    sum += parseFloat(fx.convert($(this).attr('data-price')), 10);
+  });
+
+  $('.grossTotal').text(sum.toFixed(2).replace(/(\d)(?=(\d{3})+\.)/g, "$1,") + " €");
+}
+
+function sumPayoutTotal() {
+  var sum = parseFloat(0);
+  $('.convertedPayoutTotal').each(function () {
+    var abbr = $(this).attr('data-abbreviation');
+    fx.settings = { from: abbr, to: "EUR" };
+    sum += parseFloat(fx.convert($(this).attr('data-price')), 10);
+  });
+
+  $('.payoutTotal').text(sum.toFixed(2).replace(/(\d)(?=(\d{3})+\.)/g, "$1,") + " €");
+}

@@ -1,0 +1,146 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.Data.Direct.MobilePaywall;
+using MobilePaywall.MobilePaywallDirect;
+using MobilePaywall.MobilePaywallDirectWebCore;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web.Models
+{
+
+  public class TemplateConfigurationModel : PaywallViewModelBase
+  {
+
+    private List<ServiceContentGroupMap> _serviceContentGroupMap = null;
+    private List<ContentGroup> _contentGroup = null;
+    private List<ContentGroupType> _contentGroupType = null;
+    private List<Template> _templates = null;
+    private List<ServiceType> _serviceType = null;
+    private List<Data.Merchant> _merchants = null;
+    private List<Product> _products = null;
+    private List<ServiceOffer> _serviceOffer = null;
+    private BehaviorModel _behaviorModel = null;
+    private string _logLevel = string.Empty;
+    private List<UserSessionType> _userSessionType = null;
+    private LookupManagerConfiguration _lookupManagerConfiguration = null;
+    private PaymentManagerConfiguration _paymentManagerConfiguration = null;
+    private LookupManagerType _defaultLookupManagerType = null;
+    private PaymentManagerType _defaultPaymentManagerType = null;
+    private List<LookupManagerType> _lookupManagerTypes = null;
+    private List<PaymentManagerType> _paymentManagerTypes = null;
+    private List<PaymentInterface> _paymentInterface = null;
+    private List<ServiceLookupMethodMap> _serviceLookupMethodMaps = null;
+
+    public List<ServiceContentGroupMap> ServiceContentGroups { get { return this._serviceContentGroupMap == null ? null : this._serviceContentGroupMap; } }
+    public int ContentGroupID { get { return this._serviceContentGroupMap != null && this._serviceContentGroupMap.FirstOrDefault().ContentGroup != null ? this._serviceContentGroupMap.FirstOrDefault().ContentGroup.ID : -1; } }
+    public int ContentGroupTypeID { get { return this._serviceContentGroupMap != null ? this._serviceContentGroupMap.FirstOrDefault().ContentGroup.ContentGroupType.ID : -1; } }
+    public int TempalteID { get { return PaywallHttpContext.Current.Service.ServiceData.Template.ID; } }
+    public int ServiceTypeID { get { return PaywallHttpContext.Current.Service.ServiceData.ServiceType.ID; } }
+    public int MerchantID { get { return PaywallHttpContext.Current.Service.ServiceData.Merchant.ID; } }
+    public int ProductID { get { return PaywallHttpContext.Current.Service.ServiceData.Product.ID; } }
+    public ServiceOffer ServiceOffer { get { return Data.ServiceOffer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData).FirstOrDefault(); } }
+    public BehaviorModel BehaviorModel { get { return this._behaviorModel; } }
+    public string LogLevel { get { return this._logLevel; } }
+    public LookupManagerType DefaultLookupManagerType { get { return this._defaultLookupManagerType; } }
+    public PaymentManagerType DefaultPaymentManagerType { get { return this._defaultPaymentManagerType; } }
+    public LookupManagerConfiguration LookupManagerConfiguration { get { return this._lookupManagerConfiguration; } }
+    public PaymentManagerConfiguration PaymentManagerConfiguration { get { return this._paymentManagerConfiguration; } }
+    
+
+    //List<ServiceOffer> so = ServiceOffer.CreateManager().Load(this.PaywallContext.Service.ServiceData);
+    //ServiceOffer kk = (from element in so where element.IsActive == true select element).FirstOrDefault();
+    //kk.PaymentConfiguration.BehaviorModel
+
+    public List<ContentGroup> ContentGroups { get { return this._contentGroup; } }
+    public List<ContentGroupType> ContentGroupType { get { return this._contentGroupType; } }
+    public List<Template> Templates { get { return this._templates; } }
+    public List<ServiceType> ServiceType { get { return this._serviceType; } }
+    public List<Data.Merchant> Merchants { get { return this._merchants; } }
+    public List<Data.Product> Products { get { return this._products; } }
+    public List<UserSessionType> UserSessionType { get { return this._userSessionType; } }
+    public List<LookupManagerType> LookupManagerTypes { get { return this._lookupManagerTypes; } }
+    public List<PaymentManagerType> PaymentManagerTypes { get { return this._paymentManagerTypes; } }
+    public List<PaymentInterface> PaymentInterfaces { get { return this._paymentInterface; } }
+    public List<ServiceLookupMethodMap> ServiceLookupMethodMaps { get { return this._serviceLookupMethodMaps; } }
+
+    public TemplateConfigurationModel(PaywallHttpContext context)
+      : base(context)
+    {
+      this._userSessionType = MobilePaywall.Data.UserSessionType.CreateManager().Load();
+      this._contentGroup = (from cg in ContentGroup.CreateManager().Load() where cg.IsEnabled select cg).ToList();
+      this._contentGroupType = Data.ContentGroupType.CreateManager().Load();
+      this._serviceContentGroupMap = ServiceContentGroupMap.CreateManager().Load(context.Service.ServiceData);
+      this._templates = Template.CreateManager().Load(); 
+      this._serviceType = Data.ServiceType.CreateManager().Load(); 
+      this._merchants = Data.Merchant.CreateManager().Load(); 
+      this._products = Product.CreateManager().Load(); 
+      this._paymentInterface = PaymentInterface.CreateManager().Load();
+      this._serviceLookupMethodMaps = ServiceLookupMethodMap.CreateManager().Load(context.Service.ServiceData);
+
+      Service service = Data.Service.CreateManager().Load(context.Service.ServiceData.ID); 
+
+      LoadDefaultLookupManager();
+      LoadDefaultPaymentManager();
+
+      this._paymentManagerTypes = Data.PaymentManagerType.CreateManager().Load();
+      this._lookupManagerTypes = Data.LookupManagerType.CreateManager().Load();
+      this._serviceOffer = ServiceOffer.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData);
+      this._behaviorModel = (from s in this._serviceOffer where s.IsDefault && s.IsActive select s).FirstOrDefault().PaymentConfiguration.BehaviorModel;
+
+      this._logLevel = ((log4net.Repository.Hierarchy.Hierarchy)LogManager.GetRepository()).Root.Level.ToString().ToLower();
+    }
+    
+
+
+    private void LoadDefaultLookupManager()
+    {
+      int? id = PaywallDirect.Instance.LoadInt(string.Format(@"
+        SELECT TOP 1 LookupManagerTypeID FROM MobilePaywall.core.LookupManagerConfiguration AS pmc
+          WHERE pmc.CountryID = {0} AND ((pmc.ServiceID IS NOT NULL AND pmc.ServiceID={1}) OR (pmc.ServiceID IS NULL)) 
+                AND ((pmc.PaymentProviderID IS NOT NULL AND pmc.PaymentProviderID={2}) OR (pmc.PaymentProviderID IS NULL))
+          ORDER BY pmc.ServiceID DESC, pmc.PaymentProviderID DESC", PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.ID, PaywallHttpContext.Current.Service.ServiceData.ID, PaywallHttpContext.Current.Service.PaymentProvider.ID));
+
+      if (!id.HasValue)
+      {
+        this._defaultLookupManagerType = LookupManagerType.CreateManager().Load(1);
+        return;
+      }
+      
+      this._defaultLookupManagerType = LookupManagerType.CreateManager().Load(id.Value);
+      if (this._defaultLookupManagerType == null)
+        this._defaultLookupManagerType = LookupManagerType.CreateManager().Load(1);
+      
+    }
+
+    private void LoadDefaultPaymentManager()
+    {
+      int? id = PaywallDirect.Instance.LoadInt(string.Format(@"
+          SELECT TOP 1 PaymentManagerTypeID FROM MobilePaywall.core.PaymentManagerConfiguration AS pmc
+          WHERE pmc.CountryID = {0} AND ((pmc.ServiceID IS NOT NULL AND pmc.ServiceID={1}) OR (pmc.ServiceID IS NULL)) 
+                AND ((pmc.PaymentProviderID IS NOT NULL AND pmc.PaymentProviderID={2}) OR (pmc.PaymentProviderID IS NULL))
+          ORDER BY pmc.ServiceID DESC, pmc.PaymentProviderID DESC", PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.ID, PaywallHttpContext.Current.Service.ServiceData.ID, PaywallHttpContext.Current.Service.PaymentProvider.ID));
+
+      if (!id.HasValue)
+      {
+        this._defaultPaymentManagerType = PaymentManagerType.CreateManager().Load(1);
+        return;
+      }
+
+      this._defaultPaymentManagerType = PaymentManagerType.CreateManager().Load(id.Value);
+      if (this._defaultPaymentManagerType == null)
+        this._defaultPaymentManagerType = PaymentManagerType.CreateManager().Load(1);
+    }
+
+    public int NumberOfContents(int contentGroupID)
+    {
+      int? id = PaywallDirect.Instance.LoadInt(string.Format(@"
+          SELECT COUNT(*) FROM MobilePaywall.core.Content WHERE ContentGroupID="+contentGroupID, PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.ID, PaywallHttpContext.Current.Service.ServiceData.ID, PaywallHttpContext.Current.Service.PaymentProvider.ID));
+      return id.HasValue ? id.Value : 0;
+    }
+
+  }
+}

@@ -1,0 +1,124 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+	public partial class PaymentRequestManager : IPaymentRequestManager
+	{
+    public List<PaymentRequest> Load(string ip, DateTime time)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, ip, time);
+    }
+
+    public List<PaymentRequest> Load(IConnectionInfo connection, string ip, DateTime time)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, ip, time);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, ip, time);
+    }
+
+    public List<PaymentRequest> Load(ISqlConnectionInfo connection, string ip, DateTime time)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[pr_us].IPAddress = @IP AND [pr].Created > @Time";
+      parameters.Arguments.Add("IP", ip);
+      parameters.Arguments.Add("Time", time);
+      return this.LoadMany(connection, parameters);
+    }
+
+    public List<PaymentRequest> Load(string ip, Service service, DateTime time)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, ip, service, time);
+    }
+
+    public List<PaymentRequest> Load(IConnectionInfo connection, string ip, Service service, DateTime time)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, ip, service, time);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, ip, service, time);
+    }
+
+    public List<PaymentRequest> Load(ISqlConnectionInfo connection, string ip, Service service, DateTime time)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[pr_us].IPAddress = @IP AND [pr].Created > @Time AND [pr_us].ServiceID=@ServiceID";
+      parameters.Arguments.Add("IP", ip);
+      parameters.Arguments.Add("Time", time);
+      parameters.Arguments.Add("ServiceID", service.ID);
+      return this.LoadMany(connection, parameters);
+    }
+
+		public PaymentRequest Load(Guid paymentRequestGuid, GuidType guidType)
+		{
+			return PaymentRequest.LoadByPaymentRequestGuid(paymentRequestGuid, guidType); // TODO: Test, remove later
+
+			//using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+			//	return this.Load(connection, paymentRequestGuid, guidType);
+		}
+
+		public PaymentRequest Load(IConnectionInfo connection, Guid paymentRequestGuid, GuidType guidType)
+		{
+			ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+			if (sqlConnection != null)
+				return this.Load(sqlConnection, paymentRequestGuid, guidType);
+			using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+				return this.Load(sqlConnection, paymentRequestGuid, guidType);
+		}
+
+		public PaymentRequest Load(ISqlConnectionInfo connection, Guid paymentRequestGuid, GuidType guidType)
+		{
+			SqlQueryParameters parameters = new SqlQueryParameters();
+			string parameter = guidType == GuidType.External ? "ExternalPaymentRequestGuid" : "PaymentRequestGuid";
+			parameters.Where = string.Format("[pr].{0} = @{0}", parameter);
+			parameters.Arguments.Add(parameter, paymentRequestGuid);
+			return this.Load(connection, parameters);
+		}
+
+
+    public PaymentRequest Load(UserSession session)
+    {
+			return PaymentRequest.LoadByUserSession(session); // TODO: Test, remove later
+
+			//using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+			//	return this.Load(connection, session);
+    }
+
+    public PaymentRequest Load(IConnectionInfo connection, UserSession session)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, session);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, session);
+    }
+
+    public PaymentRequest Load(ISqlConnectionInfo connection, UserSession session)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[pr].UserSessionID = @UserSessionID";
+      parameters.OrderBy = "[pr].Created DESC";
+      parameters.Arguments.Add("UserSessionID", session.ID);
+      return this.Load(connection, parameters);
+    }
+
+
+
+
+	}
+}
+

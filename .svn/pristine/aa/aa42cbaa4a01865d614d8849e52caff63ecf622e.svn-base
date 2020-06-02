@@ -1,0 +1,43 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class CashflowTimeoutManager : ICashflowTimeoutManager
+  {
+
+    public CashflowTimeout Load(DateTime from)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, from);
+    }
+
+    public CashflowTimeout Load(IConnectionInfo connection, DateTime from)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, from);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, from);
+    }
+
+    public CashflowTimeout Load(ISqlConnectionInfo connection, DateTime from)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[ct].Created >= @From";
+      parameters.Arguments.Add("From", from);
+      return this.Load(connection, parameters);
+    }
+
+  }
+}
+

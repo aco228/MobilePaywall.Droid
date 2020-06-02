@@ -1,0 +1,57 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using MobilePaywall.Data;
+
+namespace MobilePaywall
+{
+  public abstract class BusinessModelBase : IBusinessModel
+  {
+    private BusinessModelEntry _businessModelEntry = null;
+
+    public BusinessModelEntry BusinessModelEntryData { get { return this._businessModelEntry; } }
+
+    //TODO: Review is this ok? I need to add constructor with BusinessModelEntry because of instantiating BusinessModelType it could not find right constructor.
+    public BusinessModelBase(BusinessModelEntry businessModelEntry)
+    {
+      this._businessModelEntry = businessModelEntry;
+    }
+
+    public ContentAccessResult CheckContentAccess(IUserSession session, IContent content)
+    {
+      List<ServiceOffer> serviceOffers = ServiceOffer.CreateManager(2).Load(session.SessionData.Service);
+      List<ServiceOffer> serviceOffersWithAccess = (from ServiceOffer so in serviceOffers
+                                                    where so.ContentAccessPolicy.DoesApply(content.ContentData)
+                                                    select so).ToList();
+
+      if (session.SessionData.Customer == null)
+      {
+        return new ContentAccessResult(false, serviceOffersWithAccess, null);
+      }
+
+      List<PaymentContentAccessPolicyMap> policies =
+        PaymentContentAccessPolicyMap.LoadByCustomerContentAndContentGroup(session.SessionData.Customer, content.ContentData.ContentGroup, content.ContentData);
+
+      IPaymentRequestManager prManager = PaymentRequest.CreateManager(2);
+
+      foreach (PaymentContentAccessPolicyMap pcapm in policies)
+        if (pcapm.ContentAccessPolicy.DoesApply(content.ContentData))
+        {
+          // customer already has access
+
+          //if (pcapm.Payment.PaymentType == PaymentType.Subscription)
+          //  return new ContentAccessResult(true, null, pcapm);
+          //else if (pcapm.Payment.PaymentType == PaymentType.Purchase && pcapm.Content.ID == content.ContentData.ID)
+          //  return new ContentAccessResult(true, null, pcapm);
+
+          return new ContentAccessResult(true, null, pcapm);
+        }
+
+      return new ContentAccessResult(false, serviceOffersWithAccess, null);
+    }
+    
+  }
+}

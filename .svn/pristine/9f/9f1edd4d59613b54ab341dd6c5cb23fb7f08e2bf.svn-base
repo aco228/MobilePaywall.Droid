@@ -1,0 +1,74 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.ContentUploader
+{
+	abstract class FFmpegProcessBase
+	{
+		protected string _ffmpegPath = string.Empty;
+
+		public FFmpegProcessBase(string pathToTheExe)
+		{
+			this._ffmpegPath = pathToTheExe;
+		}
+
+		protected bool Process(string outputFile, string parameters)
+		{
+			ProcessStartInfo oInfo = new ProcessStartInfo(_ffmpegPath, parameters);
+			oInfo.UseShellExecute = false;
+			oInfo.CreateNoWindow = true;
+			oInfo.RedirectStandardOutput = true;
+			oInfo.RedirectStandardError = true;
+			bool success = false;
+			string output = null;
+			StreamReader srOutput = null;
+
+			try
+			{
+				System.Diagnostics.Process proc = System.Diagnostics.Process.Start(oInfo);
+				srOutput = proc.StandardError;
+				output = srOutput.ReadToEnd();
+
+				proc.WaitForExit();
+				proc.Close();
+				proc.Dispose();
+				success = true;
+
+			}
+			catch (Exception ex)
+			{
+				success = false;
+			}
+			finally
+			{
+				//now, if we succeded, close out the streamreader
+				if (srOutput != null)
+				{
+					srOutput.Close();
+					srOutput.Dispose();
+				}
+			}
+
+			return success;
+		}
+	}
+	
+	public class FfmpegResult
+	{
+		public string File { get; set; }
+		public bool Success { get; set; }
+	}
+
+	public class FfmpegDimensions
+	{
+		public int ScaleWidth { get; set; }
+		public int ScaleHeight { get; set; }
+		public int CropWidth { get; set; }
+		public int CropHeight { get; set; }
+	}
+}

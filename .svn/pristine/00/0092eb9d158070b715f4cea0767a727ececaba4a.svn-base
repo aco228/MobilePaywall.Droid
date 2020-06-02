@@ -1,0 +1,124 @@
+﻿using System;
+using System.IO;
+using System.Web;
+using System.Web.Mvc;
+
+using MobilePaywall.Data;
+using MobilePaywall.Web.Models;
+
+using Senti.Diagnostics.Log;
+
+using log4net;
+using Lib.Web.Mvc;
+using MobilePaywall.Web.Log;
+
+
+namespace MobilePaywall.Web.Controllers
+{
+  public class VideoController : PaywallRestrictedAccessController 
+  {
+		#region #logging#
+		private static ILog _log = null;
+
+		protected static ILog Log
+		{
+			get
+			{
+				if (VideoController._log == null)
+					VideoController._log = LogManager.GetLogger(typeof(VideoController));
+				return VideoController._log;
+			}
+		}
+		#endregion
+		
+		public ActionResult Download(int id)
+		{
+			LogMessageBuilder builder = null;
+			VideoContentData data = VideoContentData.LoadByID(id);
+      IContent content = this.Cache.GetContent(data.VideoContent.Content.ID);
+      Video video = content as Video;
+			if (video == null)
+			{
+        builder = new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "videocontroller", "download"), "Content not found or is not of Video type", content);
+				if (Log.IsErrorEnabled)
+					Log.Error(builder);
+
+				//- ContentError: Requested content is not provided or not valid!
+        ErrorViewModel model = new ErrorViewModel(this.PaywallContext, 0, "Content error", "Content not found");
+        return View("Error", model); 
+			}
+
+			if (!video.IsDownloadable)
+      {
+        // Return error page!
+				//- ContentError: Requested content is not available for downloading!
+        ErrorViewModel model = new ErrorViewModel(this.PaywallContext, 0, "Content error", "Content is not downloadable");
+        return View("Error", model); 
+			}
+
+			string fileName = string.Format("{0}{1}", data.VideoContent.Title, data.VideoConversionProfileEntry.VideoCodec.Extension);
+      HttpContext.Response.ContentType = data.VideoConversionProfileEntry.VideoCodec.MimeType;
+
+      return File(data.Data, data.VideoConversionProfileEntry.VideoCodec.MimeType, fileName);
+    }
+
+		public FileStreamResult Stream(int id)
+    {
+			LogMessageBuilder builder = null;
+			VideoContentData data = VideoContentData.LoadByID(id);
+      IContent content = this.Cache.GetContent(data.VideoContent.Content.ID);
+      Video video = content as Video;
+
+			if (video == null)
+			{
+        builder = new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "videocontroller", "stream"), "Content not found or is not of Video type", content);
+				if (Log.IsErrorEnabled)
+					Log.Error(builder);
+
+        // Return error page!
+				//- ContentError: Requested content is not provided or not valid!
+        ErrorViewModel model = new ErrorViewModel(this.PaywallContext, 0, "Content error", "Content not found");
+        //return View("Error", model);  
+        return null;
+			}
+
+			if (!video.IsStreamable)
+      {
+        // Return error page!
+				//- ContentError: Requested contetn is not available for streaming!
+        ErrorViewModel model = new ErrorViewModel(this.PaywallContext, 0, "Content error", "Content is not streamable");
+        //return View("Error", model);
+        return null;
+			}
+
+      HttpContext.Response.Headers.Add("Accept-Ranges", "bytes");
+      Stream stream = new MemoryStream(data.Data);
+      //return new FileStreamResult(stream, data.VideoConversionProfileEntry.VideoCodec.MimeType);
+      return new FileStreamResult(stream, data.VideoConversionProfileEntry.VideoCodec.MimeType);
+    }
+
+		public override IContent GetRequestedContent()
+		{
+			LogMessageBuilder builder = null;
+      object videoContentDataID = null;
+      if (!this.RouteData.Values.TryGetValue("id", out videoContentDataID) ||
+          videoContentDataID == null)
+      {
+        // problem here...
+        throw new ArgumentException("Invalid argument supplied for contentID parameter.", "contentID");
+      }
+      
+      int videoContentDataIDValue = Int32.Parse(videoContentDataID.ToString());
+      VideoContentData data = VideoContentData.LoadByID(videoContentDataIDValue);
+			if (data == null)
+			{
+        builder = new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "videocontroller", "getrequestedcontent"), "VideoContentData is not found in database for " + videoContentDataID);
+				if (Log.IsErrorEnabled)
+					Log.Error(builder);
+        // Video not found. Return error page or so? (done in RestrictedAccessAttribute->OnActionExecuting)
+        return null;
+			}
+      return this.Cache.GetContent(data.VideoContent);
+		}
+  }
+}

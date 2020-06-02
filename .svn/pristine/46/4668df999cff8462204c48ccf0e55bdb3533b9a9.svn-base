@@ -1,0 +1,151 @@
+﻿using MobilePaywall.Data;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net.Mime;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.ContentUploader.Video
+{
+	class VideoUploaderInformations
+	{
+		private string _filePath = string.Empty;
+		private bool _error = false;
+		private string _message = string.Empty;
+
+		private int _contentGroupID = -1;
+		private int _contentTypeID = -1;
+		private int _contentStorageID = -1;
+		private int _categoryID = -1;
+		private string _languageID = string.Empty;
+		private int _ageRatingID = -1;
+		private int _rating = -1;
+
+		private ContentGroup _contentGroup = null;
+		private Data.ContentType _contentType = null;
+		private ContentStorage _contentStorage = null;
+		private Category _category = null;
+		private Language _language = null;
+		private AgeRating _ageRating = null;
+		private List<VideoConversionProfile> _videoConversionProfiles = null;
+		private List<ThumbnailConversionProfile> _thumbnailConversionProfiles = null;
+
+		public string FolderPath { get { return this._filePath; } }
+		public bool Error { get { return this._error; } }
+		public string Message { get { return this._message; } }
+
+		public ContentGroup ContentGroup { get { return this._contentGroup; } }
+		public Data.ContentType ContentType { get { return this._contentType; } }
+		public ContentStorage ContentStorage { get { return this._contentStorage; } }
+		public Language Language { get { return this._language; } }
+		public AgeRating AgeRating { get { return this._ageRating; } }
+		public List<VideoConversionProfile> VideoConversionProfiles { get { return this._videoConversionProfiles; } }
+		public List<ThumbnailConversionProfile> ThumbnailConversionProfiles { get { return this._thumbnailConversionProfiles; } }
+
+
+		public VideoUploaderInformations(string filePath)
+		{
+			Console.WriteLine("Reading upload informations; ");
+
+			this._filePath = filePath;
+			this.ReadInfo();
+
+			if (!this.ValidateInfo())
+			{
+				Console.WriteLine(" - ERROR UPLOAD INFORMATIONS: " + this._message);
+				Console.ReadKey();
+				return;
+			}
+
+			IVideoConversionProfileManager vcpManager = VideoConversionProfile.CreateManager();
+			this._videoConversionProfiles = new List<VideoConversionProfile>();
+			this._videoConversionProfiles.Add(vcpManager.Load(1));
+			this._videoConversionProfiles.Add(vcpManager.Load(3));
+
+			IThumbnailConversionProfileManager tcpManager = ThumbnailConversionProfile.CreateManager();
+			this._thumbnailConversionProfiles = new List<ThumbnailConversionProfile>();
+			this._thumbnailConversionProfiles.Add(tcpManager.Load(1));
+		}
+
+		// SUMMARY: Read info.txt from content folder
+		private void ReadInfo()
+		{
+			string[] lines = File.ReadAllLines(string.Format("{0}/_config.txt", this._filePath));
+			foreach (string line in lines)
+			{
+				if (string.IsNullOrEmpty(line))
+					continue;
+
+				string[] data = line.Split(':');
+				if (data.Length != 2)
+					continue;
+
+				switch (data[0].Trim())
+				{
+					case "ContentGroupID": Int32.TryParse(data[1].Trim(), out this._contentGroupID); break;
+					case "ContentTypeID": Int32.TryParse(data[1].Trim(), out this._contentTypeID); break;
+					case "ContentStorageID": Int32.TryParse(data[1].Trim(), out this._contentStorageID); break;
+					case "CategoryID": Int32.TryParse(data[1].Trim(), out this._categoryID); break;
+					case "Language": this._languageID = data[1].Trim(); break;
+					case "AgeRatingID": Int32.TryParse(data[1].Trim(), out this._ageRatingID); break;
+					case "Rating": Int32.TryParse(data[1].Trim(), out this._rating); break;
+					default: break;
+				}
+			}
+		}
+
+		// SUMMARY: Validate input _info.txt
+		private bool ValidateInfo()
+		{
+			this._error = true;
+
+			this._contentGroup = Data.ContentGroup.CreateManager().Load(this._contentGroupID);
+			if (this._contentGroup == null)
+			{
+				this._message = string.Format("ContentGroup with ID:{0} does not exists!", this._contentGroupID);
+				return false;
+			}
+
+			this._contentType = Data.ContentType.CreateManager().Load(this._contentTypeID);
+			if (this._contentType == null)
+			{
+				this._message = string.Format("ContentType with ID:{0} does not exists!", this._contentTypeID);
+				return false;
+			}
+
+			this._contentStorage = Data.ContentStorage.CreateManager().Load(this._contentStorageID);
+			if (this._contentStorage == null)
+			{
+				this._message = string.Format("ContentStorage with ID:{0} does not exists!", this._contentStorageID);
+				return false;
+			}
+
+			this._category = Data.Category.CreateManager().Load(this._categoryID);
+			if (this._category == null)
+			{
+				this._message = string.Format("Category with ID:{0} does not exists!", this._categoryID);
+				return false;
+			}
+
+			this._language = Data.Language.CreateManager().Load(this._languageID, LanguageIdentifier.TwoLetterIsoCode);
+			if (this._language == null)
+			{
+				this._message = string.Format("Language with ISOCODE:{0} does not exists!", this._languageID);
+				return false;
+			}
+
+			this._ageRating = Data.AgeRating.CreateManager().Load(this._ageRatingID);
+			if (this._ageRating == null)
+			{
+				this._message = string.Format("AgeRating with ID:{0} does not exists!", this._ageRating);
+				return false;
+			}
+
+
+			this._error = false;
+			return true;
+		}
+	}
+}

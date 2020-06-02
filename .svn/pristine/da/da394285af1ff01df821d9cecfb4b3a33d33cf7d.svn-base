@@ -1,0 +1,43 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class AndroidClientSessionOLCacheMapManager : IAndroidClientSessionOLCacheMapManager
+  {
+
+    public AndroidClientSessionOLCacheMap Load(AndroidClientSession session, OLCache cache)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, session, cache);
+    }
+
+    public AndroidClientSessionOLCacheMap Load(IConnectionInfo connection, AndroidClientSession session, OLCache cache)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, session, cache);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, session, cache);
+    }
+
+    public AndroidClientSessionOLCacheMap Load(ISqlConnectionInfo connection, AndroidClientSession session, OLCache cache)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[acsolcm].AndroidClientSessionID=@AndroidClientSessionID AND [acsolcm].OLCacheID=@OLCacheID";
+      parameters.Arguments.Add("AndroidClientSessionID", session.ID);
+      parameters.Arguments.Add("OLCacheID", cache.ID);
+      return this.Load(connection, parameters);
+    }
+  }
+}
+

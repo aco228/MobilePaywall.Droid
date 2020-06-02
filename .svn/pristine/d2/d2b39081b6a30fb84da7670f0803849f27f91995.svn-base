@@ -1,0 +1,93 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using MobilePaywall.Data;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IQueryIdentificationCallbackManager : IDataManager<QueryIdentificationCallback> 
+  {
+	
+
+  }
+
+  public partial class QueryIdentificationCallback : MobilePaywallObject<IQueryIdentificationCallbackManager> 
+  {
+		private Guid _guid;
+		private LookupSession _lookupSession;
+		private LookupSessionResult _lookupSessionResult;
+		private bool _isCompleted = false;
+		private DateTime _validTo = DateTime.MinValue;
+		
+
+		public Guid Guid { get { return this._guid; } set { _guid = value; } }
+		public LookupSession LookupSession 
+		{
+			get
+			{
+				if (this._lookupSession != null &&
+						this._lookupSession.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._lookupSession = LookupSession.CreateManager().LazyLoad(this.ConnectionContext, this._lookupSession.ID) as LookupSession;
+					else
+						this._lookupSession = LookupSession.CreateManager().LazyLoad(this._lookupSession.ID) as LookupSession;
+				return this._lookupSession;
+			}
+			set { _lookupSession = value; }
+		}
+
+		public LookupSessionResult LookupSessionResult 
+		{
+			get
+			{
+				if (this._lookupSessionResult != null &&
+						this._lookupSessionResult.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._lookupSessionResult = LookupSessionResult.CreateManager().LazyLoad(this.ConnectionContext, this._lookupSessionResult.ID) as LookupSessionResult;
+					else
+						this._lookupSessionResult = LookupSessionResult.CreateManager().LazyLoad(this._lookupSessionResult.ID) as LookupSessionResult;
+				return this._lookupSessionResult;
+			}
+			set { _lookupSessionResult = value; }
+		}
+
+		public bool IsCompleted {get {return this._isCompleted; } set { this._isCompleted = value;} }
+		public DateTime ValidTo { get { return this._validTo; } set { this._validTo = value;} }
+		
+
+    public override bool IsInsertable { get { return true;} }
+
+    public override bool IsDeletable { get { return false;} }
+
+    public override bool IsUpdatable { get { return true;} }
+
+    public QueryIdentificationCallback()
+    { 
+    }
+
+    public QueryIdentificationCallback(int id): base(id, DateTime.Now, DateTime.Now, true)
+    {
+    }
+
+    public QueryIdentificationCallback(int id,  Guid guid, LookupSession lookupSession, LookupSessionResult lookupSessionResult, bool isCompleted, DateTime validTo, DateTime updated, DateTime created): base(id, updated, created, false)
+    {
+			this._guid = guid;
+			this._lookupSession = lookupSession;
+			this._lookupSessionResult = lookupSessionResult;
+			this._isCompleted = isCompleted;
+			this._validTo = validTo;
+			
+    }
+
+    public override object Clone(bool deepClone)
+    {
+      return new QueryIdentificationCallback(-1, this.Guid, this.LookupSession, this.LookupSessionResult,this.IsCompleted,this.ValidTo, DateTime.Now, DateTime.Now);
+    }
+  }
+}
+

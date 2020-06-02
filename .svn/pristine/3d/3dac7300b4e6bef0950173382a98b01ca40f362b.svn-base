@@ -1,0 +1,53 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Merchant.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Merchant.Controllers
+{
+  public class ServiceConfigurationController : PaywallController
+  {
+    public ActionResult Index()
+    {
+      if (PaywallHttpContext.Current.ClientSession.Client.ClientType.Name != "Administrator")
+      {
+        ViewBag.Message = "You don't have permission to see this page.";
+        return View("~/Views/Shared/Template/Error.cshtml");
+      }
+      List<Service> services = Service.CreateManager().Load();
+      List<ServiceInfoModel> serviceInfo = new List<ServiceInfoModel>();
+      MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+      List<ServiceOffer> serviceOffers = ServiceOffer.CreateManager().Load();
+
+
+      foreach (Service service in services)
+      {
+        ServiceInfoModel serviceInfoModel = new ServiceInfoModel();
+        serviceInfoModel.Service = service.Instantiate(runtime);
+        serviceInfoModel.BehaviorModels = (from so in serviceOffers where so.Service.ID.Equals(service.ID) select so.PaymentConfiguration.BehaviorModel).ToList();
+        serviceInfoModel.PaymentInterfaces = (from so in serviceOffers where so.Service.ID.Equals(service.ID) select so.PaymentConfiguration.PaymentInterface).Distinct().ToList();
+
+        serviceInfo.Add(serviceInfoModel);
+      }    
+      
+      return View(serviceInfo);
+    }
+
+    public ActionResult Edit(int id)
+    {
+      if (PaywallHttpContext.Current.ClientSession.Client.ClientType.Name != "Administrator")
+      {
+        ViewBag.Message = "You don't have permission to edit service.";
+        return View("~/Views/Shared/Template/Error.cshtml");
+      }
+      Service service = Service.CreateManager().Load(id);
+      ServiceTask data = new ServiceTask(service);
+      data.ActionType = ServiceConfigAction.Edit;
+
+      return View("~/Views/ServiceTask/ServiceTask.cshtml", data);
+    }
+  }
+}

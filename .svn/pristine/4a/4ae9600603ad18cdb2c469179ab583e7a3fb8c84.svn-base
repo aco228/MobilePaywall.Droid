@@ -1,0 +1,246 @@
+﻿using Direct.Core;
+using MobilePaywall.MobilePaywallDirect;
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Base
+{
+  /*
+  public interface IStorageManager
+  {
+    List<StorageEntry> EntriesList { get; }
+    IEnumerable<StorageEntry> Entries { get; }
+    bool Exists(string key);
+    string GetString(string key);
+    int? GetInt(string key);
+    DateTime? GetDate(string key);
+    bool? GetBool(string key);
+    bool GetBoolean(string key);
+    Guid? GetGuid(string key);
+
+    void PutString(string key, string value);
+    void PutInt(string key, int value);
+    void PutDate(string key, DateTime date);
+    void PutBool(string key, bool status);
+    void PutGuid(string key, Guid guid);
+  }
+  */
+
+  internal class StorageManagerKeyCache
+  {
+    private int _id = -1;
+    private string _key = string.Empty;
+
+    public int ID { get { return this._id; } set { this._id = value; } }
+    public string Key { get { return this._key;  } set { this._key = value; } }
+  }
+
+  public abstract class StorageManagerBase
+  {
+    private DataObject _baseObject = null;
+    private string _baseObjectName = string.Empty;
+    private PaywallDirect _database = null;
+    private List<StorageManagerKeyCache> _storageManagerKeyCache = null;
+
+    protected string TableName { get { return string.Format("{0}Storage", this._baseObjectName); } }
+    
+    protected DirectContainer this[string key]
+    {
+      get
+      {
+        return this._database.LoadContainer(string.Format(@"SELECT TOP 1 {0}ID AS 'ID', [Key], [Value] FROM MobilePaywall.core.{0} WHERE {1}ID={2} AND [Key]='{3}'",
+          this.TableName, this._baseObjectName, this._baseObject.ID, key));
+      }
+    }
+
+    public StorageManagerBase(DataObject storageBase)
+    {
+      this._baseObjectName = storageBase.GetType().Name;
+      this._baseObject = storageBase;
+      this._database = PaywallDirect.Instance;
+      this.CacheKeys();      
+    }
+
+    private void CacheKeys()
+    {
+      this._storageManagerKeyCache = new List<StorageManagerKeyCache>();
+      DirectContainer dc = this._database.LoadContainer(string.Format(@"SELECT {0}ID AS 'ID', [Key] FROM MobilePaywall.core.{0} WHERE {1}ID={2}",
+          this.TableName, this._baseObjectName, this._baseObject.ID));
+      foreach (DirectContainerRow row in dc.Rows)
+        this._storageManagerKeyCache.Add(new StorageManagerKeyCache() { ID = row.GetInt("ID").Value, Key = row.GetString("Key") });
+    }
+
+    public List<StorageEntry> EntriesList
+    {
+      get
+      {
+        List<StorageEntry> result = new List<StorageEntry>();
+        DirectContainer container = this._database.LoadContainer(string.Format(@"SELECT [Key], [Value] FROM MobilePaywall.core.{0} WHERE {1}ID={2};",
+          this.TableName, this._baseObjectName, this._baseObject.ID));
+
+        if (!container.HasValue)
+          return result;
+
+        foreach (DirectContainerRow row in container.Rows)
+          result.Add(new StorageEntry(row.GetString("Key"), row.GetString("Value")));
+
+        return result;
+      }
+    }
+
+    public IEnumerable<StorageEntry> Entries
+    {
+      get
+      {
+        foreach (StorageEntry entry in this.EntriesList)
+          yield return entry;
+      }
+    }
+
+    public bool Exists(string key)
+    {
+      return this[key] != null;
+    }
+
+    public virtual string GetString(string key)
+    {
+      DirectContainer cs = this[key];
+      if (cs == null || !cs.HasValue)
+        return string.Empty;
+      return cs.GetString("Value");
+    }
+
+    public virtual int? GetInt(string key)
+    {
+      string value = this.GetString(key);
+      if (string.IsNullOrEmpty(value))
+        return null;
+      int result = -1;
+      if (!Int32.TryParse(value, out result))
+        return null;
+      return result;
+    }
+
+    public virtual DateTime? GetDate(string key)
+    {
+      string value = this.GetString(key);
+      if (string.IsNullOrEmpty(value))
+        return null;
+      DateTime dt;
+      if (!DateTime.TryParse(value, out dt))
+        return null;
+      return dt;
+    }
+
+    public virtual bool? GetBool(string key)
+    {
+      string value = this.GetString(key);
+      if (string.IsNullOrEmpty(value))
+        return null;
+      return value.Equals("1") || value.ToLower().Equals("true");
+    }
+    public virtual bool GetBoolean(string key)
+    {
+      string value = this.GetString(key);
+      if (string.IsNullOrEmpty(value))
+        return false;
+      return value.Equals("1") || value.ToLower().Equals("true");
+    }
+
+    public virtual Guid? GetGuid(string key)
+    {
+      string value = this.GetString(key);
+      if (string.IsNullOrEmpty(value))
+        return null;
+      Guid dt;
+      if (!Guid.TryParse(value, out dt))
+        return null;
+      return dt;
+    }
+
+    public virtual void PutString(string key, string value)
+    {
+      StorageManagerKeyCache cacheValue = (from s in this._storageManagerKeyCache where s.Key.Equals(value) select s).FirstOrDefault();
+
+      if (cacheValue != null)
+      {
+        this._database.Execute(string.Format(@"UPDATE MobilePaywall.core.{0} SET Value='{1}' WHERE {0}ID={2}",
+          this.TableName, value, cacheValue.ID));
+        return;
+      }
+
+      int? id = this._database.LoadInt(string.Format(@"SELECT TOP 1 {0}ID FROM MobilePaywall.core.{0} WHERE {1}ID={2} AND [Key]='{3}';",
+        this.TableName, this._baseObjectName, this._baseObject.ID, key));
+
+      if(id.HasValue)
+        this._database.Execute(string.Format(@"UPDATE MobilePaywall.core.{0} SET Value='{1}' WHERE {0}ID={2}",
+          this.TableName, value, id.Value));
+      else
+        id = this._database.Execute(string.Format(@"INSERT INTO MobilePaywall.core.{0} ( {1}ID, [Key], [Value]) VALUES ( {2}, '{3}', '{4}');",
+          this.TableName, this._baseObjectName, this._baseObject.ID, key, value));
+
+      if (id.HasValue)
+        this._storageManagerKeyCache.Add(new StorageManagerKeyCache() { ID = id.Value, Key = key });
+    }
+
+    /*
+    public virtual void PutString(string key, string value)
+    {
+      int? id = this._database.LoadInt(string.Format(@"SELECT TOP 1 {0}ID FROM MobilePaywall.core.{0} WHERE {1}ID={2} AND [Key]='{3}';",
+        this.TableName, this._baseObjectName, this._baseObject.ID, key));
+
+      if(!id.HasValue)
+      {
+        this._database.Execute(string.Format(@"INSERT INTO MobilePaywall.core.{0} ( {1}ID, [Key], [Value]) VALUES ( {2}, '{3}', '{4}');",
+          this.TableName, this._baseObjectName, this._baseObject.ID, key, value));
+      }
+      else
+      {
+        this._database.Execute(string.Format(@"UPDATE MobilePaywall.core.{0} SET Value='{1}' WHERE {0}ID={2}",
+          this.TableName, value, id.Value));
+      }
+    }
+    */
+
+    public virtual void PutInt(string key, int value)
+    {
+      this.PutString(key, value.ToString());
+    }
+
+    public virtual void PutDate(string key, DateTime date)
+    {
+      this.PutString(key, date.ToString());
+    }
+
+    public virtual void PutBool(string key, bool status)
+    {
+      this.PutString(key, (status ? "1" : "0"));
+    }
+
+    public virtual void PutGuid(string key, Guid guid)
+    {
+      this.PutString(key, guid.ToString());
+    }
+    
+  }
+
+  public class StorageEntry
+  {
+    private string _key = string.Empty;
+    private string _value = string.Empty;
+
+    public string Key { get { return this._key; } set { this._key = value; } }
+    public string Value { get { return this._value; } set { this._value = value; } }
+
+    public StorageEntry(string key, string value)
+    {
+      this._key = key;
+      this._value = value;
+    }
+  }
+  
+}

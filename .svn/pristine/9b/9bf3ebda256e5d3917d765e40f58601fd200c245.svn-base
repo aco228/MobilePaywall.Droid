@@ -1,0 +1,86 @@
+﻿@{ 
+  List<Service> _services = Service.CreateManager().Load(Product.CreateManager().Load(9));
+  
+  DateTime yesterday = DateTime.Now.AddDays(-1);
+  DateTime tomorrow = DateTime.Now.AddDays(1);
+  DateTime from = new DateTime(yesterday.Year, yesterday.Month, yesterday.Day, 0, 0, 0);
+  DateTime to = new DateTime(tomorrow.Year, tomorrow.Month, tomorrow.Day, 0, 0, 0);
+}
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <title>Green light media data pull</title>
+  <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+  <style>
+    .block{ padding: 5px; margin: 5px; background-color:#e5e8f1; }
+  </style>
+</head>
+<body>
+
+  <div class="block">
+    <strong>Date span</strong> <br />
+    <label>From: </label> <input type="text" id="input_from" value="@from.ToString("yyyy-MM-dd HH:mm:ss")" /><br />
+    <label>To: </label> <input type="text" id="input_to" value="@to.ToString("yyyy-MM-dd HH:mm:ss")" /><br />
+  </div>
+
+  <div class="block">
+    <strong>Limit number of entries</strong> <br />
+    <input type="text" id="input_limit" value="1000" />
+  </div>
+
+  <div class="block">
+    <strong>Service filter</strong> <br />
+    <select id="select_service">
+      <option value="-1">ALL</option>
+      @foreach (Service s in _services)
+      {
+        <option value="@s.ID">@s.Name</option>
+      }
+    </select>
+  </div>
+
+  <div class="block">
+    <strong>Filter with click WITH transaction</strong> <input id="checkbox_withTransaction" type="checkbox" /> <br />
+    <strong>Filter with click WITHOUT transaction</strong> <input id="checkbox_withotTransaction" type="checkbox" />
+  </div>
+
+  <div class="block">
+    <input type="button" id="btn_download" value="Download" />
+  </div>
+
+  <div style="display:none">
+    <a href="#" target="_blank" id="aHref"></a>
+  </div>
+
+  <script>
+    $(document).ready(function () {
+
+      $('#btn_download').click(function () {
+        var _from = $('#input_from').val();
+        var _to = $('#input_to').val();
+        var _limit = $('#input_limit').val();
+        var _service = $('#select_service option:selected').attr('value');
+
+        var link = "http://merchant.vod.mobilepaywall.com/GlmDataPull/download";
+        link += "?from=" + _from;
+        link += "&to=" + _to;
+        link += "&limit=" + _limit;
+        if (_service != "-1")
+          link += "&service=" + _service;
+
+        if ($('#checkbox_withTransaction').is(':checked'))
+          link += "&withTransaction=1";
+        if ($('#checkbox_withotTransaction').is(':checked'))
+          link += "&withOutTransaction=1";
+      
+        $('#aHref').attr('href', link);
+        console.log(link);
+        window.open(link, 'Download');
+        $('#aHref').click();        
+      });
+
+    });
+  </script>
+
+</body>
+</html>

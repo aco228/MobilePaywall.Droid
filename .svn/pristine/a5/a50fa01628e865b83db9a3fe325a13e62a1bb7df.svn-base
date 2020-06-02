@@ -1,0 +1,262 @@
+﻿using System;
+using System.Web;
+using System.Web.Hosting;
+
+using MobilePaywall.Data;
+
+using Senti.Diagnostics.Log;
+
+using log4net;
+using MobilePaywall.Web.Log;
+using System.Collections.Generic;
+using MobilePaywall.Direct;
+
+namespace MobilePaywall.Web
+{
+  public class PaywallHttpApplication : HttpApplication
+  {
+    #region #logging#
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (PaywallHttpApplication._log == null)
+          PaywallHttpApplication._log = LogManager.GetLogger(typeof(PaywallHttpApplication));
+        return PaywallHttpApplication._log;
+      }
+    }
+    #endregion
+
+    private static readonly object HasPreExecuteRequestHandlerListenerLockObject = new object();
+    private static readonly object PaywallHttpApplicationInitializeRuntimeLockObject = new object();
+    private static readonly string PaywallRuntimeApplicationKey = "PaywallRuntimeApplicationKey";
+    public static Data.Application CurrentApplication = null;
+    public static Dictionary<string, int> CurrentApplicationServices = null; // used for logging map
+    public static bool LogEverything = true;
+
+
+    public static bool HasRuntime(HttpContext context)
+    {
+      return PaywallHttpApplication.HasRuntime(context.Application);
+    }
+
+    public static bool HasRuntime(HttpApplication application)
+    {
+      return PaywallHttpApplication.HasRuntime(application.Application);
+    }
+
+    public static bool HasRuntime(HttpApplicationState state)
+    {
+      return state[PaywallHttpApplication.PaywallRuntimeApplicationKey] != null;
+    }
+
+    public static IPaywallRuntime GetRuntime(HttpContext context)
+    {
+      return PaywallHttpApplication.GetRuntime(context.Application);
+    }
+
+    public static IPaywallRuntime GetRuntime(HttpApplication application)
+    {
+      return PaywallHttpApplication.GetRuntime(application.Application);
+    }
+
+    public static IPaywallRuntime GetRuntime(HttpApplicationState state)
+    {
+      return state[PaywallHttpApplication.PaywallRuntimeApplicationKey] as IPaywallRuntime;
+    }
+
+    protected static void SetRuntime(HttpContext context, IPaywallRuntime runtime)
+    {
+      PaywallHttpApplication.SetRuntime(context.Application, runtime);
+    }
+
+    protected static void SetRuntime(HttpApplication application, IPaywallRuntime runtime)
+    {
+      PaywallHttpApplication.SetRuntime(application.Application, runtime);
+    }
+
+    protected static void SetRuntime(HttpApplicationState state, IPaywallRuntime runtime)
+    {
+      state[PaywallHttpApplication.PaywallRuntimeApplicationKey] = runtime;
+    }
+
+    public override void Init()
+    {
+      base.Init();
+
+      LogMessageBuilder builder = null;
+      MobilePaywall.Data.Sql.Database dummy = null;
+      Senti.Data.DataLayerRuntime r = new Senti.Data.DataLayerRuntime();
+      PLog.Implementation = new PLogImplementation();;
+
+      log4net.Config.XmlConfigurator.ConfigureAndWatch(new System.IO.FileInfo(Server.MapPath("~/log4net.config")));
+
+      try
+      {
+        this.InitializeRuntime();
+      }
+      catch (Exception ex)
+      {
+        builder = new LogMessageBuilder(new LogErrorCode("paywall.web.core", "paywallhttpapplication", "init"), "");
+        if (Log.IsFatalEnabled)
+          Log.Fatal( builder, ex);
+      }
+    }
+    
+    protected virtual void InitializeRuntime()
+    {
+      LogMessageBuilder builder = null;
+      string siteName = HostingEnvironment.SiteName;
+
+      if (PaywallHttpApplication.HasRuntime(this))
+        return;
+
+      lock (PaywallHttpApplicationInitializeRuntimeLockObject)
+      {
+        //string name = HostingEnvironment.SiteName;
+        if (PaywallHttpApplication.HasRuntime(this))
+          return;
+
+        IApplicationManager appManager = MobilePaywall.Data.Application.CreateManager();
+
+        // FOR Local testing
+        //if (siteName.Equals("MobilePaywall.Web(1)"))
+        //{
+        //  siteName = PaywallLocalSimulator.APPLICATION_NAME;
+        //  PaywallLocalSimulator.IsLocal = true;
+        //}
+
+        MobilePaywall.Data.Application application = appManager.Load(siteName);
+
+        PaywallHttpApplication.CurrentApplication = application;
+
+        PaywallHttpApplication.CurrentApplicationServices = new Dictionary<string, int>();
+        List<Service> services = Data.Service.CreateManager().Load(PaywallHttpApplication.CurrentApplication);
+        foreach (Data.Service s in services)
+          PaywallHttpApplication.CurrentApplicationServices.Add(s.Name, s.ID);
+        
+        if (application == null)
+        {
+          Log.Fatal( new LogMessageBuilder(new LogErrorCode("paywall.web.core", "paywallhttpapplication", "initializeruntime"),
+            string.Format("Application {0} is not loaded.", HostingEnvironment.SiteName), application));
+
+          throw new InvalidOperationException(string.Format("No application with name '{0}' registered in database.", HostingEnvironment.SiteName));
+        }
+
+        IPaywallRuntime runtime = application.InstantiateRuntime();
+        if (!runtime.Initialize(siteName))
+        {
+          return;
+        }
+
+        PaywallHttpApplication.SetRuntime(this, runtime);
+        Log.Debug("Application initialized (name=" + application.Name + ")");
+        RouteConfig.RegisterRoutes(this);
+
+        this.InitializeApplication();
+      }
+
+      Log.Info( new LogMessageBuilder(new LogErrorCode("paywall.web.core", "paywallhttpapplication", "initializeruntime"),
+        "Initialization of PaywallHttpApplication(" + siteName + ") is complete"));
+
+      return;
+    }
+
+    protected virtual void InitializeApplication()
+    {
+    }
+
+    protected virtual void Application_Error(object sender, EventArgs e)
+    {
+      HttpContext context = HttpContext.Current;
+      Exception lastExceptionWhichWasNotHandled = context.Server.GetLastError();
+
+      #region # Log error #
+      bool errorIsLoged = false;
+
+      // CHECK IF ERROR IS WRONG PATH
+      if (lastExceptionWhichWasNotHandled != null && lastExceptionWhichWasNotHandled.Message.Contains("was not found or does not implement IController."))
+      {
+        Log.Error( new LogMessageBuilder(new LogErrorCode("global", "application", "exception"),
+          string.Format("ERROR VIEW!!! APPLICATION_ERROR ({0})!!! : {1} - {2}", HostingEnvironment.SiteName, this.Request.Url.ToString(), this.Request.UserHostAddress), lastExceptionWhichWasNotHandled.InnerException),
+          lastExceptionWhichWasNotHandled);
+        errorIsLoged = true;
+      }
+
+      // CHECK IF THIS IS CASHFLOW TIMEOUT ERROR
+      else if (lastExceptionWhichWasNotHandled.InnerException != null && lastExceptionWhichWasNotHandled.InnerException.Message.Contains("http://v10.api.cashflow-payment.com"))
+      {
+        CashflowTimeout timeout = CashflowTimeout.CreateManager().Load(DateTime.Now.AddMinutes(-10));
+        if (timeout == null)
+        {
+          timeout = new CashflowTimeout(-1, "FATAL CASHFLOW ERROR", lastExceptionWhichWasNotHandled.Message, 0, DateTime.Now, DateTime.Now);
+          Log.Fatal( new LogMessageBuilder(new LogErrorCode("global", "application", "exception"),
+            string.Format("CASHFLOW_TIMEOUT_FATAL ({0})!!! : {1} - {2}", HostingEnvironment.SiteName, this.Request.Url.ToString(), this.Request.UserHostAddress), lastExceptionWhichWasNotHandled.InnerException),
+            lastExceptionWhichWasNotHandled);
+          timeout.Insert();
+          errorIsLoged = true;
+        }
+        else
+        {
+          timeout.Count += 1;
+          timeout.Update();
+        }
+      }
+
+      // CHECK IF ERROR IS FONT ERROR
+      else if(lastExceptionWhichWasNotHandled != null && lastExceptionWhichWasNotHandled.Message.Contains("was not found on controller"))
+      {
+        Log.Error( new LogMessageBuilder(new LogErrorCode("global", "application", "exception"),
+            string.Format("ERROR VIEW!!! APPLICATION_ERROR ({0})!!! : {1} - {2}", HostingEnvironment.SiteName, this.Request.Url.ToString(), this.Request.UserHostAddress), lastExceptionWhichWasNotHandled.InnerException),
+            lastExceptionWhichWasNotHandled);
+        errorIsLoged = true;
+      }
+
+      // ELSE - LOG FATAL ERROR
+      else
+      {
+        Log.Fatal( new LogMessageBuilder(new LogErrorCode("global", "application", "exception"),
+          string.Format("APPLICATION_ERROR ({0})!!! : {1} - {2}", HostingEnvironment.SiteName, this.Request.Url.ToString(), this.Request.UserHostAddress), lastExceptionWhichWasNotHandled.InnerException), 
+          lastExceptionWhichWasNotHandled);
+        errorIsLoged = true;
+      }
+
+      #endregion
+
+      // Print error message if neccesssery
+      string errorMessage = "";
+      if (context.Request.RawUrl.Contains("dbg=true"))
+        errorMessage = lastExceptionWhichWasNotHandled.Message.ToString() + "<br/><br/>" + lastExceptionWhichWasNotHandled.InnerException.Message.ToString();
+
+      this.Response.Write("<strong style=\"color:red\">Application error!</strong> Please contact system administrator! <br/><br/><br/> "); // + 
+        //(context.Request.RawUrl.Contains("dbg=") ? errorMessage : "(dbg not included)"));
+
+      if(!errorIsLoged)
+        Log.Fatal( new LogMessageBuilder(new LogErrorCode("global", "application", "exception"),
+          string.Format("APPLICATION_ERROR ({0})!!! : {1} - {2}", HostingEnvironment.SiteName, this.Request.Url.ToString(), this.Request.UserHostAddress), lastExceptionWhichWasNotHandled.InnerException),
+          lastExceptionWhichWasNotHandled);
+      
+
+      this.Response.Flush();
+      this.Response.Close();
+    }
+
+    protected virtual void Application_PreRequestHandlerExecute(object sender, EventArgs e)
+    {
+      //IPaywallRuntime runtime = PaywallHttpApplication.GetRuntime(this);
+      HttpContext httpContext = HttpContext.Current;
+
+      if (HttpContext.Current.Session == null)
+        return;
+
+      //if (HttpContext.Current.Handler == null || HttpContext.Current.Session == null ||
+      //		HttpContext.Current.Handler.GetType().IsAssignableFrom(typeof(IRequiresSessionState)))
+      //	return;
+
+      PaywallHttpContext paywallContext = PaywallHttpContext.Current;
+      return;
+    }
+  }
+}

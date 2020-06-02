@@ -1,0 +1,80 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+
+
+namespace MobilePaywall.Data
+{
+	public partial interface IServiceContentGroupMapManager
+	{
+		ServiceContentGroupMap Load(Service service, ContentGroup contentGroup);
+		ServiceContentGroupMap Load(IConnectionInfo connection, Service service, ContentGroup contentGroup);
+		ServiceContentGroupMap Load(Service service, bool isEnabled);
+    ServiceContentGroupMap Load(IConnectionInfo connection, Service service, bool isEnabled);
+    List<ServiceContentGroupMap> Load();
+    List<ServiceContentGroupMap> Load(IConnectionInfo connection);
+		List<ServiceContentGroupMap> Load(Application application);
+		List<ServiceContentGroupMap> Load(IConnectionInfo connection, Application application);
+		List<ServiceContentGroupMap> Load(Service service);
+		List<ServiceContentGroupMap> Load(IConnectionInfo connection, Service service);
+		List<ServiceContentGroupMap> Load(ContentGroup contentGroup);
+		List<ServiceContentGroupMap> Load(IConnectionInfo connection, ContentGroup contentGroup);
+	}
+
+	public partial class ServiceContentGroupMap
+  {
+    public override bool IsDeletable { get { return true; } }
+    public void UpdateWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void UpdateWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void InsertWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void InsertWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void DeleteWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+    public void DeleteWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+
+    public void InsertWithHistory(ConnectionInfo connection, ClientSession cs, Service service)
+    {
+      EditHistory.Track(EditHistoryAction.Insert, cs, this, connection, service);
+    }
+    public void UpdateWithHistory(ConnectionInfo connection, ClientSession cs, Service service)
+    {
+      EditHistory.Track(EditHistoryAction.Update, cs, this, connection, service);
+    }
+    public void DeleteWithHistory(ConnectionInfo connection, ClientSession cs, Service service)
+    {
+      EditHistory.Track(EditHistoryAction.Delete, cs, this, connection, service);
+    }
+
+    public static List<ServiceContentGroupMap> LoadAll()
+    {
+      List<ServiceContentGroupMap> serviceContentGroupMap = null;
+      using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+      {
+        connection.Transaction.Begin();
+        IServiceContentGroupMapManager vcManager = ServiceContentGroupMap.CreateManager();
+        serviceContentGroupMap = vcManager.Load(connection);
+        connection.Transaction.Commit();
+      }
+
+      return serviceContentGroupMap;
+    }
+
+		public static List<ServiceContentGroupMap> LoadByApplication(Application application)
+		{
+			List<ServiceContentGroupMap> serviceContentGroupMap = null;
+			using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+			{
+				connection.Transaction.Begin();
+				IServiceContentGroupMapManager vcManager = ServiceContentGroupMap.CreateManager();
+				serviceContentGroupMap = vcManager.Load(connection, application);
+				connection.Transaction.Commit();
+			}
+
+			return serviceContentGroupMap;
+		}
+	}
+}
+

@@ -1,0 +1,93 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using MobilePaywall.Data;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IPaymentCallbackManager : IDataManager<PaymentCallback> 
+  {
+	
+
+  }
+
+  public partial class PaymentCallback : MobilePaywallObject<IPaymentCallbackManager> 
+  {
+		private Guid _guid;
+		private PaymentRequest _paymentRequest;
+		private Payment _payment;
+		private bool _isCompleted = false;
+		private DateTime _validTo = DateTime.MinValue;
+		
+
+		public Guid Guid { get { return this._guid; } set { _guid = value; } }
+		public PaymentRequest PaymentRequest 
+		{
+			get
+			{
+				if (this._paymentRequest != null &&
+						this._paymentRequest.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._paymentRequest = PaymentRequest.CreateManager().LazyLoad(this.ConnectionContext, this._paymentRequest.ID) as PaymentRequest;
+					else
+						this._paymentRequest = PaymentRequest.CreateManager().LazyLoad(this._paymentRequest.ID) as PaymentRequest;
+				return this._paymentRequest;
+			}
+			set { _paymentRequest = value; }
+		}
+
+		public Payment Payment 
+		{
+			get
+			{
+				if (this._payment != null &&
+						this._payment.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._payment = Payment.CreateManager().LazyLoad(this.ConnectionContext, this._payment.ID) as Payment;
+					else
+						this._payment = Payment.CreateManager().LazyLoad(this._payment.ID) as Payment;
+				return this._payment;
+			}
+			set { _payment = value; }
+		}
+
+		public bool IsCompleted {get {return this._isCompleted; } set { this._isCompleted = value;} }
+		public DateTime ValidTo { get { return this._validTo; } set { this._validTo = value;} }
+		
+
+    public override bool IsInsertable { get { return true;} }
+
+    public override bool IsDeletable { get { return false;} }
+
+    public override bool IsUpdatable { get { return true;} }
+
+    public PaymentCallback()
+    { 
+    }
+
+    public PaymentCallback(int id): base(id, DateTime.Now, DateTime.Now, true)
+    {
+    }
+
+    public PaymentCallback(int id,  Guid guid, PaymentRequest paymentRequest, Payment payment, bool isCompleted, DateTime validTo, DateTime updated, DateTime created): base(id, updated, created, false)
+    {
+			this._guid = guid;
+			this._paymentRequest = paymentRequest;
+			this._payment = payment;
+			this._isCompleted = isCompleted;
+			this._validTo = validTo;
+			
+    }
+
+    public override object Clone(bool deepClone)
+    {
+      return new PaymentCallback(-1, this.Guid, this.PaymentRequest, this.Payment,this.IsCompleted,this.ValidTo, DateTime.Now, DateTime.Now);
+    }
+  }
+}
+

@@ -1,0 +1,134 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class StatisticManager : IStatisticManager
+  {
+    public List<Statistic> Load()
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection);
+    }
+
+    public List<Statistic> Load(IConnectionInfo connection)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection);
+    }
+
+    public List<Statistic> Load(ISqlConnectionInfo connection)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      return this.LoadMany(connection, parameters);
+    }
+
+    public List<Statistic> Load(DateTime from, DateTime to, What what)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, from, to, what);
+    }
+
+    public List<Statistic> Load(IConnectionInfo connection, DateTime from, DateTime to, What what)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, from, to, what);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, from, to, what);
+    }
+
+    public List<Statistic> Load(ISqlConnectionInfo connection, DateTime from, DateTime to, What what)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+
+      switch (what)
+      {
+        case What.Sessions:
+          parameters.Where = "([s].USCreated >= @From AND [s].USCreated <= @To)";
+          break;
+        case What.Subsequents:
+          parameters.Where = "([s].STCreated >= @From AND [s].STCreated <= @To)";
+          break;
+        case What.Cancellations:
+          parameters.Where = "([s].PUpdated >= @From AND [s].PUpdated <= @To AND [s].PaymentStatusID = 5)";
+          break;
+        default:
+          parameters.Where = "([s].USCreated >= @From AND [s].USCreated <= @To) OR ([s].STCreated >= @From AND [s].STCreated <= @To) OR ([s].PUpdated >= @From AND [s].PUpdated <= @To AND [s].PaymentStatusID = 5)";
+          break;
+      }
+
+      parameters.Arguments.Add("From", from);
+      parameters.Arguments.Add("To", to);
+      return this.LoadMany(connection, parameters);
+    }
+
+    public List<Statistic> Load(DateTime from, DateTime to)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, from, to);
+    }
+
+    public List<Statistic> Load(IConnectionInfo connection, DateTime from, DateTime to)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, from, to);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, from, to);
+    }
+
+    public List<Statistic> Load(ISqlConnectionInfo connection, DateTime from, DateTime to)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+
+      parameters.Where = "(s.USCreated >= @From AND s.USCreated <= @To) " +
+                         "OR (s.STCreated >= @From AND s.STCreated <= @To) " +
+                         "OR (s.PCreated >= @From AND s.PCreated <= @To AND s.USCreated <= @From) " +
+                         "OR (s.PUpdated >= @From AND s.PUpdated <= @To AND s.PaymentStatusID = 5)";
+
+      parameters.Arguments.Add("From", from);
+      parameters.Arguments.Add("To", to);
+      return this.LoadMany(connection, parameters);
+    }
+
+    public List<Statistic> Load(DateTime from, DateTime to, List<Merchant> merchants, List<Service> services, List<Country> countries)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, from, to, merchants, services, countries);
+    }
+
+    public List<Statistic> Load(IConnectionInfo connection, DateTime from, DateTime to, List<Merchant> merchants, List<Service> services, List<Country> countries)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, from, to, merchants, services, countries);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, from, to, merchants, services, countries);
+    }
+
+    public List<Statistic> Load(ISqlConnectionInfo connection, DateTime from, DateTime to, List<Merchant> merchants, List<Service> services, List<Country> countries)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      //parameters.Where = "a = b OR a = @MyParam";
+      //parameters.OrderBy = "abbr.PrimaryKeyColumnID DESC";
+      //parameters.Arguments.Add("MyParam", "MyValue");
+      //return this.Load(connection, parameters);
+      return this.LoadMany(connection, parameters);
+    }
+
+
+  }
+}
+

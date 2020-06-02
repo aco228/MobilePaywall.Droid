@@ -1,0 +1,62 @@
+﻿@model MobilePaywall.Web.Models.SendNumberModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+}
+
+<style>
+  .contactField{  width: 100%!important; padding: 20px!important; }
+</style>
+
+@Styles.Render("~/Style/Darkley/Login")
+@Scripts.Render("~/Script/Login")
+
+
+<div style="padding:10px 20px;">
+  <h2 style="text-align:center;">@Translations.Web.Login.Title</h2>
+  <label for="username" class="ui-hidden-accessible">Insert your phone number</label>
+  <input type="text" class="contactField requiredField" name="username" id="input_number" value="" placeholder="@Translations.Web.Login.PlcUsername">
+  <div style="text-align: center; margin: 12px 0px;" id="loginForm">
+    <input type="button" id="loginSubmit" class="buttonWrapper contactSubmitButton" value="@Translations.Web.Login.Button">
+    <div class="ajax_response"></div>
+  </div>
+</div>
+<div style="clear:both;"></div>
+
+
+<script>
+  $(document).ready(function () {
+
+    var wait = '@Translations.Web.Pending.PleaseWait';
+    var originalText = $('#loginSubmit').text();
+
+    $('#loginSubmit').click(function () {
+      if ($(this).attr('inuse') == 'true')
+        return;
+
+      var number = $('#input_number').val();
+      if (number == '') {
+        _visual.Alert('You did not entered msisnd');
+        return;
+      }
+
+      var btn = $(this);
+      btn.attr('inuse', 'true');
+      btn.text(wait);
+
+      $.ajax({
+        url: '/sendnumber/send',
+        method: 'POST',
+        data: { number: number },
+        success: function (response) {
+          if (!response.status) {
+            _visual.Alert(response.message);
+            btn.text(originalText);
+          }
+          else
+            window.location = '/';
+        }
+      });
+
+    });
+  });
+</script>

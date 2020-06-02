@@ -1,0 +1,103 @@
+﻿@model MobilePaywall.Web.Models.ContentListViewModel
+@{
+  Layout = string.Format("~/Views/{0}/_Layout/_Layout.cshtml", PaywallHttpContext.Current.Service.ServiceData.Template.Name);
+}
+
+@Scripts.Render("~/Script/Home")
+<style>
+  .videoItem{ pointer-events:none; }
+</style>
+
+@{
+  if (PaymentHelper.HasPayment())
+  {
+    <script>
+      $(document).ready(function () {
+        $('#confirm-check').hide();
+      });
+    </script>
+  }
+  else
+  {
+    <script>
+      $(document).ready(function () {
+        //$('#buy').click(function () { return false; });
+        /*$('body').on('click', '.buy', function () { return false; });
+        $('#check').click(function ()
+        {
+          if (!$(this).is(':checked')) {
+            $('.buy').bind('click', function () { return false; });
+          } else {
+            $('.buy').unbind('click');
+          }
+        });*/
+        
+        if ($('#check').length > 0)
+        {
+          $('#check').click(function () {
+            if ($(this).is(':checked'))
+              $('.videoItem').css('pointer-events', 'initial');
+            else
+              $('.videoItem').css('pointer-events', 'none');
+          });
+        }
+      });
+    </script>
+  }
+}
+
+@section belgium {
+  <div id="confirm-check">
+    <input type="checkbox" id="check" />
+    <label for="check">Bij inschrijving bevestig ik dat ik ouder ben dan 18 jaar en ik bevestig de voorwaarden te hebben gelezen en te accepteren en hierbij geef ik mijn herroepingsrecht op de aankoop van dit product op.</label>
+  </div>
+}
+
+<div id="contentVideoContainer">
+  @foreach (MobilePaywall.IContent item in Model.Content)
+  {
+    <div class="expose-item fullwidth videoItem">
+        <a class="buy expose-title toggle ___clink" href="@Model.AppendSessionID(item)" data-ajax="false" data-theme="a">
+            <div class="playIcon"></div>
+            <img class="expose-icon" src="~/Images/Theia/plus.png" />
+            <span>Koop nu</span>
+        </a>
+
+        <a class="buy ___clink" href="@Model.AppendSessionID(item)" data-ajax="false">
+            <img class="expose-image" src="@item.GetThumbnailUrl(this.Request.UserAgent)" alt="Old Temple" />
+        </a>
+    </div>
+
+  }
+</div>
+
+@*<div class="expose-item fullwidth">
+    <a href="#" class="expose-title toggle" data-theme="a"><img class="expose-icon" src="~/Images/Theia/plus.png" /><span>Corporate Identity</span></a>
+    <div class="container">
+      <p>Nullam id dolor id nibh ultricies vehicula ut id elit. Donec ullamcorper nulla non metus auctor fringilla. Praesent commodo cursus magna, vel scelerisque nisl consectetur et. Etiam porta sem malesuada magna mollis euismod.</p>
+      <p>Price: <strong>$15</strong></p>
+      <p><a href="#"><button data-role="none" class="theia-button"><i class="fa fa-shopping-cart"></i>Purchase</button></a></p>
+    </div>
+    <img class="expose-image" src="http://lyfstylmusic.com/wp-content/uploads/2014/06/340544.jpg" alt="Old Temple" />
+  </div>*@
+
+<button class="ui-btn" id="controlLoadMore">@Translations.Web.Controls.More</button>
+
+<script>
+  var _videoController = null;
+  var _contentHome = null;
+
+  $(document).ready(function () {
+    _videoController = new VideoController();
+    _videoController.TextPending = '@Translations.Web.Pending.PleaseWait';
+
+    @{
+      if(Model.Category != null)
+      {
+        @Html.Raw(Server.HtmlDecode("_homeVideoControler.CategoryID = '" + Model.Category.ID + "';"));
+      }
+    }
+
+    //_contentHome = new ContentHome();
+  });
+</script>

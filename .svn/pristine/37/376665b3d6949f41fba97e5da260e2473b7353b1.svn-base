@@ -1,0 +1,46 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class ShortcodeKeywordServiceOfferMapManager : IShortcodeKeywordServiceOfferMapManager
+  {
+    public ShortcodeKeywordServiceOfferMap Load(Shortcode shortcode, Keyword keyword)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, shortcode, keyword);
+    }
+
+    public ShortcodeKeywordServiceOfferMap Load(IConnectionInfo connection, Shortcode shortcode, Keyword keyword)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, shortcode, keyword);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, shortcode, keyword);
+    }
+
+    public ShortcodeKeywordServiceOfferMap Load(ISqlConnectionInfo connection, Shortcode shortcode, Keyword keyword)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[sksom].ShortcodeID = @ShortcodeID AND [sksom].KeywordID = @KeywordID";
+      //parameters.OrderBy = "abbr.PrimaryKeyColumnID DESC";
+      parameters.Arguments.Add("ShortcodeID", shortcode.ID);
+      parameters.Arguments.Add("KeywordID", keyword.ID);
+      return this.Load(connection, parameters);
+      //return this.LoadMany(connection, parameters);
+    }
+
+
+  }
+}
+

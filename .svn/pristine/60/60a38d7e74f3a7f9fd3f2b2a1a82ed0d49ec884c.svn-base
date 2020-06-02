@@ -1,0 +1,46 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data.Sql;
+
+namespace MobilePaywall.Data.DCBEgypt.Sql
+{
+  public partial class PaymentRequestPinMapManager : IPaymentRequestPinMapManager
+  {
+    public PaymentRequestPinMap Load(PaymentRequest request, string pin)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, request, pin);
+    }
+
+    public PaymentRequestPinMap Load(IConnectionInfo connection, PaymentRequest request, string pin)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, request, pin);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, request, pin);
+    }
+
+    public PaymentRequestPinMap Load(ISqlConnectionInfo connection, PaymentRequest request, string pin)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[prpm].PaymentRequestID = @PaymentRequestID AND [prpm].Pin = @Pin";
+      //parameters.OrderBy = "abbr.PrimaryKeyColumnID DESC";
+      parameters.Arguments.Add("PaymentRequestID", request.ID);
+      parameters.Arguments.Add("Pin", pin);
+      return this.Load(connection, parameters);
+      //return this.LoadMany(connection, parameters);
+    }
+
+
+  }
+}
+

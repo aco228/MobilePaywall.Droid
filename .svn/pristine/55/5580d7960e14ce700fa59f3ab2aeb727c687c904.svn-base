@@ -1,0 +1,1278 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+using MobilePaywall.Web.Filters;
+using MobilePaywall.Web.Models;
+using Cashflow.Client;
+using Cashflow.Message;
+using MobilePaywall.Data;
+using MobilePaywall.Web.Localization;
+using System.IO;
+using System.Reflection;
+using Senti.Diagnostics.Log;
+using MobilePaywall.Web.Log;
+using log4net;
+using log4net.Core;
+using MobilePaywall.MobilePaywallDirect;
+
+namespace MobilePaywall.Web.Controllers
+{
+
+  public partial class TemplateController : PaywallTemplateController
+  {
+
+    public ActionResult ApiChangePaymentInterface(string paymentInterfaceID,string serviceLookupMethodMapID)
+    {
+      int _paymentInterfaceID;
+      if (!Int32.TryParse(paymentInterfaceID, out _paymentInterfaceID))
+        return this.Json(new { status = false, message = "Could not parse this paymnentInterface ID: "  + paymentInterfaceID });
+
+      int _serviceLookupMethodMap;
+      if (!Int32.TryParse(serviceLookupMethodMapID, out _serviceLookupMethodMap))
+        return this.Json(new { status = true, message = "Could not parse this serviceLookupMethodMapID : " + serviceLookupMethodMapID});
+
+      ServiceLookupMethodMap methodMap = ServiceLookupMethodMap.CreateManager().Load(_serviceLookupMethodMap);
+      if (methodMap == null)
+        return this.Json(new { status = false, message = "That Service Lookup Method doesnt Exist with ID = " + serviceLookupMethodMapID });
+
+      PaymentInterface payInterface = PaymentInterface.CreateManager().Load(_paymentInterfaceID);
+      if (payInterface == null)
+        return this.Json(new { status = false, message = "That Payment Interface does not exist with ID = " + paymentInterfaceID });
+
+      methodMap.PaymentConfiguration.PaymentInterface = payInterface;
+      methodMap.PaymentConfiguration.Update();
+
+      return this.Json(new { status = true, message = "Succesfuly updated payment interface with : " + serviceLookupMethodMapID + " p : " + paymentInterfaceID});
+    }
+
+
+    // SUMMARY: Template -> Configuration -> Update Lookup manager configuration
+    [TemplateAttribute(AdministratorAccess = true, MarketingAccess = true)]
+    public ActionResult ApiUpdateServiceManagerConfiguration(string lookupManagerType, string paymentManagerType)
+    {
+      int _lookupManagerType = -1;
+      if (!Int32.TryParse(lookupManagerType, out _lookupManagerType))
+        return this.Json(new {  status= false, message = "Could not parse this lookupManagerConfigurationID : " + lookupManagerType });
+
+      int _paymentManagerType = -1;
+      if (!Int32.TryParse(paymentManagerType, out _paymentManagerType))
+        return this.Json(new { status= false , message = "Could not parse this paymentManagerConfigurationD : " + paymentManagerType });
+
+      LookupManagerType lmt = LookupManagerType.CreateManager().Load(_lookupManagerType);
+      if(lmt == null)
+        return this.Json(new { status= false , message = "Lookup manager type id : " + lookupManagerType + " does not exists." });
+
+      PaymentManagerType pmt = PaymentManagerType.CreateManager().Load(_paymentManagerType);
+      if (pmt == null)
+        return this.Json(new { status = false, message = "Payment manager type id  : " + paymentManagerType + " does not exists."});
+
+      // lookup manager configuration
+      LookupManagerConfiguration lmc = LookupManagerConfiguration.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData);
+      if(lmc == null)
+      {
+        lmc = new LookupManagerConfiguration(-1, lmt, PaywallHttpContext.Current.Service.ServiceData.FallbackCountry, PaywallHttpContext.Current.Service.PaymentProvider, PaywallHttpContext.Current.Service.ServiceData,
+          string.Format("{0}, {1}, {2}, {3}", PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode, PaywallHttpContext.Current.Service.ServiceData.Name, PaywallHttpContext.Current.Service.PaymentProvider.Name, lmt.Name),
+          DateTime.Now, DateTime.Now);
+        lmc.Insert();
+      }
+      else
+      {
+        lmc.LookupManagerType = lmt;
+        lmc.Update();
+      }
+
+      // paymetn manager configuration
+
+      PaymentManagerConfiguration pmc = PaymentManagerConfiguration.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData);
+      if (pmc == null)
+      {
+        pmc = new PaymentManagerConfiguration(-1, pmt, PaywallHttpContext.Current.Service.ServiceData.FallbackCountry, PaywallHttpContext.Current.Service.PaymentProvider, PaywallHttpContext.Current.Service.ServiceData,
+          string.Format("{0}, {1}, {2}, {3}", PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode, PaywallHttpContext.Current.Service.ServiceData.Name, PaywallHttpContext.Current.Service.PaymentProvider.Name, lmt.Name),
+          DateTime.Now, DateTime.Now);
+        pmc.Insert();
+      }
+      else
+      {
+        pmc.PaymentManagerType = pmt;
+        pmc.Update();
+      }
+
+      return this.Json(new { status = true, message = "Service  Lookup Manager Configuration is updated " + lookupManagerType.ToString()  +" " + paymentManagerType.ToString()});
+    }
+     
+     
+    // SUMMARY: Login
+    public ActionResult ApiLogin(string username, string password)
+    {
+      username = username.ToLower();
+
+      if(string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+        return this.Json(new { status = false, message = "Arguments missing", redirect = string.Empty });
+
+      if(this.PaywallContext.Session.ClientSession != null && DateTime.Now <= this.PaywallContext.Session.ClientSession.ValidUntil)
+        return this.Json(new { status = false, message = "Session exsists", redirect = string.Empty });
+  
+      IClientManager cManager = Client.CreateManager();
+      Client client = cManager.Load(username, password);
+
+      if (client == null)
+        return this.Json(new { status = false, message = "Wrong credentials", redirect = string.Empty });
+      else if (client.ClientStatus == ClientStatus.Inactive)
+        return this.Json(new { status = false, message = "Account is inactive", redirect = string.Empty });
+      else
+      {
+        if (this.PaywallContext.Session.ClientSession != null)
+        {
+          this.PaywallContext.Session.ClientSession.ValidUntil = DateTime.Now.AddMinutes(25);
+          this.PaywallContext.Session.ClientSession.IsActive = true;
+          this.PaywallContext.Session.ClientSession.Update();
+        }
+        else
+        {
+          this.PaywallContext.Session.ClientSession = new ClientSession(-1,
+            this.PaywallContext.Session.SessionData.Guid,
+            this.PaywallContext.Service.ServiceData.Application,
+            client,
+            Language.CreateManager().Load(1),
+            this.PaywallContext.Domain.DomainName,
+            this.Request.UserHostAddress,
+            IPAddressType.IPv4,
+            this.Request.UserAgent,
+            true,
+            DateTime.Now.AddMinutes(25),
+            DateTime.Now, DateTime.Now);
+          this.PaywallContext.Session.ClientSession.Insert();
+        }
+        return this.Json(new { status = true, message = "OK", redirect = "/template" });
+      } 
+    }
+
+    // SUMMARY: Template -> Translation -> Update or create new translation value for service
+    [TemplateAttribute(AdministratorAccess = true, MarketingAccess = true)]
+    public ActionResult ApiUpdateTranslationValue(string translationValueKeyID, string translationKeyID, string translationGroupKeyID, string groupName, string groupKey, string value)
+    {
+      int tvalueID, tKeyID, tGroupKeyID;
+      if (!Int32.TryParse(translationValueKeyID, out tvalueID))
+        return this.Json(new { status = false, message = "Argument error 'translationValueKeyID" });
+      if (!Int32.TryParse(translationKeyID, out tKeyID))
+        return this.Json(new { status = false, message = "Argument error 'translationKeyID" });
+      if (!Int32.TryParse(translationGroupKeyID, out tGroupKeyID))
+        return this.Json(new { status = false, message = "Argument error 'translationGroupKeyID" });
+
+      string message = "";
+      value = HttpUtility.UrlDecode(value);
+
+      TranslationValue translationValue;
+      if(tvalueID == -1)
+      {
+        translationValue = new TranslationValue(-1,
+          TranslationKey.CreateManager().Load(tKeyID),
+          TranslationGroupKey.CreateManager().Load(tGroupKeyID),
+          value,
+          DateTime.Now, DateTime.Now);
+        translationValue.InsertWithHistory(this.PaywallContext.Session);
+        message = "Translation has been added";
+      }
+      else
+      {
+        translationValue = TranslationValue.CreateManager().Load(tvalueID);
+        if (translationValue == null)
+          return this.Json(new { status = false, message = "Translation value does not exists!"});
+
+        translationValue.Value = value;
+        translationValue.UpdateWithHistory(this.PaywallContext.Session);
+        message = "Translation has been updated";
+      }
+      
+      Translations.Web.GetGroup(groupName).AssignValue(groupKey, value);
+      PaywallHttpContext.Current.UpdateTranslationsWildcars();
+
+      return this.Json(new { status = true, message = message, id = translationValue.ID, Updated = translationValue.Updated.ToString() });
+    }
+
+    //SUMMARY: Template -> ServiceConfiguration -> Update ServiceConfiguration
+    [TemplateAttribute(AdministratorAccess =true, MarketingAccess =true)]
+    public ActionResult ApiUpdateServiceConfiguration(string serviceAgeVerificationRequired, string serviceHasSmsPayment, string serviceIsWelcomePageRequired, string serviceIsPaymentEnabled, string serviceConfigurationEntry)
+    {
+
+      int serviceConfigurationEntryID;
+      if (!Int32.TryParse(serviceConfigurationEntry, out serviceConfigurationEntryID))
+        return this.Json(new { status = false, message = "Argument error serviceConfigurationEntry: " + serviceConfigurationEntry});
+
+      MobilePaywall.Data.ServiceConfigurationEntry ServiceConfigurationEntry = ServiceConfigurationEntry.CreateManager().Load(serviceConfigurationEntryID);
+      if (ServiceConfigurationEntry == null)
+        return this.Json(new { status = false, message = "Service Configuration Entry is null" });
+
+     
+
+      bool isServiceAgeVerificationRequired;
+      if (!Boolean.TryParse(Convert.ToBoolean(Convert.ToInt16(serviceAgeVerificationRequired)).ToString(), out isServiceAgeVerificationRequired))
+        return this.Json(new { status = false, message = "Argument error serviceAgeVerificationRequired: " + serviceAgeVerificationRequired });
+
+      bool isServiceHasSmsPayment;
+      if (!Boolean.TryParse(Convert.ToBoolean(Convert.ToInt16(serviceHasSmsPayment)).ToString(), out isServiceHasSmsPayment))
+        return this.Json(new { status = false, message = "Argument error serviceHasSmsPayment: " + isServiceHasSmsPayment });
+
+      bool isServiceIsWelcomePageRequired;
+      if (!Boolean.TryParse(Convert.ToBoolean(Convert.ToInt16(serviceIsWelcomePageRequired)).ToString(), out isServiceIsWelcomePageRequired))
+        return this.Json(new { status = false, message = "Argument error ServiceIsWelcomePageRequired: " + isServiceIsWelcomePageRequired });
+
+      bool isServiceIsPaymentEnabled;
+      if (!Boolean.TryParse(Convert.ToBoolean(Convert.ToInt16(serviceIsPaymentEnabled)).ToString(), out isServiceIsPaymentEnabled))
+        return this.Json(new { status = false, message = "Argument error ServiceIsPaymentEnabled: " + isServiceIsPaymentEnabled });
+
+      ServiceConfigurationEntry.IsAgeVerificationRequired = isServiceAgeVerificationRequired;
+      ServiceConfigurationEntry.HasSmsPayment = isServiceHasSmsPayment;
+      ServiceConfigurationEntry.IsWelcomePageRequired = isServiceIsWelcomePageRequired;
+      ServiceConfigurationEntry.IsPaymentEnabled = isServiceIsPaymentEnabled;
+
+      ServiceConfigurationEntry.UpdateWithHistory(this.PaywallContext.Session);
+      
+      return this.Json(new { status = true, message = "ServiceConfiguration is updated" });
+    }
+
+    // SUMMARY: Template -> Configuration -> Update service user session type 
+    [TemplateAttribute(AdministratorAccess = true, MarketingAccess = true)]
+    public ActionResult ApiUpdateUserSessionType(string userSessionTypeID, string serviceTypeID)
+    {
+      int _userSessionType;
+      if (!Int32.TryParse(userSessionTypeID, out _userSessionType))
+        return this.Json(new { status = false, message = "Argument error 'userSessionTypeID" });
+      
+      UserSessionType ust = UserSessionType.CreateManager().Load(_userSessionType);
+      
+      this.PaywallContext.Service.ServiceData.UserSessionType = ust;
+      this.PaywallContext.Service.ServiceData.UpdateWithHistory(this.PaywallContext.Session);
+
+
+      int _serviceTypeID = -1;
+      if (!Int32.TryParse(serviceTypeID, out _serviceTypeID))
+          return this.Json(new { status = false, message = "Could not parse templateID" });
+
+      ServiceType serviceTypeClass = ServiceType.CreateManager().Load(_serviceTypeID);
+      if (serviceTypeClass == null)
+      {
+          return this.Json(new { status = false, message = "Could not load ServiceType.Class" });
+      }
+
+      PaywallHttpContext.Current.Service.ServiceData.ServiceType = serviceTypeClass;
+      PaywallHttpContext.Current.Service.ServiceData.UpdateWithHistory(this.ClientSession);
+
+      return this.Json(new { status = true, message = "Saved" });
+
+      //return this.Json(new { status = true, message = "Service status is updated with status : " + ust.Name });
+    }
+
+    // SUMMARY: Template -> Configuration -> Update service status (free, online, updating..)
+    [TemplateAttribute(AdministratorAccess = true, MarketingAccess = true)]
+    public ActionResult ApiUpdateServiceStatus(string serviceStatus)
+    {
+      int serviceStatusID;
+      if (!Int32.TryParse(serviceStatus, out serviceStatusID))
+        return this.Json(new { status = false, message = "Argument error 'serviceStatus" });
+
+      ServiceStatus status = this.PaywallContext.Service.ServiceData.ServiceStatus;
+      if (!Enum.IsDefined(typeof(ServiceStatus), serviceStatusID))
+        return this.Json(new { status = false, message = "Argument error 'Enum" });
+
+      status = (ServiceStatus)serviceStatusID;
+      this.PaywallContext.Service.ServiceData.ServiceStatus = status;
+      this.PaywallContext.Service.ServiceData.UpdateWithHistory(this.PaywallContext.Session);
+
+      return this.Json(new { status = true, message = "Service status is updated with status '" + status.ToString() + "'" });
+    }
+
+    // SUMMARY: Template -> Configuration -> Restart application pool of the service
+    [TemplateAttribute(AdministratorAccess = true, MarketingAccess = true)]
+    public ActionResult ApiApplicationRestart()
+    {
+      HttpRuntime.UnloadAppDomain();
+      return this.Json(new { status = true, message = string.Format("Application pool '{0}' is restarted..", PaywallHttpContext.Current.Service.ServiceData.Application.ApplicationName), redirect = "/template" }, JsonRequestBehavior.AllowGet);
+    }
+
+    // SUMMARY: Template -> Configuration -> Update content group for service
+    [TemplateAttribute(AdministratorAccess = true, MarketingAccess = true)]
+    public ActionResult ApiUpdateServiceContentGroupMap(string contentGroupID, string isDelete)
+    {
+      int cgid = -1;
+      if (!Int32.TryParse(contentGroupID, out cgid))
+        return this.Json(new { status = false, message = "Could not parse ContentGroupID!" });
+
+      ContentGroup contentGroup = ContentGroup.CreateManager().Load(cgid);
+      if (contentGroup == null)
+        return this.Json(new { status = false, message = "Could not load ContentGroup with provided id!" });
+
+      ServiceContentGroupMap serviceContentGroupMap = ServiceContentGroupMap.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData, contentGroup);
+
+      int? id = PaywallDirect.Instance.LoadInt(string.Format(@"
+          SELECT COUNT(*) FROM MobilePaywall.core.Content WHERE ContentGroupID=" + contentGroupID, PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.ID, PaywallHttpContext.Current.Service.ServiceData.ID, PaywallHttpContext.Current.Service.PaymentProvider.ID));
+
+      if (serviceContentGroupMap != null)
+      {
+        if(isDelete=="1")
+        {
+          serviceContentGroupMap.DeleteWithHistory(this.PaywallContext.Session);
+          return this.Json(new { status = true, message = "Group removed. Please restart application!", numOfContents = id.HasValue ? id.Value : 0 });
+        }
+        else
+          return this.Json(new { status = false, message = "ContentGroup is already added to this service" });
+      }
+      else
+      {
+        if (isDelete == "1")
+          return this.Json(new { status = false, message = "ServiceContentGroupMap with this group is not found" });
+      }
+
+      serviceContentGroupMap = new ServiceContentGroupMap(-1,PaywallHttpContext.Current.Service.ServiceData, contentGroup, true, DateTime.Now, DateTime.Now);
+      serviceContentGroupMap.InsertWithHistory(this.PaywallContext.Session);
+      
+      return this.Json(new { status = true, message = "Updated. Please restart application!", numOfContents =  id.HasValue? id.Value : 0});
+    }
+
+    // SUMMARY: Simulate operator in user session from template
+    public ActionResult ApiOperatorSimulation(string mobileOperator)
+    {
+      int mobileOperatorID;
+      if (!Int32.TryParse(mobileOperator, out mobileOperatorID))
+        return this.Json(new { status = false, message = "Argument error 'serviceStatus" });
+
+      MobileOperator _mobileOperator;
+      if (mobileOperatorID != -1)
+      {
+        _mobileOperator = MobileOperator.CreateManager().Load(mobileOperatorID);
+        if (_mobileOperator == null)
+          return this.Json(new { status = false, message = "Argument error 'NULL'" });
+      }
+      else
+        _mobileOperator = null;
+
+      this.PaywallContext.Session.SessionData.MobileOperator = _mobileOperator;
+      this.PaywallContext.Session.SessionData.Update();
+
+      return this.Json(new { status = true, message = "Session is updated with  '" + _mobileOperator.Name + "' operator" });
+    }
+
+    // SUMMARY: Simulate operator in user session from template
+    public ActionResult ApiCountrySimulation(string country)
+    {
+      int countryID;
+      if (!Int32.TryParse(country, out countryID))
+        return this.Json(new { status = false, message = "Argument error 'serviceCountry" });
+
+
+      //ako u countriju postoji language dodaj ga u user session 
+
+      MobilePaywall.Data.Country _country = MobilePaywall.Data.Country.CreateManager().Load(countryID);
+        if (_country== null)
+          return this.Json(new { status = false, message = "Argument error 'NULL'" });
+      
+     
+      this.PaywallContext.Session.SessionData.Country = _country;
+      this.PaywallContext.Session.SessionData.Update();
+
+      return this.Json(new { status = true, message = "Session is updated with  '" + _country.GlobalName + "' country" });
+    }
+
+    // SUMMARY: Technicals -> add new note for service
+    [TemplateAttribute(AdministratorAccess = true, MarketingAccess = true)]
+    public ActionResult ApiInsertNewNote(string noteText, string serviceID = "-1")
+    {
+      Service service = null;
+      if (serviceID != "-1")
+      {
+        int id = -1;
+        if (!Int32.TryParse(serviceID, out id))
+          return this.Json(new { status = false, message = "Wrong id format" });
+        service = Service.CreateManager().Load(id);
+        if(service == null)
+          return this.Json(new { status = false, message = "Service error" });
+      }
+      else
+        service = this.PaywallContext.Service.ServiceData;
+
+      TemplateServiceNote note = new TemplateServiceNote(-1,
+        service,
+        this.PaywallContext.Session.ClientSession.Client,
+        noteText,
+        DateTime.Now, DateTime.Now);
+      note.InsertWithHistory(this.PaywallContext.Session);
+      return this.Json(new { status = true, message = "Note has been inserted! ", id = note.ID});
+    }
+
+    // SUMMARY: Technicals -> update service tech status
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiUpdateTemplateServiceStatus(string progress, string color, string contact, string price, string trckdEnabled, string serviceType, string serviceID = "-1")
+    {
+      Service service = null;
+      if (serviceID != "-1")
+      {
+        int id = -1;
+        if(!Int32.TryParse(serviceID, out id))
+          return this.Json(new { status = false, message = "Error with ID" });
+        service = Service.CreateManager().Load(id);
+        if(service == null)
+          return this.Json(new { status = false, message = "Error with laoding service" });
+      }
+      else
+        service = this.PaywallContext.Service.ServiceData;
+
+      int progressNum;
+      if (!Int32.TryParse(progress, out progressNum))
+        return this.Json(new { status = false, message = "Error with progress num" });
+
+      int colorNum;
+      if (!Int32.TryParse(color, out colorNum))
+        return this.Json(new { status = false, message = "Error with color num" });
+
+      bool _trckdEnabled = trckdEnabled.Equals("1") ? true : false;
+      TemplateServiceType _templateServiceType = Enum.IsDefined(typeof(TemplateServiceType), serviceType) ? (TemplateServiceType)Enum.Parse(typeof(TemplateServiceType), serviceType) : TemplateServiceType.Unknown;
+
+      TemplateServiceInfo info = TemplateServiceInfo.CreateManager().Load(service);
+      if(info == null)
+      {
+        info = new TemplateServiceInfo(-1, service, _templateServiceType, progressNum, colorNum == 0 ? (int?)null : colorNum, contact, price, _trckdEnabled, false, DateTime.Now, DateTime.Now);
+        info.InsertWithHistory(this.PaywallContext.Session);
+
+        if (info.Service.ID == this.PaywallContext.Service.ServiceData.ID)
+          this.PaywallContext.Service.UpdateInfo(info);
+
+        return this.Json(new { status = true, message = "Value has been inserted" });
+      }
+      else
+      {
+        info.Progress = progressNum;
+        info.TemplateServiceType = _templateServiceType;
+        info.Contact = contact;
+        info.Color = colorNum == null ? (int?)null : colorNum;
+        info.Price = price;
+        info.TrckdEnabled = _trckdEnabled;
+        info.UpdateWithHistory(this.PaywallContext.Session);
+
+        if (info.Service.ID == this.PaywallContext.Service.ServiceData.ID)
+          this.PaywallContext.Service.UpdateInfo(info);
+
+        return this.Json(new { status = true, message = "Value has been updated" });
+      }
+    }
+
+    // SUMMARY: ServiceInfo -> Update tracking
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiUpdateTracking(string data)
+    {
+      TemplateServiceInfo info = TemplateServiceInfo.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData);
+      if(info == null)
+      {
+        info = new TemplateServiceInfo(-1,
+          this.PaywallContext.Service.ServiceData,
+          TemplateServiceType.Unknown,
+          0, 
+          null,
+          string.Empty,
+          string.Empty,
+          data.Equals("1"),
+          false, // is psms
+          DateTime.Now, DateTime.Now);
+        info.InsertWithHistory(this.PaywallContext.Session);
+        return this.Json(new { status = true, message = "Inserted" });
+      }
+
+      info.TrckdEnabled = data.Equals("1");
+      info.UpdateWithHistory(this.PaywallContext.Session);
+      this.PaywallContext.Service.UpdateInfo(info);
+      return this.Json(new { status = true, message = "Updated" });
+    }
+
+    // SUMMARY: Translations -> Delete translation values
+    [TemplateAttribute(AdministratorAccess=true)]
+    public ActionResult ApiDeleteTranslationValue(string translationValue)
+    {
+      int translationValueID = -1;
+      if (!Int32.TryParse(translationValue, out translationValueID))
+        return this.Json(new { status = false, message = "Invalid value was sent to the API" });
+
+      TranslationValue value = TranslationValue.CreateManager().Load(translationValueID);
+      
+      if(value == null)
+        return this.Json(new { status = false, message = "TranslationValue with ID:" + translationValueID + " does not exists in database" });
+
+      if(!value.IsDeletable)
+        return this.Json(new { status = false, message = "Value could not be deleted. Please contact system administrator" });
+
+      value.DeleteWithHistory(this.PaywallContext.Session);
+      return this.Json(new { status = true, message = "Value is deleted. Please restart application pool." });
+    }
+
+    // SUMMARY: Technicals -> update list of supported operators
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiUpdateTemplateServiceOperators(string serviceID, string operators)
+    {
+      int sid = -1;
+      Service service = null;
+      if (!Int32.TryParse(serviceID, out sid))
+        return this.Json(new { status = false, message = "Error with ID" });
+      service = Service.CreateManager().Load(sid);
+      if (service == null)
+        return this.Json(new { status = false, message = "Error with Service" });
+
+      ITemplateServiceMobileOperatorManager tsmoManager = TemplateServiceMobileOperator.CreateManager();
+      List<TemplateServiceMobileOperator> tsmoMap = tsmoManager.Load(service);
+      foreach (TemplateServiceMobileOperator tsmo in tsmoMap)
+      {
+        tsmo.Active = false;
+        tsmo.Update();
+      }
+
+      string[] operatorsID = operators.Split(',');
+      IMobileOperatorManager moManager = MobileOperator.CreateManager();
+      foreach(string operatorID in operatorsID)
+      {
+        int mid = -1;
+        Int32.TryParse(operatorID, out mid);
+
+        MobileOperator mobileOperator = moManager.Load(mid);
+        if (mobileOperator == null)
+          continue;
+
+        TemplateServiceMobileOperator tsmo = tsmoManager.Load(service, mobileOperator);
+        if(tsmo == null)
+          tsmo = new TemplateServiceMobileOperator(-1, service, mobileOperator, true, DateTime.Now, DateTime.Now);
+        tsmo.Active = true;
+        tsmo.UpdateOrInsert();
+      }
+
+      return this.Json(new { status = true, message = "ok" });
+    }
+
+    // SUMMARY: Tehnicals -> override last service note
+    [TemplateAttribute(AdministratorAccess=true)]
+    public ActionResult ApiOverrideLastNote(string noteID, string text)
+    {
+      int templateServiceNoteID = -1;
+      if(!Int32.TryParse(noteID, out templateServiceNoteID))
+        return this.Json(new { status = false, message = "Wrong noteID" });
+
+      TemplateServiceNote note = TemplateServiceNote.CreateManager().Load(templateServiceNoteID);
+      if(note == null)
+        return this.Json(new { status = false, message = "Note does not exist" });
+
+      if (!string.IsNullOrEmpty(text))
+      {
+        note.Text = text;
+        note.Update();
+        return this.Json(new { status = true, message = "Note is updated!" });
+      }
+      else
+      {
+        note.Delete();
+        return this.Json(new { status = true, message = "Note is deleted!" });
+      }
+    }
+
+    // SUMMARY: SortContent -> Add new data for sorting content
+    [TemplateAttribute(AdministratorAccess=true, MarketingAccess=true)]
+    public ActionResult ApiSortContent(string action, string id, string contentGroupID, string data, string separator)
+    {
+
+      int templateServiceContentSortID = -1;
+      Int32.TryParse(id, out templateServiceContentSortID);
+
+      #region if (action.Equals("add"))
+      if (action.Equals("add"))
+      {
+        int _contentGroupID = -1;
+        if (!Int32.TryParse(contentGroupID, out _contentGroupID))
+          return this.Json(new { status = "false", message = "Could not parse Content group ID", id = templateServiceContentSortID });
+
+        TemplateServiceContentSort templateServiceContentSort = null;
+
+        if (templateServiceContentSortID == -1)
+        {
+          ContentGroup contentGroup = ContentGroup.CreateManager().Load(_contentGroupID);
+          templateServiceContentSort = new TemplateServiceContentSort(-1, this.PaywallContext.Service.ServiceData, contentGroup, data, separator, DateTime.Now, DateTime.Now);
+          
+          // TODO:: Find better way for this
+          if (PaywallContext.Session.ClientSession != null)
+            templateServiceContentSort.InsertWithHistory(this.PaywallContext.Session);
+          else
+            templateServiceContentSort.Insert();
+
+          templateServiceContentSortID = templateServiceContentSort.ID;
+          return this.Json(new { status = "true", message = "Inserted", id = templateServiceContentSortID });
+        }
+        else
+        {
+          templateServiceContentSort = TemplateServiceContentSort.CreateManager().Load(templateServiceContentSortID);
+          if (templateServiceContentSort == null)
+            return this.Json(new { status = "false", message = "Could not load TemplateServiceContentSort", id = templateServiceContentSortID });
+          else if (templateServiceContentSort.ContentGroup.ID != _contentGroupID)
+            return this.Json(new { status = "false", message = "ContentGroupID is not the same", id = templateServiceContentSortID });
+
+          templateServiceContentSort.Data = data;
+          templateServiceContentSort.Separator = separator;
+
+          // TODO:: Find better way for this
+          if (PaywallContext.Session.ClientSession != null)
+            templateServiceContentSort.UpdateWithHistory(this.PaywallContext.Session);
+          else
+            templateServiceContentSort.Update();
+          
+          return this.Json(new { status = "true", message = "Updated", id = templateServiceContentSortID});
+        }
+      }
+      #endregion
+      #region else if (action.Equals("remove"))
+      else if (action.Equals("remove"))
+      {
+        if (templateServiceContentSortID == -1)
+          return this.Json(new { status = "false", message = "Could not parse id", id = templateServiceContentSortID });
+
+        TemplateServiceContentSort templateServiceContentSort = TemplateServiceContentSort.CreateManager().Load(templateServiceContentSortID);
+        templateServiceContentSort.DeleteWithHistory(this.PaywallContext.Session);
+        templateServiceContentSortID = -1;
+        return this.Json(new { status = "true", message = "Deleted", id = templateServiceContentSortID });
+      }
+      #endregion
+      else
+        return this.Json(new { status = "false", message = "Unknown action" });
+    }
+    
+    // SUMMARY: Add new footer links
+    [TemplateAttribute(AdministratorAccess=true, MarketingAccess=true)]
+    public ActionResult ApiAddNewFooterLinks(List<TemplateFooterConfigurationImportModel> data)
+    {
+      if (data == null || data.Count < 1)
+        return this.Json(new { status = false, message = "Could not parse input data"});
+
+      FooterLink footerLink = null;
+      TemplateFooterConfigurationImportModel masterEntry = data.ElementAt(0).Init();
+
+      if (masterEntry.Action.Equals("Service"))
+      {
+        footerLink = FooterLink.CreateManager().Load(this.PaywallContext.Service.ServiceData);
+        if (footerLink != null && footerLink.Service == null)
+          footerLink = null;
+      }
+      else if(masterEntry.Action.Equals("Provider"))
+        footerLink = FooterLink.CreateManager().Load(this.PaywallContext.Service.ServiceData.FallbackCountry, this.PaywallContext.Service.PaymentProvider);
+      else if(masterEntry.Action.Equals("Country"))
+        footerLink = FooterLink.CreateManager().Load(this.PaywallContext.Service.ServiceData.FallbackCountry);
+      else
+        return this.Json(new { status = false, message = "FallbackCountry is not set on this Service! Contact database administrator" });
+
+      if(footerLink == null)
+      {
+        if(masterEntry.SubAction.Equals("Remove"))
+          return this.Json(new { status = true, message = "Footer links are allready empty" });
+        
+        PaymentProvider paymentProvider = null;
+        if(masterEntry.Action.Equals("Provider"))
+        {
+          paymentProvider = PaymentProvider.CreateManager().Load(masterEntry.PaymentProviderID);
+          if(paymentProvider == null)
+            return this.Json(new { status = false, message = "Provider could not be loaded. Please contact system administrator" });
+        }
+
+        footerLink = new FooterLink(-1, 
+          this.PaywallContext.Service.ServiceData.FallbackCountry, 
+          paymentProvider,
+          masterEntry.SeviceSpecific ? this.PaywallContext.Service.ServiceData : null,
+          TemplateFooterConfigurationImportModel.Print(data),
+          TemplateFooterConfigurationImportModel.NewLine.ToString(), 
+          TemplateFooterConfigurationImportModel.Separator.ToString(),
+          DateTime.Now, DateTime.Now);
+        footerLink.InsertWithHistory(this.PaywallContext.Session);
+        this.PaywallContext.Service.Init();
+        return this.Json(new { status = true, message = "Footer links have been inserted for " + masterEntry.Action});
+      }
+      else
+      {
+        if (masterEntry.SubAction.Equals("Remove"))
+        {
+          footerLink.DeleteWithHistory(this.PaywallContext.Session);
+          this.PaywallContext.Service.Init();
+          return this.Json(new { status = true, message = "Footer links are deleted" });
+        }
+
+        footerLink.NewLineChar = TemplateFooterConfigurationImportModel.NewLine.ToString();
+        footerLink.SeparatorChar = TemplateFooterConfigurationImportModel.Separator.ToString();
+        footerLink.Data = TemplateFooterConfigurationImportModel.Print(data);
+        footerLink.UpdateWithHistory(this.PaywallContext.Session);
+        this.PaywallContext.Service.Init();
+        return this.Json(new { status = true, message = "Footer links have been updated for " + masterEntry.Action});
+      }
+    }
+
+    // SUMMARY: Add or update service logo from dataabse
+    [TemplateAttribute(AdministratorAccess=true, MarketingAccess=true)]
+    public ActionResult ApiUpdateLogo(HttpPostedFileBase file)
+    {
+      if (file == null && file.ContentLength == 0)
+        return View("~/Views/Template/UpdateLogo.cshtml", new TemplateServiceUpdateLogoModel(this.PaywallContext, "You did not provided file for upload"));
+
+      if(!file.FileName.Contains(".png"))
+        return View("~/Views/Template/UpdateLogo.cshtml", new TemplateServiceUpdateLogoModel(this.PaywallContext, "Error. You must provide file with .png extension"));
+
+      byte[] data = null;
+      using (MemoryStream ms = new MemoryStream())
+      {
+        file.InputStream.CopyTo(ms);
+        data = ms.GetBuffer();
+      }
+
+      if(data == null)
+        return View("~/Views/Template/UpdateLogo.cshtml", new TemplateServiceUpdateLogoModel(this.PaywallContext, "Error with converting file"));
+
+      ServiceLogo serviceLogo = ServiceLogo.LoadByService(this.PaywallContext.Service.ServiceData);
+
+      if (serviceLogo == null)
+      {
+        serviceLogo = new ServiceLogo(-1, this.PaywallContext.Service.ServiceData, data, true, DateTime.Now, DateTime.Now);
+        serviceLogo.InsertWithHistory(this.PaywallContext.Session);
+        this.PaywallContext.Service.Init();
+        return View("~/Views/Template/UpdateLogo.cshtml", new TemplateServiceUpdateLogoModel(this.PaywallContext, "Success! Logo is inserted. "));
+      }
+      else
+      {
+        serviceLogo.Data = data;
+        serviceLogo.UpdateWithHistory(this.PaywallContext.Session);
+        this.PaywallContext.Service.Init();
+        return View("~/Views/Template/UpdateLogo.cshtml", new TemplateServiceUpdateLogoModel(this.PaywallContext, "Success! Logo is updated. "));
+      }
+    }
+
+    // SUMMARY: Add or update Provider notes
+    [Template(AdministratorAccess=true, MarketingAccess=true)]
+    public ActionResult ApiUpdateProviderNote(string data)
+    {
+      TemplateProviderNote note = TemplateProviderNote.CreateManager().Load(this.PaywallContext.Service.ServiceData.FallbackCountry, this.PaywallContext.Service.PaymentProvider);
+      if (note == null)
+      {
+        note = new TemplateProviderNote(-1, this.PaywallContext.Service.ServiceData.FallbackCountry, this.PaywallContext.Service.PaymentProvider, data, DateTime.Now, DateTime.Now);
+        note.InsertWithHistory(this.PaywallContext.Session);
+        return this.Json(new { status = true, message = "Note is inserted" });
+      }
+      else
+      {
+        note.Data = data;
+        note.UpdateWithHistory(this.PaywallContext.Session);
+        return this.Json(new { status = true, message = "Note is updated" });
+      }
+    }
+    
+    //SUMMARY: Change BehaviorModel on Template Page
+    [Template(AdministratorAccess = true, MarketingAccess = true)]
+    public ActionResult ApiChangeBehaviorModel(string behaviorModel)
+    {
+      Guid _guid = Guid.Empty;
+      if (!Guid.TryParse(behaviorModel, out _guid))
+        return this.Json(new { status = false, message = "Could not parse Guid" });
+                  
+      List<ServiceOffer> so = ServiceOffer.CreateManager().Load(this.PaywallContext.Service.ServiceData);
+      if (so == null)
+        return this.Json(new { status = false, message = "There is no ServiceOffers for this Service" });
+
+      ServiceOffer activeServiceOffer = (from element in so where element.IsActive && element.IsDefault select element).FirstOrDefault();
+      activeServiceOffer.PaymentConfiguration.BehaviorModel.ExternalBehaviorModelGuid = _guid;
+      activeServiceOffer.PaymentConfiguration.BehaviorModel.UpdateWithHistory(this.PaywallContext.Session);
+      
+      return this.Json(new { status = true, message = "Saved" });
+    } 
+      
+    //SUMMARY: Change ServiceType on Template Page
+    [Template(AdministratorAccess = true, MarketingAccess = true)]
+    public ActionResult ApiChangeServiceType(string serviceTypeID) {
+      int _serviceTypeID = -1;
+      if (!Int32.TryParse(serviceTypeID, out _serviceTypeID))
+        return this.Json(new { status = false, message= "Could not parse templateID"});
+
+      ServiceType serviceTypeClass = ServiceType.CreateManager().Load(_serviceTypeID);
+      if (serviceTypeClass == null) {
+        return this.Json(new { status = false, message = "Could not load ServiceType.Class"});
+      }
+
+      PaywallHttpContext.Current.Service.ServiceData.ServiceType = serviceTypeClass;
+      PaywallHttpContext.Current.Service.ServiceData.UpdateWithHistory(this.ClientSession);
+      
+      return this.Json(new { status = true, message = "Saved"});
+    }
+
+    //SUMMARY: TemplateModifications
+    [Template(AdministratorAccess =true, MarketingAccess =true)]
+    public ActionResult ApiChangeTemplateModifications(string templateModificationID, string currentService, string currentPaymentProvider, string currentMobileOperatorID, string isActive, string data, string description)
+    {
+
+      int _templateModificationID = -1;
+      if (!Int32.TryParse(templateModificationID, out _templateModificationID))
+        return this.Json(new { status = false, id = templateModificationID, message = "Could not parse templateModificationID" });
+
+      int _mobileOperatorID = -1;
+      MobileOperator mobileOperator = null;
+      if (!currentMobileOperatorID.Equals("-1") && !Int32.TryParse(currentMobileOperatorID, out _mobileOperatorID))
+        return this.Json(new { status = false, id = templateModificationID, message = "Could not parse currentMobileOperatorID" });
+
+      description = string.Empty;
+
+      if(_mobileOperatorID > -1)
+      {
+        mobileOperator = MobileOperator.CreateManager().Load(_mobileOperatorID);
+        if (mobileOperator == null)
+          return this.Json(new { status = false, id = templateModificationID, message = "MobileOperator could not be loaded" });
+      }
+
+      Service service = (currentService.Equals("1")) ? this.PaywallContext.Service.ServiceData : null;
+      PaymentProvider paymentProvider = (currentPaymentProvider.Equals("1")) ? this.PaywallContext.Service.PaymentProvider : null;
+
+      TemplateModification templateModification = null;
+      ITemplateModificationManager tmManager = TemplateModification.CreateManager();
+
+      if(_templateModificationID == -1)
+      {
+        templateModification = tmManager.Load(this.PaywallContext.Service.ServiceData.Template, this.PaywallContext.Service.ServiceData.FallbackCountry, paymentProvider, mobileOperator, service);
+        if(templateModification == null)
+        {
+          templateModification = new TemplateModification(-1, this.PaywallContext.Service.ServiceData.Template, paymentProvider, this.PaywallContext.Service.ServiceData.FallbackCountry, service, mobileOperator, data, description, isActive.Equals("1") , DateTime.Now, DateTime.Now);
+          templateModification.InsertWithHistory(this.PaywallContext.Session);
+          this.PaywallContext.Service.Init();
+          return this.Json(new { status = true, id = templateModification.ID, message = "Template modification is inserted" }); 
+        }
+        else
+          return this.Json(new { status = false, id = _templateModificationID, message = "Template modification exists with this combination" }); 
+      }
+
+      templateModification = tmManager.Load(_templateModificationID);
+      if (templateModification == null)
+        return this.Json(new { status = false, id = "", message = "Template modification could not be loaded with ID:" + _templateModificationID});
+
+      if(string.IsNullOrEmpty(data))
+      {
+        templateModification.DeleteWithHistory(this.PaywallContext.Session);
+        return this.Json(new { status = true, id = templateModification.ID, message = "Template modification is deleted" }); 
+      }
+
+      templateModification.IsActive = isActive.Equals("1");
+      templateModification.Data = data;
+      templateModification.Description = description;
+      templateModification.UpdateWithHistory(this.PaywallContext.Session);
+      this.PaywallContext.Service.Init();
+      return this.Json(new { status = true, id = templateModification.ID, message = "Template modification is updated" }); 
+    }
+
+    // SUMMARY: Update Template
+    [Template(AdministratorAccess = true, MarketingAccess = true)]
+    public ActionResult ApiChangeMerchant(string productID, string merchantID)
+    {
+      int _productID = -1;
+      if (!Int32.TryParse(productID, out _productID))
+        return this.Json(new { status = false, message = "Could not parse productID" });
+
+      Product product = Data.Product.CreateManager().Load(_productID);
+      if (product == null)
+        return this.Json(new { status = false, message = "Product not found" });
+
+      int _merchantID = -1;
+      if (!Int32.TryParse(merchantID, out _merchantID))
+        return this.Json(new { status = false, message = "Could not parse merchantID" });
+
+      Data.Merchant merchant = Data.Merchant.CreateManager().Load(_merchantID);
+      if (merchant == null)
+        return this.Json(new { status = false, message = "Merchant not found" });
+
+      PaywallHttpContext.Current.Service.ServiceData.Merchant = merchant;
+      PaywallHttpContext.Current.Service.ServiceData.Product = product;
+      PaywallHttpContext.Current.Service.ServiceData.UpdateWithHistory(this.PaywallContext.Session);
+      return this.Json(new { status = true, message = "Saved. Please restart application!" });
+    }
+
+    // SUMMARY: Update Template
+    [Template(AdministratorAccess = true, MarketingAccess = true)]
+    public ActionResult ApiChangeTemplate(string template)
+    {
+      int templateID = -1;
+      if (!Int32.TryParse(template, out templateID))
+        return this.Json(new { status = false, message = "Could not parse templateID" });
+
+      Template templateClass = Template.CreateManager().Load(templateID);
+      if (templateClass == null)
+        return this.Json(new { status = false, message = "Could not load Template.Class" });
+
+      PaywallHttpContext.Current.Service.ServiceData.Template = templateClass;
+      PaywallHttpContext.Current.Service.ServiceData.UpdateWithHistory(this.PaywallContext.Session);
+      return this.Json(new { status = true, message = "Saved" });
+    }
+
+    // SUMMARY: Add or update Automation for service
+    [Template(AdministratorAccess = true)]
+    public ActionResult ApiDeleteAutomationConfiguration(string AutomationID)
+    {
+      int _automationID = -1;
+      if(!Int32.TryParse(AutomationID, out _automationID))
+        return this.Json(new { status = false, message = "Could not parse automationID" });
+
+      Automation automation = Data.Automation.CreateManager().Load(_automationID);
+      automation.Delete();
+      return this.Json(new { status = true, message = "Deleted" });
+    }
+
+    // SUMMARY: Add or update Automation for service
+    [Template(AdministratorAccess = true)]
+    public ActionResult ApiUpdateAutomationConfiguation(string ID, string Name, string TransactionLimit, string ExternalOfferName, string MobileOperator, string AutomationGroup, string Comment, string IsActive)
+    {
+      int _id = -1;
+      int _transactionLimit = -1;
+      int _automationGroupID = -1;
+      Data.MobileOperator _mobileOperator = null;
+      Data.AutomationGroup _automationGroup = null;
+
+      #region # check values #
+
+      if (!ID.Equals("-1"))
+        if (!Int32.TryParse(ID, out _id))
+          return this.Json(new { status = false, message = "Could not parse ID" });
+
+      if(string.IsNullOrEmpty(Name))
+        return this.Json(new { status = false, message = "You must provide name for this automatization" });
+
+      if (!Int32.TryParse(TransactionLimit, out _transactionLimit))
+        return this.Json(new { status = false, message = "Could not parse TransactionLimit" });
+
+      if(!MobileOperator.Equals("-1"))
+      {
+        int _mobileOperatorID = -1; 
+        if (!Int32.TryParse(MobileOperator, out _mobileOperatorID))
+          return this.Json(new { status = false, message = "Could not parse MobileOperator" });
+
+        _mobileOperator = Data.MobileOperator.CreateManager().Load(_mobileOperatorID);
+        if(_mobileOperator == null)
+          return this.Json(new { status = false, message = "Could not load proper MobileOperato from database" });
+      }
+
+      if (!Int32.TryParse(AutomationGroup, out _automationGroupID))
+        return this.Json(new { status = false, message = "Could not parse AutomationGroupID" });
+
+      _automationGroup = Data.AutomationGroup.CreateManager().Load(_automationGroupID);
+      if (_automationGroup == null)
+        return this.Json(new { status = false, message = "Could not load Automation Group" });
+
+      if(string.IsNullOrEmpty(ExternalOfferName))
+        return this.Json(new { status = false, message = "You must set ExternalOfferName!" });
+      else if (!ExternalOfferName.Contains("[a]"))
+        return this.Json(new { status = false, message = "You must use ExternalOfferName that contains [a]" });
+
+
+      #endregion
+
+      Automation automation;
+
+      if (_id == -1)
+      {
+        automation = new Automation(-1,
+          Name,
+          this.PaywallContext.Service.ServiceData,
+          _automationGroup,
+          _mobileOperator,
+          _transactionLimit,
+          ExternalOfferName,
+          IsActive.Equals("1"),
+          -1,
+          Comment,
+          DateTime.Now, DateTime.Now);
+        automation.InsertWithHistory(this.PaywallContext.Session);
+
+        _automationGroup.SortIndexes();
+        return this.Json(new { id = automation.ID, status = true, message = "Inserted" });
+      }
+
+      automation = Data.Automation.CreateManager().Load(_id);
+      if (automation == null)
+        return this.Json(new { status = false, message = "Could not load automation with id " + _id });
+
+      automation.Name = Name;
+      automation.Limit = _transactionLimit;
+      automation.ExternalOfferName = ExternalOfferName;
+      automation.AutomationGroup = _automationGroup;
+      automation.MobileOperator = _mobileOperator;
+      automation.IsActive = IsActive.Equals("1");
+      automation.Comment = Comment;
+
+      automation.UpdateWithHistory(this.PaywallContext.Session);
+      _automationGroup.SortIndexes();
+      return this.Json(new { id = 1, status = true, message = "Updated" });
+    }
+
+    // SUMMARY: Add or update AutomationGroup for country
+    [Template(AdministratorAccess = true)]
+    public ActionResult ApiUpdateAutomationGroupConfiguration(string Name, string ID, string RotationTime, string externalCleanOffer, string StartTime, string EndTime, string Data, string AutoStart, string IsActive)
+    {
+      int _id = -1;
+      if (!Int32.TryParse(ID, out _id))
+        return this.Json(new { status = false, message = "Could not parse ID" });
+      int _rotationTime = 30;
+      Int32.TryParse(RotationTime, out _rotationTime);
+
+
+      if(string.IsNullOrEmpty(Name))
+        return this.Json(new { status = false, message = "Name could not be empty" });
+      if (string.IsNullOrEmpty(externalCleanOffer))
+        return this.Json(new { status = false, message = "External offer could not be null" });
+      if (!externalCleanOffer.Contains("[a]"))
+        return this.Json(new { status = false, message = "External offer must contain [a]" });
+      
+      if(_id == -1)
+      {
+        AutomationGroup automationGroup = new AutomationGroup(-1,
+          this.PaywallContext.Service.ServiceData.FallbackCountry,
+          Name,
+          externalCleanOffer,
+          _rotationTime,
+          StartTime, EndTime,
+          AutoStart.Equals("1"),
+          IsActive.Equals("1"),
+          string.Empty,
+          DateTime.Now, DateTime.Now);
+        automationGroup.InsertWithHistory(this.PaywallContext.Session);
+        return this.Json(new { status = true, id=automationGroup.ID, message = "Inserted" });
+      }
+      else
+      {
+        AutomationGroup automationGroup = AutomationGroup.CreateManager().Load(_id);
+        if (automationGroup == null)
+          return this.Json(new { status = false, message = "Could not parse load AutomationGroup with id=" + _id });
+
+        automationGroup.RotationTime = _rotationTime;
+        automationGroup.ExternalCleanOffer = externalCleanOffer;
+        automationGroup.StartTime = StartTime;
+        automationGroup.EndTime = EndTime;
+        automationGroup.IsActive = IsActive.Equals("1");
+        automationGroup.AutoStart = AutoStart.Equals("1");
+        automationGroup.SortIndexes(Data);
+        automationGroup.UpdateWithHistory(this.PaywallContext.Session);
+
+        return this.Json(new { status = true, id = automationGroup.ID, message = "Updated" });
+      }
+
+    }
+
+    // SUMMARY: Delete AutomationGroup
+    [Template(AdministratorAccess = true)]
+    public ActionResult ApiDeleteAutomationGroupConfiguration(string AutomationID)
+    {
+      int _automationID = -1;
+      if (!Int32.TryParse(AutomationID, out _automationID))
+        return this.Json(new { status = false, message = "Could not parse automationGroupID" });
+
+      AutomationGroup automation = Data.AutomationGroup.CreateManager().Load(_automationID);
+      List<Automation> automations = automation.Automations;
+      foreach (Automation a in automations)
+        a.Delete();
+      automation.Delete();
+      return this.Json(new { status = true, message = "Deleted" });
+    }
+
+    // SUMMARY: Configuration -> Change log4net level
+    public ActionResult ApiChangeLogLevel(string logLevel, string logEverything)
+    {
+      switch(logLevel)
+      {
+        case "all": ((log4net.Repository.Hierarchy.Hierarchy)LogManager.GetRepository()).Root.Level = Level.All; break;
+        case "debug": ((log4net.Repository.Hierarchy.Hierarchy)LogManager.GetRepository()).Root.Level = Level.Debug; break;
+        case "error": ((log4net.Repository.Hierarchy.Hierarchy)LogManager.GetRepository()).Root.Level = Level.Error; break;
+        case "fatal": ((log4net.Repository.Hierarchy.Hierarchy)LogManager.GetRepository()).Root.Level = Level.Fatal; break;
+      }
+
+      ((log4net.Repository.Hierarchy.Hierarchy)LogManager.GetRepository()).RaiseConfigurationChanged(EventArgs.Empty);
+      PaywallHttpApplication.LogEverything = logEverything.Equals("1");
+      return this.Json(new { status = true, message = "log4net Root changed to " + ((log4net.Repository.Hierarchy.Hierarchy)LogManager.GetRepository()).Root.Level.ToString() });
+    }
+              
+    //SUMMARY : Delete Custom Page Data
+    [Template(AdministratorAccess =true, MarketingAccess =true)]
+    public ActionResult ApiDeleteCustomPageData(string customPageDataId)
+    {
+      CustomPageData customPageData = CustomPageData.CreateManager().Load(int.Parse(customPageDataId));
+      customPageData.DeleteWithHistory(this.PaywallContext.Session);
+      return this.Json(new { status = false, message = "Deleted" });
+    }
+    
+    //SUMMARY : Delete Custom Page
+    [Template(AdministratorAccess = true, MarketingAccess = true)]
+    public ActionResult ApiDeleteCustomPage(string customPageId)
+    {
+      MobilePaywall.Data.CustomPage customPage = MobilePaywall.Data.CustomPage.CreateManager().Load(int.Parse(customPageId)); 
+      Route route = Route.CreateManager().Load(customPage.Route.ID); 
+      List<CustomPageData> customPageData = CustomPageData.CreateManager().Load(customPage);  
+
+      foreach (CustomPageData cpd in customPageData) 
+        cpd.DeleteWithHistory(this.PaywallContext.Session);
+
+      customPage.DeleteWithHistory(this.PaywallContext.Session);  
+      route.DeleteWithHistory(this.PaywallContext.Session); 
+      return this.Json(new { status = true, message = "Deleted " }); 
+    }
+   
+    [Template(AdministratorAccess =true, MarketingAccess =true)]   
+    public ActionResult ApiEditCustomPage(string customPageID,  string customPageDescription, string contextValidation, string authentication, string ageVerification, string restrictedAccessFilter,string pageOverride) {
+      CustomPage customPage = MobilePaywall.Data.CustomPage.CreateManager().Load(int.Parse(customPageID));
+     
+      customPage.Description = customPageDescription;
+      customPage.ContextValidationFilter = (contextValidation == "1") ? true : false;
+      customPage.AuthenticationFilter = (authentication == "1") ? true : false;
+      customPage.AgeVerificationFilter = (ageVerification == "1") ? true : false;
+      customPage.RestrictedAccessFilter = (restrictedAccessFilter == "1") ? true : false;
+      customPage.OverridePage = pageOverride;
+      customPage.UpdateWithHistory(this.PaywallContext.Session);
+      return this.Json(new { message = "Updated"} );
+    }
+    
+    //SUMMARY : Add new CustomPageData 
+    [ValidateInput(false)]
+    [Template(AdministratorAccess = true,MarketingAccess =true)]
+    public ActionResult ApiAddNewCustomPageData(string customPageId, string templateCustomPageDataID, string title, string currentService,string isPlainText, string useLayout, string usePredefinedDiv, string currentPaymentProvider, string currentMobileOperatorID, string data)
+    {
+        
+      bool _isPlainText = (isPlainText == "1");
+      bool _useLayout = (useLayout == "1");
+      bool _usePredefinedDiv = (usePredefinedDiv == "1");
+      
+      int _templateCustomPageDataID = -1;
+      if (!Int32.TryParse(templateCustomPageDataID, out _templateCustomPageDataID))
+        return this.Json(new { status = false, id = templateCustomPageDataID, message = "Couldn't parse templateCustomPageID" });
+             
+      int _mobileOperatorID = -1;
+      MobileOperator mobileOperator = null;
+      if (!currentMobileOperatorID.Equals("-1") && !Int32.TryParse(currentMobileOperatorID, out _mobileOperatorID))
+        return this.Json(new { status = false, id = currentMobileOperatorID, message = "Could not parse currentMobileOperator" });
+      
+      if (_mobileOperatorID > -1)
+      {
+        mobileOperator = MobileOperator.CreateManager().Load(_mobileOperatorID);
+        if (mobileOperator == null)
+          return this.Json(new { status = false, id = _mobileOperatorID, message = "Mobile Operator Could not be loaded" });
+      }
+      
+      MobilePaywall.Data.CustomPage customPage = MobilePaywall.Data.CustomPage.CreateManager().Load(int.Parse(customPageId));
+      if (customPage == null)
+        return this.Json(new { status = false, message = "CustomPage Is null" });
+      
+      Service service = (currentService.Equals("1")) ? this.PaywallContext.Service.ServiceData : null;
+      PaymentProvider paymentProvider = (currentPaymentProvider.Equals("1")) ? this.PaywallContext.Service.PaymentProvider : null;
+      
+      CustomPageData templateCustomPageData = null;
+      ICustomPageDataManager cpManager = MobilePaywall.Data.CustomPageData.CreateManager();
+
+      // when we're adding new one
+      if (_templateCustomPageDataID == -1)
+      {
+        templateCustomPageData = cpManager.Load(customPage,paymentProvider,mobileOperator,service);//provjera postoji li sa istom config
+        
+        if (templateCustomPageData == null)
+        {
+          templateCustomPageData = new CustomPageData(-1, customPage, paymentProvider, service, mobileOperator,_isPlainText, _useLayout, _usePredefinedDiv,title, data, DateTime.Now, DateTime.Now);
+          templateCustomPageData.InsertWithHistory(this.PaywallContext.Session);
+          this.PaywallContext.Service.Init();
+          return this.Json(new { status = true, id = templateCustomPageData.ID, message = "Template Custom page data is inserted" });
+        }
+        else
+          return this.Json(new { status = false, id = _templateCustomPageDataID, message = "Template Custom page data exists with this combination" });
+      }
+
+      //when we are editing existing CustomPageData
+      templateCustomPageData = cpManager.Load(_templateCustomPageDataID);
+      if (templateCustomPageData == null)
+        return this.Json(new { status = false, id = "", message = "Template custom page data couldn't be loadded with ID: " + _templateCustomPageDataID });
+      
+      templateCustomPageData.Data = data;
+      templateCustomPageData.Title = title;
+      templateCustomPageData.IsPlainText = _isPlainText;
+      templateCustomPageData.UseLayout = _useLayout;
+      templateCustomPageData.UsePredefinedDiv = _usePredefinedDiv;
+      templateCustomPageData.UpdateWithHistory(this.PaywallContext.Session);
+      this.PaywallContext.Service.Init();
+      return this.Json(new { status= true, id= templateCustomPageData.ID, message = "Template custom page data is updated"} );
+      
+    }
+
+    // SUMMARY: Add new CustomPage 
+    public ActionResult ApiAddNewCustomPage(string title, string route, string description, string contextValidation, string authentication, string restrictedAccessFilter,string ageVerification,string overridePage)
+    {
+      
+      bool _contextValidation = (contextValidation == "1");
+      bool _authentication = (authentication == "1");
+      bool _ageVerification = (ageVerification == "1");
+      bool _restrictedAccessFilter = (restrictedAccessFilter == "1");
+
+      string _overridePage = overridePage;
+          
+      if (string.IsNullOrEmpty(title) || string.IsNullOrEmpty(route))
+        return this.Json(new { status = false, message = "Title of Route are empty" });
+
+      if(!route.StartsWith("/"))
+        route = "/" + route;
+
+      Country serviceCountry = this.GetCurrentServiceCountry();
+
+      Data.CustomPage customPage = Data.CustomPage.CreateManager().Load(serviceCountry, title);
+      if(customPage != null)
+        return this.Json(new { status = false, message = "CustomPage with this name exists for the " + serviceCountry.GlobalName });
+
+      IRouteSetManager rsManager = RouteSet.CreateManager();
+      RouteSet routeSet = rsManager.Load(PaywallHttpContext.Current.Runtime.ApplicationData.Instance, string.Format("{0}_CustomRouteSet", serviceCountry.TwoLetterIsoCode));
+      if (routeSet == null)
+      {
+        routeSet = new RouteSet(-1, PaywallHttpContext.Current.Runtime.ApplicationData.Instance, string.Format("{0}_CustomRouteSet", serviceCountry.TwoLetterIsoCode), DateTime.Now, DateTime.Now);
+        routeSet.Insert();
+      }
+       
+      IApplicationRouteSetMapManager arsmManager = ApplicationRouteSetMap.CreateManager();
+
+      List<Data.Application> countryApplications = Data.Application.CreateManager().Load(PaywallContext.Service.ServiceData.FallbackCountry);
+      foreach(Data.Application app in countryApplications)
+      {
+        ApplicationRouteSetMap arsm = arsmManager.Load(app, routeSet);
+        if (arsm == null)
+        {
+          arsm = new ApplicationRouteSetMap(-1, app, null, routeSet, DateTime.Now, DateTime.Now);
+          arsm.Insert();
+        }
+      }
+
+      IRouteManager rManager = Route.CreateManager();
+      List<Route> allServiceRoutes = new List<Route>();
+      List<ApplicationRouteSetMap> listOfRouteSets = arsmManager.Load(this.PaywallContext.Runtime.ApplicationData);
+      foreach (ApplicationRouteSetMap rs in listOfRouteSets)
+        allServiceRoutes.AddRange(rManager.Load(rs.RouteSet));
+
+      Route routeData = (from r in allServiceRoutes where r.Pattern.Equals(route) select r).FirstOrDefault();
+      if(routeData != null)
+        return this.Json(new { status = false, message = "Route allready exists with this name for this country " + serviceCountry.GlobalName });
+
+      //TODO:: Change values of new attributes 
+      customPage = new Data.CustomPage(-1, serviceCountry, null, _overridePage,_contextValidation, _authentication,_ageVerification,_restrictedAccessFilter,title, description, DateTime.Now, DateTime.Now);
+      customPage.InsertWithHistory(this.PaywallContext.Session);
+
+      routeData = new Route(-1, 
+        routeSet, 
+        string.Format("CustomRoute_" + title),
+        string.Format("Page"), // action
+        "CustomPage",  // controller
+        route,
+        false, // isIgnore
+        true, // isEnabled
+        1, // index
+        false, // isSessionRoute
+        DateTime.Now, DateTime.Now);
+      routeData.InsertWithHistory(this.PaywallContext.Session);
+
+      //RouteParameter routeParameter = new RouteParameter(-1, routeData, "id", customPage.ID.ToString(), "\d+", false, DateTime.Now, DateTime.Now);
+      //routeParameter.Insert();
+
+      customPage.Route = routeData;
+      customPage.UpdateWithHistory(this.PaywallContext.Session);
+
+      return this.Json(new { status=true, id=customPage.ID, message="Success"});
+    }
+
+  }
+}

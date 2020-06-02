@@ -1,0 +1,190 @@
+﻿using MobilePaywall.Data;
+using Senti.Diagnostics.Log;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall
+{
+  public class Android : ContentBase
+  {
+    private AndroidContent _androidContent = null;
+    private List<ContentThumbnail> _thumbnails = null;
+
+    public AndroidContent AndroidContent { get { return this._androidContent; } }
+    public override string ContentIconClass { get { return "__contentIcon_android"; } }
+    public override string DefaultTitle { get { return this._androidContent.Title; } }
+
+    public Android(Data.Content content)
+      :base(content)
+    {
+      this._androidContent = AndroidContent.CreateManager().Load(content);
+    }
+
+    public Android(ICache cache, Content content, AndroidContent androidContent)
+      :base(content)
+    {
+      this._androidContent = androidContent;
+    }
+
+    public override bool IsStreamable { get { return false; } }
+
+    public List<ContentThumbnail> Thumbnails
+    {
+      get
+      {
+        if (this._thumbnails != null)
+          return this._thumbnails;
+        this._thumbnails = (from ct in ContentThumbnail.LoadByContent<List<ContentThumbnail>>(this._androidContent.Content) where ct.IsDefault == false select ct).ToList();
+        return this._thumbnails;
+      }
+    }
+
+    public override List<ContentDownloadOption> GetDownloadOptions(string userAgent)
+    {
+      return new List<ContentDownloadOption>() { 
+        new ContentDownloadOption() { 
+          Label = "APK file", 
+          Url = "/content/download/" + this.ContentData.ID.ToString(), 
+          Type = ContentDownloadOptionType.Android 
+        } 
+      };
+    }
+
+    public override ContentInformations GetInformations(Service service, Language language)
+    {
+      AndroidContentDetail detail = AndroidContentDetail.LoadByServiceAndLanguage(this._androidContent, service, language);
+      if (detail != null)
+        return new ContentInformations()
+        {
+          Title = detail.Title,
+          Description = detail.Description,
+          HtmlTitle = detail.HtmlTitle,
+          MetaDescription = detail.MetaDescription,
+          MetaKeywords = detail.MetaKeywords,
+          Rating = detail.Rating.ToString()
+        };
+      else
+        return new ContentInformations()
+        {
+          Title = this._androidContent.Title,
+          Description = this._androidContent.Description
+        };
+    }
+
+
+    public override System.Collections.Specialized.NameValueCollection GetMetaInformation(Data.Service service, Data.Language language)
+    {
+      throw new NotImplementedException();
+    }
+
+    public override ContentData GetContentData(string userAgent)
+    {
+      AndroidContentData androidContentData = AndroidContentData.LoadByAndroidContent(this.AndroidContent);
+      if(androidContentData == null)
+      {
+        Log.Error(new LogMessageBuilder(new LogErrorCode("paywall.core", "android", "getcontentdata"), "Android Content Data is null", this.AndroidContent));
+        return null;
+      }
+
+      return new ContentData(this.AndroidContent.ID + ".apk",
+                             "application/vnd.android.package-archive",
+                             androidContentData.Data);
+    }
+
+    public override ContentData GetContentData(int id)
+    {
+      AndroidContentData androidContentData = AndroidContentData.LoadByID(id);
+      if (androidContentData == null)
+      {
+        Log.Error(new LogMessageBuilder(new LogErrorCode("paywall.core", "android", "getcontentdata"), "Android Content Data is null", this.AndroidContent));
+        return null;
+      }
+
+      return new ContentData(this.AndroidContent.ID + ".apk",
+                             "application/vnd.android.package-archive",
+                             androidContentData.Data);
+    }
+
+    
+    public override void UpdateTitle(string title, IUserSession us)
+    {
+      this._androidContent.Title = title;
+      this._androidContent.UpdateWithHistory(us);
+    }
+
+    public override void UpdateDescription(string description, IUserSession us)
+    {
+      this._androidContent.Description = description;
+      this._androidContent.UpdateWithHistory(us);
+    }
+
+    public override List<ContentInformations> GetAllContentDetail()
+    {
+      List<AndroidContentDetail> icd = AndroidContentDetail.CreateManager().Load(this._androidContent);
+      List<ContentInformations> result = new List<ContentInformations>();
+
+      foreach (AndroidContentDetail i in icd)
+        result.Add(new ContentInformations()
+        {
+          ID = i.ID,
+          Title = i.Title,
+          Description = i.Description,
+          HtmlTitle = i.HtmlTitle,
+          MetaDescription = i.MetaDescription,
+          MetaKeywords = i.MetaKeywords,
+          Language = i.Language,
+          Service = i.Service,
+          Rating = i.Rating.ToString(),
+        });
+
+      return result;
+    }
+
+    public override void UpdateContentDetails(ContentInformations info, IUserSession us)
+    {
+      if (info.Language == null)
+        return;
+
+      AndroidContentDetail dt = null;
+      if (info.Service != null)
+        dt = AndroidContentDetail.CreateManager().Load<AndroidContentDetail>(this._androidContent, info.Service, info.Language);
+      else
+        dt = AndroidContentDetail.CreateManager().Load(this._androidContent, info.Language);
+
+      if (dt == null)
+      {
+        dt = new AndroidContentDetail(-1, this._androidContent, null, info.Language, info.Title, info.Description, info.RatingDecimal, info.HtmlTitle, info.MetaDescription, info.MetaKeywords, DateTime.Now, DateTime.Now);
+        dt.InsertWithHistory(us);
+        return;
+      }
+
+      dt.Title = info.Title;
+      dt.Service = info.Service;
+      dt.Language = info.Language;
+      dt.Description = info.Description;
+      dt.Rating = info.RatingDecimal;
+      dt.MetaKeywords = info.MetaKeywords;
+      dt.MetaDescription = info.MetaDescription;
+
+      dt.UpdateWithHistory(us);
+    }
+
+    public override void DeleteContentDetails(ContentInformations info, IUserSession us)
+    {
+      if (info.Language == null)
+        return;
+
+      AndroidContentDetail dt = null;
+      if (info.Service != null)
+        dt = AndroidContentDetail.CreateManager().Load<AndroidContentDetail>(this._androidContent, info.Service, info.Language);
+      else
+        dt = AndroidContentDetail.CreateManager().Load(this._androidContent, info.Language);
+
+      if (dt != null)
+        dt.DeleteWithHistory(us);
+      }
+  }
+}

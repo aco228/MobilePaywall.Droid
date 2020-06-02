@@ -1,0 +1,104 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+using MobilePaywall;
+using MobilePaywall.Data;
+using MobilePaywall.Localization;
+
+using Senti.Localization;
+using Senti.Diagnostics.Log;
+using log4net;
+
+namespace MobilePaywall
+{
+	public abstract class PaywallRuntimeBase : IPaywallRuntime
+	{
+		private static ILog _log = null;
+
+		protected static ILog Log
+		{
+			get
+			{
+				if (PaywallRuntimeBase._log == null)
+					PaywallRuntimeBase._log = LogManager.GetLogger(typeof(PaywallRuntimeBase));
+				return PaywallRuntimeBase._log;
+			}
+		}
+
+
+		protected Data.Application _applicationData = null;
+    protected List<IService> _services = new List<IService>();
+    protected Dictionary<int, IService> _serviceMap = new Dictionary<int, IService>();
+    protected Dictionary<string, Domain> _domainNameMap = new Dictionary<string, Domain>();
+    //protected ContentCacheManager _contentCache = null;
+    protected ICache _cache = null;
+    protected Dictionary<Data.Localization, ILocalizationProvider> _localizationProviders = new Dictionary<Data.Localization, ILocalizationProvider>();
+    
+		public Data.Application ApplicationData { get { return this._applicationData; } }
+
+    //public ContentCacheManager ContentCache { get { return this._contentCache; } }
+    public ICache Cache { get { return this._cache; } }
+		public Dictionary<Data.Localization, ILocalizationProvider> LocalizationProviders { get { return this._localizationProviders; } }
+
+		public PaywallRuntimeBase(Data.Application applicationData)
+		{
+			this._applicationData = applicationData;
+		}
+
+		public abstract bool Initialize(string siteName);
+		
+		public Domain GetDomain(string domainName)
+		{
+			LogMessageBuilder builder = null;
+			if (!this._domainNameMap.ContainsKey(domainName))
+			{
+				builder = new LogMessageBuilder(new LogErrorCode("paywall.core", "paywallruntimebase", "getdomain"),
+					"Domain not exists in domainnamemap (cash)", domainName, this._applicationData);
+				if (Log.IsErrorEnabled)
+					Log.Error(builder);
+
+				return null;
+			}
+
+			return this._domainNameMap[domainName];
+		}
+
+		public IService GetService(string domainName)
+		{
+			LogMessageBuilder builder = null;
+			Domain domain = this.GetDomain(domainName);
+			if (domain == null)
+				return null;
+
+			IService service = this._serviceMap[domain.Service.ID];
+			if (service == null)
+			{
+				builder = new LogMessageBuilder(new LogErrorCode("paywall.core", "paywallruntimebase", "getservice"),
+					"IService do not exist for domain", domain);
+				if (Log.IsErrorEnabled)
+					Log.Error(builder);
+        return null;
+			}
+
+			return service;
+		}
+
+    public virtual IService GetServiceByName(string name) 
+    { 
+      throw new NotImplementedException(); 
+    }
+
+    public virtual Data.Merchant GetMerchantByID(int id)
+    {
+      throw new NotImplementedException();
+    }
+
+    public virtual Country GetCountryByID(int id)
+    {
+      throw new NotImplementedException();
+    }
+  }
+}

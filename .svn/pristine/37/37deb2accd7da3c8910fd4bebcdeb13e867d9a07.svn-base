@@ -1,0 +1,554 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(AndroidPremiumSmsRequest))] 
+  public partial class AndroidPremiumSmsRequestManager : MobilePaywall.Data.Sql.SqlManagerBase<AndroidPremiumSmsRequest>, IAndroidPremiumSmsRequestManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override AndroidPremiumSmsRequest LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							AndroidPremiumSmsRequestTable.GetColumnNames("[apsr]") + 
+							(this.Depth > 0 ? "," + AndroidClientSessionTable.GetColumnNames("[apsr_acs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AndroidDistributionTable.GetColumnNames("[apsr_acs_ad]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AndroidDistributionGroupTable.GetColumnNames("[apsr_acs_adg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[apsr_acs_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[apsr_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[apsr_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[apsr_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[apsr_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[apsr_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[apsr_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[apsr_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[apsr_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[apsr_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[apsr_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[apsr_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[apsr_s_t]") : string.Empty) + 
+					" FROM [core].[AndroidPremiumSmsRequest] AS [apsr] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidClientSession] AS [apsr_acs] ON [apsr].[AndroidClientSessionID] = [apsr_acs].[AndroidClientSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidDistribution] AS [apsr_acs_ad] ON [apsr_acs].[AndroidDistributionID] = [apsr_acs_ad].[AndroidDistributionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidDistributionGroup] AS [apsr_acs_adg] ON [apsr_acs].[AndroidDistributionGroupID] = [apsr_acs_adg].[AndroidDistributionGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [apsr_acs_c] ON [apsr_acs].[CountryID] = [apsr_acs_c].[CountryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [apsr_s] ON [apsr].[ServiceID] = [apsr_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [apsr_s_a] ON [apsr_s].[ApplicationID] = [apsr_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [apsr_s_p] ON [apsr_s].[ProductID] = [apsr_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [apsr_s_m] ON [apsr_s].[MerchantID] = [apsr_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [apsr_s_st] ON [apsr_s].[ServiceTypeID] = [apsr_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [apsr_s_ust] ON [apsr_s].[UserSessionTypeID] = [apsr_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [apsr_s_c] ON [apsr_s].[FallbackCountryID] = [apsr_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [apsr_s_l] ON [apsr_s].[FallbackLanguageID] = [apsr_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [apsr_s_ar] ON [apsr_s].[FallbackAgeRatingID] = [apsr_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [apsr_s_sc] ON [apsr_s].[ServiceConfigurationID] = [apsr_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [apsr_s_bm] ON [apsr_s].[BusinessModelID] = [apsr_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [apsr_s_t] ON [apsr_s].[TemplateID] = [apsr_s_t].[TemplateID] ";
+				sqlCmdText += "WHERE [apsr].[AndroidPremiumSmsRequestID] = @AndroidPremiumSmsRequestID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AndroidPremiumSmsRequestID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apsr", "loadinternal", "notfound"), "AndroidPremiumSmsRequest could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AndroidPremiumSmsRequestTable apsrTable = new AndroidPremiumSmsRequestTable(query);
+				AndroidClientSessionTable apsr_acsTable = (this.Depth > 0) ? new AndroidClientSessionTable(query) : null;
+				AndroidDistributionTable apsr_acs_adTable = (this.Depth > 1) ? new AndroidDistributionTable(query) : null;
+				AndroidDistributionGroupTable apsr_acs_adgTable = (this.Depth > 1) ? new AndroidDistributionGroupTable(query) : null;
+				CountryTable apsr_acs_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				ServiceTable apsr_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable apsr_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable apsr_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable apsr_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable apsr_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable apsr_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable apsr_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable apsr_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable apsr_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable apsr_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable apsr_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable apsr_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        
+				AndroidDistribution apsr_acs_adObject = (this.Depth > 1) ? apsr_acs_adTable.CreateInstance() : null;
+				AndroidDistributionGroup apsr_acs_adgObject = (this.Depth > 1) ? apsr_acs_adgTable.CreateInstance() : null;
+				Country apsr_acs_cObject = (this.Depth > 1) ? apsr_acs_cTable.CreateInstance() : null;
+				AndroidClientSession apsr_acsObject = (this.Depth > 0) ? apsr_acsTable.CreateInstance(apsr_acs_adObject, apsr_acs_adgObject, apsr_acs_cObject) : null;
+				Application apsr_s_aObject = (this.Depth > 1) ? apsr_s_aTable.CreateInstance() : null;
+				Product apsr_s_pObject = (this.Depth > 1) ? apsr_s_pTable.CreateInstance() : null;
+				Merchant apsr_s_mObject = (this.Depth > 1) ? apsr_s_mTable.CreateInstance() : null;
+				ServiceType apsr_s_stObject = (this.Depth > 1) ? apsr_s_stTable.CreateInstance() : null;
+				UserSessionType apsr_s_ustObject = (this.Depth > 1) ? apsr_s_ustTable.CreateInstance() : null;
+				Country apsr_s_cObject = (this.Depth > 1) ? apsr_s_cTable.CreateInstance() : null;
+				Language apsr_s_lObject = (this.Depth > 1) ? apsr_s_lTable.CreateInstance() : null;
+				AgeRating apsr_s_arObject = (this.Depth > 1) ? apsr_s_arTable.CreateInstance() : null;
+				ServiceConfiguration apsr_s_scObject = (this.Depth > 1) ? apsr_s_scTable.CreateInstance() : null;
+				BusinessModel apsr_s_bmObject = (this.Depth > 1) ? apsr_s_bmTable.CreateInstance() : null;
+				Template apsr_s_tObject = (this.Depth > 1) ? apsr_s_tTable.CreateInstance() : null;
+				Service apsr_sObject = (this.Depth > 0) ? apsr_sTable.CreateInstance(apsr_s_aObject, apsr_s_pObject, apsr_s_mObject, apsr_s_stObject, apsr_s_ustObject, apsr_s_cObject, apsr_s_lObject, apsr_s_arObject, apsr_s_scObject, apsr_s_bmObject, apsr_s_tObject) : null;
+				AndroidPremiumSmsRequest apsrObject = apsrTable.CreateInstance(apsr_acsObject, apsr_sObject);
+				sqlReader.Close();
+
+				return apsrObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apsr", "loadinternal", "exception"), "AndroidPremiumSmsRequest could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AndroidPremiumSmsRequest", "Exception while loading AndroidPremiumSmsRequest object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public AndroidPremiumSmsRequest Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AndroidPremiumSmsRequestTable.GetColumnNames("[apsr]") + 
+							(this.Depth > 0 ? "," + AndroidClientSessionTable.GetColumnNames("[apsr_acs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AndroidDistributionTable.GetColumnNames("[apsr_acs_ad]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AndroidDistributionGroupTable.GetColumnNames("[apsr_acs_adg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[apsr_acs_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[apsr_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[apsr_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[apsr_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[apsr_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[apsr_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[apsr_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[apsr_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[apsr_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[apsr_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[apsr_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[apsr_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[apsr_s_t]") : string.Empty) +  
+					" FROM [core].[AndroidPremiumSmsRequest] AS [apsr] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidClientSession] AS [apsr_acs] ON [apsr].[AndroidClientSessionID] = [apsr_acs].[AndroidClientSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidDistribution] AS [apsr_acs_ad] ON [apsr_acs].[AndroidDistributionID] = [apsr_acs_ad].[AndroidDistributionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidDistributionGroup] AS [apsr_acs_adg] ON [apsr_acs].[AndroidDistributionGroupID] = [apsr_acs_adg].[AndroidDistributionGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [apsr_acs_c] ON [apsr_acs].[CountryID] = [apsr_acs_c].[CountryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [apsr_s] ON [apsr].[ServiceID] = [apsr_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [apsr_s_a] ON [apsr_s].[ApplicationID] = [apsr_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [apsr_s_p] ON [apsr_s].[ProductID] = [apsr_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [apsr_s_m] ON [apsr_s].[MerchantID] = [apsr_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [apsr_s_st] ON [apsr_s].[ServiceTypeID] = [apsr_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [apsr_s_ust] ON [apsr_s].[UserSessionTypeID] = [apsr_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [apsr_s_c] ON [apsr_s].[FallbackCountryID] = [apsr_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [apsr_s_l] ON [apsr_s].[FallbackLanguageID] = [apsr_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [apsr_s_ar] ON [apsr_s].[FallbackAgeRatingID] = [apsr_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [apsr_s_sc] ON [apsr_s].[ServiceConfigurationID] = [apsr_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [apsr_s_bm] ON [apsr_s].[BusinessModelID] = [apsr_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [apsr_s_t] ON [apsr_s].[TemplateID] = [apsr_s_t].[TemplateID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apsr", "customload", "notfound"), "AndroidPremiumSmsRequest could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AndroidPremiumSmsRequestTable apsrTable = new AndroidPremiumSmsRequestTable(query);
+				AndroidClientSessionTable apsr_acsTable = (this.Depth > 0) ? new AndroidClientSessionTable(query) : null;
+				AndroidDistributionTable apsr_acs_adTable = (this.Depth > 1) ? new AndroidDistributionTable(query) : null;
+				AndroidDistributionGroupTable apsr_acs_adgTable = (this.Depth > 1) ? new AndroidDistributionGroupTable(query) : null;
+				CountryTable apsr_acs_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				ServiceTable apsr_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable apsr_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable apsr_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable apsr_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable apsr_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable apsr_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable apsr_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable apsr_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable apsr_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable apsr_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable apsr_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable apsr_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        
+				AndroidDistribution apsr_acs_adObject = (this.Depth > 1) ? apsr_acs_adTable.CreateInstance() : null;
+				AndroidDistributionGroup apsr_acs_adgObject = (this.Depth > 1) ? apsr_acs_adgTable.CreateInstance() : null;
+				Country apsr_acs_cObject = (this.Depth > 1) ? apsr_acs_cTable.CreateInstance() : null;
+				AndroidClientSession apsr_acsObject = (this.Depth > 0) ? apsr_acsTable.CreateInstance(apsr_acs_adObject, apsr_acs_adgObject, apsr_acs_cObject) : null;
+				Application apsr_s_aObject = (this.Depth > 1) ? apsr_s_aTable.CreateInstance() : null;
+				Product apsr_s_pObject = (this.Depth > 1) ? apsr_s_pTable.CreateInstance() : null;
+				Merchant apsr_s_mObject = (this.Depth > 1) ? apsr_s_mTable.CreateInstance() : null;
+				ServiceType apsr_s_stObject = (this.Depth > 1) ? apsr_s_stTable.CreateInstance() : null;
+				UserSessionType apsr_s_ustObject = (this.Depth > 1) ? apsr_s_ustTable.CreateInstance() : null;
+				Country apsr_s_cObject = (this.Depth > 1) ? apsr_s_cTable.CreateInstance() : null;
+				Language apsr_s_lObject = (this.Depth > 1) ? apsr_s_lTable.CreateInstance() : null;
+				AgeRating apsr_s_arObject = (this.Depth > 1) ? apsr_s_arTable.CreateInstance() : null;
+				ServiceConfiguration apsr_s_scObject = (this.Depth > 1) ? apsr_s_scTable.CreateInstance() : null;
+				BusinessModel apsr_s_bmObject = (this.Depth > 1) ? apsr_s_bmTable.CreateInstance() : null;
+				Template apsr_s_tObject = (this.Depth > 1) ? apsr_s_tTable.CreateInstance() : null;
+				Service apsr_sObject = (this.Depth > 0) ? apsr_sTable.CreateInstance(apsr_s_aObject, apsr_s_pObject, apsr_s_mObject, apsr_s_stObject, apsr_s_ustObject, apsr_s_cObject, apsr_s_lObject, apsr_s_arObject, apsr_s_scObject, apsr_s_bmObject, apsr_s_tObject) : null;
+				AndroidPremiumSmsRequest apsrObject = apsrTable.CreateInstance(apsr_acsObject, apsr_sObject);
+				sqlReader.Close();
+
+				return apsrObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apsr", "customload", "exception"), "AndroidPremiumSmsRequest could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AndroidPremiumSmsRequest", "Exception while loading (custom/single) AndroidPremiumSmsRequest object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<AndroidPremiumSmsRequest> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							AndroidPremiumSmsRequestTable.GetColumnNames("[apsr]") + 
+							(this.Depth > 0 ? "," + AndroidClientSessionTable.GetColumnNames("[apsr_acs]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AndroidDistributionTable.GetColumnNames("[apsr_acs_ad]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AndroidDistributionGroupTable.GetColumnNames("[apsr_acs_adg]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[apsr_acs_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[apsr_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[apsr_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[apsr_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[apsr_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[apsr_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[apsr_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[apsr_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[apsr_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[apsr_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[apsr_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[apsr_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[apsr_s_t]") : string.Empty) +  
+					" FROM [core].[AndroidPremiumSmsRequest] AS [apsr] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidClientSession] AS [apsr_acs] ON [apsr].[AndroidClientSessionID] = [apsr_acs].[AndroidClientSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidDistribution] AS [apsr_acs_ad] ON [apsr_acs].[AndroidDistributionID] = [apsr_acs_ad].[AndroidDistributionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AndroidDistributionGroup] AS [apsr_acs_adg] ON [apsr_acs].[AndroidDistributionGroupID] = [apsr_acs_adg].[AndroidDistributionGroupID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [apsr_acs_c] ON [apsr_acs].[CountryID] = [apsr_acs_c].[CountryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [apsr_s] ON [apsr].[ServiceID] = [apsr_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [apsr_s_a] ON [apsr_s].[ApplicationID] = [apsr_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [apsr_s_p] ON [apsr_s].[ProductID] = [apsr_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [apsr_s_m] ON [apsr_s].[MerchantID] = [apsr_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [apsr_s_st] ON [apsr_s].[ServiceTypeID] = [apsr_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [apsr_s_ust] ON [apsr_s].[UserSessionTypeID] = [apsr_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [apsr_s_c] ON [apsr_s].[FallbackCountryID] = [apsr_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [apsr_s_l] ON [apsr_s].[FallbackLanguageID] = [apsr_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [apsr_s_ar] ON [apsr_s].[FallbackAgeRatingID] = [apsr_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [apsr_s_sc] ON [apsr_s].[ServiceConfigurationID] = [apsr_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [apsr_s_bm] ON [apsr_s].[BusinessModelID] = [apsr_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [apsr_s_t] ON [apsr_s].[TemplateID] = [apsr_s_t].[TemplateID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apsr", "customloadmany", "notfound"), "AndroidPremiumSmsRequest list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<AndroidPremiumSmsRequest>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				AndroidPremiumSmsRequestTable apsrTable = new AndroidPremiumSmsRequestTable(query);
+				AndroidClientSessionTable apsr_acsTable = (this.Depth > 0) ? new AndroidClientSessionTable(query) : null;
+				AndroidDistributionTable apsr_acs_adTable = (this.Depth > 1) ? new AndroidDistributionTable(query) : null;
+				AndroidDistributionGroupTable apsr_acs_adgTable = (this.Depth > 1) ? new AndroidDistributionGroupTable(query) : null;
+				CountryTable apsr_acs_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				ServiceTable apsr_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable apsr_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable apsr_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable apsr_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable apsr_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable apsr_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable apsr_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable apsr_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable apsr_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable apsr_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable apsr_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable apsr_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+
+        List<AndroidPremiumSmsRequest> result = new List<AndroidPremiumSmsRequest>();
+        do
+        {
+          
+					AndroidDistribution apsr_acs_adObject = (this.Depth > 1) ? apsr_acs_adTable.CreateInstance() : null;
+					AndroidDistributionGroup apsr_acs_adgObject = (this.Depth > 1) ? apsr_acs_adgTable.CreateInstance() : null;
+					Country apsr_acs_cObject = (this.Depth > 1) ? apsr_acs_cTable.CreateInstance() : null;
+					AndroidClientSession apsr_acsObject = (this.Depth > 0) ? apsr_acsTable.CreateInstance(apsr_acs_adObject, apsr_acs_adgObject, apsr_acs_cObject) : null;
+					Application apsr_s_aObject = (this.Depth > 1) ? apsr_s_aTable.CreateInstance() : null;
+					Product apsr_s_pObject = (this.Depth > 1) ? apsr_s_pTable.CreateInstance() : null;
+					Merchant apsr_s_mObject = (this.Depth > 1) ? apsr_s_mTable.CreateInstance() : null;
+					ServiceType apsr_s_stObject = (this.Depth > 1) ? apsr_s_stTable.CreateInstance() : null;
+					UserSessionType apsr_s_ustObject = (this.Depth > 1) ? apsr_s_ustTable.CreateInstance() : null;
+					Country apsr_s_cObject = (this.Depth > 1) ? apsr_s_cTable.CreateInstance() : null;
+					Language apsr_s_lObject = (this.Depth > 1) ? apsr_s_lTable.CreateInstance() : null;
+					AgeRating apsr_s_arObject = (this.Depth > 1) ? apsr_s_arTable.CreateInstance() : null;
+					ServiceConfiguration apsr_s_scObject = (this.Depth > 1) ? apsr_s_scTable.CreateInstance() : null;
+					BusinessModel apsr_s_bmObject = (this.Depth > 1) ? apsr_s_bmTable.CreateInstance() : null;
+					Template apsr_s_tObject = (this.Depth > 1) ? apsr_s_tTable.CreateInstance() : null;
+					Service apsr_sObject = (this.Depth > 0) ? apsr_sTable.CreateInstance(apsr_s_aObject, apsr_s_pObject, apsr_s_mObject, apsr_s_stObject, apsr_s_ustObject, apsr_s_cObject, apsr_s_lObject, apsr_s_arObject, apsr_s_scObject, apsr_s_bmObject, apsr_s_tObject) : null;
+					AndroidPremiumSmsRequest apsrObject = (this.Depth > -1) ? apsrTable.CreateInstance(apsr_acsObject, apsr_sObject) : null;
+					result.Add(apsrObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apsr", "customloadmany", "exception"), "AndroidPremiumSmsRequest list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "AndroidPremiumSmsRequest", "Exception while loading (custom/many) AndroidPremiumSmsRequest object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, AndroidPremiumSmsRequest data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[AndroidPremiumSmsRequest] ([AndroidClientSessionID],[ServiceID],[IsProcessed],[IsSuccess]) VALUES(@AndroidClientSessionID,@ServiceID,@IsProcessed,@IsSuccess); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@AndroidClientSessionID", data.AndroidClientSession.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@IsProcessed", data.IsProcessed).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsSuccess", data.IsSuccess).SqlDbType = SqlDbType.Bit;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apsr", "insert", "noprimarykey"), "AndroidPremiumSmsRequest could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "AndroidPremiumSmsRequest", "Exception while inserting AndroidPremiumSmsRequest object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apsr", "insert", "exception"), "AndroidPremiumSmsRequest could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "AndroidPremiumSmsRequest", "Exception while inserting AndroidPremiumSmsRequest object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, AndroidPremiumSmsRequest data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[AndroidPremiumSmsRequest] SET " +
+												"[AndroidClientSessionID] = @AndroidClientSessionID, " + 
+												"[ServiceID] = @ServiceID, " + 
+												"[IsProcessed] = @IsProcessed, " + 
+												"[IsSuccess] = @IsSuccess, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [AndroidPremiumSmsRequestID] = @AndroidPremiumSmsRequestID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@AndroidClientSessionID", data.AndroidClientSession.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@IsProcessed", data.IsProcessed).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@IsSuccess", data.IsSuccess).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@AndroidPremiumSmsRequestID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apsr", "update", "norecord"), "AndroidPremiumSmsRequest could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "AndroidPremiumSmsRequest", "Exception while updating AndroidPremiumSmsRequest object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apsr", "update", "morerecords"), "AndroidPremiumSmsRequest was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "AndroidPremiumSmsRequest", "Exception while updating AndroidPremiumSmsRequest object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apsr", "update", "exception"), "AndroidPremiumSmsRequest could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "AndroidPremiumSmsRequest", "Exception while updating AndroidPremiumSmsRequest object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, AndroidPremiumSmsRequest data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[AndroidPremiumSmsRequest] WHERE AndroidPremiumSmsRequestID = @AndroidPremiumSmsRequestID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@AndroidPremiumSmsRequestID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apsr", "delete", "norecord"), "AndroidPremiumSmsRequest could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "AndroidPremiumSmsRequest", "Exception while deleting AndroidPremiumSmsRequest object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("apsr", "delete", "exception"), "AndroidPremiumSmsRequest could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "AndroidPremiumSmsRequest", "Exception while deleting AndroidPremiumSmsRequest object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

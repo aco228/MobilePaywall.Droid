@@ -1,0 +1,407 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(QueryIdentificationCallback))] 
+  public partial class QueryIdentificationCallbackManager : MobilePaywall.Data.Sql.SqlManagerBase<QueryIdentificationCallback>, IQueryIdentificationCallbackManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override QueryIdentificationCallback LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							QueryIdentificationCallbackTable.GetColumnNames("[qic]") + 
+							(this.Depth > 0 ? "," + LookupSessionTable.GetColumnNames("[qic_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTable.GetColumnNames("[qic_ls_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserHttpRequestTable.GetColumnNames("[qic_ls_uhr]") : string.Empty) + 
+							(this.Depth > 0 ? "," + LookupSessionResultTable.GetColumnNames("[qic_lsr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LookupSessionTable.GetColumnNames("[qic_lsr_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[qic_lsr_mo]") : string.Empty) + 
+					" FROM [async].[QueryIdentificationCallback] AS [qic] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[LookupSession] AS [qic_ls] ON [qic].[LookupSessionID] = [qic_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [qic_ls_us] ON [qic_ls].[UserSessionID] = [qic_ls_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [qic_ls_uhr] ON [qic_ls].[UserHttpRequestID] = [qic_ls_uhr].[UserHttpRequestID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[LookupSessionResult] AS [qic_lsr] ON [qic].[LookupSessionResultID] = [qic_lsr].[LookupSessionResultID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[LookupSession] AS [qic_lsr_ls] ON [qic_lsr].[LookupSessionID] = [qic_lsr_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [qic_lsr_mo] ON [qic_lsr].[MobileOperatorID] = [qic_lsr_mo].[MobileOperatorID] ";
+				sqlCmdText += "WHERE [qic].[QueryIdentificationCallbackID] = @QueryIdentificationCallbackID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@QueryIdentificationCallbackID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qic", "loadinternal", "notfound"), "QueryIdentificationCallback could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				QueryIdentificationCallbackTable qicTable = new QueryIdentificationCallbackTable(query);
+				LookupSessionTable qic_lsTable = (this.Depth > 0) ? new LookupSessionTable(query) : null;
+				UserSessionTable qic_ls_usTable = (this.Depth > 1) ? new UserSessionTable(query) : null;
+				UserHttpRequestTable qic_ls_uhrTable = (this.Depth > 1) ? new UserHttpRequestTable(query) : null;
+				LookupSessionResultTable qic_lsrTable = (this.Depth > 0) ? new LookupSessionResultTable(query) : null;
+				LookupSessionTable qic_lsr_lsTable = (this.Depth > 1) ? new LookupSessionTable(query) : null;
+				MobileOperatorTable qic_lsr_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+
+        
+				UserSession qic_ls_usObject = (this.Depth > 1) ? qic_ls_usTable.CreateInstance() : null;
+				UserHttpRequest qic_ls_uhrObject = (this.Depth > 1) ? qic_ls_uhrTable.CreateInstance() : null;
+				LookupSession qic_lsObject = (this.Depth > 0) ? qic_lsTable.CreateInstance(qic_ls_usObject, qic_ls_uhrObject) : null;
+				LookupSession qic_lsr_lsObject = (this.Depth > 1) ? qic_lsr_lsTable.CreateInstance() : null;
+				MobileOperator qic_lsr_moObject = (this.Depth > 1) ? qic_lsr_moTable.CreateInstance() : null;
+				LookupSessionResult qic_lsrObject = (this.Depth > 0) ? qic_lsrTable.CreateInstance(qic_lsr_lsObject, qic_lsr_moObject) : null;
+				QueryIdentificationCallback qicObject = qicTable.CreateInstance(qic_lsObject, qic_lsrObject);
+				sqlReader.Close();
+
+				return qicObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qic", "loadinternal", "exception"), "QueryIdentificationCallback could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "QueryIdentificationCallback", "Exception while loading QueryIdentificationCallback object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public QueryIdentificationCallback Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							QueryIdentificationCallbackTable.GetColumnNames("[qic]") + 
+							(this.Depth > 0 ? "," + LookupSessionTable.GetColumnNames("[qic_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTable.GetColumnNames("[qic_ls_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserHttpRequestTable.GetColumnNames("[qic_ls_uhr]") : string.Empty) + 
+							(this.Depth > 0 ? "," + LookupSessionResultTable.GetColumnNames("[qic_lsr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LookupSessionTable.GetColumnNames("[qic_lsr_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[qic_lsr_mo]") : string.Empty) +  
+					" FROM [async].[QueryIdentificationCallback] AS [qic] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[LookupSession] AS [qic_ls] ON [qic].[LookupSessionID] = [qic_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [qic_ls_us] ON [qic_ls].[UserSessionID] = [qic_ls_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [qic_ls_uhr] ON [qic_ls].[UserHttpRequestID] = [qic_ls_uhr].[UserHttpRequestID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[LookupSessionResult] AS [qic_lsr] ON [qic].[LookupSessionResultID] = [qic_lsr].[LookupSessionResultID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[LookupSession] AS [qic_lsr_ls] ON [qic_lsr].[LookupSessionID] = [qic_lsr_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [qic_lsr_mo] ON [qic_lsr].[MobileOperatorID] = [qic_lsr_mo].[MobileOperatorID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qic", "customload", "notfound"), "QueryIdentificationCallback could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				QueryIdentificationCallbackTable qicTable = new QueryIdentificationCallbackTable(query);
+				LookupSessionTable qic_lsTable = (this.Depth > 0) ? new LookupSessionTable(query) : null;
+				UserSessionTable qic_ls_usTable = (this.Depth > 1) ? new UserSessionTable(query) : null;
+				UserHttpRequestTable qic_ls_uhrTable = (this.Depth > 1) ? new UserHttpRequestTable(query) : null;
+				LookupSessionResultTable qic_lsrTable = (this.Depth > 0) ? new LookupSessionResultTable(query) : null;
+				LookupSessionTable qic_lsr_lsTable = (this.Depth > 1) ? new LookupSessionTable(query) : null;
+				MobileOperatorTable qic_lsr_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+
+        
+				UserSession qic_ls_usObject = (this.Depth > 1) ? qic_ls_usTable.CreateInstance() : null;
+				UserHttpRequest qic_ls_uhrObject = (this.Depth > 1) ? qic_ls_uhrTable.CreateInstance() : null;
+				LookupSession qic_lsObject = (this.Depth > 0) ? qic_lsTable.CreateInstance(qic_ls_usObject, qic_ls_uhrObject) : null;
+				LookupSession qic_lsr_lsObject = (this.Depth > 1) ? qic_lsr_lsTable.CreateInstance() : null;
+				MobileOperator qic_lsr_moObject = (this.Depth > 1) ? qic_lsr_moTable.CreateInstance() : null;
+				LookupSessionResult qic_lsrObject = (this.Depth > 0) ? qic_lsrTable.CreateInstance(qic_lsr_lsObject, qic_lsr_moObject) : null;
+				QueryIdentificationCallback qicObject = qicTable.CreateInstance(qic_lsObject, qic_lsrObject);
+				sqlReader.Close();
+
+				return qicObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qic", "customload", "exception"), "QueryIdentificationCallback could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "QueryIdentificationCallback", "Exception while loading (custom/single) QueryIdentificationCallback object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<QueryIdentificationCallback> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							QueryIdentificationCallbackTable.GetColumnNames("[qic]") + 
+							(this.Depth > 0 ? "," + LookupSessionTable.GetColumnNames("[qic_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTable.GetColumnNames("[qic_ls_us]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserHttpRequestTable.GetColumnNames("[qic_ls_uhr]") : string.Empty) + 
+							(this.Depth > 0 ? "," + LookupSessionResultTable.GetColumnNames("[qic_lsr]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LookupSessionTable.GetColumnNames("[qic_lsr_ls]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MobileOperatorTable.GetColumnNames("[qic_lsr_mo]") : string.Empty) +  
+					" FROM [async].[QueryIdentificationCallback] AS [qic] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[LookupSession] AS [qic_ls] ON [qic].[LookupSessionID] = [qic_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSession] AS [qic_ls_us] ON [qic_ls].[UserSessionID] = [qic_ls_us].[UserSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserHttpRequest] AS [qic_ls_uhr] ON [qic_ls].[UserHttpRequestID] = [qic_ls_uhr].[UserHttpRequestID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[LookupSessionResult] AS [qic_lsr] ON [qic].[LookupSessionResultID] = [qic_lsr].[LookupSessionResultID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[LookupSession] AS [qic_lsr_ls] ON [qic_lsr].[LookupSessionID] = [qic_lsr_ls].[LookupSessionID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [qic_lsr_mo] ON [qic_lsr].[MobileOperatorID] = [qic_lsr_mo].[MobileOperatorID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qic", "customloadmany", "notfound"), "QueryIdentificationCallback list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<QueryIdentificationCallback>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				QueryIdentificationCallbackTable qicTable = new QueryIdentificationCallbackTable(query);
+				LookupSessionTable qic_lsTable = (this.Depth > 0) ? new LookupSessionTable(query) : null;
+				UserSessionTable qic_ls_usTable = (this.Depth > 1) ? new UserSessionTable(query) : null;
+				UserHttpRequestTable qic_ls_uhrTable = (this.Depth > 1) ? new UserHttpRequestTable(query) : null;
+				LookupSessionResultTable qic_lsrTable = (this.Depth > 0) ? new LookupSessionResultTable(query) : null;
+				LookupSessionTable qic_lsr_lsTable = (this.Depth > 1) ? new LookupSessionTable(query) : null;
+				MobileOperatorTable qic_lsr_moTable = (this.Depth > 1) ? new MobileOperatorTable(query) : null;
+
+        List<QueryIdentificationCallback> result = new List<QueryIdentificationCallback>();
+        do
+        {
+          
+					UserSession qic_ls_usObject = (this.Depth > 1) ? qic_ls_usTable.CreateInstance() : null;
+					UserHttpRequest qic_ls_uhrObject = (this.Depth > 1) ? qic_ls_uhrTable.CreateInstance() : null;
+					LookupSession qic_lsObject = (this.Depth > 0) ? qic_lsTable.CreateInstance(qic_ls_usObject, qic_ls_uhrObject) : null;
+					LookupSession qic_lsr_lsObject = (this.Depth > 1) ? qic_lsr_lsTable.CreateInstance() : null;
+					MobileOperator qic_lsr_moObject = (this.Depth > 1) ? qic_lsr_moTable.CreateInstance() : null;
+					LookupSessionResult qic_lsrObject = (this.Depth > 0) ? qic_lsrTable.CreateInstance(qic_lsr_lsObject, qic_lsr_moObject) : null;
+					QueryIdentificationCallback qicObject = (this.Depth > -1) ? qicTable.CreateInstance(qic_lsObject, qic_lsrObject) : null;
+					result.Add(qicObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qic", "customloadmany", "exception"), "QueryIdentificationCallback list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "QueryIdentificationCallback", "Exception while loading (custom/many) QueryIdentificationCallback object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, QueryIdentificationCallback data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [async].[QueryIdentificationCallback] ([QueryIdentificationCallbackGuid],[LookupSessionID],[LookupSessionResultID],[IsCompleted],[ValidTo]) VALUES(@QueryIdentificationCallbackGuid,@LookupSessionID,@LookupSessionResultID,@IsCompleted,@ValidTo); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@QueryIdentificationCallbackGuid", data.Guid);
+				sqlCmd.Parameters.AddWithValue("@LookupSessionID", data.LookupSession.ID);
+				sqlCmd.Parameters.AddWithValue("@LookupSessionResultID", data.LookupSessionResult == null ? DBNull.Value : (object)data.LookupSessionResult.ID);
+				sqlCmd.Parameters.AddWithValue("@IsCompleted", data.IsCompleted).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@ValidTo", data.ValidTo).SqlDbType = SqlDbType.DateTime2;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qic", "insert", "noprimarykey"), "QueryIdentificationCallback could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "QueryIdentificationCallback", "Exception while inserting QueryIdentificationCallback object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qic", "insert", "exception"), "QueryIdentificationCallback could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "QueryIdentificationCallback", "Exception while inserting QueryIdentificationCallback object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, QueryIdentificationCallback data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [async].[QueryIdentificationCallback] SET " +
+												"[QueryIdentificationCallbackGuid] = @QueryIdentificationCallbackGuid, " + 
+												"[LookupSessionID] = @LookupSessionID, " + 
+												"[LookupSessionResultID] = @LookupSessionResultID, " + 
+												"[IsCompleted] = @IsCompleted, " + 
+												"[ValidTo] = @ValidTo, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [QueryIdentificationCallbackID] = @QueryIdentificationCallbackID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@QueryIdentificationCallbackGuid", data.Guid);
+				sqlCmd.Parameters.AddWithValue("@LookupSessionID", data.LookupSession.ID);
+				sqlCmd.Parameters.AddWithValue("@LookupSessionResultID", data.LookupSessionResult == null ? DBNull.Value : (object)data.LookupSessionResult.ID);
+				sqlCmd.Parameters.AddWithValue("@IsCompleted", data.IsCompleted).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@ValidTo", data.ValidTo).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@QueryIdentificationCallbackID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qic", "update", "norecord"), "QueryIdentificationCallback could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "QueryIdentificationCallback", "Exception while updating QueryIdentificationCallback object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qic", "update", "morerecords"), "QueryIdentificationCallback was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "QueryIdentificationCallback", "Exception while updating QueryIdentificationCallback object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qic", "update", "exception"), "QueryIdentificationCallback could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "QueryIdentificationCallback", "Exception while updating QueryIdentificationCallback object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, QueryIdentificationCallback data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [async].[QueryIdentificationCallback] WHERE QueryIdentificationCallbackID = @QueryIdentificationCallbackID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@QueryIdentificationCallbackID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qic", "delete", "norecord"), "QueryIdentificationCallback could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "QueryIdentificationCallback", "Exception while deleting QueryIdentificationCallback object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qic", "delete", "exception"), "QueryIdentificationCallback could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "QueryIdentificationCallback", "Exception while deleting QueryIdentificationCallback object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

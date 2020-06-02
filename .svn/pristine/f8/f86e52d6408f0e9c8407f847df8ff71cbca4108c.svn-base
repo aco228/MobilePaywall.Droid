@@ -1,0 +1,73 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti.Data;
+using MobilePaywall.Data;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IAuctionContentManager : IDataManager<AuctionContent> 
+  {
+	
+
+  }
+
+  public partial class AuctionContent : MobilePaywallObject<IAuctionContentManager> 
+  {
+		private Content _content;
+		private string _title = String.Empty;
+		private string _description = String.Empty;
+		
+
+		public Content Content 
+		{
+			get
+			{
+				if (this._content != null &&
+						this._content.IsEmpty)
+					if (this.ConnectionContext != null)
+						this._content = Content.CreateManager().LazyLoad(this.ConnectionContext, this._content.ID) as Content;
+					else
+						this._content = Content.CreateManager().LazyLoad(this._content.ID) as Content;
+				return this._content;
+			}
+			set { _content = value; }
+		}
+
+		public string Title{ get {return this._title; } set { this._title = value;} }
+		public string Description{ get {return this._description; } set { this._description = value;} }
+		
+
+    public override bool IsInsertable { get { return true;} }
+
+    public override bool IsDeletable { get { return false;} }
+
+    public override bool IsUpdatable { get { return true;} }
+
+    public AuctionContent()
+    { 
+    }
+
+    public AuctionContent(int id): base(id, DateTime.Now, DateTime.Now, true)
+    {
+    }
+
+    public AuctionContent(int id,  Content content, string title, string description, DateTime updated, DateTime created): base(id, updated, created, false)
+    {
+			this._content = content;
+			this._title = title;
+			this._description = description;
+			
+    }
+
+    public override object Clone(bool deepClone)
+    {
+      return new AuctionContent(-1,  this.Content,this.Title,this.Description, DateTime.Now, DateTime.Now);
+    }
+  }
+}
+

@@ -1,0 +1,158 @@
+﻿using log4net;
+using MobilePaywall.Data;
+using MobilePaywall.MobilePaywallDirect;
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Implementation.Log.LogDatabase
+{
+  public abstract class LogDatabaseManager
+  {
+
+    #region #logging#
+
+    private static ILog _log = null;
+
+    protected static ILog Log
+    {
+      get
+      {
+        if (LogDatabaseManager._log == null)
+          LogDatabaseManager._log = LogManager.GetLogger(typeof(LogDatabaseManager));
+        return LogDatabaseManager._log;
+      }
+    }
+
+    #endregion #logging#
+
+    private string _name = string.Empty;
+    private DataObject _entry = null;
+    private MobilePaywall.MobilePaywallDirect.MobilePaywallLogDirect _database = null;
+    private List<LogDatabaseManagerUpdateEntry> _entries = null;
+
+    protected MobilePaywallLogDirect Database { get { return this._database; } }
+    protected List<LogDatabaseManagerUpdateEntry> Entries { get { return this._entries; } set { this._entries = value; } }
+
+    public LogDatabaseManager(Senti.Data.DataObject entry, string name)
+    {
+      this._database = MobilePaywallDirect.MobilePaywallLogDirect.Instance;
+      this._entries = new List<LogDatabaseManagerUpdateEntry>();
+      this._entry = entry;
+      this._name = name;
+    }
+
+    protected void Init()
+    {
+      try
+      {
+        this.AddEntry(this._name + "ID", this._entry.ID.ToString(), LogDatabaseManagerUpdateEntry.LogDatabaseManagerUpdateEntryType.Int);
+        this.Collect();
+        this.AddEntry("Updated", this.ConvertDate(this._entry.Updated), LogDatabaseManagerUpdateEntry.LogDatabaseManagerUpdateEntryType.String);
+        this.AddEntry("Created", this.ConvertDate(this._entry.Created), LogDatabaseManagerUpdateEntry.LogDatabaseManagerUpdateEntryType.String);
+
+        this.Sync();
+      }
+      catch (Exception e)
+      {
+        Log.Fatal("Fatal with SYNC " + this._name, e);
+      }
+    }
+
+    protected void AddEntry(string columnName, string value, LogDatabaseManagerUpdateEntry.LogDatabaseManagerUpdateEntryType type)
+    {
+      this._entries.Add(new LogDatabaseManagerUpdateEntry(columnName, value, type));
+    }
+
+    protected string ConvertDate(DateTime dt)
+    {
+      return dt.ToString("yyyy-MM-dd HH:mm:ss");
+    }
+
+    protected abstract void Collect();
+
+    private void Sync()
+    {
+      if (this._entry == null)
+        return;
+
+      int? count = this._database.LoadInt(string.Format("SELECT COUNT(*) FROM MobilePaywall.core.{0} WHERE {0}ID={1};", this._name, this._entry.ID));
+
+      if (!count.HasValue || count.Value == 0)
+        this.Insert();
+      else
+        this.Update();
+    }
+
+    private void Insert()
+    {
+      string columns = "";
+      string values = "";
+
+      for(int i = 0; i < this._entries.Count; i++)
+      {
+        if (string.IsNullOrEmpty(this._entries.ElementAt(i).Value))
+          continue;
+
+        if (i > 0)
+        {
+          columns += ",";
+          values += ",";
+        }
+        
+        columns += this._entries.ElementAt(i).ColumnName;
+        string sep = this._entries.ElementAt(i).Type == LogDatabaseManagerUpdateEntry.LogDatabaseManagerUpdateEntryType.String ? "'" : "";
+        values += string.Format("{0}{1}{0}", sep, this._entries.ElementAt(i).Value);
+      }
+
+      string command = string.Format("INSERT INTO MobilePaywall.core.{0} ({1}) VALUES ({2});", this._name, columns, values);
+      Log.Debug("AAA1 + " + command);
+      this._database.Execute(command);
+    }
+
+    private void Update()
+    {
+      string update = "";
+
+      for(int i = 0; i < this._entries.Count; i++)
+      {
+        if (string.IsNullOrEmpty(this._entries.ElementAt(i).Value))
+          continue;
+
+        if (i > 0)
+          update += ",";
+        
+        string sep = this._entries.ElementAt(i).Type == LogDatabaseManagerUpdateEntry.LogDatabaseManagerUpdateEntryType.String ? "'" : "";
+        update += string.Format("{0}={1}{2}{1}", this._entries.ElementAt(i).ColumnName, sep, this._entries.ElementAt(i).Value);
+      }
+
+      string command = string.Format("UPDATE MobilePaywall.core.{0} SET {1} WHERE {0}ID={2}", this._name, update, this._entry.ID);
+      Log.Debug("AAA2 + " + command);
+      this._database.Execute(command);
+    }
+
+  }
+
+  public class LogDatabaseManagerUpdateEntry
+  {
+    private string _columnName = string.Empty;
+    private string _value = string.Empty;
+    private LogDatabaseManagerUpdateEntryType _type;
+    public enum LogDatabaseManagerUpdateEntryType { String, Int };
+
+    public string ColumnName { get { return this._columnName; } set { this._columnName = value; } }
+    public string Value { get { return this._value; } set { this._value = value; } }
+    public LogDatabaseManagerUpdateEntryType Type { get { return this._type; } }
+
+    public LogDatabaseManagerUpdateEntry(string columnName, string value, LogDatabaseManagerUpdateEntryType type)
+    {
+      this._columnName = columnName;
+      this._value = value;
+      this._type = type;
+    }
+  }
+  
+}

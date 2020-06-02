@@ -1,0 +1,75 @@
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Text;
+
+ 
+
+namespace MobilePaywall.Data 
+{
+  public partial interface IThumbnailConversionProfileEntryManager 
+  {
+
+		List<ThumbnailConversionProfileEntry> Load(ThumbnailConversionProfile profile);
+		List<ThumbnailConversionProfileEntry> Load(IConnectionInfo connection, ThumbnailConversionProfile profile);
+		List<ThumbnailConversionProfileEntry> Load(ImageFormat imageFormat);
+		List<ThumbnailConversionProfileEntry> Load(IConnectionInfo connection, ImageFormat imageFormat);
+  }
+
+  public partial class ThumbnailConversionProfileEntry
+  {
+
+		public override int GetHashCode()
+		{
+			return this.Created.GetHashCode()
+				^ this.Updated.GetHashCode()
+				^ this.ID;
+				//^ this.ImageFormat.GetHashCode() // This would bethe right way, but requires much more additional work, and we can ignore it for now
+				//^ this.ThumbnailConversionProfile.GetHashCode();
+		}
+
+		public override bool Equals(object obj)
+		{
+			if(!obj.GetType().IsAssignableFrom(this.GetType())) return false;
+			ThumbnailConversionProfileEntry entry = obj as ThumbnailConversionProfileEntry;
+			if (entry.ID != this.ID) return false;
+			//if (!entry.ImageFormat.Equals(this.ImageFormat)) return false; // Same as above
+			//if (!entry.ThumbnailConversionProfile.Equals(this.ThumbnailConversionProfile)) return false;
+			if (!entry.Created.Equals(this.Created)) return false;
+			if (!entry.Updated.Equals(this.Updated)) return false;
+			return true;
+		}
+
+		public static ThumbnailConversionProfileEntry LoadByThumbnailConversionProfileEntryID(int thumbnailConversionProfileEntryID)
+		{
+			ThumbnailConversionProfileEntry thumbnailConversionProfileEntry = null;
+			using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+			{
+				connection.Transaction.Begin();
+				IThumbnailConversionProfileEntryManager tcpeManager = ThumbnailConversionProfileEntry.CreateManager();
+				thumbnailConversionProfileEntry = tcpeManager.Load(connection, thumbnailConversionProfileEntryID);
+				connection.Transaction.Commit();
+			}
+
+			return thumbnailConversionProfileEntry;
+		}
+
+		public static List<ThumbnailConversionProfileEntry> LoadByConversionProfileEntry(ThumbnailConversionProfile profile)
+		{
+			List<ThumbnailConversionProfileEntry> thumbnailConversionProfileEntries = null;
+			using (ConnectionInfo connection = new ConnectionInfo(IsolationLevel.ReadUncommitted))
+			{
+				connection.Transaction.Begin();
+				IThumbnailConversionProfileEntryManager tcpeManager = ThumbnailConversionProfileEntry.CreateManager();
+				thumbnailConversionProfileEntries = tcpeManager.Load(connection, profile);
+				connection.Transaction.Commit();
+			}
+
+			return thumbnailConversionProfileEntries;
+		}
+
+  }
+}
+

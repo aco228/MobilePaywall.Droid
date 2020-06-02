@@ -1,0 +1,127 @@
+using MobilePaywall.MobilePaywallDirect;
+using Senti.Data;
+using Senti.Data.Sql;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+
+
+namespace MobilePaywall.Data 
+{
+  public partial interface ITemplateServiceCapManager
+  {
+
+    List<TemplateServiceCap> Load();
+    List<TemplateServiceCap> Load(IConnectionInfo connection);
+    
+    List<TemplateServiceCap> Load(Service service);
+    List<TemplateServiceCap> Load(IConnectionInfo connection, Service service);
+    
+    TemplateServiceCap Load(Service service, MobileOperator mno);
+    TemplateServiceCap Load(IConnectionInfo connection, Service service, MobileOperator mno);
+
+  }
+
+  public partial class TemplateServiceCap
+  {
+
+    public void UpdateWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void UpdateWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Update, cs, this); }
+    public void InsertWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void InsertWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Insert, cs, this); }
+    public void DeleteWithHistory(ClientSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+    public void DeleteWithHistory(IUserSession cs) { EditHistory.Track(EditHistoryAction.Delete, cs, this); }
+
+    private TemplateServiceCapTimeSpan _templateServiceCapTimespan = null;
+
+    public TemplateServiceCapTimeSpan TemplateServiceCapTimespan
+    {
+      get
+      {
+        if (this._templateServiceCapTimespan != null)
+          return this._templateServiceCapTimespan;
+        this._templateServiceCapTimespan = new TemplateServiceCapTimeSpan(this);
+        return this._templateServiceCapTimespan;
+      }
+    } 
+
+    // SUMMARY: Calculate date based this._timespan value
+    public DateTime? TimeSpanDate { get { return this.TemplateServiceCapTimespan.GetDate(); } }
+
+    // SUMMARY: Check if values of this Cap are old (from yesterday)
+    public void CheckIfValuesAreOld(bool updateCapValueAfterCheck = true)
+    {
+      // Check if this TSC has old values
+      if ((DateTime.Now.Date - this._capReferenceDate).Days >= 1)
+      {
+        this._lastTransactionDate = DateTime.Now.Date;
+        this._capReferenceDate = DateTime.Now.Date;
+        if(updateCapValueAfterCheck)
+          this.UpdateCapValue();
+      }
+    }
+
+    // SUMMARY: This method will be called only when new transaction is made
+    public void UpdateCapValueOnNewTransaction()
+    {
+      this.CheckIfValuesAreOld(false);
+      this._lastTransactionDate = DateTime.Now;
+      this.UpdateCapValue();
+    }
+
+    // SUMMARY: Update CAP value for this entry for current day
+    public void UpdateCapValue()
+    {
+			PaywallDirect db = PaywallDirect.Instance;
+      int? count = db.LoadInt(string.Format(@"
+        SELECT COUNT(*) FROM MobilePaywall.core.OLCache WHERE 
+        ServiceID={0} {1} AND IsSubseguent=0 AND TransactionID IS NOT NULL AND Created>='{2}'",
+          this._service.ID, (this._mobileOperator != null ? " AND MobileOperatorID=" + this._mobileOperator.ID : ""), db.Date(DateTime.Now.Date)));
+
+      if (!count.HasValue)
+        return;
+      
+      this._tempCurrentValue = count.Value;
+      this.Update();
+    }
+  }
+
+  public class TemplateServiceCapTimeSpan
+  {
+    private TemplateServiceCap _templateServiceCap = null;
+
+    public int Hours = 0;
+    public int Minutes = 0;
+    public int Seconds = 0;
+
+    public DateTime? Date = null;
+
+    public TemplateServiceCapTimeSpan(TemplateServiceCap cap)
+    {
+      this._templateServiceCap = cap;
+      this.GetDate();
+    }
+
+    public DateTime? GetDate()
+    {
+      string[] timespanSplit = this._templateServiceCap.Timespan.Split(':');
+      if (timespanSplit.Length != 3)
+        return null;
+
+      if (!Int32.TryParse(timespanSplit[0], out this.Hours) || !Int32.TryParse(timespanSplit[1], out this.Minutes) || !Int32.TryParse(timespanSplit[2], out this.Seconds))
+        return null;
+
+      if (this.Hours == 0 && this.Minutes == 0 && this.Seconds == 0)
+        return null;
+
+      this.Date = this._templateServiceCap.LastTransactionDate;
+      this.Date.Value.AddHours(this.Hours);
+      this.Date.Value.AddMinutes(this.Minutes);
+      this.Date.Value.AddSeconds(this.Seconds);
+      return this.Date;
+    }
+  }
+}
+

@@ -1,0 +1,104 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public class ClientTable : TableBase<Client>
+  {
+    public static string GetColumnNames()
+    {
+      return TableBase<Client>.GetColumnNames(string.Empty, ClientTable.Columns.Item);
+    }
+
+    public static string GetColumnNames(string tablePrefix)
+    {
+      return TableBase<Client>.GetColumnNames(tablePrefix, ClientTable.Columns.Item);
+    }
+
+    public class Columns
+    {
+		
+			public static readonly ColumnDescription ClientID = new ColumnDescription("ClientID", 0, typeof(int));
+			public static readonly ColumnDescription ClientGuid = new ColumnDescription("ClientGuid", 1, typeof(Guid));
+			public static readonly ColumnDescription ClientTypeID = new ColumnDescription("ClientTypeID", 2, typeof(int));
+			public static readonly ColumnDescription ClientStatusID = new ColumnDescription("ClientStatusID", 3, typeof(int));
+			public static readonly ColumnDescription Username = new ColumnDescription("Username", 4, typeof(string));
+			public static readonly ColumnDescription Password = new ColumnDescription("Password", 5, typeof(byte[]));
+			public static readonly ColumnDescription MailAddress = new ColumnDescription("MailAddress", 6, typeof(string));
+			public static readonly ColumnDescription Updated = new ColumnDescription("Updated", 7, typeof(DateTime));
+			public static readonly ColumnDescription Created = new ColumnDescription("Created", 8, typeof(DateTime));
+			
+
+			public static readonly ColumnDescription[] Item = new ColumnDescription[] 
+			{
+				ClientID,
+				ClientGuid,
+				ClientTypeID,
+				ClientStatusID,
+				Username,
+				Password,
+				MailAddress,
+				Updated,
+				Created
+			};
+    }
+
+    public override int ColumnCount
+    {
+      get { return Columns.Item.Length; }
+    }
+
+    public ClientTable(SqlQuery query) : base(query) { }
+    public ClientTable(SqlQuery query, ColumnSelectMode selectMode,
+                           params ColumnDescription[] columns)
+      : base(query, selectMode, columns) { }
+
+    public ColumnDescription this[int index] { get { return Columns.Item[index]; } }
+
+		public int ClientID { get { return this.Reader.GetInt32(this.GetIndex(Columns.ClientID)); } }
+		public Guid ClientGuid { get { return this.Reader.GetGuid(this.GetIndex(Columns.ClientGuid)); } }
+		public int ClientTypeID { get { return this.Reader.GetInt32(this.GetIndex(Columns.ClientTypeID)); } }
+		public int ClientStatusID { get { return this.Reader.GetInt32(this.GetIndex(Columns.ClientStatusID)); } }
+		public string Username { get { return this.Reader.GetString(this.GetIndex(Columns.Username)); } }
+		
+		public byte[] Password {
+			 get
+			{
+				int index = this.GetIndex(Columns.Password);
+				if (this.Reader.IsDBNull(index)) return null;
+				long len = Reader.GetBytes(index, 0, null, 0, 0);
+				Byte[] path = new Byte[len]; 
+				Reader.GetBytes(index, 0, path, 0, (int)len);
+				return path;
+			}
+		}
+
+		public string MailAddress { get { return this.Reader.GetString(this.GetIndex(Columns.MailAddress)); } }
+		public DateTime Updated { get { return this.Reader.GetDateTime(this.GetIndex(Columns.Updated)); } }
+		public DateTime Created { get { return this.Reader.GetDateTime(this.GetIndex(Columns.Created)); } }
+		
+
+	  public Client CreateInstance()  
+		{ 
+			if (!this.HasData) return null;
+			return new Client(this.ClientID,this.ClientGuid,new ClientType(this.ClientTypeID), (ClientStatus)this.ClientStatusID,this.Username,this.Password,this.MailAddress,this.Updated,this.Created); 
+		}
+		public Client CreateInstance(ClientType clientType)  
+		{ 
+			if (!this.HasData) return null;
+			return new Client(this.ClientID,this.ClientGuid,clientType ?? new ClientType(this.ClientTypeID), (ClientStatus)this.ClientStatusID,this.Username,this.Password,this.MailAddress,this.Updated,this.Created); 
+		}
+		
+
+  }
+}
+

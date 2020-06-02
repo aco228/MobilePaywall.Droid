@@ -1,0 +1,197 @@
+﻿using System;
+using System.IO;
+using System.Collections.Generic;
+using System.Web.Mvc;
+
+using MobilePaywall.Data;
+using MobilePaywall.Web.Models;
+
+using Senti.Diagnostics.Log;
+
+using log4net;
+using MobilePaywall.Web.Log;
+using System.Web;
+
+namespace MobilePaywall.Web.Controllers
+{
+	public class ContentController : PaywallRestrictedAccessController
+	{
+		#region #logging#
+		private static ILog _log = null;
+
+		protected static ILog Log
+		{
+			get
+			{
+				if (ContentController._log == null)
+					ContentController._log = LogManager.GetLogger(typeof(ContentController));
+				return ContentController._log;
+			}
+		}
+		#endregion
+
+		public ActionResult Access(int id)
+    {
+
+      #region # LandingPage return #
+
+      if (PaywallHttpContext.Current.Session.SessionData.EntranceUrl.Contains(Constants.LandingSendHome))
+        return this.Redirect(PaywallHttpContext.AppendSessionID("/"));
+
+      //if (!string.IsNullOrEmpty(this.PaywallContext.Session.SessionData.Referrer) && 
+      //  this.PaywallContext.Session.SessionData.Referrer.Contains(Constants.LandingIdentifier))
+      //  return this.Redirect("/landing_callback");
+
+      #endregion
+
+      #region # Cookie Bypass #
+      if (this.Request.Cookies[Constants.CustomerCookie] == null)
+      {
+        ContentAccessPolicy contentAccessPolicy = ContentAccessPolicy.CreateManager().Load(this.PaywallContext.Service.ServiceData);
+        Log.Debug(new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "contentcontroller", "access"),
+           " - COOKIE_BYPASS - Set cookie - " + string.Format("Cookie '{0}' is set for sessionID '{1}'", Constants.CustomerCookie, this.PaywallContext.Session.SessionData.ID.ToString())));
+
+        HttpCookie cookie = new HttpCookie(Constants.CustomerCookie, this.PaywallContext.Session.SessionData.ID.ToString());
+        cookie.Expires = contentAccessPolicy.IntervalInSeconds.HasValue ? DateTime.Now.AddSeconds(contentAccessPolicy.IntervalInSeconds.Value) : DateTime.Now.AddDays(7);
+        //cookie.Domain = Request.UserHostName;
+        cookie.Path = "/";
+        this.Response.Cookies.Add(cookie);
+      }
+      #endregion
+
+      if (this.PaywallContext.Service.ServiceData.ServiceType.Name.Equals("Auction Service with default UserSession"))
+        return Redirect("/");
+
+      #region # OL redirect #
+
+      if(PaywallHttpContext.Current.Session.SessionData.EntranceUrl.Contains("&olredirect="))
+      {
+        bool isAdult = (PaywallHttpContext.Current.Session.SessionData.EntranceUrl.Contains("&tp=a"));
+        string redirectUrl = isAdult ?
+          "http://mt.kiwiclicks.com/click.php?c=1402&key=k8r5g06l6pql9tvty4bq8tlh" :
+          "http://mt.kiwiclicks.com/click.php?c=1401&key=e9006v1wnvnzzd1d08g1vcg2";
+
+        Log.Debug("Customer should be redirected to " + redirectUrl);
+        return Redirect(redirectUrl);
+      }
+      
+      #endregion
+
+
+      LogMessageBuilder builder = null;
+      IContent content = this.Cache.GetContent(id);
+			IContentAccessViewManager cavManager = ContentAccessView.CreateManager();
+			ContentAccessView contentView = cavManager.Load(this.PaywallContext.Runtime.ApplicationData.Instance,
+																											content.ContentData.ContentType,
+																											this.PaywallContext.Runtime.ApplicationData,
+																											this.PaywallContext.Service.ServiceData,
+																											this.PaywallContext.GetConfiguration());
+
+
+			if (contentView == null)
+			{
+        builder = new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "contentcontroller", "access"),
+																													"ContentAccessView not found in database with specified parameters",
+																													this.PaywallContext.Runtime.ApplicationData.Instance,
+																													content.ContentData.ContentType,
+																													this.PaywallContext.Runtime.ApplicationData,
+																													this.PaywallContext.Service.ServiceData,
+																													this.PaywallContext.GetConfiguration());
+				Log.Error(builder);
+
+				// DONE: Return error view because there is no reason to proceed!
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Content);
+        return View("Error", errorModel);
+      }
+
+			List<ContentDownloadOption> downloadOptions = content.GetDownloadOptions(this.Request.UserAgent);
+			List<ContentStreamingOption> streamingOptions = content.GetStreamingOptions(this.Request.UserAgent);
+
+      builder = new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "contentcontroller", "access"),
+                                            "",  this.PaywallContext, downloadOptions, streamingOptions, content, contentView);
+      Log.Debug(builder);
+			
+      ContentModel model = new ContentModel(this.PaywallContext, downloadOptions, streamingOptions, content, contentView);      
+			return View(contentView.ViewName, model);
+		}
+
+		public ActionResult Download(int id)
+		{
+			LogMessageBuilder builder = null;
+      IContent content = this.Cache.GetContent(id);
+			if (!content.IsDownloadable)
+			{
+				//- ContentError: Requested content is not available for downloading!
+				ErrorViewModel model = new ErrorViewModel(this.PaywallContext, 0, "Error downloading", "This content is not allowed for download");
+				return View("Error", model);
+			}
+
+			ContentData data = content.GetContentData(this.Request.UserAgent);
+			if (data == null)
+			{
+        builder = new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "contentcontroller", "download"), "ContentData not found", id, this.Request.UserAgent);
+				if (Log.IsErrorEnabled)
+					Log.Error(builder);
+				
+        // DONE: Return error view because there is no reason to proceed!
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Content);
+        return View("Error", errorModel);
+			}
+
+			HttpContext.Response.ContentType = data.MimeType;
+			return File(data.Data, data.MimeType, data.FileName);
+		}
+
+		public ActionResult Stream(int id)
+		{
+			LogMessageBuilder builder = null;
+      IContent content = this.Cache.GetContent(id);
+			if (!content.IsStreamable)
+			{
+				//- ContentError: Requested contetn is not available for streaming!
+				ErrorViewModel model = new ErrorViewModel(this.PaywallContext, 0, "Error streaming", "This content is not allowed for streaming");
+				return View("Error", model);
+			}
+
+			ContentData data = content.GetContentData(this.Request.UserAgent);
+			if (data == null)
+			{
+        builder = new LogMessageBuilder(new PaywallLogErrorCode("paywall.web.core", "contentcontroller", "stream"), "ContentData not found", id, this.Request.UserAgent);
+				if (Log.IsErrorEnabled)
+					Log.Error(builder);
+
+				// DONE: Return error view because there is no reason to proceed!
+        ErrorViewModel errorModel = new ErrorViewModel(this.PaywallContext, ErrorCode.Content);
+        return View("Error", errorModel);
+      }
+			HttpContext.Response.ContentType = data.MimeType;
+			HttpContext.Response.Headers.Add("Accept-Ranges", "0-" + data.Data.Length);
+			Stream stream = new MemoryStream(data.Data);
+			return new FileStreamResult(stream, data.MimeType);
+		}
+
+		public override IContent GetRequestedContent()
+		{
+			object contentID = null;
+			if (!this.RouteData.Values.TryGetValue("id", out contentID) ||
+					contentID == null)
+			{
+				// problem here...
+				throw new ArgumentException("Invalid argument supplied for contentID parameter.", "contentID");
+			}
+			int contentIDValue = Int32.Parse(contentID.ToString());
+			IContent content = this.Cache.GetContent(contentIDValue);
+			return content;
+		}
+	}
+
+  public class ContentManagmentController : Controller
+  {
+    public ActionResult Index()
+    {
+      TemplateSortContentModel model = new TemplateSortContentModel(PaywallHttpContext.Current, PaywallHttpContext.Current.Service.ServiceData);
+      return View("~/Views/Template/ContentManagement.cshtml", model);
+    }
+  }
+
+}

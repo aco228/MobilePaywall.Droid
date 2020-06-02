@@ -1,0 +1,148 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Merchant.Models;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Merchant.Controllers
+{
+  public class ServicePriceController : PaywallController
+  {
+    public ActionResult Index()
+    {
+      ClientComponentAccessPolicy ccap = ClientComponentAccessPolicy.CreateManager().Load(PaywallHttpContext.Current.ClientSession.Client, Component.CreateManager().Load(7)); //ServicePrices Component ID = 7
+      bool allowPrices = (ccap != null && ccap.AccessMode == AccessMode.Allowed);
+
+      if (!allowPrices)
+      {
+        ViewBag.Message = "You don't have permission to see this page.";
+        return View("~/Views/Shared/Template/Error.cshtml");
+      }
+
+      return View();
+    }
+
+    [HttpPost]
+    public PartialViewResult Table()
+    {
+      List<ServicePrice> servicePrices = (from sp in ServicePrice.CreateManager().Load()
+                                          where PaywallHttpContext.Current.ClientSession.Client.AllowedServices.ContainsKey(sp.Service.ID)
+                                          select sp).ToList();
+
+      return PartialView("_Table", servicePrices);
+    }
+
+
+    [HttpPost]
+    public JsonResult GenerateDropdowns(string serviceID, string serviceOfferID, string countryID, string mobileOperatorID, string currencyID)
+    {
+      List<List<SelectListItem>> results = new List<List<SelectListItem>>();
+      MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+
+      results.Add((from s in runtime.Services select new SelectListItem() { Text = s.ServiceData.Name, Value = s.ServiceData.ID.ToString(), Selected = (s.ServiceData.ID == int.Parse(serviceID) ? true : false) }).ToList());
+      results.Add((from so in ServiceOffer.CreateManager().Load() where so.Service.ID.Equals(int.Parse(serviceID)) select new SelectListItem() { Text = so.Name, Value = so.ID.ToString(), Selected = (so.ID == int.Parse(serviceOfferID) ? true : false) }).ToList());
+      results.Add((from c in runtime.Countries select new SelectListItem() { Text = c.GlobalName, Value = c.ID.ToString(), Selected = (c.ID == int.Parse(countryID) ? true : false) }).ToList());
+      results.Add((from mo in runtime.Operators where mo.Country.ID.Equals(int.Parse(countryID)) select new SelectListItem() { Text = mo.Name, Value = mo.ID.ToString(), Selected = (mo.ID == int.Parse(mobileOperatorID) ? true : false) }).ToList());
+      results.Add((from cur in Currency.CreateManager().Load() select new SelectListItem() { Text = cur.Abbreviation, Value = cur.ID.ToString(), Selected = (cur.ID == int.Parse(currencyID) ? true : false) }).ToList());
+
+      return Json(results);
+    }
+
+    [HttpPost]
+    public JsonResult UpdateDropdown(string dropdown, string action, string value)
+    {
+      MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+      List<List<SelectListItem>> results = new List<List<SelectListItem>>();
+
+      if (dropdown.Equals("service"))
+      {
+        Service service = (from s in runtime.Services where s.ServiceData.ID.Equals(int.Parse(value)) select s.ServiceData).FirstOrDefault();
+
+        results.Add((from so in ServiceOffer.CreateManager().Load() where so.Service.ID.Equals(int.Parse(value)) select new SelectListItem() { Text = so.Name, Value = so.ID.ToString() }).ToList());
+
+        if (action.Equals("insert"))
+          results.Add((from c in runtime.Countries select new SelectListItem() { Text = c.GlobalName, Value = c.ID.ToString(), Selected = (c.ID.Equals(service.FallbackCountry.ID) ? true : false) }).ToList());
+
+      }
+      else if (dropdown.Equals("country"))
+      {
+        Country country = PaywallHttpContext.Current.Runtime.GetCountryByID(int.Parse(value));
+        results.Add((from mo in MobileOperator.CreateManager().Load() where mo.Country.ID.Equals(country.ID) select new SelectListItem() { Text = mo.Name, Value = mo.ID.ToString() }).ToList());
+        results.Add((from cur in Currency.CreateManager().Load() select new SelectListItem() { Text = cur.Abbreviation, Value = cur.ID.ToString(), Selected = (cur.ID == country.Currency.ID ? true : false) }).ToList());
+      }
+
+      return Json(results);
+    }
+
+    [HttpPost]
+    public ActionResult Insert(List<ServicePriceModel> servicePrices)
+    {
+      MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+
+      foreach (ServicePriceModel sp in servicePrices)
+      {
+        ServicePrice oldPrice = (from old in ServicePrice.CreateManager().Load()
+                                 where old.Service.ID.Equals(sp.ServiceID) && old.ServiceOffer.ID.Equals(sp.ServiceOfferID) && old.MobileOperator.ID.Equals(sp.MobileOperatorID) && old.ValidTo == null
+                                 select old).FirstOrDefault();
+
+        ServicePrice price = new ServicePrice(-1);
+
+        Service service = (from s in runtime.Services where s.ServiceData.ID.Equals(sp.ServiceID) select s.ServiceData).FirstOrDefault();
+        ServiceOffer serviceOffer = (from so in runtime.ServiceOffers where so.ID.Equals(sp.ServiceOfferID) select so).FirstOrDefault();
+
+        if (service.ID != serviceOffer.Service.ID)
+        {
+          ViewBag.Message = "Wrong service offer";
+          return View("~/Views/Shared/Template/Error.cshtml");
+        }
+
+        price.Service = service;
+        price.ServiceOffer = serviceOffer;
+        price.MobileOperator = (from mo in runtime.Operators where mo.ID.Equals(sp.MobileOperatorID) select mo).FirstOrDefault();
+        price.Gross = decimal.Parse(sp.Gross);
+        price.Payout = sp.Payout != null ? decimal.Parse(sp.Payout) : default(decimal?);
+        price.Currency = Currency.CreateManager().Load(sp.CurrencyID);
+        price.ValidFrom = DateTime.ParseExact(string.Format("{0} 00:00:00.000000", sp.ValidFrom), "dd/MM/yyyy HH:mm:ss.ffffff", null);
+        price.ValidTo = !string.IsNullOrEmpty(sp.ValidTo) ? DateTime.ParseExact(string.Format("{0} 23:59:59.9999999", sp.ValidTo), "dd/MM/yyyy HH:mm:ss.fffffff", null) : default(DateTime?);
+
+        price.InsertWithHistory(PaywallHttpContext.Current.ClientSession, price.Service);
+
+        if (oldPrice != null)
+        {
+          oldPrice.ValidTo = DateTime.ParseExact(string.Format("{0} 23:59:59.9999999", sp.ValidFrom), "dd/MM/yyyy HH:mm:ss.fffffff", null).AddDays(-1);
+          oldPrice.UpdateWithHistory(PaywallHttpContext.Current.ClientSession, price.Service);
+        }
+      }
+
+      return View("Index");
+    }
+
+    [HttpPost]
+    public int Update(string id, string serviceID, string serviceOfferID, string mobileOperatorID, string gross, string payout, string currencyID, string validFrom, string validTo)
+    {
+      MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+      ServicePrice price = ServicePrice.CreateManager().Load(int.Parse(id));
+
+      Service service = (from s in runtime.Services where s.ServiceData.ID.Equals(int.Parse(serviceID)) select s.ServiceData).FirstOrDefault();
+      ServiceOffer serviceOffer = (from so in runtime.ServiceOffers where so.ID.Equals(int.Parse(serviceOfferID)) select so).FirstOrDefault();
+
+      if (service.ID != serviceOffer.Service.ID)
+        return -1;
+
+      price.Service = service;
+      price.ServiceOffer = serviceOffer;
+      price.MobileOperator = (from mo in runtime.Operators where mo.ID.Equals(int.Parse(mobileOperatorID)) select mo).FirstOrDefault();
+      price.Gross = decimal.Parse(gross.Trim());
+      price.Payout = !string.IsNullOrEmpty(payout) ? decimal.Parse(payout.Trim()) : default(decimal?);
+      price.Currency = Currency.CreateManager().Load(int.Parse(currencyID));
+      price.ValidFrom = DateTime.ParseExact(string.Format("{0} 00:00:00.000000", validFrom), "dd/MM/yyyy HH:mm:ss.ffffff", null);
+      price.ValidTo = !string.IsNullOrEmpty(validTo) ? DateTime.ParseExact(string.Format("{0} 23:59:59.9999999", validTo), "dd/MM/yyyy HH:mm:ss.fffffff", null) : default(DateTime?);
+
+      price.UpdateWithHistory(PaywallHttpContext.Current.ClientSession, price.Service);
+
+      return price.ID;
+    }
+  }
+}

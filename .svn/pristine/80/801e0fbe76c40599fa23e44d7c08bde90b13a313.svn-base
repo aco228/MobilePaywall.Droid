@@ -1,0 +1,71 @@
+﻿@*
+  !!! this is shared across all templates at the end of body !!!
+*@
+
+
+<style>
+  @Html.Raw(Model.TemplateModification())
+</style>
+
+@* TPAY Configuration *@
+@if (PaywallHttpContext.Current.Service != null && PaywallHttpContext.Current.Service.PaymentProvider != null && PaywallHttpContext.Current.Service.PaymentProvider.ID == 21)
+{ Html.RenderPartial("~/Views/_Shared/_Specific/TPay/_Footer.cshtml"); }
+
+@{
+  // SUMMARY: Import specific override style for this service
+  //          Search locations based on priority are:
+  //            ~/Content/_Override/[Country]/[Template]/[Service]/[MobileOperator]/main.css
+  //            ~/Content/_Override/[Country]/[Template]/[Service]/main.css
+  //            ~/Content/_Override/[Country]/[Template]/main.css
+  //            ~/Content/_Override/[Country]/[Service]/[MobileOperator]/main.css
+  //            ~/Content/_Override/[Country]/[Service]/main.css
+  //            ~/Content/_Override/[Country]/main.css
+
+  //            ( merchant css override will be printed regarding if there are fles above )
+  //            ~/Content/_Override/_Merchant/[Merchant]/[Template]/main.css
+  //            ~/Content/_Override/_Merchant/[Merchant]/main.css
+
+  
+  if (PaywallHttpContext.Current.Service.ServiceData.FallbackCountry != null)
+  {
+    List<string> overridePaths = new List<string>();
+    string countryCode = PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.ToLower();
+
+    // Adding default values based on country
+    overridePaths.Insert(0, string.Format("~/Content/_Override/{0}/main.css", countryCode));
+    overridePaths.Insert(0, string.Format("~/Content/_Override/{0}/{1}/main.css", countryCode, PaywallHttpContext.Current.Service.ServiceData.ID));
+    if (PaywallHttpContext.Current.Session.SessionData.MobileOperator != null)
+    {
+      overridePaths.Insert(0, string.Format("~/Content/_Override/{0}/{1}/{2}/main.css", countryCode,
+        PaywallHttpContext.Current.Service.ServiceData.ID, PaywallHttpContext.Current.Session.SessionData.MobileOperator.ID));
+    }
+
+    // Adding values based on template
+    string templateName = PaywallHttpContext.Current.Service.ServiceData.Template.Name;
+    overridePaths.Insert(0, string.Format("~/Content/_Override/{0}/{1}/main.css", countryCode, templateName));
+    overridePaths.Insert(0, string.Format("~/Content/_Override/{0}/{1}/{2}/main.css", countryCode, templateName, PaywallHttpContext.Current.Service.ServiceData.ID));
+    if (PaywallHttpContext.Current.Session.SessionData.MobileOperator != null)
+    {
+      overridePaths.Insert(0, string.Format("~/Content/_Override/{0}/{1}/{2}/{3}/main.css", countryCode, templateName,
+        PaywallHttpContext.Current.Service.ServiceData.ID, PaywallHttpContext.Current.Session.SessionData.MobileOperator.ID));
+    }
+
+    // Merchant style override
+    string merchantID = PaywallHttpContext.Current.Service.ServiceData.Merchant.ID.ToString();
+    if(System.IO.File.Exists(Server.MapPath(string.Format("~/Content/_Override/_Merchant/{0}/{1}/main.css", merchantID, templateName))))
+    { 
+      @Html.Raw(string.Format("<link rel=\"stylesheet\" type=\"text/css\" href=\"{0}\" />", string.Format("/Content/_Override/_Merchant/{0}/{1}/main.css", merchantID, templateName)));  
+    }
+    else if(System.IO.File.Exists(Server.MapPath(string.Format("~/Content/_Override/_Merchant/{0}/main.css", merchantID))))
+    {
+      @Html.Raw(string.Format("<link rel=\"stylesheet\" type=\"text/css\" href=\"{0}\" />", string.Format("/Content/_Override/_Merchant/{0}/main.css", merchantID)));
+    }
+  
+    foreach (string path in overridePaths)
+    {
+      if (System.IO.File.Exists(Server.MapPath(path)))
+      { @Html.Raw(string.Format("<link rel=\"stylesheet\" type=\"text/css\" href=\"{0}\" />", path.Replace("~", string.Empty))); break; }
+    }
+
+  }
+}

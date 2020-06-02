@@ -1,0 +1,157 @@
+﻿using MobilePaywall.Data; 
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall
+{
+  public class Image : ContentBase
+  {
+
+    private ImageContent _imageContent = null;
+
+    public ImageContent ImageContent { get { return this._imageContent; } }
+    public override string ContentIconClass { get { return "__contentIcon_image"; } }
+    public override string DefaultTitle { get { return this._imageContent.Title; } }
+
+    public Image(Data.Content content)
+      : base(content)
+    {
+      this._imageContent = ImageContent.CreateManager().Load(content);
+    }
+
+    public Image(Data.ImageContent imageContent)
+      :base(imageContent.Content)
+    {
+      this._imageContent = imageContent;
+    }
+
+    public Image(ICache cache, Content content, ImageContent imageContent)
+      : base(cache, content)
+    {
+      this._imageContent = imageContent;
+    }
+
+    public virtual bool IsStreamable { get { return false; } }
+        
+    public override System.Collections.Specialized.NameValueCollection GetMetaInformation(Data.Service service, Data.Language language)
+    {
+      throw new NotImplementedException();
+    }
+
+    public override ContentData GetContentData(string userAgent)
+    {
+      throw new NotImplementedException();
+    }
+
+
+    public override ContentData GetContentData(int id)
+    {
+      throw new NotImplementedException();
+    }
+
+    public override List<ContentDownloadOption> GetDownloadOptions(string userAgent)
+    {
+      if (!this.IsDownloadable)
+        return new List<ContentDownloadOption>();
+
+      List<ContentDownloadOption> returnList = new List<ContentDownloadOption>();
+      List<ImageContentData> imageContentData = ImageContentData.CreateManager().LoadWithoutData(this.ImageContent);
+
+      foreach (ImageContentData data in imageContentData)
+        returnList.Add(new ContentDownloadOption()
+        {
+          ID = data.ID,
+          Label = string.Format("{0}", data.VideoConversionProfileEntry != null ? data.VideoConversionProfileEntry.VisualMediaDimensions.Description : "Original"),
+          Url = string.Format("/content/image/download/{0}", data.ID),
+          MimeType = data.VideoCodec.MimeType,
+          Extension = data.VideoCodec.Extension,
+          Type = ContentDownloadOptionType.Image
+        });
+      
+      return returnList;
+    }
+
+    public override void UpdateTitle(string title, IUserSession us)
+    {
+      this._imageContent.Title = title;
+      this._imageContent.UpdateWithHistory(us);
+    }
+
+    public override void UpdateDescription(string description, IUserSession us)
+    {
+      this._imageContent.Description = description;
+      this._imageContent.UpdateWithHistory(us);
+    }
+
+    public override List<ContentInformations> GetAllContentDetail()
+    {
+      List<ImageContentDetail> icd = ImageContentDetail.CreateManager().Load(this._imageContent);
+      List<ContentInformations> result = new List<ContentInformations>();
+
+      foreach (ImageContentDetail i in icd)
+        result.Add(new ContentInformations()
+        {
+          ID = i.ID,
+          Title = i.Title,
+          Description = i.Description,
+          HtmlTitle = i.HtmlTitle,
+          MetaDescription = i.MetaDescription,
+          MetaKeywords = i.MetaKeywords,
+          Language = i.Language,
+          Service = i.Service,
+          Rating = i.Rating.ToString(),
+        });
+
+      return result;
+    }
+
+    public override void UpdateContentDetails(ContentInformations info, IUserSession us)
+    {
+      if (info.Language == null)
+        return;
+
+      ImageContentDetail dt = null;
+      if (info.Service != null)
+        dt = ImageContentDetail.CreateManager().Load<ImageContentDetail>(this._imageContent, info.Service, info.Language);
+      else
+        dt = ImageContentDetail.CreateManager().Load(this._imageContent, info.Language);
+
+      if (dt == null)
+      {
+        dt = new ImageContentDetail(-1, this._imageContent, null, info.Language, info.Title, info.Description, info.RatingDecimal, info.HtmlTitle, info.MetaDescription, info.MetaKeywords, DateTime.Now, DateTime.Now);
+        dt.InsertWithHistory(us);
+        return;
+      }
+
+      dt.Title = info.Title;
+      dt.Service = info.Service;
+      dt.Language = info.Language;
+      dt.Description = info.Description;
+      dt.Rating = info.RatingDecimal;
+      dt.MetaKeywords = info.MetaKeywords;
+      dt.MetaDescription = info.MetaDescription;
+
+      dt.UpdateWithHistory(us);
+    }
+
+    public override void DeleteContentDetails(ContentInformations info, IUserSession us)
+    {
+      if (info.Language == null)
+        return;
+
+      ImageContentDetail dt = null;
+      if (info.Service != null)
+        dt = ImageContentDetail.CreateManager().Load<ImageContentDetail>(this._imageContent, info.Service, info.Language);
+      else
+        dt = ImageContentDetail.CreateManager().Load(this._imageContent, info.Language);
+
+      if (dt != null)
+        dt.DeleteWithHistory(us);
+    }
+  }
+
+}
+

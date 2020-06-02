@@ -1,0 +1,599 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(CustomPageData))] 
+  public partial class CustomPageDataManager : MobilePaywall.Data.Sql.SqlManagerBase<CustomPageData>, ICustomPageDataManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override CustomPageData LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							CustomPageDataTable.GetColumnNames("[cpd]") + 
+							(this.Depth > 0 ? "," + CustomPageTable.GetColumnNames("[cpd_cp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[cpd_cp_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + RouteTable.GetColumnNames("[cpd_cp_r]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentProviderTable.GetColumnNames("[cpd_pp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[cpd_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[cpd_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[cpd_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[cpd_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[cpd_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[cpd_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[cpd_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[cpd_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[cpd_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[cpd_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[cpd_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[cpd_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[cpd_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[cpd_mo_c]") : string.Empty) + 
+					" FROM [core].[CustomPageData] AS [cpd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[CustomPage] AS [cpd_cp] ON [cpd].[CustomPageID] = [cpd_cp].[CustomPageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [cpd_cp_c] ON [cpd_cp].[CountryID] = [cpd_cp_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Route] AS [cpd_cp_r] ON [cpd_cp].[RouteID] = [cpd_cp_r].[RouteID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentProvider] AS [cpd_pp] ON [cpd].[PaymentProviderID] = [cpd_pp].[PaymentProviderID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [cpd_s] ON [cpd].[ServiceID] = [cpd_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [cpd_s_a] ON [cpd_s].[ApplicationID] = [cpd_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [cpd_s_p] ON [cpd_s].[ProductID] = [cpd_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [cpd_s_m] ON [cpd_s].[MerchantID] = [cpd_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [cpd_s_st] ON [cpd_s].[ServiceTypeID] = [cpd_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [cpd_s_ust] ON [cpd_s].[UserSessionTypeID] = [cpd_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [cpd_s_c] ON [cpd_s].[FallbackCountryID] = [cpd_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [cpd_s_l] ON [cpd_s].[FallbackLanguageID] = [cpd_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [cpd_s_ar] ON [cpd_s].[FallbackAgeRatingID] = [cpd_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [cpd_s_sc] ON [cpd_s].[ServiceConfigurationID] = [cpd_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [cpd_s_bm] ON [cpd_s].[BusinessModelID] = [cpd_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [cpd_s_t] ON [cpd_s].[TemplateID] = [cpd_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [cpd_mo] ON [cpd].[MobileOperatorID] = [cpd_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [cpd_mo_c] ON [cpd_mo].[CountryID] = [cpd_mo_c].[CountryID] ";
+				sqlCmdText += "WHERE [cpd].[CustomPageDataID] = @CustomPageDataID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@CustomPageDataID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cpd", "loadinternal", "notfound"), "CustomPageData could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				CustomPageDataTable cpdTable = new CustomPageDataTable(query);
+				CustomPageTable cpd_cpTable = (this.Depth > 0) ? new CustomPageTable(query) : null;
+				CountryTable cpd_cp_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				RouteTable cpd_cp_rTable = (this.Depth > 1) ? new RouteTable(query) : null;
+				PaymentProviderTable cpd_ppTable = (this.Depth > 0) ? new PaymentProviderTable(query) : null;
+				ServiceTable cpd_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable cpd_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable cpd_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable cpd_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable cpd_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable cpd_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable cpd_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable cpd_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable cpd_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable cpd_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable cpd_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable cpd_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				MobileOperatorTable cpd_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable cpd_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+
+        
+				Country cpd_cp_cObject = (this.Depth > 1) ? cpd_cp_cTable.CreateInstance() : null;
+				Route cpd_cp_rObject = (this.Depth > 1) ? cpd_cp_rTable.CreateInstance() : null;
+				CustomPage cpd_cpObject = (this.Depth > 0) ? cpd_cpTable.CreateInstance(cpd_cp_cObject, cpd_cp_rObject) : null;
+				PaymentProvider cpd_ppObject = (this.Depth > 0) ? cpd_ppTable.CreateInstance() : null;
+				Application cpd_s_aObject = (this.Depth > 1) ? cpd_s_aTable.CreateInstance() : null;
+				Product cpd_s_pObject = (this.Depth > 1) ? cpd_s_pTable.CreateInstance() : null;
+				Merchant cpd_s_mObject = (this.Depth > 1) ? cpd_s_mTable.CreateInstance() : null;
+				ServiceType cpd_s_stObject = (this.Depth > 1) ? cpd_s_stTable.CreateInstance() : null;
+				UserSessionType cpd_s_ustObject = (this.Depth > 1) ? cpd_s_ustTable.CreateInstance() : null;
+				Country cpd_s_cObject = (this.Depth > 1) ? cpd_s_cTable.CreateInstance() : null;
+				Language cpd_s_lObject = (this.Depth > 1) ? cpd_s_lTable.CreateInstance() : null;
+				AgeRating cpd_s_arObject = (this.Depth > 1) ? cpd_s_arTable.CreateInstance() : null;
+				ServiceConfiguration cpd_s_scObject = (this.Depth > 1) ? cpd_s_scTable.CreateInstance() : null;
+				BusinessModel cpd_s_bmObject = (this.Depth > 1) ? cpd_s_bmTable.CreateInstance() : null;
+				Template cpd_s_tObject = (this.Depth > 1) ? cpd_s_tTable.CreateInstance() : null;
+				Service cpd_sObject = (this.Depth > 0) ? cpd_sTable.CreateInstance(cpd_s_aObject, cpd_s_pObject, cpd_s_mObject, cpd_s_stObject, cpd_s_ustObject, cpd_s_cObject, cpd_s_lObject, cpd_s_arObject, cpd_s_scObject, cpd_s_bmObject, cpd_s_tObject) : null;
+				Country cpd_mo_cObject = (this.Depth > 1) ? cpd_mo_cTable.CreateInstance() : null;
+				MobileOperator cpd_moObject = (this.Depth > 0) ? cpd_moTable.CreateInstance(cpd_mo_cObject) : null;
+				CustomPageData cpdObject = cpdTable.CreateInstance(cpd_cpObject, cpd_ppObject, cpd_sObject, cpd_moObject);
+				sqlReader.Close();
+
+				return cpdObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cpd", "loadinternal", "exception"), "CustomPageData could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "CustomPageData", "Exception while loading CustomPageData object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public CustomPageData Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							CustomPageDataTable.GetColumnNames("[cpd]") + 
+							(this.Depth > 0 ? "," + CustomPageTable.GetColumnNames("[cpd_cp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[cpd_cp_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + RouteTable.GetColumnNames("[cpd_cp_r]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentProviderTable.GetColumnNames("[cpd_pp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[cpd_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[cpd_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[cpd_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[cpd_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[cpd_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[cpd_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[cpd_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[cpd_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[cpd_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[cpd_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[cpd_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[cpd_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[cpd_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[cpd_mo_c]") : string.Empty) +  
+					" FROM [core].[CustomPageData] AS [cpd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[CustomPage] AS [cpd_cp] ON [cpd].[CustomPageID] = [cpd_cp].[CustomPageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [cpd_cp_c] ON [cpd_cp].[CountryID] = [cpd_cp_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Route] AS [cpd_cp_r] ON [cpd_cp].[RouteID] = [cpd_cp_r].[RouteID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentProvider] AS [cpd_pp] ON [cpd].[PaymentProviderID] = [cpd_pp].[PaymentProviderID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [cpd_s] ON [cpd].[ServiceID] = [cpd_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [cpd_s_a] ON [cpd_s].[ApplicationID] = [cpd_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [cpd_s_p] ON [cpd_s].[ProductID] = [cpd_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [cpd_s_m] ON [cpd_s].[MerchantID] = [cpd_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [cpd_s_st] ON [cpd_s].[ServiceTypeID] = [cpd_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [cpd_s_ust] ON [cpd_s].[UserSessionTypeID] = [cpd_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [cpd_s_c] ON [cpd_s].[FallbackCountryID] = [cpd_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [cpd_s_l] ON [cpd_s].[FallbackLanguageID] = [cpd_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [cpd_s_ar] ON [cpd_s].[FallbackAgeRatingID] = [cpd_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [cpd_s_sc] ON [cpd_s].[ServiceConfigurationID] = [cpd_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [cpd_s_bm] ON [cpd_s].[BusinessModelID] = [cpd_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [cpd_s_t] ON [cpd_s].[TemplateID] = [cpd_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [cpd_mo] ON [cpd].[MobileOperatorID] = [cpd_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [cpd_mo_c] ON [cpd_mo].[CountryID] = [cpd_mo_c].[CountryID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cpd", "customload", "notfound"), "CustomPageData could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				CustomPageDataTable cpdTable = new CustomPageDataTable(query);
+				CustomPageTable cpd_cpTable = (this.Depth > 0) ? new CustomPageTable(query) : null;
+				CountryTable cpd_cp_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				RouteTable cpd_cp_rTable = (this.Depth > 1) ? new RouteTable(query) : null;
+				PaymentProviderTable cpd_ppTable = (this.Depth > 0) ? new PaymentProviderTable(query) : null;
+				ServiceTable cpd_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable cpd_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable cpd_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable cpd_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable cpd_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable cpd_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable cpd_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable cpd_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable cpd_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable cpd_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable cpd_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable cpd_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				MobileOperatorTable cpd_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable cpd_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+
+        
+				Country cpd_cp_cObject = (this.Depth > 1) ? cpd_cp_cTable.CreateInstance() : null;
+				Route cpd_cp_rObject = (this.Depth > 1) ? cpd_cp_rTable.CreateInstance() : null;
+				CustomPage cpd_cpObject = (this.Depth > 0) ? cpd_cpTable.CreateInstance(cpd_cp_cObject, cpd_cp_rObject) : null;
+				PaymentProvider cpd_ppObject = (this.Depth > 0) ? cpd_ppTable.CreateInstance() : null;
+				Application cpd_s_aObject = (this.Depth > 1) ? cpd_s_aTable.CreateInstance() : null;
+				Product cpd_s_pObject = (this.Depth > 1) ? cpd_s_pTable.CreateInstance() : null;
+				Merchant cpd_s_mObject = (this.Depth > 1) ? cpd_s_mTable.CreateInstance() : null;
+				ServiceType cpd_s_stObject = (this.Depth > 1) ? cpd_s_stTable.CreateInstance() : null;
+				UserSessionType cpd_s_ustObject = (this.Depth > 1) ? cpd_s_ustTable.CreateInstance() : null;
+				Country cpd_s_cObject = (this.Depth > 1) ? cpd_s_cTable.CreateInstance() : null;
+				Language cpd_s_lObject = (this.Depth > 1) ? cpd_s_lTable.CreateInstance() : null;
+				AgeRating cpd_s_arObject = (this.Depth > 1) ? cpd_s_arTable.CreateInstance() : null;
+				ServiceConfiguration cpd_s_scObject = (this.Depth > 1) ? cpd_s_scTable.CreateInstance() : null;
+				BusinessModel cpd_s_bmObject = (this.Depth > 1) ? cpd_s_bmTable.CreateInstance() : null;
+				Template cpd_s_tObject = (this.Depth > 1) ? cpd_s_tTable.CreateInstance() : null;
+				Service cpd_sObject = (this.Depth > 0) ? cpd_sTable.CreateInstance(cpd_s_aObject, cpd_s_pObject, cpd_s_mObject, cpd_s_stObject, cpd_s_ustObject, cpd_s_cObject, cpd_s_lObject, cpd_s_arObject, cpd_s_scObject, cpd_s_bmObject, cpd_s_tObject) : null;
+				Country cpd_mo_cObject = (this.Depth > 1) ? cpd_mo_cTable.CreateInstance() : null;
+				MobileOperator cpd_moObject = (this.Depth > 0) ? cpd_moTable.CreateInstance(cpd_mo_cObject) : null;
+				CustomPageData cpdObject = cpdTable.CreateInstance(cpd_cpObject, cpd_ppObject, cpd_sObject, cpd_moObject);
+				sqlReader.Close();
+
+				return cpdObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cpd", "customload", "exception"), "CustomPageData could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "CustomPageData", "Exception while loading (custom/single) CustomPageData object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<CustomPageData> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							CustomPageDataTable.GetColumnNames("[cpd]") + 
+							(this.Depth > 0 ? "," + CustomPageTable.GetColumnNames("[cpd_cp]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[cpd_cp_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + RouteTable.GetColumnNames("[cpd_cp_r]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentProviderTable.GetColumnNames("[cpd_pp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[cpd_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[cpd_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[cpd_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[cpd_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[cpd_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[cpd_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[cpd_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[cpd_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[cpd_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[cpd_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[cpd_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[cpd_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[cpd_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[cpd_mo_c]") : string.Empty) +  
+					" FROM [core].[CustomPageData] AS [cpd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[CustomPage] AS [cpd_cp] ON [cpd].[CustomPageID] = [cpd_cp].[CustomPageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [cpd_cp_c] ON [cpd_cp].[CountryID] = [cpd_cp_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Route] AS [cpd_cp_r] ON [cpd_cp].[RouteID] = [cpd_cp_r].[RouteID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[PaymentProvider] AS [cpd_pp] ON [cpd].[PaymentProviderID] = [cpd_pp].[PaymentProviderID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Service] AS [cpd_s] ON [cpd].[ServiceID] = [cpd_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Application] AS [cpd_s_a] ON [cpd_s].[ApplicationID] = [cpd_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Product] AS [cpd_s_p] ON [cpd_s].[ProductID] = [cpd_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Merchant] AS [cpd_s_m] ON [cpd_s].[MerchantID] = [cpd_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceType] AS [cpd_s_st] ON [cpd_s].[ServiceTypeID] = [cpd_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[UserSessionType] AS [cpd_s_ust] ON [cpd_s].[UserSessionTypeID] = [cpd_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [cpd_s_c] ON [cpd_s].[FallbackCountryID] = [cpd_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [cpd_s_l] ON [cpd_s].[FallbackLanguageID] = [cpd_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[AgeRating] AS [cpd_s_ar] ON [cpd_s].[FallbackAgeRatingID] = [cpd_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[ServiceConfiguration] AS [cpd_s_sc] ON [cpd_s].[ServiceConfigurationID] = [cpd_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[BusinessModel] AS [cpd_s_bm] ON [cpd_s].[BusinessModelID] = [cpd_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Template] AS [cpd_s_t] ON [cpd_s].[TemplateID] = [cpd_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[MobileOperator] AS [cpd_mo] ON [cpd].[MobileOperatorID] = [cpd_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [cpd_mo_c] ON [cpd_mo].[CountryID] = [cpd_mo_c].[CountryID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cpd", "customloadmany", "notfound"), "CustomPageData list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<CustomPageData>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				CustomPageDataTable cpdTable = new CustomPageDataTable(query);
+				CustomPageTable cpd_cpTable = (this.Depth > 0) ? new CustomPageTable(query) : null;
+				CountryTable cpd_cp_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				RouteTable cpd_cp_rTable = (this.Depth > 1) ? new RouteTable(query) : null;
+				PaymentProviderTable cpd_ppTable = (this.Depth > 0) ? new PaymentProviderTable(query) : null;
+				ServiceTable cpd_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable cpd_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable cpd_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable cpd_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable cpd_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable cpd_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable cpd_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable cpd_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable cpd_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable cpd_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable cpd_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable cpd_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				MobileOperatorTable cpd_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable cpd_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+
+        List<CustomPageData> result = new List<CustomPageData>();
+        do
+        {
+          
+					Country cpd_cp_cObject = (this.Depth > 1) ? cpd_cp_cTable.CreateInstance() : null;
+					Route cpd_cp_rObject = (this.Depth > 1) ? cpd_cp_rTable.CreateInstance() : null;
+					CustomPage cpd_cpObject = (this.Depth > 0) ? cpd_cpTable.CreateInstance(cpd_cp_cObject, cpd_cp_rObject) : null;
+					PaymentProvider cpd_ppObject = (this.Depth > 0) ? cpd_ppTable.CreateInstance() : null;
+					Application cpd_s_aObject = (this.Depth > 1) ? cpd_s_aTable.CreateInstance() : null;
+					Product cpd_s_pObject = (this.Depth > 1) ? cpd_s_pTable.CreateInstance() : null;
+					Merchant cpd_s_mObject = (this.Depth > 1) ? cpd_s_mTable.CreateInstance() : null;
+					ServiceType cpd_s_stObject = (this.Depth > 1) ? cpd_s_stTable.CreateInstance() : null;
+					UserSessionType cpd_s_ustObject = (this.Depth > 1) ? cpd_s_ustTable.CreateInstance() : null;
+					Country cpd_s_cObject = (this.Depth > 1) ? cpd_s_cTable.CreateInstance() : null;
+					Language cpd_s_lObject = (this.Depth > 1) ? cpd_s_lTable.CreateInstance() : null;
+					AgeRating cpd_s_arObject = (this.Depth > 1) ? cpd_s_arTable.CreateInstance() : null;
+					ServiceConfiguration cpd_s_scObject = (this.Depth > 1) ? cpd_s_scTable.CreateInstance() : null;
+					BusinessModel cpd_s_bmObject = (this.Depth > 1) ? cpd_s_bmTable.CreateInstance() : null;
+					Template cpd_s_tObject = (this.Depth > 1) ? cpd_s_tTable.CreateInstance() : null;
+					Service cpd_sObject = (this.Depth > 0) ? cpd_sTable.CreateInstance(cpd_s_aObject, cpd_s_pObject, cpd_s_mObject, cpd_s_stObject, cpd_s_ustObject, cpd_s_cObject, cpd_s_lObject, cpd_s_arObject, cpd_s_scObject, cpd_s_bmObject, cpd_s_tObject) : null;
+					Country cpd_mo_cObject = (this.Depth > 1) ? cpd_mo_cTable.CreateInstance() : null;
+					MobileOperator cpd_moObject = (this.Depth > 0) ? cpd_moTable.CreateInstance(cpd_mo_cObject) : null;
+					CustomPageData cpdObject = (this.Depth > -1) ? cpdTable.CreateInstance(cpd_cpObject, cpd_ppObject, cpd_sObject, cpd_moObject) : null;
+					result.Add(cpdObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cpd", "customloadmany", "exception"), "CustomPageData list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "CustomPageData", "Exception while loading (custom/many) CustomPageData object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, CustomPageData data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[CustomPageData] ([CustomPageID],[PaymentProviderID],[ServiceID],[MobileOperatorID],[IsPlainText],[UseLayout],[UsePredefinedDiv],[Title],[Data]) VALUES(@CustomPageID,@PaymentProviderID,@ServiceID,@MobileOperatorID,@IsPlainText,@UseLayout,@UsePredefinedDiv,@Title,@Data); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@CustomPageID", data.CustomPage.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentProviderID", data.PaymentProvider == null ? DBNull.Value : (object)data.PaymentProvider.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service == null ? DBNull.Value : (object)data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@MobileOperatorID", data.MobileOperator == null ? DBNull.Value : (object)data.MobileOperator.ID);
+				sqlCmd.Parameters.AddWithValue("@IsPlainText", data.IsPlainText.HasValue ? (object)data.IsPlainText.Value : DBNull.Value).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@UseLayout", data.UseLayout.HasValue ? (object)data.UseLayout.Value : DBNull.Value).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@UsePredefinedDiv", data.UsePredefinedDiv.HasValue ? (object)data.UsePredefinedDiv.Value : DBNull.Value).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Title", data.Title).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Data", data.Data).SqlDbType = SqlDbType.NText;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cpd", "insert", "noprimarykey"), "CustomPageData could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "CustomPageData", "Exception while inserting CustomPageData object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cpd", "insert", "exception"), "CustomPageData could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "CustomPageData", "Exception while inserting CustomPageData object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, CustomPageData data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[CustomPageData] SET " +
+												"[CustomPageID] = @CustomPageID, " + 
+												"[PaymentProviderID] = @PaymentProviderID, " + 
+												"[ServiceID] = @ServiceID, " + 
+												"[MobileOperatorID] = @MobileOperatorID, " + 
+												"[IsPlainText] = @IsPlainText, " + 
+												"[UseLayout] = @UseLayout, " + 
+												"[UsePredefinedDiv] = @UsePredefinedDiv, " + 
+												"[Title] = @Title, " + 
+												"[Data] = @Data, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [CustomPageDataID] = @CustomPageDataID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@CustomPageID", data.CustomPage.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentProviderID", data.PaymentProvider == null ? DBNull.Value : (object)data.PaymentProvider.ID);
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service == null ? DBNull.Value : (object)data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@MobileOperatorID", data.MobileOperator == null ? DBNull.Value : (object)data.MobileOperator.ID);
+				sqlCmd.Parameters.AddWithValue("@IsPlainText", data.IsPlainText.HasValue ? (object)data.IsPlainText.Value : DBNull.Value).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@UseLayout", data.UseLayout.HasValue ? (object)data.UseLayout.Value : DBNull.Value).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@UsePredefinedDiv", data.UsePredefinedDiv.HasValue ? (object)data.UsePredefinedDiv.Value : DBNull.Value).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Title", data.Title).SqlDbType = SqlDbType.NVarChar;
+				sqlCmd.Parameters.AddWithValue("@Data", data.Data).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@CustomPageDataID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cpd", "update", "norecord"), "CustomPageData could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "CustomPageData", "Exception while updating CustomPageData object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cpd", "update", "morerecords"), "CustomPageData was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "CustomPageData", "Exception while updating CustomPageData object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cpd", "update", "exception"), "CustomPageData could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "CustomPageData", "Exception while updating CustomPageData object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, CustomPageData data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[CustomPageData] WHERE CustomPageDataID = @CustomPageDataID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@CustomPageDataID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cpd", "delete", "norecord"), "CustomPageData could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "CustomPageData", "Exception while deleting CustomPageData object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("cpd", "delete", "exception"), "CustomPageData could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "CustomPageData", "Exception while deleting CustomPageData object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

@@ -1,0 +1,288 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.Merchant.Helpers;
+using MobilePaywall.Merchant.Models;
+using Senti.Data;
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Merchant.Controllers
+{
+  public class QualityAssuranceController : PaywallController
+  {
+    // GET: QualityAssurance
+    public ActionResult Index()
+    {
+      return View();    
+    }
+
+    public ActionResult Report(int id)
+    {
+      IServiceManager sManager = Service.CreateManager();
+      Service service = sManager.Load(id);
+
+      if (service == null)
+      {
+        ViewBag.Message = "Service with specified ID does not exist.";
+        return View("~/Views/Shared/Template/Error.cshtml");
+      }
+
+      QualityAssuranceModel qaModel = new QualityAssuranceModel(service, new List<MobileOperator>(), string.Empty);
+      
+      return View(qaModel);
+    }
+
+    public ActionResult ReportEditor(int? id)
+    {
+      QualityAssuranceModel qaModel = new QualityAssuranceModel();
+      
+      if (id.HasValue)
+      {
+        IQualityAssuranceReportManager qarManager = QualityAssuranceReport.CreateManager();
+        QualityAssuranceReport report = qarManager.Load(id.Value);
+
+        if (PaywallHttpContext.Current.ClientSession.Client.Guid != report.Creator.Guid)
+        {
+          ViewBag.Title = "Error";
+          ViewBag.MessageText = "You don't have permission to edit this report.";
+          ViewBag.BtnName1 = "Back";
+          ViewBag.BtnHref1 = "/qa";
+          return View("~/Views/Shared/Template/Notification.cshtml");
+        }
+
+        qaModel = new QualityAssuranceModel(report);
+      }
+      return View(qaModel);
+    }
+
+    [HttpPost]
+    public ActionResult SaveReport(QualityAssuranceModel qaModel)
+    {
+      //check this
+      if (!ModelState.IsValid)
+      {
+        var errors = ModelState.Values.SelectMany(v => v.Errors);
+
+        ViewBag.Title = "Error";
+        ViewBag.MessageText = "Some error occurred."; //TODO: what error
+        return View("~/Views/Shared/Template/Notification.cshtml");
+      }
+
+      if (qaModel.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.QualityAssuranceReportID != null && qaModel.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.QualityAssuranceReportID != -1)
+      {
+        qaModel.Update();
+        ViewBag.MessageText = "Report updated successfully.";
+      }
+      else
+      {
+        qaModel.Insert();
+        ViewBag.MessageText = "Report uploaded successfully.";
+      }
+      ViewBag.Title = "Success";
+      ViewBag.BtnName1 = "View";
+      ViewBag.BtnHref1 = "/qa/report/" + qaModel.QualityAssuranceReportScreenshotMaps[0].QualityAssuranceReportModel.ServiceModel.ServiceID; //when report viewing by operator and date is made, change this url to that
+      ViewBag.BtnName2 = "Add Another Report";
+      ViewBag.BtnHref2 = "/qa/report-editor";
+      return View("~/Views/Shared/Template/Notification.cshtml");
+    }
+
+    [HttpPost]
+    public PartialViewResult Table(string services, string providers, string countries, string operators)
+    {
+      Client client = PaywallHttpContext.Current.ClientSession.Client;
+      Dictionary<int, Service> allowedServices = client.AllowedServices;
+
+      List<QualityAssuranceReportScreenshotMap> maps = new List<QualityAssuranceReportScreenshotMap>();
+      List<string> filterByService = null;
+      List<string> filterByProvider = null;
+      List<string> filterByCountry= null;
+      List<string> filterByOperator = null;
+      
+      try
+      {
+        filterByService = services != null && !string.IsNullOrEmpty(services) ? services.Split(',').ToList() : new List<string>();
+        filterByProvider = providers != null && !string.IsNullOrEmpty(providers) ? providers.Split(',').ToList() : new List<string>();
+        filterByCountry = countries != null && !string.IsNullOrEmpty(countries) ? countries.Split(',').ToList() : new List<string>();
+        filterByOperator = operators != null && !string.IsNullOrEmpty(operators) ? operators.Split(',').ToList() : new List<string>();        
+      }
+      catch
+      {
+        return null;
+      }
+
+      IQualityAssuranceReportManager qarManager = QualityAssuranceReport.CreateManager();
+      List<QualityAssuranceReport> reports = (from qar in qarManager.Load()
+                                              where allowedServices.Values.Contains(qar.Service)
+                                              orderby qar.Tested descending
+                                              select qar).ToList();
+
+      if (filterByService.Count != 0)
+      {
+        reports = (from report in reports where filterByService.Contains(report.Service.ID.ToString()) select report).ToList();
+      }
+
+      if (filterByProvider.Count != 0)
+      {
+        reports = (from report in reports where filterByProvider.Contains(report.PaymentProvider.ID.ToString()) select report).ToList();
+      }
+
+      if (filterByCountry.Count != 0)
+      {
+        reports = (from report in reports where filterByCountry.Contains(report.MobileOperator.Country.ID.ToString()) select report).ToList();
+      }
+
+      if (filterByOperator.Count != 0)
+      {
+        reports = (from report in reports where filterByOperator.Contains(report.MobileOperator.ID.ToString()) select report).ToList();
+      }
+
+      foreach (QualityAssuranceReport report in reports)
+      {
+        IQualityAssuranceReportScreenshotManager qarsManager = QualityAssuranceReportScreenshot.CreateManager();
+        List<QualityAssuranceReportScreenshot> screenshots = (from qars in qarsManager.Load(report) select qars).ToList();
+        List<QualityAssuranceReportScreenshotModel> screenshotModels = new List<QualityAssuranceReportScreenshotModel>();
+
+        foreach (QualityAssuranceReportScreenshot screenshot in screenshots)
+        {
+          QualityAssuranceReportScreenshotModel scrModel = new QualityAssuranceReportScreenshotModel();
+          scrModel.QualityAssuranceReportScreenshotID = screenshot.ID;
+
+          screenshotModels.Add(scrModel);
+        }
+        
+        QualityAssuranceReportScreenshotMap qaMap = new QualityAssuranceReportScreenshotMap();
+        qaMap.QualityAssuranceReportModel = new QualityAssuranceReportModel();
+        qaMap.QualityAssuranceReportModel.QualityAssuranceReportID = report.ID;
+        qaMap.QualityAssuranceReportScreenshotModels = screenshotModels;
+
+        maps.Add(qaMap);
+      }
+
+      return PartialView("_Table", maps);
+    }
+
+    public JsonResult GetOperators(string id)
+    {
+      List<SelectListItem> operators = new List<SelectListItem>();
+      object selected = null;
+      if (!string.IsNullOrEmpty(id))
+      {        
+        MerchantPaywallRuntime runtime = PaywallHttpContext.Current.Runtime as MerchantPaywallRuntime;
+        IService service = (from s in runtime.Services where s.ServiceData.ID == Int32.Parse(id) select s).FirstOrDefault();
+
+        int countryId = service.ServiceData.FallbackCountry != null ? service.ServiceData.FallbackCountry.ID : -1;
+        operators = MerchantHelper.OperatorsFromSpecificCountry(countryId);
+      }
+
+      return Json(new SelectList(operators, "Value", "Text", "Group.Name", selected));
+    }
+
+    public JsonResult UpdateFilters(string serviceIds, string providerIds, string countryIds, string operatorIds)
+    {
+      List<List<SelectListItem>> results = new List<List<SelectListItem>>();
+
+      IServiceManager sManager = Service.CreateManager();
+      List<Service> services = sManager.Load();
+      IPaymentProviderManager pPManager = PaymentProvider.CreateManager();
+      List<PaymentProvider> providers = pPManager.Load();
+      ICountryManager cManager = Country.CreateManager();
+      List<Country> countries = cManager.Load();
+      IMobileOperatorManager mOManager = MobileOperator.CreateManager();
+      List<MobileOperator> operators = mOManager.Load();
+      
+      List<string> selectedServices = null;
+      List<string> selectedProviders = null;
+      List<string> selectedCountries = null;
+      List<string> selectedOperators = null;
+
+      try
+      {
+        selectedServices = serviceIds != null && !string.IsNullOrEmpty(serviceIds) ? serviceIds.Split(',').ToList() : new List<string>();
+        selectedProviders = providerIds != null && !string.IsNullOrEmpty(providerIds) ? providerIds.Split(',').ToList() : new List<string>();
+        selectedCountries = countryIds != null && !string.IsNullOrEmpty(countryIds) ? countryIds.Split(',').ToList() : new List<string>();
+        selectedOperators = operatorIds != null && !string.IsNullOrEmpty(operatorIds) ? operatorIds.Split(',').ToList() : new List<string>();
+      }
+      catch
+      {
+        return null;
+      }
+
+      if (selectedServices.Count != 0)
+      {
+        List<Country> fallbackCountries = (from service in services where selectedServices.Contains(service.ID.ToString()) select service.FallbackCountry).ToList();
+        IServiceOfferManager oManager = ServiceOffer.CreateManager();
+        List<int> filteredProviders = (from o in oManager.Load() where selectedServices.Contains(o.Service.ID.ToString()) select o.PaymentConfiguration.PaymentProvider.ID).ToList();
+
+        providers = (from pp in providers where filteredProviders.Contains(pp.ID) || selectedProviders.Contains(pp.ID.ToString()) select pp).ToList();                        
+        countries = (from c in countries where fallbackCountries.Contains(c) || selectedCountries.Contains(c.ID.ToString()) select c).ToList();
+        operators = (from op in operators where fallbackCountries.Contains(op.Country) || selectedOperators.Contains(op.ID.ToString()) select op).ToList();
+      }
+
+      if (selectedCountries.Count != 0)
+      {
+        operators = (from op in operators where selectedCountries.Contains(op.Country.ID.ToString()) || selectedOperators.Contains(op.ID.ToString()) select op).ToList();
+        services = (from s in services 
+                    where s.FallbackCountry != null && selectedCountries.Contains(s.FallbackCountry.ID.ToString()) || selectedServices.Contains(s.ID.ToString())
+                    select s).ToList();
+      }      
+      
+      results.Add((from s in services where s.FallbackCountry != null orderby s.FallbackCountry.ID select new SelectListItem() { Text = s.Name, Value = s.ID.ToString(), Group = new SelectListGroup() { Name = s.FallbackCountry != null ? s.FallbackCountry.GlobalName : "Unknown" }, Selected = (selectedServices.Contains(s.ID.ToString()) ? true : false) }).ToList());
+      results.Add((from pp in providers select new SelectListItem() { Text = pp.Name, Value = pp.ID.ToString(), Selected = (selectedProviders.Contains(pp.ID.ToString()) ? true : false) }).ToList());
+      results.Add((from c in countries select new SelectListItem() { Text = c.GlobalName, Value = c.ID.ToString(), Selected = (selectedCountries.Contains(c.ID.ToString()) ? true : false) }).ToList());
+      results.Add((from mo in operators orderby mo.Country.ID select new SelectListItem() { Text = mo.Name, Value = mo.ID.ToString(), Group = new SelectListGroup() { Name = mo.Country.GlobalName }, Selected = (selectedOperators.Contains(mo.ID.ToString()) ? true : false) }).ToList());
+
+      return Json(results);
+    }
+
+    [HttpPost]
+    public PartialViewResult ReportsList(string view)
+    {
+      List<string> filterByOperator = null;
+      string filterByDate = string.Empty;
+      int serviceId = -1;
+
+      QualityAssuranceModel qaModel;
+
+      List<QualityAssuranceReportScreenshotMap> maps = new List<QualityAssuranceReportScreenshotMap>();
+
+      try
+      {
+        filterByOperator = this.Request.Form["rqsOperators"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsOperators"]) ? this.Request.Form["rqsOperators"].Split(',').ToList() : new List<string>();
+        filterByDate = this.Request.Form["rqsDate"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsDate"]) ? this.Request.Form["rqsDate"] : "";
+        serviceId = this.Request.Form["rqsService"] != null && !string.IsNullOrEmpty(this.Request.Form["rqsService"]) ? Int32.Parse(this.Request.Form["rqsService"]) : -1;
+      }
+      catch
+      {
+        return null;
+      }
+
+      IServiceManager sManager = Service.CreateManager();
+      Service service = sManager.Load(serviceId);
+
+      IMobileOperatorManager mOManager = MobileOperator.CreateManager();
+      List<MobileOperator> mobileOperators = new List<MobileOperator>();
+
+      foreach (string mo in filterByOperator) {
+        MobileOperator mobileOperator = mOManager.Load(Int32.Parse(mo));
+        mobileOperators.Add(mobileOperator);
+      }
+
+      //if (filterByOperator.Count > 0 || !string.IsNullOrEmpty(filterByDate))
+      //{
+      //  qaModel = new QualityAssuranceModel(service, mobileOperators, filterByDate);
+      //}
+      //else
+      //{
+      //  qaModel = new QualityAssuranceModel(service);
+      //}
+
+      qaModel = new QualityAssuranceModel(service, mobileOperators, filterByDate);
+
+      return PartialView("_ReportsList", qaModel.QualityAssuranceReportScreenshotMaps);
+    }
+
+  }
+}

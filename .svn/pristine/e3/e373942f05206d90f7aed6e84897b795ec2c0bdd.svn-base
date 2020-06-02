@@ -1,0 +1,581 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(QualityAssuranceReport))] 
+  public partial class QualityAssuranceReportManager : MobilePaywall.Data.Sql.SqlManagerBase<QualityAssuranceReport>, IQualityAssuranceReportManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override QualityAssuranceReport LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							QualityAssuranceReportTable.GetColumnNames("[qar]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[qar_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[qar_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[qar_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[qar_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[qar_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[qar_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[qar_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[qar_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[qar_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[qar_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[qar_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[qar_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentProviderTable.GetColumnNames("[qar_pp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[qar_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[qar_mo_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ClientTable.GetColumnNames("[qar_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ClientTypeTable.GetColumnNames("[qar_c_ct]") : string.Empty) + 
+					" FROM [merchant].[QualityAssuranceReport] AS [qar] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [qar_s] ON [qar].[ServiceID] = [qar_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [qar_s_a] ON [qar_s].[ApplicationID] = [qar_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [qar_s_p] ON [qar_s].[ProductID] = [qar_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [qar_s_m] ON [qar_s].[MerchantID] = [qar_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [qar_s_st] ON [qar_s].[ServiceTypeID] = [qar_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [qar_s_ust] ON [qar_s].[UserSessionTypeID] = [qar_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [qar_s_c] ON [qar_s].[FallbackCountryID] = [qar_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [qar_s_l] ON [qar_s].[FallbackLanguageID] = [qar_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [qar_s_ar] ON [qar_s].[FallbackAgeRatingID] = [qar_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [qar_s_sc] ON [qar_s].[ServiceConfigurationID] = [qar_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [qar_s_bm] ON [qar_s].[BusinessModelID] = [qar_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [qar_s_t] ON [qar_s].[TemplateID] = [qar_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentProvider] AS [qar_pp] ON [qar].[PaymentProviderID] = [qar_pp].[PaymentProviderID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[MobileOperator] AS [qar_mo] ON [qar].[MobileOperatorID] = [qar_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [qar_mo_c] ON [qar_mo].[CountryID] = [qar_mo_c].[CountryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Client] AS [qar_c] ON [qar].[CreatorID] = [qar_c].[ClientID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ClientType] AS [qar_c_ct] ON [qar_c].[ClientTypeID] = [qar_c_ct].[ClientTypeID] ";
+				sqlCmdText += "WHERE [qar].[QualityAssuranceReportID] = @QualityAssuranceReportID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@QualityAssuranceReportID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qar", "loadinternal", "notfound"), "QualityAssuranceReport could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				QualityAssuranceReportTable qarTable = new QualityAssuranceReportTable(query);
+				ServiceTable qar_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable qar_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable qar_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable qar_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable qar_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable qar_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable qar_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable qar_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable qar_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable qar_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable qar_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable qar_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				PaymentProviderTable qar_ppTable = (this.Depth > 0) ? new PaymentProviderTable(query) : null;
+				MobileOperatorTable qar_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable qar_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				ClientTable qar_cTable = (this.Depth > 0) ? new ClientTable(query) : null;
+				ClientTypeTable qar_c_ctTable = (this.Depth > 1) ? new ClientTypeTable(query) : null;
+
+        
+				Application qar_s_aObject = (this.Depth > 1) ? qar_s_aTable.CreateInstance() : null;
+				Product qar_s_pObject = (this.Depth > 1) ? qar_s_pTable.CreateInstance() : null;
+				Merchant qar_s_mObject = (this.Depth > 1) ? qar_s_mTable.CreateInstance() : null;
+				ServiceType qar_s_stObject = (this.Depth > 1) ? qar_s_stTable.CreateInstance() : null;
+				UserSessionType qar_s_ustObject = (this.Depth > 1) ? qar_s_ustTable.CreateInstance() : null;
+				Country qar_s_cObject = (this.Depth > 1) ? qar_s_cTable.CreateInstance() : null;
+				Language qar_s_lObject = (this.Depth > 1) ? qar_s_lTable.CreateInstance() : null;
+				AgeRating qar_s_arObject = (this.Depth > 1) ? qar_s_arTable.CreateInstance() : null;
+				ServiceConfiguration qar_s_scObject = (this.Depth > 1) ? qar_s_scTable.CreateInstance() : null;
+				BusinessModel qar_s_bmObject = (this.Depth > 1) ? qar_s_bmTable.CreateInstance() : null;
+				Template qar_s_tObject = (this.Depth > 1) ? qar_s_tTable.CreateInstance() : null;
+				Service qar_sObject = (this.Depth > 0) ? qar_sTable.CreateInstance(qar_s_aObject, qar_s_pObject, qar_s_mObject, qar_s_stObject, qar_s_ustObject, qar_s_cObject, qar_s_lObject, qar_s_arObject, qar_s_scObject, qar_s_bmObject, qar_s_tObject) : null;
+				PaymentProvider qar_ppObject = (this.Depth > 0) ? qar_ppTable.CreateInstance() : null;
+				Country qar_mo_cObject = (this.Depth > 1) ? qar_mo_cTable.CreateInstance() : null;
+				MobileOperator qar_moObject = (this.Depth > 0) ? qar_moTable.CreateInstance(qar_mo_cObject) : null;
+				ClientType qar_c_ctObject = (this.Depth > 1) ? qar_c_ctTable.CreateInstance() : null;
+				Client qar_cObject = (this.Depth > 0) ? qar_cTable.CreateInstance(qar_c_ctObject) : null;
+				QualityAssuranceReport qarObject = qarTable.CreateInstance(qar_sObject, qar_ppObject, qar_moObject, qar_cObject);
+				sqlReader.Close();
+
+				return qarObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qar", "loadinternal", "exception"), "QualityAssuranceReport could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "QualityAssuranceReport", "Exception while loading QualityAssuranceReport object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public QualityAssuranceReport Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							QualityAssuranceReportTable.GetColumnNames("[qar]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[qar_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[qar_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[qar_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[qar_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[qar_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[qar_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[qar_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[qar_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[qar_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[qar_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[qar_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[qar_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentProviderTable.GetColumnNames("[qar_pp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[qar_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[qar_mo_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ClientTable.GetColumnNames("[qar_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ClientTypeTable.GetColumnNames("[qar_c_ct]") : string.Empty) +  
+					" FROM [merchant].[QualityAssuranceReport] AS [qar] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [qar_s] ON [qar].[ServiceID] = [qar_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [qar_s_a] ON [qar_s].[ApplicationID] = [qar_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [qar_s_p] ON [qar_s].[ProductID] = [qar_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [qar_s_m] ON [qar_s].[MerchantID] = [qar_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [qar_s_st] ON [qar_s].[ServiceTypeID] = [qar_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [qar_s_ust] ON [qar_s].[UserSessionTypeID] = [qar_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [qar_s_c] ON [qar_s].[FallbackCountryID] = [qar_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [qar_s_l] ON [qar_s].[FallbackLanguageID] = [qar_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [qar_s_ar] ON [qar_s].[FallbackAgeRatingID] = [qar_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [qar_s_sc] ON [qar_s].[ServiceConfigurationID] = [qar_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [qar_s_bm] ON [qar_s].[BusinessModelID] = [qar_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [qar_s_t] ON [qar_s].[TemplateID] = [qar_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentProvider] AS [qar_pp] ON [qar].[PaymentProviderID] = [qar_pp].[PaymentProviderID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[MobileOperator] AS [qar_mo] ON [qar].[MobileOperatorID] = [qar_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [qar_mo_c] ON [qar_mo].[CountryID] = [qar_mo_c].[CountryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Client] AS [qar_c] ON [qar].[CreatorID] = [qar_c].[ClientID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ClientType] AS [qar_c_ct] ON [qar_c].[ClientTypeID] = [qar_c_ct].[ClientTypeID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qar", "customload", "notfound"), "QualityAssuranceReport could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				QualityAssuranceReportTable qarTable = new QualityAssuranceReportTable(query);
+				ServiceTable qar_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable qar_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable qar_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable qar_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable qar_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable qar_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable qar_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable qar_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable qar_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable qar_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable qar_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable qar_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				PaymentProviderTable qar_ppTable = (this.Depth > 0) ? new PaymentProviderTable(query) : null;
+				MobileOperatorTable qar_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable qar_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				ClientTable qar_cTable = (this.Depth > 0) ? new ClientTable(query) : null;
+				ClientTypeTable qar_c_ctTable = (this.Depth > 1) ? new ClientTypeTable(query) : null;
+
+        
+				Application qar_s_aObject = (this.Depth > 1) ? qar_s_aTable.CreateInstance() : null;
+				Product qar_s_pObject = (this.Depth > 1) ? qar_s_pTable.CreateInstance() : null;
+				Merchant qar_s_mObject = (this.Depth > 1) ? qar_s_mTable.CreateInstance() : null;
+				ServiceType qar_s_stObject = (this.Depth > 1) ? qar_s_stTable.CreateInstance() : null;
+				UserSessionType qar_s_ustObject = (this.Depth > 1) ? qar_s_ustTable.CreateInstance() : null;
+				Country qar_s_cObject = (this.Depth > 1) ? qar_s_cTable.CreateInstance() : null;
+				Language qar_s_lObject = (this.Depth > 1) ? qar_s_lTable.CreateInstance() : null;
+				AgeRating qar_s_arObject = (this.Depth > 1) ? qar_s_arTable.CreateInstance() : null;
+				ServiceConfiguration qar_s_scObject = (this.Depth > 1) ? qar_s_scTable.CreateInstance() : null;
+				BusinessModel qar_s_bmObject = (this.Depth > 1) ? qar_s_bmTable.CreateInstance() : null;
+				Template qar_s_tObject = (this.Depth > 1) ? qar_s_tTable.CreateInstance() : null;
+				Service qar_sObject = (this.Depth > 0) ? qar_sTable.CreateInstance(qar_s_aObject, qar_s_pObject, qar_s_mObject, qar_s_stObject, qar_s_ustObject, qar_s_cObject, qar_s_lObject, qar_s_arObject, qar_s_scObject, qar_s_bmObject, qar_s_tObject) : null;
+				PaymentProvider qar_ppObject = (this.Depth > 0) ? qar_ppTable.CreateInstance() : null;
+				Country qar_mo_cObject = (this.Depth > 1) ? qar_mo_cTable.CreateInstance() : null;
+				MobileOperator qar_moObject = (this.Depth > 0) ? qar_moTable.CreateInstance(qar_mo_cObject) : null;
+				ClientType qar_c_ctObject = (this.Depth > 1) ? qar_c_ctTable.CreateInstance() : null;
+				Client qar_cObject = (this.Depth > 0) ? qar_cTable.CreateInstance(qar_c_ctObject) : null;
+				QualityAssuranceReport qarObject = qarTable.CreateInstance(qar_sObject, qar_ppObject, qar_moObject, qar_cObject);
+				sqlReader.Close();
+
+				return qarObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qar", "customload", "exception"), "QualityAssuranceReport could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "QualityAssuranceReport", "Exception while loading (custom/single) QualityAssuranceReport object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<QualityAssuranceReport> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							QualityAssuranceReportTable.GetColumnNames("[qar]") + 
+							(this.Depth > 0 ? "," + ServiceTable.GetColumnNames("[qar_s]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ApplicationTable.GetColumnNames("[qar_s_a]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ProductTable.GetColumnNames("[qar_s_p]") : string.Empty) + 
+							(this.Depth > 1 ? "," + MerchantTable.GetColumnNames("[qar_s_m]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceTypeTable.GetColumnNames("[qar_s_st]") : string.Empty) + 
+							(this.Depth > 1 ? "," + UserSessionTypeTable.GetColumnNames("[qar_s_ust]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[qar_s_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + LanguageTable.GetColumnNames("[qar_s_l]") : string.Empty) + 
+							(this.Depth > 1 ? "," + AgeRatingTable.GetColumnNames("[qar_s_ar]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ServiceConfigurationTable.GetColumnNames("[qar_s_sc]") : string.Empty) + 
+							(this.Depth > 1 ? "," + BusinessModelTable.GetColumnNames("[qar_s_bm]") : string.Empty) + 
+							(this.Depth > 1 ? "," + TemplateTable.GetColumnNames("[qar_s_t]") : string.Empty) + 
+							(this.Depth > 0 ? "," + PaymentProviderTable.GetColumnNames("[qar_pp]") : string.Empty) + 
+							(this.Depth > 0 ? "," + MobileOperatorTable.GetColumnNames("[qar_mo]") : string.Empty) + 
+							(this.Depth > 1 ? "," + CountryTable.GetColumnNames("[qar_mo_c]") : string.Empty) + 
+							(this.Depth > 0 ? "," + ClientTable.GetColumnNames("[qar_c]") : string.Empty) + 
+							(this.Depth > 1 ? "," + ClientTypeTable.GetColumnNames("[qar_c_ct]") : string.Empty) +  
+					" FROM [merchant].[QualityAssuranceReport] AS [qar] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Service] AS [qar_s] ON [qar].[ServiceID] = [qar_s].[ServiceID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Application] AS [qar_s_a] ON [qar_s].[ApplicationID] = [qar_s_a].[ApplicationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Product] AS [qar_s_p] ON [qar_s].[ProductID] = [qar_s_p].[ProductID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Merchant] AS [qar_s_m] ON [qar_s].[MerchantID] = [qar_s_m].[MerchantID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceType] AS [qar_s_st] ON [qar_s].[ServiceTypeID] = [qar_s_st].[ServiceTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[UserSessionType] AS [qar_s_ust] ON [qar_s].[UserSessionTypeID] = [qar_s_ust].[UserSessionTypeID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Country] AS [qar_s_c] ON [qar_s].[FallbackCountryID] = [qar_s_c].[CountryID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "LEFT OUTER  JOIN [core].[Language] AS [qar_s_l] ON [qar_s].[FallbackLanguageID] = [qar_s_l].[LanguageID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[AgeRating] AS [qar_s_ar] ON [qar_s].[FallbackAgeRatingID] = [qar_s_ar].[AgeRatingID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ServiceConfiguration] AS [qar_s_sc] ON [qar_s].[ServiceConfigurationID] = [qar_s_sc].[ServiceConfigurationID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[BusinessModel] AS [qar_s_bm] ON [qar_s].[BusinessModelID] = [qar_s_bm].[BusinessModelID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Template] AS [qar_s_t] ON [qar_s].[TemplateID] = [qar_s_t].[TemplateID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[PaymentProvider] AS [qar_pp] ON [qar].[PaymentProviderID] = [qar_pp].[PaymentProviderID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[MobileOperator] AS [qar_mo] ON [qar].[MobileOperatorID] = [qar_mo].[MobileOperatorID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[Country] AS [qar_mo_c] ON [qar_mo].[CountryID] = [qar_mo_c].[CountryID] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Client] AS [qar_c] ON [qar].[CreatorID] = [qar_c].[ClientID] ";
+				if (this.Depth > 1)
+				  sqlCmdText += "INNER  JOIN [core].[ClientType] AS [qar_c_ct] ON [qar_c].[ClientTypeID] = [qar_c_ct].[ClientTypeID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qar", "customloadmany", "notfound"), "QualityAssuranceReport list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<QualityAssuranceReport>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				QualityAssuranceReportTable qarTable = new QualityAssuranceReportTable(query);
+				ServiceTable qar_sTable = (this.Depth > 0) ? new ServiceTable(query) : null;
+				ApplicationTable qar_s_aTable = (this.Depth > 1) ? new ApplicationTable(query) : null;
+				ProductTable qar_s_pTable = (this.Depth > 1) ? new ProductTable(query) : null;
+				MerchantTable qar_s_mTable = (this.Depth > 1) ? new MerchantTable(query) : null;
+				ServiceTypeTable qar_s_stTable = (this.Depth > 1) ? new ServiceTypeTable(query) : null;
+				UserSessionTypeTable qar_s_ustTable = (this.Depth > 1) ? new UserSessionTypeTable(query) : null;
+				CountryTable qar_s_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				LanguageTable qar_s_lTable = (this.Depth > 1) ? new LanguageTable(query) : null;
+				AgeRatingTable qar_s_arTable = (this.Depth > 1) ? new AgeRatingTable(query) : null;
+				ServiceConfigurationTable qar_s_scTable = (this.Depth > 1) ? new ServiceConfigurationTable(query) : null;
+				BusinessModelTable qar_s_bmTable = (this.Depth > 1) ? new BusinessModelTable(query) : null;
+				TemplateTable qar_s_tTable = (this.Depth > 1) ? new TemplateTable(query) : null;
+				PaymentProviderTable qar_ppTable = (this.Depth > 0) ? new PaymentProviderTable(query) : null;
+				MobileOperatorTable qar_moTable = (this.Depth > 0) ? new MobileOperatorTable(query) : null;
+				CountryTable qar_mo_cTable = (this.Depth > 1) ? new CountryTable(query) : null;
+				ClientTable qar_cTable = (this.Depth > 0) ? new ClientTable(query) : null;
+				ClientTypeTable qar_c_ctTable = (this.Depth > 1) ? new ClientTypeTable(query) : null;
+
+        List<QualityAssuranceReport> result = new List<QualityAssuranceReport>();
+        do
+        {
+          
+					Application qar_s_aObject = (this.Depth > 1) ? qar_s_aTable.CreateInstance() : null;
+					Product qar_s_pObject = (this.Depth > 1) ? qar_s_pTable.CreateInstance() : null;
+					Merchant qar_s_mObject = (this.Depth > 1) ? qar_s_mTable.CreateInstance() : null;
+					ServiceType qar_s_stObject = (this.Depth > 1) ? qar_s_stTable.CreateInstance() : null;
+					UserSessionType qar_s_ustObject = (this.Depth > 1) ? qar_s_ustTable.CreateInstance() : null;
+					Country qar_s_cObject = (this.Depth > 1) ? qar_s_cTable.CreateInstance() : null;
+					Language qar_s_lObject = (this.Depth > 1) ? qar_s_lTable.CreateInstance() : null;
+					AgeRating qar_s_arObject = (this.Depth > 1) ? qar_s_arTable.CreateInstance() : null;
+					ServiceConfiguration qar_s_scObject = (this.Depth > 1) ? qar_s_scTable.CreateInstance() : null;
+					BusinessModel qar_s_bmObject = (this.Depth > 1) ? qar_s_bmTable.CreateInstance() : null;
+					Template qar_s_tObject = (this.Depth > 1) ? qar_s_tTable.CreateInstance() : null;
+					Service qar_sObject = (this.Depth > 0) ? qar_sTable.CreateInstance(qar_s_aObject, qar_s_pObject, qar_s_mObject, qar_s_stObject, qar_s_ustObject, qar_s_cObject, qar_s_lObject, qar_s_arObject, qar_s_scObject, qar_s_bmObject, qar_s_tObject) : null;
+					PaymentProvider qar_ppObject = (this.Depth > 0) ? qar_ppTable.CreateInstance() : null;
+					Country qar_mo_cObject = (this.Depth > 1) ? qar_mo_cTable.CreateInstance() : null;
+					MobileOperator qar_moObject = (this.Depth > 0) ? qar_moTable.CreateInstance(qar_mo_cObject) : null;
+					ClientType qar_c_ctObject = (this.Depth > 1) ? qar_c_ctTable.CreateInstance() : null;
+					Client qar_cObject = (this.Depth > 0) ? qar_cTable.CreateInstance(qar_c_ctObject) : null;
+					QualityAssuranceReport qarObject = (this.Depth > -1) ? qarTable.CreateInstance(qar_sObject, qar_ppObject, qar_moObject, qar_cObject) : null;
+					result.Add(qarObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qar", "customloadmany", "exception"), "QualityAssuranceReport list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "QualityAssuranceReport", "Exception while loading (custom/many) QualityAssuranceReport object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, QualityAssuranceReport data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [merchant].[QualityAssuranceReport] ([ServiceID],[PaymentProviderID],[MobileOperatorID],[CreatorID],[Remark],[ReportUrl],[Tested],[HasError]) VALUES(@ServiceID,@PaymentProviderID,@MobileOperatorID,@CreatorID,@Remark,@ReportUrl,@Tested,@HasError); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentProviderID", data.PaymentProvider.ID);
+				sqlCmd.Parameters.AddWithValue("@MobileOperatorID", data.MobileOperator.ID);
+				sqlCmd.Parameters.AddWithValue("@CreatorID", data.Creator.ID);
+				sqlCmd.Parameters.AddWithValue("@Remark", !string.IsNullOrEmpty(data.Remark) ? (object)data.Remark : DBNull.Value).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@ReportUrl", !string.IsNullOrEmpty(data.ReportUrl) ? (object)data.ReportUrl : DBNull.Value).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@Tested", data.Tested).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@HasError", data.HasError).SqlDbType = SqlDbType.Bit;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qar", "insert", "noprimarykey"), "QualityAssuranceReport could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "QualityAssuranceReport", "Exception while inserting QualityAssuranceReport object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qar", "insert", "exception"), "QualityAssuranceReport could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "QualityAssuranceReport", "Exception while inserting QualityAssuranceReport object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, QualityAssuranceReport data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [merchant].[QualityAssuranceReport] SET " +
+												"[ServiceID] = @ServiceID, " + 
+												"[PaymentProviderID] = @PaymentProviderID, " + 
+												"[MobileOperatorID] = @MobileOperatorID, " + 
+												"[CreatorID] = @CreatorID, " + 
+												"[Remark] = @Remark, " + 
+												"[ReportUrl] = @ReportUrl, " + 
+												"[Tested] = @Tested, " + 
+												"[HasError] = @HasError, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [QualityAssuranceReportID] = @QualityAssuranceReportID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@ServiceID", data.Service.ID);
+				sqlCmd.Parameters.AddWithValue("@PaymentProviderID", data.PaymentProvider.ID);
+				sqlCmd.Parameters.AddWithValue("@MobileOperatorID", data.MobileOperator.ID);
+				sqlCmd.Parameters.AddWithValue("@CreatorID", data.Creator.ID);
+				sqlCmd.Parameters.AddWithValue("@Remark", !string.IsNullOrEmpty(data.Remark) ? (object)data.Remark : DBNull.Value).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@ReportUrl", !string.IsNullOrEmpty(data.ReportUrl) ? (object)data.ReportUrl : DBNull.Value).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@Tested", data.Tested).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@HasError", data.HasError).SqlDbType = SqlDbType.Bit;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@QualityAssuranceReportID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qar", "update", "norecord"), "QualityAssuranceReport could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "QualityAssuranceReport", "Exception while updating QualityAssuranceReport object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qar", "update", "morerecords"), "QualityAssuranceReport was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "QualityAssuranceReport", "Exception while updating QualityAssuranceReport object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qar", "update", "exception"), "QualityAssuranceReport could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "QualityAssuranceReport", "Exception while updating QualityAssuranceReport object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, QualityAssuranceReport data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [merchant].[QualityAssuranceReport] WHERE QualityAssuranceReportID = @QualityAssuranceReportID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@QualityAssuranceReportID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qar", "delete", "norecord"), "QualityAssuranceReport could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "QualityAssuranceReport", "Exception while deleting QualityAssuranceReport object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("qar", "delete", "exception"), "QualityAssuranceReport could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "QualityAssuranceReport", "Exception while deleting QualityAssuranceReport object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

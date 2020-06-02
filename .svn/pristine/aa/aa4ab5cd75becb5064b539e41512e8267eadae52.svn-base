@@ -1,0 +1,329 @@
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Diagnostics.Log;
+using Senti.Data;
+using Senti.Data.Sql;
+
+using MobilePaywall.Data;
+using MobilePaywall.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  [DataManager(typeof(VisualMediaDimensions))] 
+  public partial class VisualMediaDimensionsManager : MobilePaywall.Data.Sql.SqlManagerBase<VisualMediaDimensions>, IVisualMediaDimensionsManager
+  {
+    public override DatabaseType Type
+    {
+      get { return DatabaseType.MobilePaywall; }
+    }
+
+    protected override VisualMediaDimensions LoadInternal(ISqlConnectionInfo connection, int id)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT " + 
+							VisualMediaDimensionsTable.GetColumnNames("[vmd]") + 
+							(this.Depth > 0 ? "," + InstanceTable.GetColumnNames("[vmd_i]") : string.Empty) + 
+					" FROM [core].[VisualMediaDimensions] AS [vmd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [vmd_i] ON [vmd].[InstanceID] = [vmd_i].[InstanceID] ";
+				sqlCmdText += "WHERE [vmd].[VisualMediaDimensionsID] = @VisualMediaDimensionsID;";
+
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@VisualMediaDimensionsID", id);
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vmd", "loadinternal", "notfound"), "VisualMediaDimensions could not be loaded by id as it was not found.", sqlCmdText, this, connection, id);
+          if (this.Logger.IsWarnEnabled)
+            this.Logger.Warn(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				VisualMediaDimensionsTable vmdTable = new VisualMediaDimensionsTable(query);
+				InstanceTable vmd_iTable = (this.Depth > 0) ? new InstanceTable(query) : null;
+
+        
+				Instance vmd_iObject = (this.Depth > 0) ? vmd_iTable.CreateInstance() : null;
+				VisualMediaDimensions vmdObject = vmdTable.CreateInstance(vmd_iObject);
+				sqlReader.Close();
+
+				return vmdObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vmd", "loadinternal", "exception"), "VisualMediaDimensions could not be loaded by id. See exception for details.", sqlCmdText, ex, this, connection, id);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "VisualMediaDimensions", "Exception while loading VisualMediaDimensions object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public VisualMediaDimensions Load(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							VisualMediaDimensionsTable.GetColumnNames("[vmd]") + 
+							(this.Depth > 0 ? "," + InstanceTable.GetColumnNames("[vmd_i]") : string.Empty) +  
+					" FROM [core].[VisualMediaDimensions] AS [vmd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [vmd_i] ON [vmd].[InstanceID] = [vmd_i].[InstanceID] ";
+				
+
+        parameters.Top = 1;
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vmd", "customload", "notfound"), "VisualMediaDimensions could not be loaded using custom logic as it was not found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return null;
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				VisualMediaDimensionsTable vmdTable = new VisualMediaDimensionsTable(query);
+				InstanceTable vmd_iTable = (this.Depth > 0) ? new InstanceTable(query) : null;
+
+        
+				Instance vmd_iObject = (this.Depth > 0) ? vmd_iTable.CreateInstance() : null;
+				VisualMediaDimensions vmdObject = vmdTable.CreateInstance(vmd_iObject);
+				sqlReader.Close();
+
+				return vmdObject;
+
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vmd", "customload", "exception"), "VisualMediaDimensions could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "VisualMediaDimensions", "Exception while loading (custom/single) VisualMediaDimensions object from database. See inner exception for details.", ex);
+      }
+    }
+
+    public List<VisualMediaDimensions> LoadMany(ISqlConnectionInfo connection, SqlQueryParameters parameters)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (parameters == null)
+        throw new ArgumentNullException("parameters");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "SELECT {0} " + 
+							VisualMediaDimensionsTable.GetColumnNames("[vmd]") + 
+							(this.Depth > 0 ? "," + InstanceTable.GetColumnNames("[vmd_i]") : string.Empty) +  
+					" FROM [core].[VisualMediaDimensions] AS [vmd] ";
+				if (this.Depth > 0)
+				  sqlCmdText += "INNER  JOIN [core].[Instance] AS [vmd_i] ON [vmd].[InstanceID] = [vmd_i].[InstanceID] ";
+				
+
+        sqlCmdText = parameters.BuildQuery(sqlCmdText);       
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        foreach (KeyValuePair<string, object> argument in parameters.Arguments)
+          sqlCmd.Parameters.AddWithValue("@" + argument.Key, argument.Value);
+
+        SqlDataReader sqlReader = database.Add(sqlCmd) as SqlDataReader;
+
+        if (!sqlReader.HasRows || !sqlReader.Read())
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vmd", "customloadmany", "notfound"), "VisualMediaDimensions list could not be loaded using custom logic as no items were found.", sqlCmdText, this, connection, parameters);
+          if (this.Logger.IsDebugEnabled)
+            this.Logger.Debug(builder.ToString());
+          sqlReader.Close();
+          return new List<VisualMediaDimensions>();
+        }
+
+        SqlQuery query = new SqlQuery(sqlReader);
+
+				VisualMediaDimensionsTable vmdTable = new VisualMediaDimensionsTable(query);
+				InstanceTable vmd_iTable = (this.Depth > 0) ? new InstanceTable(query) : null;
+
+        List<VisualMediaDimensions> result = new List<VisualMediaDimensions>();
+        do
+        {
+          
+					Instance vmd_iObject = (this.Depth > 0) ? vmd_iTable.CreateInstance() : null;
+					VisualMediaDimensions vmdObject = (this.Depth > -1) ? vmdTable.CreateInstance(vmd_iObject) : null;
+					result.Add(vmdObject);
+
+        } while (sqlReader.Read());
+        sqlReader.Close();
+
+        return result;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vmd", "customloadmany", "exception"), "VisualMediaDimensions list could not be loaded using custom logic. See exception for details.", sqlCmdText, ex, this, connection, parameters);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Load, "VisualMediaDimensions", "Exception while loading (custom/many) VisualMediaDimensions object from database. See inner exception for details.", ex);
+      }
+    }
+    
+    public override int? Insert(ISqlConnectionInfo connection, VisualMediaDimensions data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText = "INSERT INTO [core].[VisualMediaDimensions] ([InstanceID],[Width],[Height],[Description]) VALUES(@InstanceID,@Width,@Height,@Description); SELECT SCOPE_IDENTITY();";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@InstanceID", data.Instance.ID);
+				sqlCmd.Parameters.AddWithValue("@Width", data.Width).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Height", data.Height).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NText;
+				
+        object idObj = sqlCmd.ExecuteScalar();
+        if (idObj == null || DBNull.Value.Equals(idObj))
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vmd", "insert", "noprimarykey"), "VisualMediaDimensions could not be inserted or inserted primary key was not returned. Are you missing SELECT SCOPE_IDENTITY();?", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Insert, "VisualMediaDimensions", "Exception while inserting VisualMediaDimensions object in database.");
+        }
+        return (int)((decimal)idObj);
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vmd", "insert", "exception"), "VisualMediaDimensions could not be inserted. See exception for details.", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Insert, "VisualMediaDimensions", "Exception while inserting VisualMediaDimensions object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Update(ISqlConnectionInfo connection, VisualMediaDimensions data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        data.Updated = DateTime.Now;
+        sqlCmdText = "UPDATE [core].[VisualMediaDimensions] SET " +
+												"[InstanceID] = @InstanceID, " + 
+												"[Width] = @Width, " + 
+												"[Height] = @Height, " + 
+												"[Description] = @Description, " + 
+												"[Updated] = GETDATE() " + 
+											"WHERE [VisualMediaDimensionsID] = @VisualMediaDimensionsID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+		
+				sqlCmd.Parameters.AddWithValue("@InstanceID", data.Instance.ID);
+				sqlCmd.Parameters.AddWithValue("@Width", data.Width).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Height", data.Height).SqlDbType = SqlDbType.Int;
+				sqlCmd.Parameters.AddWithValue("@Description", !string.IsNullOrEmpty(data.Description) ? (object)data.Description : DBNull.Value).SqlDbType = SqlDbType.NText;
+				sqlCmd.Parameters.AddWithValue("@Updated", data.Updated).SqlDbType = SqlDbType.DateTime2;
+				sqlCmd.Parameters.AddWithValue("@VisualMediaDimensionsID", data.ID);
+
+        int rowCount = sqlCmd.ExecuteNonQuery();
+        if (rowCount < 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vmd", "update", "norecord"), "VisualMediaDimensions could not be updated as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "VisualMediaDimensions", "Exception while updating VisualMediaDimensions object in database. No record found for this id.");
+        }
+        else if (rowCount > 1)
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vmd", "update", "morerecords"), "VisualMediaDimensions was updated but there was more than one record affected.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsFatalEnabled)
+            this.Logger.Fatal(builder.ToString());
+          throw new DataOperationException(DataOperation.Update, "VisualMediaDimensions", "Exception while updating VisualMediaDimensions object in database. More than one record found for this statement (update statement where clause broken?!).");
+        }
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vmd", "update", "exception"), "VisualMediaDimensions could not be updated. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Update, "VisualMediaDimensions", "Exception while updating VisualMediaDimensions object in database. See inner exception for details.", ex);
+      }
+    }
+
+    public override bool Delete(ISqlConnectionInfo connection, VisualMediaDimensions data)
+    {
+      IDatabase database = connection.Database;
+      if (database == null)
+        throw new ArgumentNullException("database", "Error initializing database connection.");
+      if (data == null)
+        throw new ArgumentNullException("data");
+      string sqlCmdText = string.Empty;
+      try
+      {
+        sqlCmdText =  "DELETE FROM [core].[VisualMediaDimensions] WHERE VisualMediaDimensionsID = @VisualMediaDimensionsID;";
+        SqlCommand sqlCmd = database.Add(sqlCmdText) as SqlCommand;
+        sqlCmd.Parameters.AddWithValue("@VisualMediaDimensionsID", data.ID);
+
+        int success = sqlCmd.ExecuteNonQuery();
+
+        if (success == -1)        
+        {
+          IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vmd", "delete", "norecord"), "VisualMediaDimensions could not be deleted as no matching record was found.", sqlCmdText, this, connection, data);
+          if (this.Logger.IsErrorEnabled)
+            this.Logger.Error(builder.ToString());
+          throw new DataOperationException(DataOperation.Delete, "VisualMediaDimensions", "Exception while deleting VisualMediaDimensions object from database. No such record found.");
+        }
+        
+        return true;
+      }
+      catch (Exception ex)
+      {
+        database.HandleException(ex);
+        IMessageBuilder builder = new DbLogMessageBuilder(new LogErrorCode("vmd", "delete", "exception"), "VisualMediaDimensions could not be deleted. See exception for details", sqlCmdText, ex, this, connection, data);
+        if (this.Logger.IsErrorEnabled)
+          this.Logger.Error(builder.ToString(), ex);
+        throw new DataOperationException(DataOperation.Delete, "VisualMediaDimensions", "Exception while deleting VisualMediaDimensions object from database. See inner exception for details.", ex);
+      }
+    }
+  }
+}
+

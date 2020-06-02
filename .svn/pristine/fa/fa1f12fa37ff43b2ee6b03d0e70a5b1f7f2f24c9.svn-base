@@ -1,0 +1,82 @@
+﻿using MobilePaywall.Data;
+using MobilePaywall.MobilePaywallDirectWebCore;
+using MobilePaywall.MobilePaywallDirect;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace MobilePaywall.Web.Models
+{
+  public class WelcomeViewModel : PaywallViewModelBase
+  {
+		private IContent _content = null;
+    private Payment _payment = null;
+    public string SubscriptionGuid { get {
+        string guid;
+        int id = Session.ID;
+				PaywallDirect md = new PaywallDirect();
+        guid = md.LoadString(string.Format(@"
+               SELECT p.ExternalPaymentGuid FROM MobilePaywall.core.OLCache ol 
+               JOIN MobilePaywall.core.Payment p ON ol.PaymentID = p.PaymentID
+               WHERE ol.UserSessionID = {0}", id));
+        return guid;
+      } }
+
+    public IContent Content { get { return this._content; } }
+    public Payment Payment { get { return this._payment; } }
+
+    public WelcomeViewModel(PaywallHttpContext paywallContext, IContent content, Payment payment)
+      : base(paywallContext)
+    {
+      this._content = content;
+      this._payment = payment;
+
+      #region # PT (use last requested content, not the one provided) #
+
+      if (PaywallHttpContext.Current.Service.ServiceData.FallbackCountry.TwoLetterIsoCode.Equals("PT"))
+        this.LoadExtactContent(paywallContext);
+
+      #endregion
+
+    }
+
+    public WelcomeViewModel(PaywallHttpContext context)
+      :base(context)
+    {
+
+    }
+
+    // SUMMARY: 
+    //          When customer clicks on Content1, and goes to payment page
+    //          And then he clicks back on payment page and returns to home
+    //          And then he clicks on Content2, 
+    //          Problem is, we will show him Content1
+    //          But we should show him Content2 insted
+    private void LoadExtactContent(PaywallHttpContext paywallContext)
+    {
+      List<int> contents = PaywallDirect.Instance.LoadArrayInt(string.Format(@"
+          SELECT ContentiD FROM MobilePaywall.core.UserHttpRequest 
+          WHERE ContentID IS NOT NULL AND UserSessionID={0} ORDER BY UserHttpRequestID DESC", paywallContext.Session.SessionData.ID));
+
+      if (contents == null || contents.Count == 0)
+        return;
+
+      // First content user had interacted with
+      int originalFirstCotnent = contents.LastOrDefault();
+
+      // Here we will find last content user had interacted with, but we will skip all those contents that have same id as orginal
+      foreach(int contentID in contents)
+        if(contentID != originalFirstCotnent)
+        {
+          MobilePaywall.Data.Content c = MobilePaywall.Data.Content.CreateManager().Load(contentID);
+          if (c != null)
+            this._content = c.Instantiate();
+
+          break;
+        }
+    }
+
+  }
+}

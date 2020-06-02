@@ -1,0 +1,66 @@
+﻿using MobilePaywall.Web.Filters;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.Mvc;
+
+namespace MobilePaywall.Web.Controllers
+{
+  public partial class TemplateController : PaywallTemplateController
+  {
+    [TemplateAttribute(AdministratorAccess = true)]
+    public JsonResult ApiTemplateCopyServiceConfigurationChangeCountry(string countryID)
+    {
+      Data.Country country = Data.Country.CreateManager().Load(int.Parse(countryID));
+      List<Data.Service> services = Data.Service.CreateManager().Load(country);
+      List<Tuple<int, string>> list = new List<Tuple<int, string>>();
+      foreach (var t in services)
+        list.Add(new Tuple<int, string>(t.ID, t.Name));
+      
+      return Json(list, JsonRequestBehavior.AllowGet);
+    }
+
+    [TemplateAttribute(AdministratorAccess = true)]
+    public ActionResult ApiTemplateCopyServiceConfiguration(string serviceID)
+    {
+      int _service = -1;
+      if (!Int32.TryParse(serviceID, out _service))
+        return this.Json(new { status = false, message = "Could not parse ServiceID : " + serviceID});
+
+      Data.Service service = Data.Service.CreateManager().Load(_service); // informacije ovog servisa iskopirati na trenutnu lokalnu aplikaciju
+      Data.Service thisService = Data.Service.CreateManager().Load(PaywallHttpContext.Current.Service.ServiceData.ID);
+      if (!thisService.Name.Contains("mobilepaywall.local"))
+        return this.Json(new { status = false, message = "This service is not local but: " + thisService.Name});
+
+
+      thisService.ServiceType = service.ServiceType;
+      thisService.ServiceStatus = service.ServiceStatus;
+      thisService.UserSessionType = service.UserSessionType;
+      thisService.Product = service.Product;
+      thisService.FallbackCountry = service.FallbackCountry;
+      thisService.FallbackLanguage = service.FallbackLanguage;
+      thisService.FallbackAgeRatingSelectionMode = service.FallbackAgeRatingSelectionMode;
+      thisService.ServiceConfiguration = service.ServiceConfiguration;
+      thisService.BusinessModel = service.BusinessModel;
+      thisService.Template = service.Template;
+      thisService.ServiceConfiguration = service.ServiceConfiguration;
+
+      thisService.Update();
+
+      Data.PaymentConfiguration pc = Data.PaymentConfiguration.CreateManager().Load(PaywallHttpContext.Current.Service.DefaultServiceOffer.PaymentConfiguration.ID);
+      Data.ServiceOffer so = (from s in Data.ServiceOffer.CreateManager().Load(service) where s.IsDefault == true && s.IsActive == true select s).FirstOrDefault(); //SO from service which we copy
+
+      Data.ServiceOffer thisServiceOffer = (from s in Data.ServiceOffer.CreateManager().Load(thisService) where s.IsDefault == true && s.IsActive == true select s).FirstOrDefault(); // Our current SO
+      thisServiceOffer.BusinessModelEntry = so.BusinessModelEntry;
+      thisServiceOffer.PaymentConfiguration = so.PaymentConfiguration;
+      thisServiceOffer.ContentAccessPolicy = so.ContentAccessPolicy;
+      thisServiceOffer.IsDefault = so.IsDefault;
+      thisServiceOffer.IsActive = so.IsActive;
+      thisServiceOffer.Update();
+      
+      return this.Json(new { status = true, message = "Successfully edited! Now :" +thisServiceOffer.ID });
+    }
+
+  }
+}

@@ -1,0 +1,42 @@
+using System;
+using System.Data.SqlClient;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+using Senti;
+using Senti.Data;
+using Senti.Data.Sql;
+
+
+
+namespace MobilePaywall.Data.Sql
+{
+  public partial class PaymentResultManager : IPaymentResultManager
+  {
+    
+    public PaymentResult Load(PaymentRequest paymentRequest)
+    {
+      using (SqlConnectionInfo connection = new SqlConnectionInfo(this.Type))
+        return this.Load(connection, paymentRequest);
+    }
+
+    public PaymentResult Load(IConnectionInfo connection, PaymentRequest paymentRequest)
+    {
+      ISqlConnectionInfo sqlConnection = connection as ISqlConnectionInfo;
+      if (sqlConnection != null)
+        return this.Load(sqlConnection, paymentRequest);
+      using (sqlConnection = new SqlConnectionInfo(connection, this.Type))
+        return this.Load(sqlConnection, paymentRequest);
+    }
+
+    public PaymentResult Load(ISqlConnectionInfo connection, PaymentRequest paymentRequest)
+    {
+      SqlQueryParameters parameters = new SqlQueryParameters();
+      parameters.Where = "[pr].PaymentRequestID = @PaymentRequestID";
+      parameters.Arguments.Add("PaymentRequestID", paymentRequest.ID);
+      return this.Load(connection, parameters);
+    }
+  }
+}
+
